@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.starfall.invalid/contracts/messages/PING_REPLY.schema.json",
+  "title": "PingReplyMessage",
+  "description": "Server answer to PING_SERVER. Echoes command_id and probe_seq; the envelope tick tells the client which server tick handled the probe. Carries no client-supplied time.",
+  "allOf": [
+    {
+      "$ref": "../common/message-envelope.schema.json"
+    }
+  ],
+  "properties": {
+    "message_type": {
+      "const": "PING_REPLY"
+    },
+    "schema_version": {
+      "const": 1
+    },
+    "payload": {
+      "$ref": "#/$defs/PingReplyPayload"
+    }
+  },
+  "unevaluatedProperties": false,
+  "$defs": {
+    "PingReplyPayload": {
+      "title": "PingReplyPayload",
+      "type": "object",
+      "required": [
+        "command_id",
+        "probe_seq"
+      ],
+      "properties": {
+        "command_id": {
+          "description": "command_id of the PING_SERVER being answered.",
+          "$ref": "../common/primitives.schema.json#/$defs/UuidV7"
+        },
+        "probe_seq": {
+          "description": "probe_seq copied from the PING_SERVER payload.",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

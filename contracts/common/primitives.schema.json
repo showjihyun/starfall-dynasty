@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.starfall.invalid/contracts/common/primitives.schema.json",
+  "title": "Primitives",
+  "description": "Shared value definitions for every STARFALL contract. Reference them with $ref; do not copy patterns into type schemas. Rules: docs/adr/0002-contract-format-and-codegen.md",
+  "$defs": {
+    "Uuid": {
+      "description": "Canonical lowercase hyphenated UUID of any version. Use only where the producer cannot guarantee v7.",
+      "type": "string",
+      "format": "uuid",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "UuidV7": {
+      "description": "Canonical lowercase hyphenated UUID version 7 (RFC 9562). Default identifier format for entities, events, commands and messages. Consumers must not derive game facts from the embedded timestamp.",
+      "type": "string",
+      "format": "uuid",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "TypeName": {
+      "description": "Registry type name in SCREAMING_SNAKE_CASE.",
+      "type": "string",
+      "pattern": "^[A-Z][A-Z0-9]*(_[A-Z0-9]+)*$"
+    },
+    "SchemaVersion": {
+      "description": "Payload schema version of a registry type. Starts at 1. 매핑은 declared minimum/maximum으로 결정한다.",
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 2147483647
+    },
+    "SafeInteger": {
+      "description": "Signed integer limited to the IEEE-754 safe range (+/- 2^53-1) so every JSON consumer represents it exactly. Integer language mapping is decided by the declared minimum/maximum, never by a format annotation.",
+      "type": "integer",
+      "minimum": -9007199254740991,
+      "maximum": 9007199254740991
+    },
+    "NonNegativeSafeInteger": {
+      "description": "Unsigned integer limited to 0..2^53-1. Mapped to the narrowest language type that holds the declared range.",
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991
+    },
+    "Tick": {
+      "description": "Simulation tick number. The canonical game-time axis: ordering and determinism use tick (+ sequence), never wall-clock time.",
+      "$ref": "#/$defs/NonNegativeSafeInteger"
+    },
+    "Sequence": {
+      "description": "Deterministic order of events within one tick, starting at 0.",
+      "$ref": "#/$defs/NonNegativeSafeInteger"
+    },
+    "MoneyMinor": {
+      "description": "Amount of money in integer minor units. Floating-point money is forbidden. The currency and its minor-unit scale are defined by the field or data table that uses it.",
+      "$ref": "#/$defs/SafeInteger"
+    },
+    "GameTime": {
+      "description": "Game-calendar timestamp derived deterministically from tick (e.g. 3827-04-13T18:32:11Z). Display and history text only: it is NOT real time and must never be parsed as a real DateTime or used for ordering.",
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"
+    },
+    "RealTime": {
+      "description": "Real wall-clock UTC timestamp, RFC 3339 profile with mandatory Z and optional 1-9 fractional digits. Audit and diagnostics only; never used for game rules.",
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{1,9})?Z$"
+    }
+  }
+}

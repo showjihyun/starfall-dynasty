@@ -1,0 +1,26 @@
+{
+  "env": {
+    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
+  },
+  "permissions": {
+    "allow": [
+      "Bash(cargo check:*)",
+      "Bash(cargo build:*)",
+      "Bash(cargo test:*)",
+      "Bash(cargo clippy:*)",
+      "Bash(cargo fmt:*)",
+      "Bash(cargo sqlx prepare:*)",
+      "Bash(unity status:*)",
+      "Bash(unity test:*)",
+      "Bash(python .claude/skills/integration-qa/scripts/:*)",
+      "Bash(docker compose ps:*)",
+      "Bash(docker compose logs:*)"
+    ]
+  },
+  "enabledPlugins": {
+    "unity@claude-plugins-official": true,
+    "context7@claude-plugins-official": true,
+    "rust-analyzer-lsp@claude-plugins-official": true,
+    "csharp-lsp@claude-plugins-official": true
+  }
+}

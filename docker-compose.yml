@@ -1,0 +1,62 @@
+# STARFALL DYNASTY — 로컬 개발 인프라 (ADR-0003 §3)
+#
+# 여기에는 PostgreSQL 과 Redis만 둔다. 게임 서버는 `cd server && cargo run -p starfall-game-server`
+# 로 네이티브 실행한다. Windows 에서 Rust 컨테이너 재빌드 반복은 개발 반복을 망치고,
+# 디버거·프로파일러 접근도 네이티브가 낫다. 서버 컨테이너화는 배포 슬라이스에서.
+#
+# 실행 (레포 루트에서):
+#   cp .env.example .env     # 선택 — 아래 기본값이 .env 없이도 동작한다
+#   docker compose up -d
+#   docker compose ps        # 둘 다 (healthy) 가 되어야 한다
+#
+# ⚠ 이 PC 에는 다른 프로젝트 컨테이너가 함께 돌고 있다.
+#   `docker system prune`, `docker volume prune`, 프로젝트 밖 `down -v` 를 쓰지 않는다.
+#   최상위 `name: starfall` 덕분에 `docker compose …` 는 이 프로젝트에만 작용한다.
+#
+# `version:` 키는 쓰지 않는다 — Compose v2 에서 폐기됐다.
+
+name: starfall
+
+services:
+  postgres:
+    image: postgres:18.6-trixie
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-starfall}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-starfall_dev_only}
+      POSTGRES_DB: ${POSTGRES_DB:-starfall}
+    ports:
+      # 이 PC 의 네이티브 postgresql-x64-16 이 5432 를 점유하고 있다.
+      # 127.0.0.1 로만 바인딩한다 — LAN 노출 금지.
+      - "127.0.0.1:${STARFALL_PG_HOST_PORT:-15432}:5432"
+    volumes:
+      # ⚠ PostgreSQL 18 함정 (실측으로 확인, 2026-09-18):
+      #     PGDATA          = /var/lib/postgresql/18/docker
+      #     이미지의 VOLUME = /var/lib/postgresql
+      #   예전처럼 /var/lib/postgresql/data 에 마운트하면 데이터가 명명 볼륨 밖에 쓰이고,
+      #   익명 볼륨이 생긴다. 반드시 /var/lib/postgresql 에 마운트한다.
+      - postgres-data:/var/lib/postgresql
+    healthcheck:
+      test:
+        ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-starfall} -d ${POSTGRES_DB:-starfall}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  redis:
+    image: redis:8.10.1-trixie
+    # 영속화를 끈다. Redis 는 진실의 원천이 아니라는 원칙(CLAUDE.md 3)을 환경으로 강제한다.
+    # Redis 를 통째로 날려도 PostgreSQL 로 전부 복구되어야 한다 (I-7).
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    ports:
+      - "127.0.0.1:${STARFALL_REDIS_HOST_PORT:-16379}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+volumes:
+  # 실제 볼륨 이름은 `starfall_postgres-data` 가 된다(프로젝트 이름 접두사).
+  # 64자 해시 이름의 익명 볼륨이 생기면 위의 마운트 경로가 잘못됐다는 신호다.
+  postgres-data:

@@ -1,0 +1,26 @@
+[package]
+name = "starfall-game-server"
+description = "STARFALL 게임 서버 조립 바이너리 — 설정 로드, tracing 초기화, 런타임 기동."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+# 바이너리 이름을 명시적으로 고정한다. 프로세스 이름이 관측·QA 증거에 쓰인다
+# (스프린트 계약 SC-06/SC-07 의 `Get-Process starfall-game-server`).
+[[bin]]
+name = "starfall-game-server"
+path = "src/main.rs"
+
+[dependencies]
+starfall-gateway.workspace = true
+
+axum.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true

@@ -1,0 +1,9 @@
+{
+  "command_id": "a013f529-f8a4-4c84-be34-a740670f9fb8",
+  "command_type": "PING_SERVER",
+  "schema_version": 1,
+  "client_sent_at": null,
+  "payload": {
+    "probe_seq": 1
+  }
+}

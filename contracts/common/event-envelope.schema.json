@@ -1,0 +1,88 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.starfall.invalid/contracts/common/event-envelope.schema.json",
+  "title": "EventEnvelope",
+  "description": "Envelope of every domain event (planning doc HSE section 101). Historical events add rule_version, source_event_ids and importance_level in a separate envelope defined by the history slice. Type schemas compose this with allOf and close the object with unevaluatedProperties:false.",
+  "type": "object",
+  "required": [
+    "event_id",
+    "event_type",
+    "schema_version",
+    "world_id",
+    "tick",
+    "sequence",
+    "occurred_at",
+    "recorded_at",
+    "correlation_id",
+    "causation_id",
+    "actor_id",
+    "payload"
+  ],
+  "properties": {
+    "event_id": {
+      "description": "Unique event id (UUIDv7). Storage and delivery idempotency key. Replay and determinism checks compare (world_id, tick, sequence) and content, not event_id.",
+      "$ref": "primitives.schema.json#/$defs/UuidV7"
+    },
+    "event_type": {
+      "$ref": "primitives.schema.json#/$defs/TypeName"
+    },
+    "schema_version": {
+      "$ref": "primitives.schema.json#/$defs/SchemaVersion"
+    },
+    "world_id": {
+      "description": "World (shard) id.",
+      "$ref": "primitives.schema.json#/$defs/UuidV7"
+    },
+    "tick": {
+      "$ref": "primitives.schema.json#/$defs/Tick"
+    },
+    "sequence": {
+      "$ref": "primitives.schema.json#/$defs/Sequence"
+    },
+    "occurred_at": {
+      "description": "Game-calendar time derived from tick.",
+      "$ref": "primitives.schema.json#/$defs/GameTime"
+    },
+    "recorded_at": {
+      "description": "Real time the server recorded the event. Audit only.",
+      "$ref": "primitives.schema.json#/$defs/RealTime"
+    },
+    "correlation_id": {
+      "description": "Groups all events of one gameplay transaction (e.g. one trade). Never null: system processes get their own correlation id.",
+      "$ref": "primitives.schema.json#/$defs/UuidV7"
+    },
+    "causation_id": {
+      "description": "Id of the event or command that directly caused this event, or null.",
+      "anyOf": [
+        { "$ref": "primitives.schema.json#/$defs/UuidV7" },
+        { "type": "null" }
+      ]
+    },
+    "actor_id": {
+      "description": "Acting entity id decided by the server, or null for system events.",
+      "anyOf": [
+        { "$ref": "primitives.schema.json#/$defs/UuidV7" },
+        { "type": "null" }
+      ]
+    },
+    "payload": {
+      "type": "object"
+    }
+  },
+  "examples": [
+    {
+      "event_id": "01a0afaf-8207-7566-ba03-d9054f3c0313",
+      "event_type": "EXAMPLE_EVENT",
+      "schema_version": 1,
+      "world_id": "01a0afaf-7f7e-7d95-8977-46c6b8892826",
+      "tick": 18273391,
+      "sequence": 0,
+      "occurred_at": "3827-04-13T18:32:11Z",
+      "recorded_at": "2026-09-17T14:05:10.023Z",
+      "correlation_id": "01a0afaf-7e83-7f49-adfa-58ba04c2fd5a",
+      "causation_id": "01a0afaf-7e83-7f49-adfa-58ba04c2fd5a",
+      "actor_id": null,
+      "payload": {}
+    }
+  ]
+}

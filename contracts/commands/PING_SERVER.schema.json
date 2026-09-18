@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.starfall.invalid/contracts/commands/PING_SERVER.schema.json",
+  "title": "PingServerCommand",
+  "description": "Connection and command-path probe. The client sends it; the server answers with PING_REPLY carrying the same command_id and probe_seq. It changes no game state. p0-01 proves the contract pipeline with it; the p0-02 WebSocket spike uses it to measure the command round trip.",
+  "allOf": [
+    {
+      "$ref": "../common/command-envelope.schema.json"
+    }
+  ],
+  "properties": {
+    "command_type": {
+      "const": "PING_SERVER"
+    },
+    "schema_version": {
+      "const": 1
+    },
+    "payload": {
+      "$ref": "#/$defs/PingServerPayload"
+    }
+  },
+  "unevaluatedProperties": false,
+  "$defs": {
+    "PingServerPayload": {
+      "title": "PingServerPayload",
+      "type": "object",
+      "required": [
+        "probe_seq"
+      ],
+      "properties": {
+        "probe_seq": {
+          "description": "Client-chosen probe counter (u32) used to match the reply and compute round-trip time on the client clock.",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

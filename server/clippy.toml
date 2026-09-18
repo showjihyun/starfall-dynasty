@@ -1,0 +1,12 @@
+# 테스트에서만 unwrap/expect/panic 을 허용한다 (T1 지시).
+#
+# 근거: workspace 린트로 clippy::unwrap_used / expect_used / panic 을 켜면
+# 요청 처리 경로뿐 아니라 테스트 코드까지 걸린다. 테스트에서 Result 를 일일이 풀면
+# 실패 지점이 오히려 흐려진다. 그래서 "요청 처리 경로에서 금지"라는 규칙은 유지하고,
+# 테스트에 한해 clippy 자체 설정으로 예외를 둔다.
+#
+# 이 예외는 #[test] 함수와 #[cfg(test)] 안에서만 적용된다. 운영 코드에는 영향이 없다.
+# 조정 사실은 _workspace/p0-01-bootstrap/03_server_impl.md 에 기록했다.
+allow-unwrap-in-tests = true
+allow-expect-in-tests = true
+allow-panic-in-tests = true

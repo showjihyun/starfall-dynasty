@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Compiles the Starfall.Contracts assembly (generated DTOs + hand-written helpers) outside
+    Unity, against the same profile Unity 6 uses: netstandard2.1 and C# 9.0.
+
+    Why: a compile error in Generated/ puts the Editor into Safe Mode, and in Safe Mode the
+    Unity CLI cannot connect at all - so the cheapest place to find such an error is here,
+    before the project is ever imported. Warnings are errors so that "zero new warnings"
+    (AC-8) is proven before Unity sees the files.
+
+    This is a development harness, not a build output: nothing consumes the produced dll.
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <LangVersion>9.0</LangVersion>
+    <Nullable>disable</Nullable>
+    <AssemblyName>Starfall.Contracts</AssemblyName>
+    <RootNamespace>Starfall.Contracts</RootNamespace>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="$(MSBuildThisFileDirectory)../../../client/Assets/_Project/Scripts/Contracts/**/*.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Same Newtonsoft the Unity package com.unity.nuget.newtonsoft-json 3.2.2 is synced to. -->
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.2" />
+  </ItemGroup>
+
+</Project>

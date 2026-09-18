@@ -1,0 +1,90 @@
+# STARFALL DYNASTY — line endings, Unity merge, Git LFS
+# Owner: architect (ADR-0001 §4, ADR-0004).
+# 이 PC의 git은 core.autocrlf=true다. 아래 eol=lf가 없으면 체크아웃에서 CRLF로 바뀌어
+# `codegen --check`(I-2)와 계약 fixture 바이트 비교가 클론한 모든 사람에게서 실패한다.
+
+* text=auto eol=lf
+
+# ---------- 소스·계약 (항상 LF) ----------
+*.cs      text eol=lf
+*.json    text eol=lf
+*.rs      text eol=lf
+*.toml    text eol=lf
+*.md      text eol=lf
+*.yml     text eol=lf
+*.yaml    text eol=lf
+*.sql     text eol=lf
+*.py      text eol=lf
+*.sh      text eol=lf
+*.asmdef  text eol=lf
+*.asmref  text eol=lf
+*.uxml    text eol=lf
+*.uss     text eol=lf
+*.shader        text eol=lf
+*.hlsl          text eol=lf
+*.shadergraph   text eol=lf
+.gitattributes  text eol=lf
+.gitignore      text eol=lf
+.editorconfig   text eol=lf
+
+# Windows 전용 스크립트는 CRLF
+*.ps1 text eol=crlf
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# ---------- Unity YAML ----------
+# .meta는 반드시 추적한다(GUID). 씬·프리팹은 Force Text 전제.
+*.meta      text eol=lf
+*.unity     text eol=lf merge=unityyamlmerge
+*.prefab    text eol=lf merge=unityyamlmerge
+*.asset     text eol=lf merge=unityyamlmerge
+*.mat       text eol=lf merge=unityyamlmerge
+*.controller text eol=lf merge=unityyamlmerge
+*.anim      text eol=lf merge=unityyamlmerge
+*.physicMaterial text eol=lf merge=unityyamlmerge
+*.lighting  text eol=lf merge=unityyamlmerge
+*.playable  text eol=lf merge=unityyamlmerge
+*.terrainlayer text eol=lf merge=unityyamlmerge
+
+# ---------- Git LFS (ADR-0004) ----------
+# 3D·텍스처·오디오·비디오·폰트·네이티브 바이너리. 텍스트 변환 금지(-text).
+*.fbx  filter=lfs diff=lfs merge=lfs -text
+*.blend filter=lfs diff=lfs merge=lfs -text
+*.obj  filter=lfs diff=lfs merge=lfs -text
+*.dae  filter=lfs diff=lfs merge=lfs -text
+*.3ds  filter=lfs diff=lfs merge=lfs -text
+*.glb  filter=lfs diff=lfs merge=lfs -text
+*.gltf filter=lfs diff=lfs merge=lfs -text
+*.psd  filter=lfs diff=lfs merge=lfs -text
+*.psb  filter=lfs diff=lfs merge=lfs -text
+*.png  filter=lfs diff=lfs merge=lfs -text
+*.jpg  filter=lfs diff=lfs merge=lfs -text
+*.jpeg filter=lfs diff=lfs merge=lfs -text
+*.tga  filter=lfs diff=lfs merge=lfs -text
+*.tif  filter=lfs diff=lfs merge=lfs -text
+*.tiff filter=lfs diff=lfs merge=lfs -text
+*.exr  filter=lfs diff=lfs merge=lfs -text
+*.hdr  filter=lfs diff=lfs merge=lfs -text
+*.bmp  filter=lfs diff=lfs merge=lfs -text
+*.gif  filter=lfs diff=lfs merge=lfs -text
+*.wav  filter=lfs diff=lfs merge=lfs -text
+*.mp3  filter=lfs diff=lfs merge=lfs -text
+*.ogg  filter=lfs diff=lfs merge=lfs -text
+*.aif  filter=lfs diff=lfs merge=lfs -text
+*.aiff filter=lfs diff=lfs merge=lfs -text
+*.mp4  filter=lfs diff=lfs merge=lfs -text
+*.mov  filter=lfs diff=lfs merge=lfs -text
+*.webm filter=lfs diff=lfs merge=lfs -text
+*.ttf  filter=lfs diff=lfs merge=lfs -text
+*.otf  filter=lfs diff=lfs merge=lfs -text
+*.dll  filter=lfs diff=lfs merge=lfs -text
+*.so   filter=lfs diff=lfs merge=lfs -text
+*.dylib filter=lfs diff=lfs merge=lfs -text
+*.bundle filter=lfs diff=lfs merge=lfs -text
+*.a    filter=lfs diff=lfs merge=lfs -text
+*.unitypackage filter=lfs diff=lfs merge=lfs -text
+*.cubemap filter=lfs diff=lfs merge=lfs -text
+
+# 주의: LFS 패턴에 걸리는 파일을 커밋하기 전에 `git lfs install`이 되어 있어야 한다.
+# 없이 커밋하면 실제 바이트가 그대로 들어가고, 나중에 LFS로 옮기려면 히스토리 재작성이 필요하다.
+# unityyamlmerge는 로컬 설정이 필요하다(ADR-0004 참조). 설정하지 않으면 일반 3-way 병합으로 처리된다.

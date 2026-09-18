@@ -1,0 +1,60 @@
+[workspace]
+resolver = "3"
+members = ["crates/contracts", "crates/gateway", "bins/game-server"]
+
+# 이번 슬라이스에서 만드는 크레이트는 세 개뿐이다 (ADR-0001 §2 변경 2).
+# domain / sim / persistence / history 는 이름·위치만 ADR에 고정해 두고,
+# 처음 쓰는 슬라이스에서 만든다. 빈 크레이트는 링크 시간만 쓰고 아무 것도 증명하지 않는다.
+#
+# 의존 방향 (ADR-0001 §2): domain <- sim <- gateway/persistence, contracts 는 누구나,
+# history 는 domain 에만. starfall-gateway 에는 게임 규칙·월드 상태를 넣지 않는다.
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.98.1"
+license = "LicenseRef-Proprietary"
+publish = false
+
+[workspace.dependencies]
+# 공통 의존성 버전은 여기 한 곳에서만 고정한다.
+starfall-contracts = { path = "crates/contracts" }
+starfall-gateway = { path = "crates/gateway" }
+
+axum = { version = "0.8.9", default-features = false, features = ["http1", "json", "tokio"] }
+tokio = { version = "1.53.1", default-features = false, features = ["rt-multi-thread", "macros", "net", "signal", "time"] }
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.151"
+uuid = { version = "1.26.1", default-features = false, features = ["std", "v7", "serde"] }
+thiserror = "2.0.20"
+tracing = "0.1.41"
+tracing-subscriber = { version = "0.3.23", default-features = false, features = ["fmt", "env-filter", "json", "ansi"] }
+
+# 계약 검증기. default-features = false 인 이유(ADR-0002 §3):
+# resolve-http / resolve-file 리졸버 feature 를 명시적으로 켜지 않아, 미등록 $ref 가
+# 조용한 네트워크 접근이 아니라 "해석 실패"로 드러나게 한다. offline() 이 그 보장을 검증기 자체로 만든다.
+jsonschema = { version = "0.56.0", default-features = false }
+
+# /readyz 전용 (ADR-0003 §3.1). TLS feature 를 켜지 않는다 — 로컬은 평문이고,
+# rustls/ring 트리를 통째로 들이지 않아 빌드 시간을 아낀다. 원격 DB 가 생기면 TLS 추가 + ADR 갱신.
+sqlx = { version = "0.8.6", default-features = false, features = ["runtime-tokio", "postgres"] }
+redis = { version = "1.7.0", default-features = false, features = ["tokio-comp", "connection-manager"] }
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+missing_debug_implementations = "warn"
+unused_qualifications = "warn"
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }
+# 요청 처리 경로에서 unwrap/expect/panic 을 막는다 (rust-authoritative-server §8).
+# 테스트에서의 예외는 server/clippy.toml 의 allow-*-in-tests 로 처리한다.
+unwrap_used = "warn"
+expect_used = "warn"
+panic = "warn"
+todo = "warn"
+dbg_macro = "warn"
+
+[profile.dev]
+# Windows MSVC 에서 가장 느린 단계가 링크다. 디버그 정보를 줄여 개발 반복을 짧게 한다.
+debug = "line-tables-only"

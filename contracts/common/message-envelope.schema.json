@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.starfall.invalid/contracts/common/message-envelope.schema.json",
+  "title": "MessageEnvelope",
+  "description": "Server-to-client realtime message. Clients dispatch on message_type and must log-and-ignore unknown types. Type schemas compose this with allOf and close the object with unevaluatedProperties:false.",
+  "type": "object",
+  "required": ["message_id", "message_type", "schema_version", "tick", "correlation_id", "payload"],
+  "properties": {
+    "message_id": {
+      "description": "Server-generated UUIDv7 for tracing and log correlation.",
+      "$ref": "primitives.schema.json#/$defs/UuidV7"
+    },
+    "message_type": {
+      "$ref": "primitives.schema.json#/$defs/TypeName"
+    },
+    "schema_version": {
+      "$ref": "primitives.schema.json#/$defs/SchemaVersion"
+    },
+    "tick": {
+      "description": "Server simulation tick when the message was produced.",
+      "$ref": "primitives.schema.json#/$defs/Tick"
+    },
+    "correlation_id": {
+      "description": "Gameplay transaction this message belongs to, or null. Reply matching uses explicit payload fields (e.g. command_id), not this field.",
+      "anyOf": [
+        { "$ref": "primitives.schema.json#/$defs/UuidV7" },
+        { "type": "null" }
+      ]
+    },
+    "payload": {
+      "type": "object"
+    }
+  },
+  "examples": [
+    {
+      "message_id": "01a0afaf-8208-78ec-8b44-ab48edc4a6a7",
+      "message_type": "EXAMPLE_MESSAGE",
+      "schema_version": 1,
+      "tick": 18273391,
+      "correlation_id": null,
+      "payload": {}
+    }
+  ]
+}

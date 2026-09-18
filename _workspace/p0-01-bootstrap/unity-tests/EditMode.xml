@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites name="Starfall Dynasty" tests="18" failures="0" errors="0" skipped="0" time="0.176">
+  <testsuite name="Starfall.Tests.EditMode.ContractFixtureTests" tests="18" failures="0" errors="0" skipped="0" time="0.176">
+    <testcase name="Dispatch_PreservesRealTime" classname="Starfall.Tests.EditMode.ContractFixtureTests" time="0.094">
+      <system-out>via ContractDispatch.TryRead : 2026-09-17T14:05:09.123Z
+via default JObject.Parse   : 09/17/2026 14:05:09</system-out>
+    </testcase>
+    <testcase name="FixtureLoader_FailsWhenFewerThanFourValidFixtures" classname="Starfall.Tests.EditMode.ContractFixtureTests" time="0.004" />
+    <testcase name="FixtureLoader_FindsRepoRootByMarker" classname="Starfall.Tests.EditMode.ContractFixtureTests" time="0.002">
+      <system-out>repo root : C:\WorkSpace\SpaceHistoric
+marker    : contracts/registry/types.json
+  valid fixture: PING_REPLY/basic.json
+  valid fixture: PING_REPLY/with-correlation.json
+  valid fixture: PING_SERVER/basic.json
+  valid fixture: PING_SERVER/null-client-time-max-seq.json
+valid fixtures counted: 4</system-out>
+    </testcase>
+    <testcase name="Fixtures_RoundTrip_MatchesOriginal(PING_REPLY/basic.json)" classname="Starfall.Tests.EditMode.ContractFixtureTests" time="0.019">
+      <system-out>PING_REPLY/basic.json -&gt; PingReplyMessage
+  re-serialized: {"correlation_id":null,"message_id":"01a0afaf-7f7d-7c16-b3d0-f1a4053c530b","message_type":"PING_REPLY","payload":{"command_id":"01a0afaf-7e83-7f49-adfa-58ba04c2fd5a","probe_seq":42},"schema_version":1,"tick":18273391}</system-out>
+    </testcase>
+    <testcase name="Fixtures_RoundTrip_MatchesOriginal(PING_REPLY/with-correlation.json)" classname="Starfall.Tests.EditMode.ContractFixtureTests" time="0.001">
+      <system-out>PING_REPLY/with-correlation.json -&gt; PingReplyMessage
+  re-serialized: {"correlation_id":"01a0afaf-8207-7566-ba03-d9054f3c0313","message_id":"01a0afaf-8208-78ec-8b44-ab48edc4a6a7","message_type":"PING_REPLY","payload":{"command_id":"01a0afaf-7e84-729e-9f17-464483f27a6d","probe_seq":4294967295},"schema_version":1,"tick":9007199254740991}</system-out>
+    </testcase>
+    <testcase name="Fixtures_RoundTrip_MatchesOriginal(PING_SERVER/basic.json)" classname="Starfall.Tests.EditMode.ContractFixtureTests" time="0.001">
+      <system-out>PING_SERVER/basic.json -&gt; PingServerCommand
+  re-serialized: {"client_sent_at":"2026-09-17T14:05:09.123Z","command_id":"01a0afaf-7e83-7f49-adfa-58ba04c2fd5a","command_type":"PING_SERVER","payload":{"probe_seq":42},"schema_version":1}</system-out>
+    </testcase>
+    <testcase name="Fixtures_RoundTrip_MatchesOriginal(PING_SERVER/null-client-time-max-seq.json)" classname="Starfall.Tests.EditMode.ContractFixtureTests" time="0.000">
+      <system-out>PING_SERVER/null-client-time-max-seq.json -&gt; PingServerCommand
+  re-serialized: {"client_sent_at":null,"command_id":"01a0afaf-7e84-729e-9f17-464483f27a6d","command_type":"PING_SERVER","payload":{"probe_seq":4294967295},"schema_version":1}</system-out>
+    </testcase>
+    <testcase name="Fixtures_RoundTrip_VisitedAllFourValidFixtures" classname="Starfall.Tests.EditMode.ContractFixtureTests" time="0.001">
+      <system-out>visited PING_REPLY/basic.json
+visited PING_REPLY/with-correlation.json
+visited PING_SERVER/basic.json
+visited PING_SERVER/null-client-time-max-seq.json</system-out>
+    </testcase>
+    <testcase name="Invalid_NotDetectableByCSharp_DocumentedAsymmetry(PING_SERVER/command-id-not-v7.json)" classname="Starfall.Tests.EditMode.ContractFixtureTests" time="0.001">
+      <system-out>PING_SERVER/command-id-not-v7.json was ACCEPTED by C# Strict, as documented in spec section 5.
+  Guid accepts any UUID version; long holds values above 2^53-1.
+  The schema validator and Rust serde reject it at the server boundary.</system-out>
+    </testcase>
+    <testcase name="Invalid_NotDetectableByCSharp_DocumentedAsymmetry(PING_REPLY/tick-above-safe-integer.json)" classname="Starfall.Tests.EditMode.ContractFixtureTests" time="0.000">
+      <system-out>PING_REPLY/tick-above-safe-integer.json was ACCEPTED by C# Strict, as documented in spec section 5.
+  Guid accepts any UUID version; long holds values above 2^53-1.
+  The schema validator and Rust serde reject it at the server boundary.</system-out>
+    </testcase>
+    <testcase name="Invalid_Rejected_ByStrictProfile(PING_SERVER/actor-field-injected.json)" classname="Starfall.Tests.EditMode.ContractFixtureTests" time="0.002">
+      <system-out>PING_SERVER/actor-field-injected.json rejected: Could not find member 'player_id' on object of type 'PingServerCommand'. Path 'player_id', line 6, position 14.</system-out>
+    </testcase>
+    <testcase name="Invalid_Rejected_ByStrictProfile(PING_SERVER/probe-seq-negative.json)" classname="Starfall.Tests.EditMode.ContractFixtureTests" time="0.001">
+      <system-out>PING_SERVER/probe-seq-negative.json rejected: Error converting value -1 to type 'System.UInt32'. Path 'payload.probe_seq', line 7, position 19.</system-out>
+    </testcase>
+    <testcase name="Invalid_Rejected_ByStrictProfile(PING_SERVER/probe-seq-above-u32.json)" classname="Starfall.Tests.EditMode.ContractFixtureTests" time="0.000">
+      <system-out>PING_SERVER/probe-seq-above-u32.json rejected: Error converting value 4294967296 to type 'System.UInt32'. Path 'payload.probe_seq', line 7, position 27.</system-out>
+    </testcase>
+    <testcase name="Invalid_Rejected_ByStrictProfile(PING_REPLY/missing-tick.json)" classname="Starfall.Tests.EditMode.ContractFixtureTests" time="0.000">
+      <system-out>PING_REPLY/missing-tick.json rejected: Required property 'tick' not found in JSON. Path '', line 10, position 1.</system-out>
+    </testcase>
+    <testcase name="Invalid_Rejected_ByStrictProfile(PING_REPLY/payload-unknown-field.json)" classname="Starfall.Tests.EditMode.ContractFixtureTests" time="0.000">
+      <system-out>PING_REPLY/payload-unknown-field.json rejected: Could not find member 'client_sent_at' on object of type 'PingReplyPayload'. Path 'payload.client_sent_at', line 10, position 21.</system-out>
+    </testcase>
+    <testcase name="Invalid_Rejected_VisitedAllFiveCSharpCases" classname="Starfall.Tests.EditMode.ContractFixtureTests" time="0.005">
+      <system-out>visited PING_SERVER/actor-field-injected.json
+visited PING_SERVER/probe-seq-negative.json
+visited PING_SERVER/probe-seq-above-u32.json
+visited PING_REPLY/missing-tick.json
+visited PING_REPLY/payload-unknown-field.json</system-out>
+    </testcase>
+    <testcase name="UuidV7_MatchesSchemaPattern" classname="Starfall.Tests.EditMode.ContractFixtureTests" time="0.006">
+      <system-out>pattern from contracts/common/primitives.schema.json: ^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+checked 1000 generated ids against the schema pattern</system-out>
+    </testcase>
+    <testcase name="UuidV7_NoDuplicatesWithinSameMillisecond" classname="Starfall.Tests.EditMode.ContractFixtureTests" time="0.038">
+      <system-out>generated 10000 ids inside millisecond 1789735553673 (shared timestamp prefix 01a0b48d-4a89), duplicates: 0
+Saving results to: C:/Users/CHOISOOYEON/AppData/LocalLow/Starfall/Starfall Dynasty\TestResults.xml</system-out>
+    </testcase>
+  </testsuite>
+</testsuites>

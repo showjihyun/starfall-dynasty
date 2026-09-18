@@ -1,0 +1,11 @@
+{
+  "message_id": "01a0afaf-8208-78ec-8b44-ab48edc4a6a7",
+  "message_type": "PING_REPLY",
+  "schema_version": 1,
+  "tick": 9007199254740991,
+  "correlation_id": "01a0afaf-8207-7566-ba03-d9054f3c0313",
+  "payload": {
+    "command_id": "01a0afaf-7e84-729e-9f17-464483f27a6d",
+    "probe_seq": 4294967295
+  }
+}

@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.starfall.invalid/contracts/registry/types.schema.json",
+  "title": "TypeRegistry",
+  "description": "Shape of contracts/registry/types.json. Types are never removed; retire them with status deprecated.",
+  "type": "object",
+  "required": ["registry_version", "types"],
+  "properties": {
+    "registry_version": { "type": "integer", "minimum": 1 },
+    "types": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/TypeEntry" }
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "TypeEntry": {
+      "type": "object",
+      "required": ["name", "kind", "schema", "schema_version", "producers", "consumers", "status"],
+      "properties": {
+        "name": { "$ref": "../common/primitives.schema.json#/$defs/TypeName" },
+        "kind": {
+          "enum": ["command", "domain_event", "historical_event", "server_message", "rest", "data"]
+        },
+        "schema": {
+          "description": "Schema path relative to contracts/.",
+          "type": "string",
+          "pattern": "^(commands|events/domain|events/historical|messages|api|data|history)/[A-Za-z0-9_./-]+\\.schema\\.json$"
+        },
+        "schema_version": { "$ref": "../common/primitives.schema.json#/$defs/SchemaVersion" },
+        "producers": { "$ref": "#/$defs/Tags" },
+        "consumers": { "$ref": "#/$defs/Tags" },
+        "status": { "enum": ["active", "deprecated"] },
+        "description": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "Tags": {
+      "type": "array",
+      "items": { "enum": ["server", "history", "client", "bots"] },
+      "uniqueItems": true
+    }
+  }
+}

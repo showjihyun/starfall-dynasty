@@ -1,0 +1,27 @@
+[package]
+name = "starfall-gateway"
+description = "HTTP/WebSocket 게이트웨이. 운영 엔드포인트와 (이후) 명령 수신·세션."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lints]
+# [workspace.lints] 는 멤버가 이 줄로 옵트인해야 적용된다.
+# 빠뜨리면 린트가 꺼진 채 clippy 가 통과한다 (T1 지시).
+workspace = true
+
+[dependencies]
+axum.workspace = true
+serde.workspace = true
+thiserror.workspace = true
+tokio = { workspace = true, features = ["sync"] }
+tracing.workspace = true
+
+# /readyz 의존성 점검 전용 (ADR-0003 §3.1). TLS feature 는 켜지 않는다 — 로컬은 평문이다.
+redis.workspace = true
+sqlx.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true

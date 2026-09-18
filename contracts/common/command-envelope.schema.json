@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.starfall.invalid/contracts/common/command-envelope.schema.json",
+  "title": "CommandEnvelope",
+  "description": "Client-to-server intent. The server decides the actor from the authenticated session, so the envelope has no player or actor field. Type schemas compose this with allOf and close the object with unevaluatedProperties:false.",
+  "type": "object",
+  "required": ["command_id", "command_type", "schema_version", "client_sent_at", "payload"],
+  "properties": {
+    "command_id": {
+      "description": "Client-generated UUIDv7. Idempotency key: a retry of the same intent reuses the same command_id and the server applies it at most once.",
+      "$ref": "primitives.schema.json#/$defs/UuidV7"
+    },
+    "command_type": {
+      "$ref": "primitives.schema.json#/$defs/TypeName"
+    },
+    "schema_version": {
+      "$ref": "primitives.schema.json#/$defs/SchemaVersion"
+    },
+    "client_sent_at": {
+      "description": "Client clock at send time, or null. Reference only: the server never trusts or uses it for rules.",
+      "anyOf": [
+        { "$ref": "primitives.schema.json#/$defs/RealTime" },
+        { "type": "null" }
+      ]
+    },
+    "payload": {
+      "type": "object"
+    }
+  },
+  "examples": [
+    {
+      "command_id": "01a0afaf-7e83-7f49-adfa-58ba04c2fd5a",
+      "command_type": "EXAMPLE_COMMAND",
+      "schema_version": 1,
+      "client_sent_at": null,
+      "payload": {}
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "registry_version": 1,
+  "types": [
+    {
+      "name": "PING_SERVER",
+      "kind": "command",
+      "schema": "commands/PING_SERVER.schema.json",
+      "schema_version": 1,
+      "producers": ["client"],
+      "consumers": ["server"],
+      "status": "active",
+      "description": "Connection and command-path probe. No game state change. Introduced by p0-01-bootstrap."
+    },
+    {
+      "name": "PING_REPLY",
+      "kind": "server_message",
+      "schema": "messages/PING_REPLY.schema.json",
+      "schema_version": 1,
+      "producers": ["server"],
+      "consumers": ["client"],
+      "status": "active",
+      "description": "Server answer to PING_SERVER. Introduced by p0-01-bootstrap."
+    }
+  ]
+}

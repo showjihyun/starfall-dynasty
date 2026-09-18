@@ -1,0 +1,10 @@
+{
+  "command_id": "01a0afaf-7e83-7f49-adfa-58ba04c2fd5a",
+  "command_type": "PING_SERVER",
+  "schema_version": 1,
+  "client_sent_at": null,
+  "player_id": "01a0afaf-7f7d-7c16-b3d0-f1a4053c530b",
+  "payload": {
+    "probe_seq": 1
+  }
+}

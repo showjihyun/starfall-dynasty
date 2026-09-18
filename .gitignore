@@ -1,0 +1,89 @@
+# STARFALL DYNASTY — repository ignore rules
+# Owner: architect (ADR-0001). Generated contract DTOs and _workspace/ are tracked on purpose.
+
+# ---------- secrets / local config ----------
+.env
+.env.*
+!.env.example
+.claude/settings.local.json
+CLAUDE.local.md
+
+# ---------- Rust ----------
+# Cargo.lock IS tracked (this repo builds applications, not libraries).
+target/
+**/*.rs.bk
+# server/.sqlx/ IS tracked on purpose: it is the offline metadata that lets the
+# workspace build without a database. Never add a .sqlx pattern here (server review R, AC-11).
+
+# ---------- Unity (client/) ----------
+# .meta files are tracked. Never ignore them: Unity GUIDs live there.
+client/[Ll]ibrary/
+client/[Tt]emp/
+client/[Oo]bj/
+client/[Bb]uild/
+client/[Bb]uilds/
+client/[Ll]ogs/
+client/[Uu]ser[Ss]ettings/
+client/[Mm]emoryCaptures/
+client/[Rr]ecordings/
+client/.utmp/
+client/ExportedObj/
+client/*.csproj
+client/*.sln
+client/*.slnx
+client/*.suo
+client/*.user
+client/*.userprefs
+client/*.unityproj
+client/*.booproj
+client/*.pidb
+client/*.pdb
+client/*.mdb
+client/*.opendb
+client/*.VC.db
+client/*.apk
+client/*.aab
+client/*.app
+client/*.unitypackage
+client/crashlytics-build.properties
+client/sysinfo.txt
+# Unity test/coverage output written next to the project
+client/test-results.xml
+client/CodeCoverage/
+# Generated contract DTOs (client/Assets/_Project/Scripts/Contracts/Generated/**) and every
+# .meta file ARE tracked. Never ignore *.meta: Unity GUID references live there.
+
+# ---------- .NET tooling (tools/codegen) ----------
+tools/**/bin/
+tools/**/obj/
+tools/**/*.user
+
+# ---------- Python / Node helpers ----------
+__pycache__/
+*.py[cod]
+.venv/
+node_modules/
+
+# ---------- local infrastructure ----------
+# docker compose named volumes live in Docker, but bind mounts must not land in git
+.docker-data/
+*.pgdata/
+
+# ---------- agent workspace ----------
+# _workspace/ is the audit trail and IS tracked. Only volatile output is ignored.
+_workspace/**/logs/
+_workspace/**/tmp/
+_workspace/**/*.log
+
+# ---------- OS / editors ----------
+# .vscode/ is ignored: Unity's VS Code integration generates per-machine settings
+# (absolute paths, file excludes) and we share nothing there yet. If a shared config
+# is ever needed, un-ignore just that file (e.g. !.vscode/extensions.json).
+.vscode/
+.DS_Store
+Thumbs.db
+desktop.ini
+.vs/
+.idea/
+*.swp
+*~
