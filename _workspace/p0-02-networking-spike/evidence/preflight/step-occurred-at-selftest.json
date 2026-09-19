@@ -1,0 +1,9 @@
+{
+  "step": "occurred-at-selftest",
+  "at": "2026-09-19T04:33:12Z",
+  "cmd": "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe C:\\WorkSpace\\SpaceHistoric\\tests\\e2e\\check_occurred_at.py --selftest",
+  "exit": 0,
+  "stdout": "tick=0        expected=3800-01-01T00:00:00Z got=3800-01-01T00:00:00Z ok\ntick=19       expected=3800-01-01T00:00:00Z got=3800-01-01T00:00:00Z ok\ntick=1200     expected=3800-01-01T01:00:00Z got=3800-01-01T01:00:00Z ok\ntick=24000    expected=3800-01-01T20:00:00Z got=3800-01-01T20:00:00Z ok\ntick=86400    expected=3800-01-04T00:00:00Z got=3800-01-04T00:00:00Z ok\nselftest cases=8 mismatches=0\n",
+  "stderr": "",
+  "elapsed_s": 0.07
+}

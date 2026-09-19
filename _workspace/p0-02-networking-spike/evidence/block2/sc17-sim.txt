@@ -1,0 +1,32 @@
+   Compiling proc-macro2 v1.0.107
+   Compiling serde_core v1.0.229
+   Compiling quote v1.0.47
+   Compiling serde v1.0.229
+   Compiling serde_json v1.0.151
+   Compiling syn v3.0.6
+   Compiling uuid v1.26.1
+   Compiling serde_derive v1.0.229
+   Compiling starfall-contracts v0.1.0 (C:\WorkSpace\SpaceHistoric\server\crates\contracts)
+   Compiling starfall-sim v0.1.0 (C:\WorkSpace\SpaceHistoric\server\crates\sim)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 5.82s
+     Running unittests src\lib.rs (target\debug\deps\starfall_sim-be8c466e5c486349.exe)
+
+running 8 tests
+test session::tests::remember_detects_duplicates ... ok
+[SC-17] 제출한 명령 5건, 1 step 후 메시지 10건
+test simulation::tests::shutdown_closes_every_open_session_once ... ok
+test simulation::tests::submissions_are_ordered_by_submission_seq ... ok
+test simulation::tests::step_is_deterministic_for_the_same_inputs ... ok
+test simulation::tests::tick_advances_by_exactly_one_from_start_tick ... ok
+test simulation::tests::commands_do_nothing_until_a_step_runs ... ok
+test simulation::tests::duplicate_command_id_is_rejected_and_not_replayed ... ok
+test session::tests::remember_evicts_oldest_beyond_capacity ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests starfall_sim
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

@@ -1,4 +1,4 @@
-// EditMode contract tests. Sprint contract items SC-23 .. SC-28.
+// EditMode contract tests. Sprint contract SC-42 .. SC-48 (p0-01 wrote these as SC-23 .. SC-28).
 //
 // Every iterating test also asserts how many items it visited: a suite that silently
 // iterates zero fixtures looks exactly like a passing suite.
@@ -24,23 +24,41 @@ namespace Starfall.Tests.EditMode
         // the milliseconds are gone. Measured on this machine before the code existed.
         const string RealTimeAfterDefaultReader = "09/17/2026 14:05:09";
 
-        /// <summary>Counter-examples the C# Strict profile is responsible for (spec section 5).</summary>
-        static readonly string[] RejectedByCSharp =
+        /// <summary>
+        /// The 11 counter-examples the C# Strict profile is responsible for rejecting (sprint
+        /// contract section 0.5, rows 1,3,4,5,6,9,11,13,16 plus 12 and 14, which only became
+        /// the C# layer's responsibility once the generator honoured the actor_id narrowing).
+        /// </summary>
+        static readonly string[][] RejectedByCSharp =
         {
-            "actor-field-injected.json",
-            "probe-seq-negative.json",
-            "probe-seq-above-u32.json",
-            "missing-tick.json",
-            "payload-unknown-field.json",
+            new[] { "PING_SERVER", "actor-field-injected.json" },
+            new[] { "PING_SERVER", "probe-seq-negative.json" },
+            new[] { "PING_SERVER", "probe-seq-above-u32.json" },
+            new[] { "PING_REPLY", "missing-tick.json" },
+            new[] { "PING_REPLY", "payload-unknown-field.json" },
+            new[] { "COMMAND_RESULT", "payload-unknown-field.json" },
+            new[] { "SESSION_READY", "missing-session-id.json" },
+            new[] { "SESSION_OPENED", "missing-world-id.json" },
+            new[] { "SESSION_OPENED", "actor-id-null.json" },
+            new[] { "SESSION_CLOSED", "actor-id-null.json" },
+            new[] { "SESSION_CLOSED", "correlation-id-null.json" },
         };
 
-        /// <summary>Counter-examples C# cannot see. Not a bug: a recorded design asymmetry.
-        /// Guid parses any UUID version, and long holds values above 2^53-1. The schema
-        /// validator and Rust serde stop these at the server boundary.</summary>
-        static readonly string[] NotDetectableByCSharp =
+        /// <summary>
+        /// The 5 counter-examples C# cannot see. Not a bug: a recorded design asymmetry.
+        /// Guid parses any UUID version, long holds values above 2^53-1, int holds 0 where the
+        /// schema says minimum 1, and a closed value set is a plain string in C# on purpose so
+        /// that an added value does not make an older client drop whole messages (ADR-0005
+        /// section 4). The schema validator and Rust serde stop all five at the server
+        /// boundary.
+        /// </summary>
+        static readonly string[][] NotDetectableByCSharp =
         {
-            "command-id-not-v7.json",
-            "tick-above-safe-integer.json",
+            new[] { "PING_SERVER", "command-id-not-v7.json" },
+            new[] { "PING_REPLY", "tick-above-safe-integer.json" },
+            new[] { "COMMAND_RESULT", "unknown-reason-code.json" },
+            new[] { "SESSION_READY", "tick-hz-zero.json" },
+            new[] { "SESSION_CLOSED", "unknown-close-reason.json" },
         };
 
         // ------------------------------------------------------------------ SC-23
@@ -73,10 +91,11 @@ namespace Starfall.Tests.EditMode
         }
 
         [Test]
-        public void Fixtures_RoundTrip_VisitedAllFourValidFixtures()
+        public void Fixtures_RoundTrip_VisitedEveryValidFixture()
         {
             IReadOnlyList<FixtureFile> fixtures = ContractFixtures.RequireValidFixtures();
             foreach (FixtureFile fixture in fixtures) TestContext.WriteLine("visited " + fixture);
+            TestContext.WriteLine("valid fixtures round-tripped: " + fixtures.Count);
 
             Assert.That(fixtures.Count, Is.EqualTo(ContractFixtures.ExpectedValidFixtureCount),
                 "The round-trip suite must cover every valid fixture the contract defines.");
@@ -86,7 +105,8 @@ namespace Starfall.Tests.EditMode
 
         static IEnumerable<FixtureFile> RejectedByCSharpCases()
         {
-            foreach (string name in RejectedByCSharp) yield return ContractFixtures.RequireInvalid(name);
+            foreach (string[] pair in RejectedByCSharp)
+                yield return ContractFixtures.RequireInvalid(pair[0], pair[1]);
         }
 
         [TestCaseSource(nameof(RejectedByCSharpCases))]
@@ -103,25 +123,34 @@ namespace Starfall.Tests.EditMode
         }
 
         [Test]
-        public void Invalid_Rejected_VisitedAllFiveCSharpCases()
+        public void Invalid_Rejected_VisitedEveryCSharpCase()
         {
             var visited = new List<string>();
             foreach (FixtureFile fixture in RejectedByCSharpCases()) visited.Add(fixture.ToString());
             foreach (string name in visited) TestContext.WriteLine("visited " + name);
+            TestContext.WriteLine("counter-examples the C# layer must reject: " + visited.Count);
 
-            Assert.That(visited.Count, Is.EqualTo(5),
-                "Spec section 5 assigns exactly 5 of the 7 counter-examples to the C# layer.");
+            Assert.That(visited.Count, Is.EqualTo(RejectedByCSharp.Length));
+            Assert.That(visited.Count, Is.EqualTo(11),
+                "Sprint contract section 0.5 assigns exactly 11 of the 16 counter-examples to the C# layer.");
 
-            // The other two must still exist on disk, otherwise the split is only in prose.
-            Assert.That(ContractFixtures.InvalidFixtures().Count, Is.EqualTo(7),
-                "The contract defines 7 counter-examples in total.");
+            // Every listed file must be distinct. Two types now share a file name, and a
+            // lookup that collapsed them would test one file twice and still report 11.
+            Assert.That(new HashSet<string>(visited).Count, Is.EqualTo(visited.Count),
+                "The C# counter-example list must name 11 distinct files.");
+
+            // The other five must still exist on disk, otherwise the split is only in prose.
+            Assert.That(ContractFixtures.InvalidFixtures().Count,
+                Is.EqualTo(ContractFixtures.ExpectedInvalidFixtureCount),
+                "The contract defines " + ContractFixtures.ExpectedInvalidFixtureCount + " counter-examples in total.");
         }
 
         // ------------------------------------------------------------------ SC-25 (recorded, not a pass/fail of the design)
 
         static IEnumerable<FixtureFile> NotDetectableCases()
         {
-            foreach (string name in NotDetectableByCSharp) yield return ContractFixtures.RequireInvalid(name);
+            foreach (string[] pair in NotDetectableByCSharp)
+                yield return ContractFixtures.RequireInvalid(pair[0], pair[1]);
         }
 
         [TestCaseSource(nameof(NotDetectableCases))]
@@ -132,8 +161,9 @@ namespace Starfall.Tests.EditMode
 
             object dto = ContractJson.DeserializeStrict(json, dtoType);
 
-            TestContext.WriteLine(fixture + " was ACCEPTED by C# Strict, as documented in spec section 5.");
-            TestContext.WriteLine("  Guid accepts any UUID version; long holds values above 2^53-1.");
+            TestContext.WriteLine(fixture + " was ACCEPTED by C# Strict, as documented in spec section 5.4.");
+            TestContext.WriteLine("  Guid accepts any UUID version; long holds values above 2^53-1;");
+            TestContext.WriteLine("  int holds 0 where the schema says minimum 1; a closed value set is a plain string.");
             TestContext.WriteLine("  The schema validator and Rust serde reject it at the server boundary.");
 
             Assert.That(dto, Is.Not.Null,
@@ -243,7 +273,26 @@ namespace Starfall.Tests.EditMode
         }
 
         [Test]
-        public void FixtureLoader_FailsWhenFewerThanFourValidFixtures()
+        public void NotDetectable_ListCoversExactlyFive()
+        {
+            var visited = new List<string>();
+            foreach (FixtureFile fixture in NotDetectableCases()) visited.Add(fixture.ToString());
+            foreach (string name in visited) TestContext.WriteLine("recorded as undetectable in C#: " + name);
+            TestContext.WriteLine("counter-examples C# is recorded as unable to detect: " + visited.Count);
+
+            Assert.That(visited.Count, Is.EqualTo(5),
+                "Sprint contract section 0.5 records exactly 5 undetectable counter-examples.");
+            Assert.That(new HashSet<string>(visited).Count, Is.EqualTo(visited.Count));
+
+            // 11 rejected + 5 recorded must account for every counter-example on disk. If they
+            // do not, a fixture landed that nobody assigned to a layer.
+            Assert.That(RejectedByCSharp.Length + NotDetectableByCSharp.Length,
+                Is.EqualTo(ContractFixtures.ExpectedInvalidFixtureCount),
+                "Every counter-example must be assigned to exactly one C# outcome.");
+        }
+
+        [Test]
+        public void FixtureLoader_FailsWhenTooFewValidFixtures()
         {
             Assert.Throws<InvalidOperationException>(
                 () => ContractFixtures.EnsureEnough(new List<FixtureFile>()),
@@ -252,6 +301,14 @@ namespace Starfall.Tests.EditMode
             Assert.Throws<InvalidOperationException>(
                 () => ContractFixtures.EnsureEnough(new List<FixtureFile> { ContractFixtures.RequireValid("PING_SERVER", "basic.json") }),
                 "A short fixture set must fail too, not only an empty one.");
+
+            // One short of the expected count must still fail. An off-by-one guard is what
+            // catches a deleted fixture; a guard that only rejects the empty set would not.
+            var oneShort = new List<FixtureFile>(ContractFixtures.ValidFixtures());
+            oneShort.RemoveAt(oneShort.Count - 1);
+            TestContext.WriteLine("guard sees " + oneShort.Count + " of " +
+                                  ContractFixtures.ExpectedValidFixtureCount + " expected fixtures");
+            Assert.Throws<InvalidOperationException>(() => ContractFixtures.EnsureEnough(oneShort));
 
             Assert.DoesNotThrow(() => ContractFixtures.EnsureEnough(ContractFixtures.ValidFixtures()));
         }

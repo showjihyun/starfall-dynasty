@@ -1,0 +1,27 @@
+### SC-14 auth-ok (bot-000)
+=== probe auth-ok ===
+계약 항목: SC-14 (AC-5a): 첫 메시지가 SESSION_READY, actor_id == 토큰 주체
+session_id=01a0b82c-1e7a-710c-b8f2-e03ccd5cb37e correlation_id=Some(01a0b82c-1e94-7708-85fe-3774273642de) actor_id=01a0b1c2-b010-7000-8000-000000000000 tick_hz=20 server_version=0.1.0 ready_tick=2095
+close: code=Some(1000) reason_text=Some("") initiator=client
+token subject=01a0b1c2-b010-7000-8000-000000000000 actor_id_matches_subject=true
+sent=0 results=0 (accepted 0 / rejected 0) replies=0 order_violations=0 missing_results=0
+rtt ms n=0 p50=None max=None
+
+### SC-19 order (10건)
+=== probe order ===
+계약 항목: SC-19 (AC-6c): COMMAND_RESULT → PING_REPLY 순서, 같은 tick
+session_id=01a0b82c-20c3-723c-9214-5b633a88281c correlation_id=Some(01a0b82c-20ec-7247-b23a-7137167976d4) actor_id=01a0b1c2-b010-7000-8000-000000000001 tick_hz=20 server_version=0.1.0 ready_tick=2107
+close: code=Some(1000) reason_text=Some("") initiator=client
+token subject=01a0b1c2-b010-7000-8000-000000000001 actor_id_matches_subject=true
+sent=10 results=10 (accepted 10 / rejected 0) replies=10 order_violations=0 missing_results=0
+rtt ms n=10 p50=Some(18.909) max=Some(49.955)
+
+### SC-21 duplicate
+=== probe duplicate ===
+계약 항목: SC-21 (AC-7b): ACCEPTED 1 + PING_REPLY 1 + DUPLICATE_COMMAND_ID 1
+session_id=01a0b82c-28ad-70d3-b87d-43624bfbda3b correlation_id=Some(01a0b82c-28bc-7243-b211-c86209248ffc) actor_id=01a0b1c2-b010-7000-8000-000000000002 tick_hz=20 server_version=0.1.0 ready_tick=2147
+close: code=Some(1000) reason_text=Some("") initiator=client
+token subject=01a0b1c2-b010-7000-8000-000000000002 actor_id_matches_subject=true
+sent=2 results=2 (accepted 1 / rejected 1) replies=1 order_violations=0 missing_results=0
+rejected_by_reason={"DUPLICATE_COMMAND_ID": 1}
+rtt ms n=1 p50=Some(50.006) max=Some(50.006)

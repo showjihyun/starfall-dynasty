@@ -16,16 +16,24 @@ namespace Starfall.Contracts.Generated
         public static readonly IReadOnlyDictionary<string, Type> ByName =
             new Dictionary<string, Type>(StringComparer.Ordinal)
             {
+                { "COMMAND_RESULT", typeof(CommandResultMessage) },
                 { "PING_REPLY", typeof(PingReplyMessage) },
                 { "PING_SERVER", typeof(PingServerCommand) },
+                { "SESSION_CLOSED", typeof(SessionClosedEvent) },
+                { "SESSION_OPENED", typeof(SessionOpenedEvent) },
+                { "SESSION_READY", typeof(SessionReadyMessage) },
             };
 
         /// <summary>Registry name to the schema_version this build was generated from.</summary>
         public static readonly IReadOnlyDictionary<string, int> SchemaVersionByName =
             new Dictionary<string, int>(StringComparer.Ordinal)
             {
+                { "COMMAND_RESULT", 1 },
                 { "PING_REPLY", 1 },
                 { "PING_SERVER", 1 },
+                { "SESSION_CLOSED", 1 },
+                { "SESSION_OPENED", 1 },
+                { "SESSION_READY", 1 },
             };
     }
 }

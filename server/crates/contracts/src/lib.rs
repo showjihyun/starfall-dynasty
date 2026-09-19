@@ -25,13 +25,26 @@
 
 pub mod commands;
 pub mod dispatch;
+pub mod events;
 pub mod messages;
 pub mod primitives;
 pub mod registry;
 
 pub use commands::{PingServerCommand, PingServerPayload, PingServerType};
-pub use messages::{PingReplyMessage, PingReplyPayload, PingReplyType};
-pub use primitives::{
-    ConstSchemaVersion, GameTime, MAX_SAFE_INTEGER, ProbeSeq, RealTime, Sequence, Tick, UuidV7,
+pub use events::{
+    SessionCloseReason, SessionClosedEvent, SessionClosedPayload, SessionClosedType,
+    SessionOpenedEvent, SessionOpenedPayload, SessionOpenedType, SessionTransport,
 };
-pub use registry::{CONTRACT_TYPES, ContractType, PING_REPLY, PING_SERVER};
+pub use messages::{
+    CommandResultMessage, CommandResultPayload, CommandResultType, CommandStatus, PingReplyMessage,
+    PingReplyPayload, PingReplyType, RejectReasonCode, SessionReadyMessage, SessionReadyPayload,
+    SessionReadyType,
+};
+pub use primitives::{
+    ConstSchemaVersion, GameCalendar, GameTime, MAX_SAFE_INTEGER, ProbeSeq, RealTime, Sequence,
+    ServerVersion, Tick, TickHz, UuidV7,
+};
+pub use registry::{
+    COMMAND_RESULT, CONTRACT_TYPES, ContractType, PING_REPLY, PING_SERVER, SESSION_CLOSED,
+    SESSION_OPENED, SESSION_READY,
+};

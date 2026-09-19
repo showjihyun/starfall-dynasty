@@ -1,0 +1,9 @@
+{
+  "step": "B-bots-run",
+  "at": "2026-09-19T10:16:35Z",
+  "cmd": "C:\\WorkSpace\\SpaceHistoric\\tools\\bots\\target\\debug\\bots.exe run --scenario b --bots 30 --seed 42 --cycles 5 --pings 3 --url ws://127.0.0.1:8080/ws --out C:\\WorkSpace\\SpaceHistoric\\_workspace\\p0-02-networking-spike\\evidence\\load\\b",
+  "exit": 0,
+  "stdout": "=== bots b-churn ===\nconnections attempted : 150\nsessions ready        : 150\ncorrelations collected: 150\ncommands sent         : 450\nCOMMAND_RESULT        : 450 (accepted 450 / rejected 0)\nPING_REPLY            : 450\nloss(missing results) : 0  missing replies: 0\nduplicates            : results 0 / replies 0   unmatched: results 0 / replies 0\norder violations (I-15): 0\ntick mismatches (AC-6c) : 0  (compared 450)\nprobe_seq mismatches   : 0\nrtt ms  n=450 p50=Some(19.528) p99=Some(50.37) max=Some(60.208)\nack ms  n=450 p50=Some(19.508) p99=Some(50.312) max=Some(59.134)\nconnect ms p50=Some(0.776) max=Some(16.136)   ready ms p50=Some(23.015) max=Some(57.347)\nserver-initiated closes: 0\nwire errors            : 0\nGATES one_to_one=true accepted_reply_pairing=true all_ok=true\nevidence -> C:\\WorkSpace\\SpaceHistoric\\_workspace\\p0-02-networking-spike\\evidence\\load\\b\nclock_base_unix_ms=1789812982779 (commands.csv 의 *_us 에 이 값을 더하면 벽시계가 된다)\n",
+  "stderr": "[bots] stage=b-churn url=ws://127.0.0.1:8080/ws bots=30 seed=42 duration=60s interval=500ms\n",
+  "elapsed_s": 13.11
+}

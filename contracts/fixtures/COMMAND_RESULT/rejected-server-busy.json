@@ -1,0 +1,12 @@
+{
+  "message_id": "01a0b1c2-6c32-7113-a224-4b5c6d7e8f90",
+  "message_type": "COMMAND_RESULT",
+  "schema_version": 1,
+  "tick": 1241,
+  "correlation_id": null,
+  "payload": {
+    "command_id": "01a0afaf-7e84-729e-9f17-464483f27a6d",
+    "status": "REJECTED",
+    "reason_code": "SERVER_BUSY"
+  }
+}

@@ -1,0 +1,42 @@
+{
+  "item": "SC-11/12/13 (AC-4) append-only · 멱등 삽입 · UNIQUE",
+  "verdict": "PASS",
+  "rows_before": 544,
+  "probe_tick": 348999,
+  "probe_sequence": 0,
+  "probe_event_id": "32e0bc1b-c9a4-4b63-805e-a7ec5597f623",
+  "steps": [
+    {
+      "step": "탐침 행 삽입",
+      "tick": 348999,
+      "sequence": 0,
+      "rows": 545,
+      "output": "INSERT 0 1"
+    },
+    {
+      "step": "UPDATE 시도",
+      "blocked": true,
+      "rows": 545,
+      "output": "ERROR:  domain_events is append-only (UPDATE blocked). 정정은 새 레코드로 한다.\nCONTEXT:  PL/pgSQL function forbid_mutation() line 3 at RAISE"
+    },
+    {
+      "step": "DELETE 시도",
+      "blocked": true,
+      "rows": 545,
+      "output": "ERROR:  domain_events is append-only (DELETE blocked). 정정은 새 레코드로 한다.\nCONTEXT:  PL/pgSQL function forbid_mutation() line 3 at RAISE"
+    },
+    {
+      "step": "같은 event_id 재삽입",
+      "no_new_row": true,
+      "rows": 545,
+      "output": "INSERT 0 0"
+    },
+    {
+      "step": "다른 event_id + 같은 (world_id,tick,sequence)",
+      "unique_violation": true,
+      "rows": 545,
+      "output": "ERROR:  duplicate key value violates unique constraint \"domain_events_world_id_tick_sequence_key\"\nDETAIL:  Key (world_id, tick, sequence)=(01a0b1c2-3d4e-7f01-8a2b-9c0d1e2f3a4b, 348999, 0) already exists."
+    }
+  ],
+  "note": "다음 서버 기동은 start_tick = 349000 에서 시작한다 (ADR-0006 §2.3 tick 재개). 정상이며 tick 은 뒤로 가지 않는다."
+}

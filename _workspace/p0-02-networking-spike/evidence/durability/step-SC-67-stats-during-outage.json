@@ -1,0 +1,7 @@
+{
+  "step": "SC-67-stats-during-outage",
+  "at": "2026-09-19T10:23:36Z",
+  "exit": 0,
+  "ws_connections": 30,
+  "note": "기존 세션이 유지되는가 — 봇 쪽 증거는 commands.csv 의 중단 구간 왕복이다"
+}

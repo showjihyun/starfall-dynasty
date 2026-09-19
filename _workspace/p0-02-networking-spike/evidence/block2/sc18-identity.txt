@@ -1,0 +1,6 @@
+sample1: start_tick=1661 tick=5201 tick_total=3541 identity_holds=True
+sample2: start_tick=1661 tick=5203 tick_total=3543 identity_holds=True
+delta tick=2 delta tick_total=2 equal=True
+tick_overrun_total=0 threshold_us=50000
+tick_body_us: count=3543 max_us=435 p50_le=100 p99_le=100
+tick_lag_seconds=-0.049894

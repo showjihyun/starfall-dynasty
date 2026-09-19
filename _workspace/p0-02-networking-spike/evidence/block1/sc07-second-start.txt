@@ -1,0 +1,8 @@
+=== SC-07 2회차 기동 후 마이그레이션 상태 ===
+1
+1|success=true|installed_on=2026-09-19 05:35:46.471621+00|b4f83ef71508d1b53cbcd735a1e8c0b634e45251d7a18d2d76d8a4a8496ca0c989a18ec8f6b81eb7cf7a4175f66340cc
+=== 2회차 기동 로그 ===
+2026-09-19T05:36:56.612023Z  INFO starfall_game_server: 월드 확인 — tick 을 이어서 시작한다 (ADR-0006 §2.3) world_id=01a0b1c2-3d4e-7f01-8a2b-9c0d1e2f3a4b tick_hz=20 calendar_epoch=3800-01-01T00:00:00Z calendar_scale=60 last_tick=Some(740) start_tick=741
+2026-09-19T05:36:56.613505Z  INFO starfall_game_server: starfall game-server 기동 완료 — 연결을 받는다 version="0.1.0" addr=127.0.0.1:8080 tick_hz=20 start_tick=741 ws=ws://127.0.0.1:8080/ws healthz=http://127.0.0.1:8080/healthz stats=http://127.0.0.1:8080/debug/stats
+=== SC-10 예비: tick 재개 ===
+start_tick=741 tick=927 tick_total=187 identity_ok=True

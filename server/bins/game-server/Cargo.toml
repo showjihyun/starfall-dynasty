@@ -17,7 +17,10 @@ name = "starfall-game-server"
 path = "src/main.rs"
 
 [dependencies]
+starfall-contracts.workspace = true
 starfall-gateway.workspace = true
+starfall-persistence.workspace = true
+starfall-sim.workspace = true
 
 axum.workspace = true
 thiserror.workspace = true

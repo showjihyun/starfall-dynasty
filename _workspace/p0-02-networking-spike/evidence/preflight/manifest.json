@@ -1,0 +1,91 @@
+{
+  "block": "preflight",
+  "at": "2026-09-19T04:33:12Z",
+  "steps": [
+    {
+      "step": "docker-ps",
+      "at": "2026-09-19T04:33:06Z",
+      "cmd": "docker compose ps --format {{.Service}}\t{{.Status}}",
+      "exit": 0,
+      "elapsed_s": 0.2
+    },
+    {
+      "step": "db",
+      "at": "2026-09-19T04:33:07Z",
+      "exit": 0,
+      "postgres": "PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on x86_64-pc-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit",
+      "public_tables": "_sqlx_migrations,domain_events,worlds",
+      "domain_events": true,
+      "worlds": true
+    },
+    {
+      "step": "server",
+      "at": "2026-09-19T04:33:07Z",
+      "exit": 0,
+      "healthz": {
+        "status": "ok",
+        "version": "0.1.0"
+      },
+      "debug_stats_key_count": 31,
+      "debug_stats_keys": [
+        "accepting_connections",
+        "command_queue_depth",
+        "command_queue_depth_max",
+        "commands_received_total",
+        "commands_rejected_total",
+        "domain_events_persist_failed_total",
+        "domain_events_persisted_total",
+        "last_committed_tick",
+        "live_connections",
+        "messages_dropped_total",
+        "messages_enqueued_all",
+        "messages_enqueued_total",
+        "messages_written_all",
+        "messages_written_total",
+        "persist_backlog",
+        "persist_backlog_limit",
+        "protocol_violations_total",
+        "send_queue_depth",
+        "send_queue_depth_max",
+        "sessions_closed_total",
+        "sessions_opened_total",
+        "start_tick",
+        "tick",
+        "tick_body_us",
+        "tick_lag_seconds",
+        "tick_overrun_threshold_us",
+        "tick_overrun_total",
+        "tick_total",
+        "upgrade_rejected_all",
+        "upgrade_rejected_total",
+        "ws_connections"
+      ],
+      "expected_key_count": 31,
+      "persist_backlog": 4,
+      "persist_backlog_limit": 600,
+      "accepting_connections": true,
+      "note": "healthz 가 null 이면 서버가 떠 있지 않다 → 부하 블록은 E5(미검증(환경)) 또는 FAIL(구현 없음)"
+    },
+    {
+      "step": "bots-binary",
+      "at": "2026-09-19T04:33:07Z",
+      "exit": 0,
+      "path": "C:\\WorkSpace\\SpaceHistoric\\tools\\bots\\target\\debug\\bots.exe",
+      "hint": "없으면: cd tools/bots && cargo build"
+    },
+    {
+      "step": "bots-selftest",
+      "at": "2026-09-19T04:33:12Z",
+      "cmd": "cargo test --offline",
+      "exit": 0,
+      "elapsed_s": 4.92
+    },
+    {
+      "step": "occurred-at-selftest",
+      "at": "2026-09-19T04:33:12Z",
+      "cmd": "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe C:\\WorkSpace\\SpaceHistoric\\tests\\e2e\\check_occurred_at.py --selftest",
+      "exit": 0,
+      "elapsed_s": 0.07
+    }
+  ]
+}

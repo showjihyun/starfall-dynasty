@@ -1,0 +1,12 @@
+=== SC-16 (AC-5c) 비밀 미설정 기동 ===
+-- /ws --
+{"reason":"auth_not_configured","status":"unavailable"}
+HTTP 503
+-- /healthz --
+{"status":"ok","version":"0.1.0"}
+HTTP 200
+-- /readyz --
+{"status":"ready","checks":{"postgres":"ok","redis":"ok"}}
+HTTP 200
+-- 같은 프로세스인지(기동 로그 1회) --
+1

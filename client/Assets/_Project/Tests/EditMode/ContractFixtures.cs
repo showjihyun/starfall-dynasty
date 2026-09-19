@@ -20,9 +20,20 @@ namespace Starfall.Tests.EditMode
         /// <summary>The marker that identifies the repository root.</summary>
         public const string RootMarker = "contracts/registry/types.json";
 
-        /// <summary>Valid fixtures the contract currently defines. The loader asserts against
-        /// this so a silent zero-fixture run cannot be mistaken for a pass (invariant I-4).</summary>
-        public const int ExpectedValidFixtureCount = 4;
+        /// <summary>
+        /// Valid fixtures the contract currently defines: 6 registry types x 2 (spec section
+        /// 5.3). The loader asserts against this so a silent zero-fixture run cannot be
+        /// mistaken for a pass (invariant I-4).
+        /// </summary>
+        public const int ExpectedValidFixtureCount = 12;
+
+        /// <summary>
+        /// Counter-example fixtures the contract currently defines. There is no formula for
+        /// this one - PING_SERVER has 4, PING_REPLY and SESSION_CLOSED have 3, the rest have 2
+        /// - so it is a stated constant, and architect updates the spec and this number
+        /// together when it changes (spec section 5.3).
+        /// </summary>
+        public const int ExpectedInvalidFixtureCount = 16;
 
         /// <summary>Repository root, or null when the marker was not found.</summary>
         public static string FindRepoRoot()
@@ -121,14 +132,23 @@ namespace Starfall.Tests.EditMode
             return result;
         }
 
-        /// <summary>Finds one counter-example by file name, e.g. "actor-field-injected.json".</summary>
-        public static FixtureFile RequireInvalid(string fileName)
+        /// <summary>
+        /// Finds one counter-example by type and file name, e.g. SESSION_OPENED /
+        /// "actor-id-null.json".
+        /// <para>
+        /// The type is not optional. p0-02 added a second actor-id-null.json and a second
+        /// payload-unknown-field.json, so a bare file name now matches two different files and
+        /// a lookup by name alone would silently test one of them twice.
+        /// </para>
+        /// </summary>
+        public static FixtureFile RequireInvalid(string typeName, string fileName)
         {
             foreach (FixtureFile fixture in InvalidFixtures())
-                if (string.Equals(fixture.FileName, fileName, StringComparison.Ordinal))
+                if (fixture.TypeName == typeName && string.Equals(fixture.FileName, fileName, StringComparison.Ordinal))
                     return fixture;
 
-            throw new FileNotFoundException("No counter-example fixture named " + fileName + " under " + FixturesRoot());
+            throw new FileNotFoundException(
+                "No counter-example fixture " + typeName + "/invalid/" + fileName + " under " + FixturesRoot());
         }
 
         /// <summary>Finds one valid fixture by file name, e.g. "basic.json" under PING_SERVER.</summary>

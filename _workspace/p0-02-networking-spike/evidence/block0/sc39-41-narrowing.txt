@@ -1,0 +1,20 @@
+## SC-39 좁힘 결과 (생성물 실물)
+client/Assets/_Project/Scripts/Contracts/Generated/SessionOpenedEvent.cs-        /// <summary>Narrowed from the envelope: never null for this type.</summary>
+client/Assets/_Project/Scripts/Contracts/Generated/SessionOpenedEvent.cs-        [JsonProperty("actor_id", Required = Required.Always)]
+client/Assets/_Project/Scripts/Contracts/Generated/SessionOpenedEvent.cs:        public System.Guid ActorId { get; set; }
+client/Assets/_Project/Scripts/Contracts/Generated/SessionOpenedEvent.cs-
+client/Assets/_Project/Scripts/Contracts/Generated/SessionOpenedEvent.cs-        /// <summary>Id of the event or command that directly caused this event, or null.</summary>
+--
+client/Assets/_Project/Scripts/Contracts/Generated/SessionClosedEvent.cs-        /// <summary>Narrowed from the envelope: never null for this type.</summary>
+client/Assets/_Project/Scripts/Contracts/Generated/SessionClosedEvent.cs-        [JsonProperty("actor_id", Required = Required.Always)]
+client/Assets/_Project/Scripts/Contracts/Generated/SessionClosedEvent.cs:        public System.Guid ActorId { get; set; }
+client/Assets/_Project/Scripts/Contracts/Generated/SessionClosedEvent.cs-
+client/Assets/_Project/Scripts/Contracts/Generated/SessionClosedEvent.cs-        /// <summary>Id of the event or command that directly caused this event, or null.</summary>
+
+## 비교: 좁히지 않은 널 가능 필드
+        [JsonProperty("causation_id", Required = Required.AllowNull)]
+        public System.Guid? CausationId { get; set; }
+
+
+## SC-41 enum 분류 위치
+208:    // `enum` is here rather than in Structural because that is what it actually does. A

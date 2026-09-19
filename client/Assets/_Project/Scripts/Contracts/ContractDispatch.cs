@@ -71,11 +71,26 @@ namespace Starfall.Contracts
         /// Same as <see cref="TryRead(string, out string, out object, out string)"/> for an
         /// envelope that was already opened with <see cref="ContractJson.ReadObject"/>.
         /// </summary>
-        public static bool TryRead(JObject envelope, out string typeName, out object contract, out string error)
+        public static bool TryRead(JObject envelope, out string typeName, out object contract, out string error) =>
+            TryRead(envelope, JsonSerializer.Create(ContractJson.Strict), out typeName, out contract, out error);
+
+        /// <summary>
+        /// Same, with a caller-supplied serializer so the live receive path can build one
+        /// <see cref="ContractJson.Runtime"/> serializer at startup and reuse it for every
+        /// frame instead of allocating settings per message.
+        /// </summary>
+        public static bool TryRead(
+            JObject envelope,
+            JsonSerializer serializer,
+            out string typeName,
+            out object contract,
+            out string error)
         {
             typeName = null;
             contract = null;
             error = null;
+
+            if (serializer == null) throw new ArgumentNullException(nameof(serializer));
 
             if (!TryGetTypeName(envelope, out typeName))
             {
@@ -94,7 +109,7 @@ namespace Starfall.Contracts
 
             try
             {
-                contract = envelope.ToObject(dtoType, JsonSerializer.Create(ContractJson.Strict));
+                contract = envelope.ToObject(dtoType, serializer);
             }
             catch (JsonException ex)
             {

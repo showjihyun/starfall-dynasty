@@ -1,0 +1,21 @@
+{
+    "name": "Starfall.Net.Editor",
+    "rootNamespace": "Starfall.Net.EditorTools",
+    "references": [
+        "Starfall.Net",
+        "Starfall.Contracts"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": true,
+    "precompiledReferences": [
+        "Newtonsoft.Json.dll"
+    ],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

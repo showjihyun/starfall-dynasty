@@ -1,0 +1,9 @@
+### SC-24 oversize (16 KiB 초과 텍스트 9회)
+=== probe oversize ===
+계약 항목: SC-24 (AC-8a): 위반 계수 후 close 1002 + PROTOCOL_VIOLATION
+session_id=01a0b925-b568-72fe-a5fd-70c70aeb39ed correlation_id=Some(01a0b925-b56d-728b-b60c-774398535cbc) actor_id=01a0b1c2-b010-7000-8000-000000000004 tick_hz=20 server_version=0.1.0 ready_tick=329245
+close: code=Some(1002) reason_text=Some("") initiator=server
+token subject=01a0b1c2-b010-7000-8000-000000000004 actor_id_matches_subject=true
+sent=0 results=0 (accepted 0 / rejected 0) replies=0 order_violations=0 missing_results=0
+tick_mismatches=0 (compared 0) same_tick_holds=false
+rtt ms n=0 p50=None max=None

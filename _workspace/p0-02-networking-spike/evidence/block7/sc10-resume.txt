@@ -1,0 +1,7 @@
+=== SC-10 tick 재개 ===
+재기동 직전 max(tick) = 348693
+last_tick=Some(348693) start_tick=348694
+stats start_tick=348694 (>348693: True)
+=== run4 에서 새 세션 1개 ===
+session_id=01a0b935-34b5-75d9-bb0a-1e68508a0a6b correlation_id=Some(01a0b935-34da-74f0-8a79-fb76581dbead) actor_id=01a0b1c2-b010-7000-8000-000000000009 tick_hz=20 server_version=0.1.0 ready_tick=348965
+sent=3 results=3 (accepted 3 / rejected 0) replies=3 order_violations=0 missing_results=0

@@ -1,0 +1,98 @@
+{
+  "item": "SC-60 (AC-16d) occurred_at 재계산 대조",
+  "verdict": "PASS",
+  "correlations_checked": 181,
+  "rows_in_set": 361,
+  "rows_failing_game_time_pattern": 0,
+  "sample_size": 10,
+  "sample_mismatches": 0,
+  "world_constants": {
+    "01a0b1c2-3d4e-7f01-8a2b-9c0d1e2f3a4b": {
+      "tick_hz": 20,
+      "calendar_epoch": "3800-01-01T00:00:00Z",
+      "calendar_scale": 60
+    }
+  },
+  "sample": [
+    {
+      "world_id": "01a0b1c2-3d4e-7f01-8a2b-9c0d1e2f3a4b",
+      "tick": 334012,
+      "stored": "3800-01-12T14:20:00Z",
+      "recomputed": "3800-01-12T14:20:00Z",
+      "match": true,
+      "pattern_ok": true
+    },
+    {
+      "world_id": "01a0b1c2-3d4e-7f01-8a2b-9c0d1e2f3a4b",
+      "tick": 334219,
+      "stored": "3800-01-12T14:30:00Z",
+      "recomputed": "3800-01-12T14:30:00Z",
+      "match": true,
+      "pattern_ok": true
+    },
+    {
+      "world_id": "01a0b1c2-3d4e-7f01-8a2b-9c0d1e2f3a4b",
+      "tick": 334222,
+      "stored": "3800-01-12T14:31:00Z",
+      "recomputed": "3800-01-12T14:31:00Z",
+      "match": true,
+      "pattern_ok": true
+    },
+    {
+      "world_id": "01a0b1c2-3d4e-7f01-8a2b-9c0d1e2f3a4b",
+      "tick": 334225,
+      "stored": "3800-01-12T14:31:00Z",
+      "recomputed": "3800-01-12T14:31:00Z",
+      "match": true,
+      "pattern_ok": true
+    },
+    {
+      "world_id": "01a0b1c2-3d4e-7f01-8a2b-9c0d1e2f3a4b",
+      "tick": 334229,
+      "stored": "3800-01-12T14:31:00Z",
+      "recomputed": "3800-01-12T14:31:00Z",
+      "match": true,
+      "pattern_ok": true
+    },
+    {
+      "world_id": "01a0b1c2-3d4e-7f01-8a2b-9c0d1e2f3a4b",
+      "tick": 334232,
+      "stored": "3800-01-12T14:31:00Z",
+      "recomputed": "3800-01-12T14:31:00Z",
+      "match": true,
+      "pattern_ok": true
+    },
+    {
+      "world_id": "01a0b1c2-3d4e-7f01-8a2b-9c0d1e2f3a4b",
+      "tick": 334236,
+      "stored": "3800-01-12T14:31:00Z",
+      "recomputed": "3800-01-12T14:31:00Z",
+      "match": true,
+      "pattern_ok": true
+    },
+    {
+      "world_id": "01a0b1c2-3d4e-7f01-8a2b-9c0d1e2f3a4b",
+      "tick": 334239,
+      "stored": "3800-01-12T14:31:00Z",
+      "recomputed": "3800-01-12T14:31:00Z",
+      "match": true,
+      "pattern_ok": true
+    },
+    {
+      "world_id": "01a0b1c2-3d4e-7f01-8a2b-9c0d1e2f3a4b",
+      "tick": 334242,
+      "stored": "3800-01-12T14:32:00Z",
+      "recomputed": "3800-01-12T14:32:00Z",
+      "match": true,
+      "pattern_ok": true
+    },
+    {
+      "world_id": "01a0b1c2-3d4e-7f01-8a2b-9c0d1e2f3a4b",
+      "tick": 334246,
+      "stored": "3800-01-12T14:32:00Z",
+      "recomputed": "3800-01-12T14:32:00Z",
+      "match": true,
+      "pattern_ok": true
+    }
+  ]
+}

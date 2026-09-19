@@ -1,0 +1,11 @@
+{
+  "step": "SC-61-in-flight-visibility",
+  "at": "2026-09-19T10:15:25Z",
+  "cmd": "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe C:\\WorkSpace\\SpaceHistoric\\tests\\e2e\\check_in_flight.py --corr C:\\WorkSpace\\SpaceHistoric\\_workspace\\p0-02-networking-spike\\evidence\\load\\mid\\correlations.merged.txt --evidence C:\\WorkSpace\\SpaceHistoric\\_workspace\\p0-02-networking-spike\\evidence\\load\\step-SC-61.json",
+  "exit": 0,
+  "stdout": "{\n  \"item\": \"SC-61 (AC-17a) 실행 중 가시성\",\n  \"verdict\": \"PASS\",\n  \"measured_when\": \"A 단계 진행 중 (연결이 열려 있는 동안)\",\n  \"correlations_in_set\": 31,\n  \"expected_opened\": 31,\n  \"session_opened_rows\": 31,\n  \"session_closed_rows\": 0,\n  \"meaning\": \"OPENED 가 이미 있고 CLOSED 가 0 이면 기록이 종료 시 몰아쓰기가 아니다. OPENED 가 0 이면 tick 배치가 아직 커밋되지 않았거나 영속화가 멈춰 있다.\"\n}\n",
+  "stderr": "",
+  "elapsed_s": 0.58,
+  "live_correlations_at_query": 30,
+  "a_running": true
+}

@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites name="Starfall Dynasty" tests="2" failures="0" errors="0" skipped="0" time="0.772">
+  <testsuite name="Starfall.Tests.EditMode.LiveServerTests" tests="2" failures="0" errors="0" skipped="0" time="0.772">
+    <testcase name="Live_ServerInitiatedClose_ReconnectsAsANewSession" classname="Starfall.Tests.EditMode.LiveServerTests" time="0.648">
+      <system-out>SC-51 QUERY correlation_id=01a0b928-afed-728a-89eb-e6710ad25ee6 (first)
+first session closed by the server; attempt counter is now 1
+SC-51 QUERY correlation_id=01a0b928-b1e1-70ce-a432-a55246403667 (second)
+INFO starfall.net: socket open, waiting for SESSION_READY (attempt=0)
+INFO starfall.net: SESSION_READY session_id=01a0b928-afe1-7135-8f2b-dce400f46d51 correlation_id=01a0b928-afed-728a-89eb-e6710ad25ee6 actor_id=01a0b1c2-7e57-7c11-8e57-000000000001 world_id=01a0b1c2-3d4e-7f01-8a2b-9c0d1e2f3a4b tick_hz=20 server_version=0.1.0 attempt=0
+WARN starfall.net: send failed - WebSocketException(ConnectionClosedPrematurely): The remote party closed the WebSocket connection without completing the close handshake.
+INFO starfall.net: dropping 1 in-flight command(s) on disconnect (no resend, I-23)
+INFO starfall.net: reconnect attempt=0 delay_ms=351 (counter resets only on SESSION_READY)
+INFO starfall.net: disconnect detail: Remote code=1002
+INFO starfall.net: socket open, waiting for SESSION_READY (attempt=1)
+INFO starfall.net: SESSION_READY session_id=01a0b928-b1d6-764a-ac36-f667b5010802 correlation_id=01a0b928-b1e1-70ce-a432-a55246403667 actor_id=01a0b1c2-7e57-7c11-8e57-000000000001 world_id=01a0b1c2-3d4e-7f01-8a2b-9c0d1e2f3a4b tick_hz=20 server_version=0.1.0 attempt=1
+INFO starfall.net: closing session_id=01a0b928-b1d6-764a-ac36-f667b5010802 reason=CLIENT_CLOSED code=1000
+INFO starfall.net: dropping 0 in-flight command(s) on disconnect (no resend, I-23)
+INFO starfall.net: disconnected (Remote code=1000 CLIENT_CLOSED), not reconnecting</system-out>
+    </testcase>
+    <testcase name="Live_ThreePings_RoundTripInOrder" classname="Starfall.Tests.EditMode.LiveServerTests" time="0.124">
+      <system-out>first frame on the wire: {"message_id":"01a0b928-b277-7037-bb72-9f586227a388","message_type":"SESSION_READY","schema_version":1,"tick":333162,"correlation_id":"01a0b928-b277-7037-bb72-9f560c892083","payload":{"session_id":"01a0b928-b24c-71b7-a30c-8bf51f3f5153","world_id":"01a0b1c2-3d4e-7f01-8a2b-9c0d1e2f3a4b","actor_id":"01a0b1c2-7e57-7c11-8e57-000000000001","tick_hz":20,"server_version":"0.1.0"}}
+SESSION session_id=01a0b928-b24c-71b7-a30c-8bf51f3f5153 correlation_id=01a0b928-b277-7037-bb72-9f560c892083 actor_id=01a0b1c2-7e57-7c11-8e57-000000000001 world_id=01a0b1c2-3d4e-7f01-8a2b-9c0d1e2f3a4b server_version=0.1.0
+command 01a0b928-b27d-74b5-9a7f-07cbc9fdc00e -&gt; Completed in 57.5 ms
+command 01a0b928-b27d-71e9-a20c-bca32f79cd78 -&gt; Completed in 57.5 ms
+command 01a0b928-b27d-71c9-9322-e0cd3185daa9 -&gt; Completed in 57.6 ms
+frame order ok: COMMAND_RESULT[1] -&gt; PING_REPLY[2] for 01a0b928-b27d-74b5-9a7f-07cbc9fdc00e probe_seq=0
+frame order ok: COMMAND_RESULT[3] -&gt; PING_REPLY[4] for 01a0b928-b27d-71e9-a20c-bca32f79cd78 probe_seq=1
+frame order ok: COMMAND_RESULT[5] -&gt; PING_REPLY[6] for 01a0b928-b27d-71c9-9322-e0cd3185daa9 probe_seq=2
+command/reply pairs checked: 3
+SC-50 QUERY correlation_id=01a0b928-b277-7037-bb72-9f560c892083
+SC-50 QUERY session_id=01a0b928-b24c-71b7-a30c-8bf51f3f5153
+INFO starfall.net: socket open, waiting for SESSION_READY (attempt=0)
+INFO starfall.net: SESSION_READY session_id=01a0b928-b24c-71b7-a30c-8bf51f3f5153 correlation_id=01a0b928-b277-7037-bb72-9f560c892083 actor_id=01a0b1c2-7e57-7c11-8e57-000000000001 world_id=01a0b1c2-3d4e-7f01-8a2b-9c0d1e2f3a4b tick_hz=20 server_version=0.1.0 attempt=0
+INFO starfall.net: closing session_id=01a0b928-b24c-71b7-a30c-8bf51f3f5153 reason=CLIENT_CLOSED code=1000
+INFO starfall.net: dropping 0 in-flight command(s) on disconnect (no resend, I-23)
+INFO starfall.net: disconnected (Local code=1000 CLIENT_CLOSED), not reconnecting
+Saving results to: C:/Users/CHOISOOYEON/AppData/LocalLow/Starfall/Starfall Dynasty\TestResults.xml</system-out>
+    </testcase>
+  </testsuite>
+</testsuites>

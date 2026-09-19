@@ -1,0 +1,147 @@
+{
+  "start_tick": 1661,
+  "tick": 337550,
+  "tick_total": 335890,
+  "tick_overrun_total": 0,
+  "tick_overrun_threshold_us": 50000,
+  "tick_body_us": {
+    "count": 335890,
+    "sum_us": 1638025,
+    "max_us": 9337,
+    "p50_le_us": 100,
+    "p90_le_us": 100,
+    "p99_le_us": 100,
+    "bucket_bounds_us": [
+      100,
+      200,
+      500,
+      1000,
+      2000,
+      5000,
+      10000,
+      20000,
+      50000,
+      100000,
+      200000,
+      500000,
+      1000000,
+      2000000,
+      5000000
+    ],
+    "buckets": [
+      335211,
+      485,
+      131,
+      40,
+      14,
+      8,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  "tick_lag_seconds": -0.049767,
+  "ws_connections": 1,
+  "live_connections": 1,
+  "sessions_opened_total": 223,
+  "sessions_closed_total": 222,
+  "commands_received_total": 10482,
+  "commands_rejected_total": [
+    {
+      "label": "MALFORMED_COMMAND",
+      "count": 0
+    },
+    {
+      "label": "UNKNOWN_COMMAND_TYPE",
+      "count": 0
+    },
+    {
+      "label": "SCHEMA_VERSION_UNSUPPORTED",
+      "count": 0
+    },
+    {
+      "label": "DUPLICATE_COMMAND_ID",
+      "count": 0
+    },
+    {
+      "label": "SERVER_BUSY",
+      "count": 0
+    },
+    {
+      "label": "TOO_MANY_IN_FLIGHT",
+      "count": 466
+    }
+  ],
+  "messages_enqueued_total": [
+    {
+      "label": "SESSION_READY",
+      "count": 223
+    },
+    {
+      "label": "COMMAND_RESULT",
+      "count": 10416
+    },
+    {
+      "label": "PING_REPLY",
+      "count": 9950
+    }
+  ],
+  "messages_written_total": [
+    {
+      "label": "SESSION_READY",
+      "count": 223
+    },
+    {
+      "label": "COMMAND_RESULT",
+      "count": 10161
+    },
+    {
+      "label": "PING_REPLY",
+      "count": 9950
+    }
+  ],
+  "messages_enqueued_all": 20589,
+  "messages_written_all": 20334,
+  "messages_dropped_total": 255,
+  "send_queue_depth": 0,
+  "send_queue_depth_max": 141,
+  "command_queue_depth": 0,
+  "command_queue_depth_max": 0,
+  "protocol_violations_total": 27,
+  "upgrade_rejected_total": [
+    {
+      "label": "auth_not_configured",
+      "count": 0
+    },
+    {
+      "label": "recording_backlog",
+      "count": 0
+    },
+    {
+      "label": "shutting_down",
+      "count": 0
+    },
+    {
+      "label": "no_credential",
+      "count": 1
+    },
+    {
+      "label": "invalid_token",
+      "count": 2
+    }
+  ],
+  "upgrade_rejected_all": 3,
+  "domain_events_persisted_total": 445,
+  "domain_events_persist_failed_total": 0,
+  "last_committed_tick": 337549,
+  "persist_backlog": 1,
+  "persist_backlog_limit": 600,
+  "accepting_connections": true
+}

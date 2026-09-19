@@ -1,0 +1,13 @@
+{
+  "message_id": "01a0b1c2-4a17-7004-9005-2a2b2c2d2e2f",
+  "message_type": "SESSION_READY",
+  "schema_version": 1,
+  "tick": 1200,
+  "correlation_id": null,
+  "payload": {
+    "world_id": "01a0b1c2-3d4e-7f01-8a2b-9c0d1e2f3a4b",
+    "actor_id": "01a0b1c2-2c01-7a45-8b67-89abcdef0123",
+    "tick_hz": 20,
+    "server_version": "0.1.0"
+  }
+}

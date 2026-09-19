@@ -1,0 +1,17 @@
+=== SC-29 (AC-9a) /readyz 라이프사이클 ===
+-- PID before --
+"starfall-game-server.exe","57812","Console","2","15,340 K"
+-- 정상 상태 --
+{"status":"ready","checks":{"postgres":"ok","redis":"ok"}} HTTP 200
+-- docker compose stop postgres --
+ Container starfall-postgres-1  Stopped
+{"status":"not_ready","checks":{"postgres":"unavailable","redis":"ok"}} HTTP 503
+healthz=200 (���μ��� ����)
+-- docker compose start postgres --
+ Container starfall-postgres-1  Started
+pg ready (try 1)
+-- 서버 재시작 없이 복귀 --
+readyz=200 (try 1)
+{"status":"ready","checks":{"postgres":"ok","redis":"ok"}} HTTP 200
+-- PID after --
+"starfall-game-server.exe","57812","Console","2","15,432 K"

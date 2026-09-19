@@ -1,0 +1,2 @@
+SESSION_OPENED | close_reason=-
+SESSION_CLOSED | close_reason=SLOW_CONSUMER

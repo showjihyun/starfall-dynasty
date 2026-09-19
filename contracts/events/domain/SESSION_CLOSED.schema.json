@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.starfall.invalid/contracts/events/domain/SESSION_CLOSED.schema.json",
+  "title": "SessionClosedEvent",
+  "description": "The presence interval opened by SESSION_OPENED ended at this tick. It shares the opening event's correlation_id, which is how the pair is joined - no duplicated opening tick is stored, because a derived copy can disagree with the fact it was derived from. close_reason records WHY the session ended, which is what makes the fact worth storing: 'the actor left' and 'the server cut the actor off' are different facts.",
+  "allOf": [
+    {
+      "$ref": "../../common/event-envelope.schema.json"
+    }
+  ],
+  "properties": {
+    "event_type": {
+      "const": "SESSION_CLOSED"
+    },
+    "schema_version": {
+      "const": 1
+    },
+    "actor_id": {
+      "description": "Narrowed from the envelope: never null for this type.",
+      "$ref": "../../common/primitives.schema.json#/$defs/UuidV7"
+    },
+    "payload": {
+      "$ref": "#/$defs/SessionClosedPayload"
+    }
+  },
+  "unevaluatedProperties": false,
+  "$defs": {
+    "SessionClosedPayload": {
+      "title": "SessionClosedPayload",
+      "type": "object",
+      "required": [
+        "session_id",
+        "close_reason"
+      ],
+      "properties": {
+        "session_id": {
+          "description": "Session this event closes. Exactly one SESSION_CLOSED exists per SESSION_OPENED.",
+          "$ref": "../../common/primitives.schema.json#/$defs/UuidV7"
+        },
+        "close_reason": {
+          "description": "CLIENT_CLOSED: the peer closed cleanly. IDLE_TIMEOUT: no pong within the liveness window. PROTOCOL_VIOLATION: the peer exceeded the violation budget. SLOW_CONSUMER: the outbound queue filled and the server dropped the connection to protect the tick loop. SERVER_SHUTDOWN: graceful shutdown. TRANSPORT_ERROR: the socket failed. Values may be ADDED in a later version; consumers must tolerate unknown values.",
+          "type": "string",
+          "enum": [
+            "CLIENT_CLOSED",
+            "IDLE_TIMEOUT",
+            "PROTOCOL_VIOLATION",
+            "SLOW_CONSUMER",
+            "SERVER_SHUTDOWN",
+            "TRANSPORT_ERROR"
+          ]
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

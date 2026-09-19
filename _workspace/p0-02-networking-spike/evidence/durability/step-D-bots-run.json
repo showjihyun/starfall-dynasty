@@ -1,0 +1,8 @@
+{
+  "step": "D-bots-run",
+  "at": "2026-09-19T10:26:08Z",
+  "exit": 0,
+  "cmd": "C:\\WorkSpace\\SpaceHistoric\\tools\\bots\\target\\debug\\bots.exe run --scenario d --bots 30 --seed 42 --duration 200 --ramp 5 --interval 500 --url ws://127.0.0.1:8080/ws --out C:\\WorkSpace\\SpaceHistoric\\_workspace\\p0-02-networking-spike\\evidence\\durability\\d --live-corr C:\\WorkSpace\\SpaceHistoric\\_workspace\\p0-02-networking-spike\\evidence\\durability\\d\\correlations.live.txt",
+  "elapsed_s": 206.7,
+  "stdout": "[bots] stage=d-durability url=ws://127.0.0.1:8080/ws bots=30 seed=42 duration=200s interval=500ms\n=== bots d-durability ===\nconnections attempted : 30\nsessions ready        : 30\ncorrelations collected: 30\ncommands sent         : 11815\nCOMMAND_RESULT        : 11815 (accepted 11815 / rejected 0)\nPING_REPLY            : 11815\nloss(missing results) : 0  missing replies: 0\nduplicates            : results 0 / replies 0   unmatched: results 0 / replies 0\norder violations (I-15): 0\ntick mismatches (AC-6c) : 0  (compared 11815)\nprobe_seq mismatches   : 0\nrtt ms  n=11815 p50=Some(26.044) p99=Some(50.35) max=Some(51.236)\nack ms  n=11815 p50=Some(26.014) p99=Some(50.317) max=Some(51.201)\nconnect ms p50=Some(0.875) max=Some(4.131)   ready ms p50=Some(22.501) max=Some(44.355)\nserver-initiated closes: 0\nwire errors            : 0\nGATES one_to_one=true accepted_reply_pairing=true all_ok=true\nevidence -> C:\\WorkSpace\\SpaceHistoric\\_workspace\\p0-02-networking-spike\\evidence\\durability\\d\nclock_base_unix_ms=1789813361442 (commands.csv 의 *_us 에 이 값을 더하면 벽시계가 된다)\n"
+}

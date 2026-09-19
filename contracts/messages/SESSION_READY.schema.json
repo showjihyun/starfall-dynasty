@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.starfall.invalid/contracts/messages/SESSION_READY.schema.json",
+  "title": "SessionReadyMessage",
+  "description": "First message on an authenticated realtime connection, produced by the tick that accepted the session. It tells the client what the server decided: which session it is, which world it joined, WHO IT IS (actor_id), and the world's tick rate. The client never asserts any of these - it learns them here. The envelope tick is the session's opening tick and is the same tick carried by the SESSION_OPENED domain event.",
+  "allOf": [
+    {
+      "$ref": "../common/message-envelope.schema.json"
+    }
+  ],
+  "properties": {
+    "message_type": {
+      "const": "SESSION_READY"
+    },
+    "schema_version": {
+      "const": 1
+    },
+    "payload": {
+      "$ref": "#/$defs/SessionReadyPayload"
+    }
+  },
+  "unevaluatedProperties": false,
+  "$defs": {
+    "SessionReadyPayload": {
+      "title": "SessionReadyPayload",
+      "type": "object",
+      "required": [
+        "session_id",
+        "world_id",
+        "actor_id",
+        "tick_hz",
+        "server_version"
+      ],
+      "properties": {
+        "session_id": {
+          "description": "Server-generated id of this connection's session. A reconnect is a NEW session with a new id; nothing is resumed.",
+          "$ref": "../common/primitives.schema.json#/$defs/UuidV7"
+        },
+        "world_id": {
+          "description": "World (shard) the session joined. Matches the world_id of every domain event this session causes.",
+          "$ref": "../common/primitives.schema.json#/$defs/UuidV7"
+        },
+        "actor_id": {
+          "description": "Acting entity the server decided from the authenticated credential. The client cannot choose or send this; it is told what it is.",
+          "$ref": "../common/primitives.schema.json#/$defs/UuidV7"
+        },
+        "tick_hz": {
+          "description": "Simulation ticks per real second for this world. Fixed for the world's lifetime (ADR-0006 section 3): it is the divisor of the game calendar already written into stored events.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000
+        },
+        "server_version": {
+          "description": "Server build version, for logs and bug reports only. Never used for feature gating - compatibility is decided per type by schema_version.",
+          "type": "string",
+          "pattern": "^[0-9A-Za-z][0-9A-Za-z.+_-]{0,63}$"
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

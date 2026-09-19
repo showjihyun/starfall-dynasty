@@ -1,0 +1,13 @@
+=== SC-15 (AC-5b) 401 3가지 — 검사 3건 ===
+-- before SESSION_OPENED --
+0
+(a) 헤더 없음:
+{"reason":"no_credential","status":"unavailable"} HTTP 401
+(b) 서명 불일치:
+{"reason":"invalid_token","status":"unavailable"} HTTP 401
+(c) 주체가 UUIDv7 아님:
+{"reason":"invalid_token","status":"unavailable"} HTTP 401
+-- after SESSION_OPENED (증가 0 기대) --
+0
+-- upgrade_rejected_total --
+[{'label': 'auth_not_configured', 'count': 0}, {'label': 'recording_backlog', 'count': 0}, {'label': 'shutting_down', 'count': 0}, {'label': 'no_credential', 'count': 1}, {'label': 'invalid_token', 'count': 2}]

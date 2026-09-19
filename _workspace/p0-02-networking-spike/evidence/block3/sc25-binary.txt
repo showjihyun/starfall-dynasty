@@ -1,0 +1,8 @@
+=== probe binary ===
+계약 항목: SC-25 (AC-8b): 바이너리 프레임도 같은 예산, close 1002
+session_id=01a0b925-ed98-7289-9316-6e2b55567652 correlation_id=Some(01a0b925-edad-767a-bf14-ed597de5e34b) actor_id=01a0b1c2-b010-7000-8000-000000000005 tick_hz=20 server_version=0.1.0 ready_tick=329533
+close: code=Some(1002) reason_text=Some("") initiator=server
+token subject=01a0b1c2-b010-7000-8000-000000000005 actor_id_matches_subject=true
+sent=0 results=0 (accepted 0 / rejected 0) replies=0 order_violations=0 missing_results=0
+tick_mismatches=0 (compared 0) same_tick_holds=false
+rtt ms n=0 p50=None max=None

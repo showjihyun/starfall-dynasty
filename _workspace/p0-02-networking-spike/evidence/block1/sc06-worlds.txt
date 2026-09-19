@@ -1,0 +1,10 @@
+=== SC-06 (기동 직후, tick 커밋 전에 조회) ===
+1
+01a0b1c2-3d4e-7f01-8a2b-9c0d1e2f3a4b | spike | tick_hz=20 | epoch=3800-01-01T00:00:00Z | scale=60 | sim_version=1
+last_tick IS NULL ->
+false
+=== 기동 로그(첫 실행) ===
+2026-09-19T05:35:46.518051Z  INFO starfall_game_server: 월드 확인 — tick 을 이어서 시작한다 (ADR-0006 §2.3) world_id=01a0b1c2-3d4e-7f01-8a2b-9c0d1e2f3a4b tick_hz=20 calendar_epoch=3800-01-01T00:00:00Z calendar_scale=60 last_tick=None start_tick=0
+2026-09-19T05:35:46.519941Z  INFO starfall_game_server: starfall game-server 기동 완료 — 연결을 받는다 version="0.1.0" addr=127.0.0.1:8080 tick_hz=20 start_tick=0 ws=ws://127.0.0.1:8080/ws healthz=http://127.0.0.1:8080/healthz stats=http://127.0.0.1:8080/debug/stats
+=== SC-07 마이그레이션 상태(1회차) ===
+1|worlds and domain events|success=true|b4f83ef71508d1b53cbcd735a1e8c0b634e45251d7a18d2d76d8a4a8496ca0c989a18ec8f6b81eb7cf7a4175f66340cc

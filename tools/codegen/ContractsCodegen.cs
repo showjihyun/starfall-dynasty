@@ -193,7 +193,7 @@ static class Keywords
     public static readonly HashSet<string> Structural = new(StringComparer.Ordinal)
     {
         "type", "properties", "required", "$ref", "$defs", "allOf", "anyOf",
-        "const", "format", "additionalProperties", "unevaluatedProperties", "items", "enum",
+        "const", "format", "additionalProperties", "unevaluatedProperties", "items",
     };
 
     // Safe to ignore: documentation only.
@@ -202,10 +202,16 @@ static class Keywords
         "$schema", "$id", "title", "description", "examples", "$comment", "deprecated",
     };
 
-    // Ignored here on purpose; the Rust schema validator enforces them.
+    // Accepted and deliberately not interpreted: the schema validator and the Rust types
+    // enforce them, and the C# output is the same with or without them.
+    //
+    // `enum` is here rather than in Structural because that is what it actually does. A
+    // string enum stays a C# `string` (ADR-0005 section 4-2): the server rejects unknown
+    // values, the client must survive them, because the server is deployed first. Generating
+    // a C# enum would make one added value drop whole messages on older clients.
     public static readonly HashSet<string> Constraint = new(StringComparer.Ordinal)
     {
-        "pattern", "minItems", "uniqueItems",
+        "pattern", "minItems", "uniqueItems", "enum",
     };
 
     // The basis for integer type selection (ADR-0002 section 4).
@@ -457,7 +463,20 @@ sealed class Generator
             {
                 var one = _store.Flatten(p.Value, ps.File, $"{path}/properties/{p.Name}");
                 if (props.TryGetValue(p.Name, out var existing))
+                {
+                    // A type schema may NARROW an envelope field: SESSION_OPENED and
+                    // SESSION_CLOSED redeclare actor_id as a plain UuidV7 where the envelope
+                    // says "UuidV7 or null". Merging keyword by keyword would leave the
+                    // inherited anyOf sitting next to the narrowed concrete type, and
+                    // Normalize reads anyOf first, so the narrowing would be silently ignored
+                    // and the DTO would keep accepting null (ADR-0005 section 4-3, U-2).
+                    // A concrete `type` from the overriding schema REPLACES the inherited
+                    // composition instead of joining it. The widening direction still works:
+                    // an override that brings its own anyOf keeps it and Normalize picks it up.
+                    if (one.ContainsKey("type") && !one.ContainsKey("anyOf"))
+                        existing.Remove("anyOf");
                     foreach (var kv in one) existing[kv.Key] = kv.Value;
+                }
                 else
                     props[p.Name] = one;
             }

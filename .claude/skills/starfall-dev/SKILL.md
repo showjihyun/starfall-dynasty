@@ -29,7 +29,20 @@ description: "STARFALL DYNASTY 게임 개발 에이전트 팀 오케스트레이
 | `techart` | unity-tech-artist | 우주 렌더링, 함선 비주얼, VFX, 성능 | space-3d-rendering + Unity 공식 스킬 | `client/Assets/_Project/{Art,Shaders,VFX,Rendering}` |
 | `qa` | qa-integration-engineer | 스프린트 계약, 경계면 검증, 실행 평가 | integration-qa | `02_sprint_contract.md`, `04_qa_report_r{N}.md`, `tests/e2e/`, `tools/bots/` |
 
-모든 에이전트 호출에 `model: "opus"`를 지정한다.
+## 역할별 모델
+
+| 역할 | 모델 | 이유 |
+|------|------|------|
+| `architect`, `designer`, `qa` | **opus** | 판단이 산출물이다. 스펙·계약·평가 기준은 틀려도 통과하는 경로를 스스로 찾아내야 하고, 여기서의 오류는 아래 단계 전체로 번진다 |
+| `server`, `history`, `client`, `techart` | **sonnet** | 구현은 스펙과 스프린트 계약으로 목표가 고정돼 있고, 테스트·빌드·린트가 즉시 틀림을 알려준다. 판단 폭이 좁고 피드백이 빠른 작업이다 |
+
+Agent 도구 호출 시 `model`을 생략하면 에이전트 정의(`.claude/agents/*.md`)의 `model`이 적용된다. **호출에 `model`을 직접 지정하면 정의보다 우선하므로, 역할과 다른 모델을 쓸 이유가 없으면 생략한다.**
+
+구현 역할은 **TDD로 작업한다**: 스프린트 계약의 검증 항목을 실패하는 테스트로 먼저 만들고(red), 통과시키는 최소 구현(green), 정리(refactor). 이 순서가 Sonnet 배정의 전제다 — 테스트가 즉각적인 오답 신호를 주기 때문에 판단을 모델이 아니라 계약이 담당한다.
+
+**예외 — 구현 역할이라도 `model: "opus"`를 명시하는 경우:** ① Phase 2에서 구현자가 스펙·ADR **검토자로 들어갈 때**(산출물이 코드가 아니라 판단이다. p0-01·p0-02의 차단 요소 8건이 전부 이 단계에서 나왔다) ② **BUG 유형 진단**(증상에서 원인을 좁히는 일은 목표가 고정돼 있지 않다). 규칙은 "코드를 쓸 때는 sonnet, 기준을 의심할 때는 opus"다.
+
+배정 근거와 재검토 조건: `references/model-assignment.md`
 
 ## 파일 소유권
 
@@ -126,7 +139,7 @@ Anthropic 하네스 설계 원칙: **코드를 쓰기 전에 구현자와 평가
 
 ## 에이전트 팀 사용법 (Claude Code v2.1.178 이후)
 
-- `TeamCreate`/`TeamDelete`는 더 이상 없다. `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`이면 **Agent 도구에 `name`을 주어 호출하는 것이 곧 팀원 스폰**이다: `Agent({ name: "server", subagent_type: "rust-server-engineer", model: "opus", description: "...", prompt: "..." })`. `isolation`을 주면 팀원이 아니게 되므로 팀원에는 쓰지 않는다.
+- `TeamCreate`/`TeamDelete`는 더 이상 없다. `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`이면 **Agent 도구에 `name`을 주어 호출하는 것이 곧 팀원 스폰**이다: `Agent({ name: "server", subagent_type: "rust-server-engineer", description: "...", prompt: "..." })` (모델은 에이전트 정의를 따르므로 생략한다). `isolation`을 주면 팀원이 아니게 되므로 팀원에는 쓰지 않는다.
 - 이름 없이 호출한 Agent는 일반 서브 에이전트다 (독립 최종 게이트, SOLO/VERIFY/BUG 유형에 사용).
 - 메시지: `SendMessage({ to: "<팀원 이름>", message: "..." })`. 전원 브로드캐스트는 없으니 수신자마다 보낸다.
 - 공유 태스크: TaskCreate / TaskList / TaskGet / TaskUpdate. 선행 태스크가 끝나야 의존 태스크를 claim할 수 있다.

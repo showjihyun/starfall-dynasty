@@ -1,0 +1,9 @@
+{
+  "item": "SC-59 (AC-16c) sequence 빈틈 검사",
+  "verdict": "PASS",
+  "rows_total": 545,
+  "distinct_world_tick_groups": 340,
+  "violating_groups": 0,
+  "violations": [],
+  "sql": "select world_id, tick from domain_events group by world_id, tick having count(*) <> max(sequence) + 1 or min(sequence) <> 0 or count(distinct sequence) <> count(*);"
+}

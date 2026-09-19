@@ -1,0 +1,10 @@
+{
+  "item": "SC-61 (AC-17a) 실행 중 가시성",
+  "verdict": "PASS",
+  "measured_when": "A 단계 진행 중 (연결이 열려 있는 동안)",
+  "correlations_in_set": 31,
+  "expected_opened": 31,
+  "session_opened_rows": 31,
+  "session_closed_rows": 0,
+  "meaning": "OPENED 가 이미 있고 CLOSED 가 0 이면 기록이 종료 시 몰아쓰기가 아니다. OPENED 가 0 이면 tick 배치가 아직 커밋되지 않았거나 영속화가 멈춰 있다."
+}

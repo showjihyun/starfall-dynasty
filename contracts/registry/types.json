@@ -1,15 +1,15 @@
 {
-  "registry_version": 1,
+  "registry_version": 2,
   "types": [
     {
       "name": "PING_SERVER",
       "kind": "command",
       "schema": "commands/PING_SERVER.schema.json",
       "schema_version": 1,
-      "producers": ["client"],
+      "producers": ["client", "bots"],
       "consumers": ["server"],
       "status": "active",
-      "description": "Connection and command-path probe. No game state change. Introduced by p0-01-bootstrap."
+      "description": "Connection and command-path probe. No game state change, no domain event. Introduced by p0-01-bootstrap; p0-02 sends it over the realtime connection to measure the command round trip through the tick loop."
     },
     {
       "name": "PING_REPLY",
@@ -17,9 +17,49 @@
       "schema": "messages/PING_REPLY.schema.json",
       "schema_version": 1,
       "producers": ["server"],
-      "consumers": ["client"],
+      "consumers": ["client", "bots"],
       "status": "active",
-      "description": "Server answer to PING_SERVER. Introduced by p0-01-bootstrap."
+      "description": "Type-specific answer to an ACCEPTED PING_SERVER, produced in the tick that handled it. Always arrives after that command's COMMAND_RESULT."
+    },
+    {
+      "name": "COMMAND_RESULT",
+      "kind": "server_message",
+      "schema": "messages/COMMAND_RESULT.schema.json",
+      "schema_version": 1,
+      "producers": ["server"],
+      "consumers": ["client", "bots"],
+      "status": "active",
+      "description": "Adjudication result of one command: ACCEPTED (taken into the simulation on the envelope tick) or REJECTED with a reason code. Accepted is not completed. Introduced by p0-02-networking-spike."
+    },
+    {
+      "name": "SESSION_READY",
+      "kind": "server_message",
+      "schema": "messages/SESSION_READY.schema.json",
+      "schema_version": 1,
+      "producers": ["server"],
+      "consumers": ["client", "bots"],
+      "status": "active",
+      "description": "First message on an authenticated realtime connection: session_id, world_id, the actor_id the server decided, tick_hz and the server build. Introduced by p0-02-networking-spike."
+    },
+    {
+      "name": "SESSION_OPENED",
+      "kind": "domain_event",
+      "schema": "events/domain/SESSION_OPENED.schema.json",
+      "schema_version": 1,
+      "producers": ["server"],
+      "consumers": ["server"],
+      "status": "active",
+      "description": "An authenticated actor became present in the world. Persisted to domain_events. Importance level 0 by design - it does not become a Historical Event. 'history' joins consumers when the history crate exists (p2). Introduced by p0-02-networking-spike."
+    },
+    {
+      "name": "SESSION_CLOSED",
+      "kind": "domain_event",
+      "schema": "events/domain/SESSION_CLOSED.schema.json",
+      "schema_version": 1,
+      "producers": ["server"],
+      "consumers": ["server"],
+      "status": "active",
+      "description": "The presence interval opened by SESSION_OPENED ended, with the reason. Shares the opening event's correlation_id. Persisted to domain_events. Introduced by p0-02-networking-spike."
     }
   ]
 }

@@ -1,0 +1,149 @@
+   Compiling serde_core v1.0.229
+   Compiling memchr v2.8.3
+   Compiling serde v1.0.229
+   Compiling getrandom v0.3.4
+   Compiling serde_json v1.0.151
+   Compiling syn v3.0.6
+   Compiling once_cell v1.21.4
+   Compiling smallvec v1.16.1
+   Compiling syn v2.0.119
+   Compiling parking_lot_core v0.9.12
+   Compiling parking_lot v0.12.5
+   Compiling aho-corasick v1.1.5
+   Compiling regex-automata v0.4.18
+   Compiling strum_macros v0.28.0
+   Compiling serde_derive v1.0.229
+   Compiling ref-cast-impl v1.0.27
+   Compiling ref-cast v1.0.27
+   Compiling uuid v1.26.1
+   Compiling strum v0.28.0
+   Compiling fancy-regex v0.19.2
+   Compiling regex v1.13.1
+   Compiling ahash v0.8.12
+   Compiling fluent-uri v0.4.1
+   Compiling email_address v0.2.9
+   Compiling starfall-contracts v0.1.0 (C:\WorkSpace\SpaceHistoric\server\crates\contracts)
+   Compiling jsonschema-value v0.56.0
+   Compiling referencing v0.56.0
+   Compiling jsonschema v0.56.0
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 13.37s
+     Running unittests src\lib.rs (target\debug\deps\starfall_contracts-fc2f94296ebb036d.exe)
+
+running 19 tests
+test primitives::tests::real_time_from_unix_uses_three_fraction_digits ... ok
+test dispatch::tests::peek_reads_type_without_consuming_the_rest ... ok
+test primitives::tests::occurred_at_divides_by_tick_hz_first ... ok
+test primitives::tests::const_schema_version_rejects_other_values ... ok
+test primitives::tests::game_time_rejects_fractional_seconds ... ok
+test primitives::tests::probe_seq_rejects_out_of_u32_range ... ok
+test primitives::tests::occurred_at_matches_contract_fixtures ... ok
+test dispatch::tests::peek_tolerates_unknown_fields_but_the_concrete_type_does_not ... ok
+test primitives::tests::civil_round_trips_over_a_wide_range ... ok
+test primitives::tests::calendar_rejects_out_of_range_constants ... ok
+test primitives::tests::real_time_rejects_out_of_contract_shapes ... ok
+test primitives::tests::real_time_accepts_contract_shapes ... ok
+test primitives::tests::real_time_round_trips_without_normalising_fraction ... ok
+test primitives::tests::tick_rejects_above_safe_integer ... ok
+test primitives::tests::uuid_v7_accepts_canonical_lowercase ... ok
+test primitives::tests::uuid_v7_rejects_non_canonical_spelling ... ok
+test primitives::tests::uuid_v7_rejects_v4 ... ok
+test registry::tests::find_returns_registered_types ... ok
+test registry::tests::table_has_no_duplicate_names ... ok
+
+test result: ok. 19 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests\contract_tests.rs (target\debug\deps\contract_tests-0e80a972ef763fa0.exe)
+
+running 10 tests
+  actor-field-injected.json        기대=거부     실제=거부     (unknown field `player_id`, expected one of `command_id`, `command_type`, `schema_version`, `client_sent_at`, `payload`)
+[테스트 9] 정수 경계 5건 확인 (tick 2건, probe_seq 3건)
+test integer_bounds_rejected ... ok
+  command-id-not-v7.json           기대=거부     실제=거부     (UuidV7 는 버전 7이어야 한다 (받은 값의 버전: 4, 값: a013f529-f8a4-4c84-be34-a740670f9fb8))
+  probe-seq-above-u32.json         기대=거부     실제=거부     (invalid value: integer `4294967296`, expected u32)
+  probe-seq-negative.json          기대=거부     실제=거부     (invalid value: integer `-1`, expected u32)
+[SC-16] server 태그 타입 6건이 대응표에 있다
+  - PING_SERVER -> starfall_contracts::commands::PingServerCommand
+  - PING_REPLY -> starfall_contracts::messages::PingReplyMessage
+  - COMMAND_RESULT -> starfall_contracts::messages::CommandResultMessage
+  - SESSION_READY -> starfall_contracts::messages::SessionReadyMessage
+  - SESSION_OPENED -> starfall_contracts::events::SessionOpenedEvent
+  - SESSION_CLOSED -> starfall_contracts::events::SessionClosedEvent
+test registry_server_types_mapped ... ok
+  missing-tick.json                기대=거부     실제=거부     (missing field `tick`)
+  payload-unknown-field.json       기대=거부     실제=거부     (unknown field `client_sent_at`, expected `command_id` or `probe_seq`)
+  tick-above-safe-integer.json     기대=거부     실제=거부     (Tick 는 0 ..= 9007199254740991 범위여야 한다 (받음: 9007199254740992))
+  payload-unknown-field.json       기대=거부     실제=거부     (unknown field `queued_ticks`, expected one of `command_id`, `status`, `reason_code`)
+  unknown-reason-code.json         기대=거부     실제=거부     (unknown variant `NOT_IN_THE_CLOSED_SET`, expected one of `MALFORMED_COMMAND`, `UNKNOWN_COMMAND_TYPE`, `SCHEMA_VERSION_UNSUPPORTED`, `DUPLICATE_COMMAND_ID`, `SERVER_BUSY`, `TOO_MANY_IN_FLIGHT`)
+  missing-session-id.json          기대=거부     실제=거부     (missing field `session_id`)
+  tick-hz-zero.json                기대=거부     실제=거부     (tick_hz 는 1 ..= 1000 이어야 한다 (받음: 0))
+  actor-id-null.json               기대=거부     실제=거부     (invalid type: null, expected a string)
+  missing-world-id.json            기대=거부     실제=거부     (missing field `world_id`)
+  actor-id-null.json               기대=거부     실제=거부     (invalid type: null, expected a string)
+  correlation-id-null.json         기대=거부     실제=거부     (invalid type: null, expected a string)
+  unknown-close-reason.json        기대=거부     실제=거부     (unknown variant `KICKED_BY_GM`, expected one of `CLIENT_CLOSED`, `IDLE_TIMEOUT`, `PROTOCOL_VIOLATION`, `SLOW_CONSUMER`, `SERVER_SHUTDOWN`, `TRANSPORT_ERROR`)
+[SC-15] serde 매트릭스 검사한 반례: 16건
+test invalid_serde_matrix ... ok
+[SC-17] 레지스트리 항목 6건, 대조한 fixture 12건
+test registry_consistency ... ok
+[SC-18] required 변이 124건이 모두 역직렬화에 실패했다
+test required_field_mutations ... ok
+[SC-17] $id 가 경로 규칙과 일치하는 스키마: 11건
+test schema_ids_match_paths ... ok
+[SC-17] registry/types.json 이 types.schema.json 검증을 통과했다
+test registry_file_validates_against_schema ... ok
+[SC-14] 스키마가 거부한 반례: 16건
+  - actor-field-injected.json
+  - command-id-not-v7.json
+  - probe-seq-above-u32.json
+  - probe-seq-negative.json
+  - missing-tick.json
+  - payload-unknown-field.json
+  - tick-above-safe-integer.json
+  - payload-unknown-field.json
+  - unknown-reason-code.json
+  - missing-session-id.json
+  - tick-hz-zero.json
+  - actor-id-null.json
+  - missing-world-id.json
+  - actor-id-null.json
+  - correlation-id-null.json
+  - unknown-close-reason.json
+[SC-13] 왕복 검증한 유효 fixture: 12건
+  - basic.json
+  - null-client-time-max-seq.json
+  - basic.json
+  - with-correlation.json
+  - accepted.json
+  - rejected-server-busy.json
+  - basic.json
+  - tick-zero.json
+  - basic.json
+  - sequence-nonzero.json
+  - client-closed.json
+  - idle-timeout.json
+test invalid_rejected_by_schema ... ok
+test fixtures_roundtrip ... ok
+[SC-12] 오프라인 검증한 스키마: 11건
+  - PING_SERVER.schema.json
+  - command-envelope.schema.json
+  - event-envelope.schema.json
+  - message-envelope.schema.json
+  - primitives.schema.json
+  - SESSION_CLOSED.schema.json
+  - SESSION_OPENED.schema.json
+  - COMMAND_RESULT.schema.json
+  - PING_REPLY.schema.json
+  - SESSION_READY.schema.json
+  - types.schema.json
+test schemas_valid_offline ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+
+   Doc-tests starfall_contracts
+
+running 1 test
+test crates\contracts\src\dispatch.rs - dispatch (line 8) ... ignored
+
+test result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+all doctests ran in 0.33s; merged doctests compilation took 0.26s

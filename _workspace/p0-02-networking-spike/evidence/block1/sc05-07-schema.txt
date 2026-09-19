@@ -1,0 +1,84 @@
+=== SC-05 스키마 ===
+                                                      Table "public.worlds"
+     Column     |           Type           | Collation | Nullable | Default | Storage  | Compression | Stats target | Description 
+----------------+--------------------------+-----------+----------+---------+----------+-------------+--------------+-------------
+ world_id       | uuid                     |           | not null |         | plain    |             |              | 
+ name           | text                     |           | not null |         | extended |             |              | 
+ tick_hz        | integer                  |           | not null |         | plain    |             |              | 
+ calendar_epoch | text                     |           | not null |         | extended |             |              | 
+ calendar_scale | integer                  |           | not null |         | plain    |             |              | 
+ sim_version    | integer                  |           | not null |         | plain    |             |              | 
+ last_tick      | bigint                   |           |          |         | plain    |             |              | 
+ created_at     | timestamp with time zone |           | not null | now()   | plain    |             |              | 
+Indexes:
+    "worlds_pkey" PRIMARY KEY, btree (world_id)
+Check constraints:
+    "worlds_calendar_scale_check" CHECK (calendar_scale > 0)
+    "worlds_last_tick_check" CHECK (last_tick >= 0 AND last_tick <= '9007199254740991'::bigint)
+    "worlds_tick_hz_check" CHECK (tick_hz >= 1 AND tick_hz <= 1000)
+Referenced by:
+    TABLE "domain_events" CONSTRAINT "domain_events_world_id_fkey" FOREIGN KEY (world_id) REFERENCES worlds(world_id)
+Not-null constraints:
+    "worlds_world_id_not_null" NOT NULL "world_id"
+    "worlds_name_not_null" NOT NULL "name"
+    "worlds_tick_hz_not_null" NOT NULL "tick_hz"
+    "worlds_calendar_epoch_not_null" NOT NULL "calendar_epoch"
+    "worlds_calendar_scale_not_null" NOT NULL "calendar_scale"
+    "worlds_sim_version_not_null" NOT NULL "sim_version"
+    "worlds_created_at_not_null" NOT NULL "created_at"
+Access method: heap
+
+                                                   Table "public.domain_events"
+     Column     |           Type           | Collation | Nullable | Default | Storage  | Compression | Stats target | Description 
+----------------+--------------------------+-----------+----------+---------+----------+-------------+--------------+-------------
+ event_id       | uuid                     |           | not null |         | plain    |             |              | 
+ event_type     | text                     |           | not null |         | extended |             |              | 
+ schema_version | integer                  |           | not null |         | plain    |             |              | 
+ world_id       | uuid                     |           | not null |         | plain    |             |              | 
+ tick           | bigint                   |           | not null |         | plain    |             |              | 
+ sequence       | bigint                   |           | not null |         | plain    |             |              | 
+ occurred_at    | text                     |           | not null |         | extended |             |              | 
+ recorded_at    | timestamp with time zone |           | not null |         | plain    |             |              | 
+ correlation_id | uuid                     |           | not null |         | plain    |             |              | 
+ causation_id   | uuid                     |           |          |         | plain    |             |              | 
+ actor_id       | uuid                     |           |          |         | plain    |             |              | 
+ payload        | jsonb                    |           | not null |         | extended |             |              | 
+Indexes:
+    "domain_events_pkey" PRIMARY KEY, btree (event_id)
+    "domain_events_correlation_idx" btree (correlation_id)
+    "domain_events_type_idx" btree (event_type, world_id, tick)
+    "domain_events_world_id_tick_sequence_key" UNIQUE CONSTRAINT, btree (world_id, tick, sequence)
+Check constraints:
+    "domain_events_schema_version_check" CHECK (schema_version >= 1)
+    "domain_events_sequence_check" CHECK (sequence >= 0 AND sequence <= '9007199254740991'::bigint)
+    "domain_events_tick_check" CHECK (tick >= 0 AND tick <= '9007199254740991'::bigint)
+Foreign-key constraints:
+    "domain_events_world_id_fkey" FOREIGN KEY (world_id) REFERENCES worlds(world_id)
+Not-null constraints:
+    "domain_events_event_id_not_null" NOT NULL "event_id"
+    "domain_events_event_type_not_null" NOT NULL "event_type"
+    "domain_events_schema_version_not_null" NOT NULL "schema_version"
+    "domain_events_world_id_not_null" NOT NULL "world_id"
+    "domain_events_tick_not_null" NOT NULL "tick"
+    "domain_events_sequence_not_null" NOT NULL "sequence"
+    "domain_events_occurred_at_not_null" NOT NULL "occurred_at"
+    "domain_events_recorded_at_not_null" NOT NULL "recorded_at"
+    "domain_events_correlation_id_not_null" NOT NULL "correlation_id"
+    "domain_events_payload_not_null" NOT NULL "payload"
+Triggers:
+    domain_events_append_only BEFORE DELETE OR UPDATE ON domain_events FOR EACH ROW EXECUTE FUNCTION forbid_mutation()
+Access method: heap
+
+=== 인덱스 ===
+domain_events_correlation_idx|CREATE INDEX domain_events_correlation_idx ON public.domain_events USING btree (correlation_id)
+domain_events_pkey|CREATE UNIQUE INDEX domain_events_pkey ON public.domain_events USING btree (event_id)
+domain_events_type_idx|CREATE INDEX domain_events_type_idx ON public.domain_events USING btree (event_type, world_id, tick)
+domain_events_world_id_tick_sequence_key|CREATE UNIQUE INDEX domain_events_world_id_tick_sequence_key ON public.domain_events USING btree (world_id, tick, sequence)
+worlds_pkey|CREATE UNIQUE INDEX worlds_pkey ON public.worlds USING btree (world_id)
+=== 트리거 ===
+domain_events_append_only|CREATE TRIGGER domain_events_append_only BEFORE DELETE OR UPDATE ON public.domain_events FOR EACH ROW EXECUTE FUNCTION forbid_mutation()
+=== SC-06 worlds 행 ===
+1
+01a0b1c2-3d4e-7f01-8a2b-9c0d1e2f3a4b | spike | 20 | 3800-01-01T00:00:00Z | 60 | 1 | last_tick_is_null=false
+=== SC-07 마이그레이션(1회차 기동 후) ===
+1 | worlds and domain events | success=true | checksum=b4f83ef71508d1b53cbcd735a1e8c0b634e45251d7a18d2d76d8a4a8496ca0c989a18ec8f6b81eb7cf7a4175f66340cc

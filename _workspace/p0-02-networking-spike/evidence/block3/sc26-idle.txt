@@ -1,0 +1,9 @@
+### SC-26 idle (45초 무폴링)
+=== probe idle ===
+계약 항목: SC-26 (AC-8c): Pong 없음 → close 1001 + IDLE_TIMEOUT
+session_id=01a0b926-a0c1-75b4-880b-bc1df0b93eac correlation_id=Some(01a0b926-a0c7-70ef-8c0b-f29227fd4a16) actor_id=01a0b1c2-b010-7000-8000-000000000007 tick_hz=20 server_version=0.1.0 ready_tick=330450
+close: code=Some(1001) reason_text=Some("") initiator=server
+token subject=01a0b1c2-b010-7000-8000-000000000007 actor_id_matches_subject=true
+sent=0 results=0 (accepted 0 / rejected 0) replies=0 order_violations=0 missing_results=0
+tick_mismatches=0 (compared 0) same_tick_holds=false
+rtt ms n=0 p50=None max=None

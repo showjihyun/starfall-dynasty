@@ -1,0 +1,9 @@
+{
+  "step": "SC-66-new-connection-503",
+  "at": "2026-09-19T10:23:36Z",
+  "cmd": "curl.exe -s -o C:\\WorkSpace\\SpaceHistoric\\_workspace\\p0-02-networking-spike\\evidence\\durability\\ws-503-body.txt -w http_code=%{http_code}\\n -H Connection: Upgrade -H Upgrade: websocket -H Sec-WebSocket-Version: 13 -H Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ== -H Authorization: Bearer 01a0b1c2-b010-7000-8000-000000000000.f0561d67b8c71be38992925b16251a890c508770f48f47a63eb51ebf5a880fc6 http://127.0.0.1:8080/ws",
+  "exit": 0,
+  "stdout": "http_code=503\n",
+  "stderr": "",
+  "elapsed_s": 0.02
+}

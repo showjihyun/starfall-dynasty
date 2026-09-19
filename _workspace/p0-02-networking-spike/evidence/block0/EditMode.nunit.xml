@@ -1,0 +1,712 @@
+<?xml version="1.0" encoding="utf-8"?>
+<test-run id="2" testcasecount="67" result="Skipped:Ignored" total="67" passed="65" failed="0" inconclusive="0" skipped="2" asserts="0" engine-version="3.5.0.0" clr-version="4.0.30319.42000" start-time="2026-09-19 05:31:50Z" end-time="2026-09-19 05:31:51Z" duration="0.4788016">
+  <test-suite type="TestSuite" id="1000" name="Starfall Dynasty" fullname="Starfall Dynasty" runstate="Runnable" testcasecount="67" result="Skipped" label="Ignored" start-time="2026-09-19 05:31:50Z" end-time="2026-09-19 05:31:51Z" duration="0.478802" total="67" passed="65" failed="0" inconclusive="0" skipped="2" asserts="0">
+    <properties>
+      <property name="platform" value="EditMode" />
+    </properties>
+    <reason>
+      <message><![CDATA[One or more child tests were ignored]]></message>
+    </reason>
+    <test-suite type="Assembly" id="1076" name="Starfall.Tests.EditMode.dll" fullname="C:/WorkSpace/SpaceHistoric/client/Library/ScriptAssemblies/Starfall.Tests.EditMode.dll" runstate="Runnable" testcasecount="67" result="Skipped" label="Ignored" start-time="2026-09-19 05:31:50Z" end-time="2026-09-19 05:31:51Z" duration="0.471176" total="67" passed="65" failed="0" inconclusive="0" skipped="2" asserts="0">
+      <properties>
+        <property name="_PID" value="30688" />
+        <property name="_APPDOMAIN" value="Unity Child Domain" />
+        <property name="platform" value="EditMode" />
+        <property name="EditorOnly" value="True" />
+      </properties>
+      <reason>
+        <message><![CDATA[One or more child tests were ignored]]></message>
+      </reason>
+      <test-suite type="TestSuite" id="1077" name="Starfall" fullname="Starfall" runstate="Runnable" testcasecount="67" result="Skipped" label="Ignored" start-time="2026-09-19 05:31:50Z" end-time="2026-09-19 05:31:51Z" duration="0.470503" total="67" passed="65" failed="0" inconclusive="0" skipped="2" asserts="0">
+        <properties />
+        <reason>
+          <message><![CDATA[One or more child tests were ignored]]></message>
+        </reason>
+        <test-suite type="TestSuite" id="1078" name="Tests" fullname="Starfall.Tests" runstate="Runnable" testcasecount="67" result="Skipped" label="Ignored" start-time="2026-09-19 05:31:50Z" end-time="2026-09-19 05:31:51Z" duration="0.469952" total="67" passed="65" failed="0" inconclusive="0" skipped="2" asserts="0">
+          <properties />
+          <reason>
+            <message><![CDATA[One or more child tests were ignored]]></message>
+          </reason>
+          <test-suite type="TestSuite" id="1079" name="EditMode" fullname="Starfall.Tests.EditMode" runstate="Runnable" testcasecount="67" result="Skipped" label="Ignored" start-time="2026-09-19 05:31:50Z" end-time="2026-09-19 05:31:51Z" duration="0.468237" total="67" passed="65" failed="0" inconclusive="0" skipped="2" asserts="0">
+            <properties />
+            <reason>
+              <message><![CDATA[One or more child tests were ignored]]></message>
+            </reason>
+            <test-suite type="TestFixture" id="1001" name="ContractFixtureTests" fullname="Starfall.Tests.EditMode.ContractFixtureTests" classname="Starfall.Tests.EditMode.ContractFixtureTests" runstate="Runnable" testcasecount="36" result="Passed" start-time="2026-09-19 05:31:50Z" end-time="2026-09-19 05:31:51Z" duration="0.325291" total="36" passed="36" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1035" name="Dispatch_PreservesRealTime" fullname="Starfall.Tests.EditMode.ContractFixtureTests.Dispatch_PreservesRealTime" methodname="Dispatch_PreservesRealTime" classname="Starfall.Tests.EditMode.ContractFixtureTests" runstate="Runnable" seed="1267703040" result="Passed" start-time="2026-09-19 05:31:50Z" end-time="2026-09-19 05:31:50Z" duration="0.105568" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[via ContractDispatch.TryRead : 2026-09-17T14:05:09.123Z
+via default JObject.Parse   : 09/17/2026 14:05:09
+]]></output>
+              </test-case>
+              <test-case id="1040" name="FixtureLoader_FailsWhenTooFewValidFixtures" fullname="Starfall.Tests.EditMode.ContractFixtureTests.FixtureLoader_FailsWhenTooFewValidFixtures" methodname="FixtureLoader_FailsWhenTooFewValidFixtures" classname="Starfall.Tests.EditMode.ContractFixtureTests" runstate="Runnable" seed="884086952" result="Passed" start-time="2026-09-19 05:31:50Z" end-time="2026-09-19 05:31:50Z" duration="0.023512" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[guard sees 11 of 12 expected fixtures
+]]></output>
+              </test-case>
+              <test-case id="1038" name="FixtureLoader_FindsRepoRootByMarker" fullname="Starfall.Tests.EditMode.ContractFixtureTests.FixtureLoader_FindsRepoRootByMarker" methodname="FixtureLoader_FindsRepoRootByMarker" classname="Starfall.Tests.EditMode.ContractFixtureTests" runstate="Runnable" seed="1653951336" result="Passed" start-time="2026-09-19 05:31:50Z" end-time="2026-09-19 05:31:50Z" duration="0.004700" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[repo root : C:\WorkSpace\SpaceHistoric
+marker    : contracts/registry/types.json
+  valid fixture: COMMAND_RESULT/accepted.json
+  valid fixture: COMMAND_RESULT/rejected-server-busy.json
+  valid fixture: PING_REPLY/basic.json
+  valid fixture: PING_REPLY/with-correlation.json
+  valid fixture: PING_SERVER/basic.json
+  valid fixture: PING_SERVER/null-client-time-max-seq.json
+  valid fixture: SESSION_CLOSED/client-closed.json
+  valid fixture: SESSION_CLOSED/idle-timeout.json
+  valid fixture: SESSION_OPENED/basic.json
+  valid fixture: SESSION_OPENED/sequence-nonzero.json
+  valid fixture: SESSION_READY/basic.json
+  valid fixture: SESSION_READY/tick-zero.json
+valid fixtures counted: 12
+]]></output>
+              </test-case>
+              <test-suite type="ParameterizedMethod" id="1014" name="Fixtures_RoundTrip_MatchesOriginal" fullname="Starfall.Tests.EditMode.ContractFixtureTests.Fixtures_RoundTrip_MatchesOriginal" classname="Starfall.Tests.EditMode.ContractFixtureTests" runstate="Runnable" testcasecount="12" result="Passed" start-time="2026-09-19 05:31:50Z" end-time="2026-09-19 05:31:50Z" duration="0.061685" total="12" passed="12" failed="0" inconclusive="0" skipped="0" asserts="0">
+                <properties />
+                <test-case id="1002" name="Fixtures_RoundTrip_MatchesOriginal(COMMAND_RESULT/accepted.json)" fullname="Starfall.Tests.EditMode.ContractFixtureTests.Fixtures_RoundTrip_MatchesOriginal(COMMAND_RESULT/accepted.json)" methodname="Fixtures_RoundTrip_MatchesOriginal" classname="Starfall.Tests.EditMode.ContractFixtureTests" runstate="Runnable" seed="1045375047" result="Passed" start-time="2026-09-19 05:31:50Z" end-time="2026-09-19 05:31:50Z" duration="0.024151" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                  <output><![CDATA[COMMAND_RESULT/accepted.json -> CommandResultMessage
+  re-serialized: {"correlation_id":"01a0b1c2-4a12-7c01-8d02-1e033f044a05","message_id":"01a0b1c2-6c31-7112-9223-3a4b5c6d7e8f","message_type":"COMMAND_RESULT","payload":{"command_id":"01a0afaf-7e83-7f49-adfa-58ba04c2fd5a","reason_code":null,"status":"ACCEPTED"},"schema_version":1,"tick":1240}
+]]></output>
+                </test-case>
+                <test-case id="1003" name="Fixtures_RoundTrip_MatchesOriginal(COMMAND_RESULT/rejected-server-busy.json)" fullname="Starfall.Tests.EditMode.ContractFixtureTests.Fixtures_RoundTrip_MatchesOriginal(COMMAND_RESULT/rejected-server-busy.json)" methodname="Fixtures_RoundTrip_MatchesOriginal" classname="Starfall.Tests.EditMode.ContractFixtureTests" runstate="Runnable" seed="1994521377" result="Passed" start-time="2026-09-19 05:31:50Z" end-time="2026-09-19 05:31:50Z" duration="0.000781" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                  <output><![CDATA[COMMAND_RESULT/rejected-server-busy.json -> CommandResultMessage
+  re-serialized: {"correlation_id":null,"message_id":"01a0b1c2-6c32-7113-a224-4b5c6d7e8f90","message_type":"COMMAND_RESULT","payload":{"command_id":"01a0afaf-7e84-729e-9f17-464483f27a6d","reason_code":"SERVER_BUSY","status":"REJECTED"},"schema_version":1,"tick":1241}
+]]></output>
+                </test-case>
+                <test-case id="1004" name="Fixtures_RoundTrip_MatchesOriginal(PING_REPLY/basic.json)" fullname="Starfall.Tests.EditMode.ContractFixtureTests.Fixtures_RoundTrip_MatchesOriginal(PING_REPLY/basic.json)" methodname="Fixtures_RoundTrip_MatchesOriginal" classname="Starfall.Tests.EditMode.ContractFixtureTests" runstate="Runnable" seed="1578878775" result="Passed" start-time="2026-09-19 05:31:50Z" end-time="2026-09-19 05:31:50Z" duration="0.007467" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                  <output><![CDATA[PING_REPLY/basic.json -> PingReplyMessage
+  re-serialized: {"correlation_id":null,"message_id":"01a0afaf-7f7d-7c16-b3d0-f1a4053c530b","message_type":"PING_REPLY","payload":{"command_id":"01a0afaf-7e83-7f49-adfa-58ba04c2fd5a","probe_seq":42},"schema_version":1,"tick":18273391}
+]]></output>
+                </test-case>
+                <test-case id="1005" name="Fixtures_RoundTrip_MatchesOriginal(PING_REPLY/with-correlation.json)" fullname="Starfall.Tests.EditMode.ContractFixtureTests.Fixtures_RoundTrip_MatchesOriginal(PING_REPLY/with-correlation.json)" methodname="Fixtures_RoundTrip_MatchesOriginal" classname="Starfall.Tests.EditMode.ContractFixtureTests" runstate="Runnable" seed="588930316" result="Passed" start-time="2026-09-19 05:31:50Z" end-time="2026-09-19 05:31:50Z" duration="0.001023" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                  <output><![CDATA[PING_REPLY/with-correlation.json -> PingReplyMessage
+  re-serialized: {"correlation_id":"01a0afaf-8207-7566-ba03-d9054f3c0313","message_id":"01a0afaf-8208-78ec-8b44-ab48edc4a6a7","message_type":"PING_REPLY","payload":{"command_id":"01a0afaf-7e84-729e-9f17-464483f27a6d","probe_seq":4294967295},"schema_version":1,"tick":9007199254740991}
+]]></output>
+                </test-case>
+                <test-case id="1006" name="Fixtures_RoundTrip_MatchesOriginal(PING_SERVER/basic.json)" fullname="Starfall.Tests.EditMode.ContractFixtureTests.Fixtures_RoundTrip_MatchesOriginal(PING_SERVER/basic.json)" methodname="Fixtures_RoundTrip_MatchesOriginal" classname="Starfall.Tests.EditMode.ContractFixtureTests" runstate="Runnable" seed="651105897" result="Passed" start-time="2026-09-19 05:31:50Z" end-time="2026-09-19 05:31:50Z" duration="0.004040" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                  <output><![CDATA[PING_SERVER/basic.json -> PingServerCommand
+  re-serialized: {"client_sent_at":"2026-09-17T14:05:09.123Z","command_id":"01a0afaf-7e83-7f49-adfa-58ba04c2fd5a","command_type":"PING_SERVER","payload":{"probe_seq":42},"schema_version":1}
+]]></output>
+                </test-case>
+                <test-case id="1007" name="Fixtures_RoundTrip_MatchesOriginal(PING_SERVER/null-client-time-max-seq.json)" fullname="Starfall.Tests.EditMode.ContractFixtureTests.Fixtures_RoundTrip_MatchesOriginal(PING_SERVER/null-client-time-max-seq.json)" methodname="Fixtures_RoundTrip_MatchesOriginal" classname="Starfall.Tests.EditMode.ContractFixtureTests" runstate="Runnable" seed="461629929" result="Passed" start-time="2026-09-19 05:31:50Z" end-time="2026-09-19 05:31:50Z" duration="0.000371" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                  <output><![CDATA[PING_SERVER/null-client-time-max-seq.json -> PingServerCommand
+  re-serialized: {"client_sent_at":null,"command_id":"01a0afaf-7e84-729e-9f17-464483f27a6d","command_type":"PING_SERVER","payload":{"probe_seq":4294967295},"schema_version":1}
+]]></output>
+                </test-case>
+                <test-case id="1008" name="Fixtures_RoundTrip_MatchesOriginal(SESSION_CLOSED/client-closed.json)" fullname="Starfall.Tests.EditMode.ContractFixtureTests.Fixtures_RoundTrip_MatchesOriginal(SESSION_CLOSED/client-closed.json)" methodname="Fixtures_RoundTrip_MatchesOriginal" classname="Starfall.Tests.EditMode.ContractFixtureTests" runstate="Runnable" seed="1378733827" result="Passed" start-time="2026-09-19 05:31:50Z" end-time="2026-09-19 05:31:50Z" duration="0.004928" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                  <output><![CDATA[SESSION_CLOSED/client-closed.json -> SessionClosedEvent
+  re-serialized: {"actor_id":"01a0b1c2-2c01-7a45-8b67-89abcdef0123","causation_id":null,"correlation_id":"01a0b1c2-4a12-7c01-8d02-1e033f044a05","event_id":"01a0b1c2-5b24-7e10-a9f2-3b4c5d6e7f80","event_type":"SESSION_CLOSED","occurred_at":"3800-01-01T20:00:00Z","payload":{"close_reason":"CLIENT_CLOSED","session_id":"01a0b1c2-4a11-7b22-9c33-0d44e55f6a77"},"recorded_at":"2026-09-18T13:23:31.884Z","schema_version":1,"sequence":0,"tick":24000,"world_id":"01a0b1c2-3d4e-7f01-8a2b-9c0d1e2f3a4b"}
+]]></output>
+                </test-case>
+                <test-case id="1009" name="Fixtures_RoundTrip_MatchesOriginal(SESSION_CLOSED/idle-timeout.json)" fullname="Starfall.Tests.EditMode.ContractFixtureTests.Fixtures_RoundTrip_MatchesOriginal(SESSION_CLOSED/idle-timeout.json)" methodname="Fixtures_RoundTrip_MatchesOriginal" classname="Starfall.Tests.EditMode.ContractFixtureTests" runstate="Runnable" seed="131148846" result="Passed" start-time="2026-09-19 05:31:50Z" end-time="2026-09-19 05:31:50Z" duration="0.000742" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                  <output><![CDATA[SESSION_CLOSED/idle-timeout.json -> SessionClosedEvent
+  re-serialized: {"actor_id":"01a0b1c2-2c02-7a46-9b68-9abcdef01234","causation_id":null,"correlation_id":"01a0b1c2-7d42-7a56-9b67-6d7e8f901234","event_id":"01a0b1c2-8e51-7b61-8c72-a01234567891","event_type":"SESSION_CLOSED","occurred_at":"3800-01-04T00:00:00Z","payload":{"close_reason":"IDLE_TIMEOUT","session_id":"01a0b1c2-7d41-7a55-8b66-5c6d7e8f9012"},"recorded_at":"2026-09-18T13:09:41.003Z","schema_version":1,"sequence":8,"tick":86400,"world_id":"01a0b1c2-3d4e-7f01-8a2b-9c0d1e2f3a4b"}
+]]></output>
+                </test-case>
+                <test-case id="1010" name="Fixtures_RoundTrip_MatchesOriginal(SESSION_OPENED/basic.json)" fullname="Starfall.Tests.EditMode.ContractFixtureTests.Fixtures_RoundTrip_MatchesOriginal(SESSION_OPENED/basic.json)" methodname="Fixtures_RoundTrip_MatchesOriginal" classname="Starfall.Tests.EditMode.ContractFixtureTests" runstate="Runnable" seed="1832402429" result="Passed" start-time="2026-09-19 05:31:50Z" end-time="2026-09-19 05:31:50Z" duration="0.004710" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                  <output><![CDATA[SESSION_OPENED/basic.json -> SessionOpenedEvent
+  re-serialized: {"actor_id":"01a0b1c2-2c01-7a45-8b67-89abcdef0123","causation_id":null,"correlation_id":"01a0b1c2-4a12-7c01-8d02-1e033f044a05","event_id":"01a0b1c2-4a13-7d09-b8e1-2f0a3b4c5d6e","event_type":"SESSION_OPENED","occurred_at":"3800-01-01T01:00:00Z","payload":{"session_id":"01a0b1c2-4a11-7b22-9c33-0d44e55f6a77","transport":"WEBSOCKET"},"recorded_at":"2026-09-18T13:04:22.417Z","schema_version":1,"sequence":0,"tick":1200,"world_id":"01a0b1c2-3d4e-7f01-8a2b-9c0d1e2f3a4b"}
+]]></output>
+                </test-case>
+                <test-case id="1011" name="Fixtures_RoundTrip_MatchesOriginal(SESSION_OPENED/sequence-nonzero.json)" fullname="Starfall.Tests.EditMode.ContractFixtureTests.Fixtures_RoundTrip_MatchesOriginal(SESSION_OPENED/sequence-nonzero.json)" methodname="Fixtures_RoundTrip_MatchesOriginal" classname="Starfall.Tests.EditMode.ContractFixtureTests" runstate="Runnable" seed="797239446" result="Passed" start-time="2026-09-19 05:31:50Z" end-time="2026-09-19 05:31:50Z" duration="0.000495" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                  <output><![CDATA[SESSION_OPENED/sequence-nonzero.json -> SessionOpenedEvent
+  re-serialized: {"actor_id":"01a0b1c2-2c02-7a46-9b68-9abcdef01234","causation_id":null,"correlation_id":"01a0b1c2-7d42-7a56-9b67-6d7e8f901234","event_id":"01a0b1c2-7d43-7a57-ab68-7e8f90123456","event_type":"SESSION_OPENED","occurred_at":"3800-01-04T00:00:00Z","payload":{"session_id":"01a0b1c2-7d41-7a55-8b66-5c6d7e8f9012","transport":"WEBSOCKET"},"recorded_at":"2026-09-18T13:09:41.002Z","schema_version":1,"sequence":7,"tick":86400,"world_id":"01a0b1c2-3d4e-7f01-8a2b-9c0d1e2f3a4b"}
+]]></output>
+                </test-case>
+                <test-case id="1012" name="Fixtures_RoundTrip_MatchesOriginal(SESSION_READY/basic.json)" fullname="Starfall.Tests.EditMode.ContractFixtureTests.Fixtures_RoundTrip_MatchesOriginal(SESSION_READY/basic.json)" methodname="Fixtures_RoundTrip_MatchesOriginal" classname="Starfall.Tests.EditMode.ContractFixtureTests" runstate="Runnable" seed="917668429" result="Passed" start-time="2026-09-19 05:31:50Z" end-time="2026-09-19 05:31:50Z" duration="0.003607" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                  <output><![CDATA[SESSION_READY/basic.json -> SessionReadyMessage
+  re-serialized: {"correlation_id":"01a0b1c2-4a12-7c01-8d02-1e033f044a05","message_id":"01a0b1c2-4a14-7001-8002-0a0b0c0d0e0f","message_type":"SESSION_READY","payload":{"actor_id":"01a0b1c2-2c01-7a45-8b67-89abcdef0123","server_version":"0.1.0","session_id":"01a0b1c2-4a11-7b22-9c33-0d44e55f6a77","tick_hz":20,"world_id":"01a0b1c2-3d4e-7f01-8a2b-9c0d1e2f3a4b"},"schema_version":1,"tick":1200}
+]]></output>
+                </test-case>
+                <test-case id="1013" name="Fixtures_RoundTrip_MatchesOriginal(SESSION_READY/tick-zero.json)" fullname="Starfall.Tests.EditMode.ContractFixtureTests.Fixtures_RoundTrip_MatchesOriginal(SESSION_READY/tick-zero.json)" methodname="Fixtures_RoundTrip_MatchesOriginal" classname="Starfall.Tests.EditMode.ContractFixtureTests" runstate="Runnable" seed="746684239" result="Passed" start-time="2026-09-19 05:31:50Z" end-time="2026-09-19 05:31:50Z" duration="0.000351" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                  <output><![CDATA[SESSION_READY/tick-zero.json -> SessionReadyMessage
+  re-serialized: {"correlation_id":"01a0b1c2-7d42-7a56-9b67-6d7e8f901234","message_id":"01a0b1c2-4a15-7002-b003-0f0e0d0c0b0a","message_type":"SESSION_READY","payload":{"actor_id":"01a0b1c2-2c02-7a46-9b68-9abcdef01234","server_version":"0.1.0+spike.1","session_id":"01a0b1c2-7d41-7a55-8b66-5c6d7e8f9012","tick_hz":1,"world_id":"01a0b1c2-3d4f-7a02-9b13-0e1f2a3b4c5d"},"schema_version":1,"tick":0}
+]]></output>
+                </test-case>
+              </test-suite>
+              <test-case id="1015" name="Fixtures_RoundTrip_VisitedEveryValidFixture" fullname="Starfall.Tests.EditMode.ContractFixtureTests.Fixtures_RoundTrip_VisitedEveryValidFixture" methodname="Fixtures_RoundTrip_VisitedEveryValidFixture" classname="Starfall.Tests.EditMode.ContractFixtureTests" runstate="Runnable" seed="141238312" result="Passed" start-time="2026-09-19 05:31:50Z" end-time="2026-09-19 05:31:50Z" duration="0.001458" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[visited COMMAND_RESULT/accepted.json
+visited COMMAND_RESULT/rejected-server-busy.json
+visited PING_REPLY/basic.json
+visited PING_REPLY/with-correlation.json
+visited PING_SERVER/basic.json
+visited PING_SERVER/null-client-time-max-seq.json
+visited SESSION_CLOSED/client-closed.json
+visited SESSION_CLOSED/idle-timeout.json
+visited SESSION_OPENED/basic.json
+visited SESSION_OPENED/sequence-nonzero.json
+visited SESSION_READY/basic.json
+visited SESSION_READY/tick-zero.json
+valid fixtures round-tripped: 12
+]]></output>
+              </test-case>
+              <test-suite type="ParameterizedMethod" id="1034" name="Invalid_NotDetectableByCSharp_DocumentedAsymmetry" fullname="Starfall.Tests.EditMode.ContractFixtureTests.Invalid_NotDetectableByCSharp_DocumentedAsymmetry" classname="Starfall.Tests.EditMode.ContractFixtureTests" runstate="Runnable" testcasecount="5" result="Passed" start-time="2026-09-19 05:31:50Z" end-time="2026-09-19 05:31:50Z" duration="0.003128" total="5" passed="5" failed="0" inconclusive="0" skipped="0" asserts="0">
+                <properties />
+                <test-case id="1029" name="Invalid_NotDetectableByCSharp_DocumentedAsymmetry(PING_SERVER/command-id-not-v7.json)" fullname="Starfall.Tests.EditMode.ContractFixtureTests.Invalid_NotDetectableByCSharp_DocumentedAsymmetry(PING_SERVER/command-id-not-v7.json)" methodname="Invalid_NotDetectableByCSharp_DocumentedAsymmetry" classname="Starfall.Tests.EditMode.ContractFixtureTests" runstate="Runnable" seed="1372132945" result="Passed" start-time="2026-09-19 05:31:50Z" end-time="2026-09-19 05:31:50Z" duration="0.000613" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                  <output><![CDATA[PING_SERVER/command-id-not-v7.json was ACCEPTED by C# Strict, as documented in spec section 5.4.
+  Guid accepts any UUID version; long holds values above 2^53-1;
+  int holds 0 where the schema says minimum 1; a closed value set is a plain string.
+  The schema validator and Rust serde reject it at the server boundary.
+]]></output>
+                </test-case>
+                <test-case id="1030" name="Invalid_NotDetectableByCSharp_DocumentedAsymmetry(PING_REPLY/tick-above-safe-integer.json)" fullname="Starfall.Tests.EditMode.ContractFixtureTests.Invalid_NotDetectableByCSharp_DocumentedAsymmetry(PING_REPLY/tick-above-safe-integer.json)" methodname="Invalid_NotDetectableByCSharp_DocumentedAsymmetry" classname="Starfall.Tests.EditMode.ContractFixtureTests" runstate="Runnable" seed="830514596" result="Passed" start-time="2026-09-19 05:31:50Z" end-time="2026-09-19 05:31:50Z" duration="0.000375" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                  <output><![CDATA[PING_REPLY/tick-above-safe-integer.json was ACCEPTED by C# Strict, as documented in spec section 5.4.
+  Guid accepts any UUID version; long holds values above 2^53-1;
+  int holds 0 where the schema says minimum 1; a closed value set is a plain string.
+  The schema validator and Rust serde reject it at the server boundary.
+]]></output>
+                </test-case>
+                <test-case id="1031" name="Invalid_NotDetectableByCSharp_DocumentedAsymmetry(COMMAND_RESULT/unknown-reason-code.json)" fullname="Starfall.Tests.EditMode.ContractFixtureTests.Invalid_NotDetectableByCSharp_DocumentedAsymmetry(COMMAND_RESULT/unknown-reason-code.json)" methodname="Invalid_NotDetectableByCSharp_DocumentedAsymmetry" classname="Starfall.Tests.EditMode.ContractFixtureTests" runstate="Runnable" seed="1600707337" result="Passed" start-time="2026-09-19 05:31:50Z" end-time="2026-09-19 05:31:50Z" duration="0.000356" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                  <output><![CDATA[COMMAND_RESULT/unknown-reason-code.json was ACCEPTED by C# Strict, as documented in spec section 5.4.
+  Guid accepts any UUID version; long holds values above 2^53-1;
+  int holds 0 where the schema says minimum 1; a closed value set is a plain string.
+  The schema validator and Rust serde reject it at the server boundary.
+]]></output>
+                </test-case>
+                <test-case id="1032" name="Invalid_NotDetectableByCSharp_DocumentedAsymmetry(SESSION_READY/tick-hz-zero.json)" fullname="Starfall.Tests.EditMode.ContractFixtureTests.Invalid_NotDetectableByCSharp_DocumentedAsymmetry(SESSION_READY/tick-hz-zero.json)" methodname="Invalid_NotDetectableByCSharp_DocumentedAsymmetry" classname="Starfall.Tests.EditMode.ContractFixtureTests" runstate="Runnable" seed="1364553132" result="Passed" start-time="2026-09-19 05:31:50Z" end-time="2026-09-19 05:31:50Z" duration="0.000424" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                  <output><![CDATA[SESSION_READY/tick-hz-zero.json was ACCEPTED by C# Strict, as documented in spec section 5.4.
+  Guid accepts any UUID version; long holds values above 2^53-1;
+  int holds 0 where the schema says minimum 1; a closed value set is a plain string.
+  The schema validator and Rust serde reject it at the server boundary.
+]]></output>
+                </test-case>
+                <test-case id="1033" name="Invalid_NotDetectableByCSharp_DocumentedAsymmetry(SESSION_CLOSED/unknown-close-reason.json)" fullname="Starfall.Tests.EditMode.ContractFixtureTests.Invalid_NotDetectableByCSharp_DocumentedAsymmetry(SESSION_CLOSED/unknown-close-reason.json)" methodname="Invalid_NotDetectableByCSharp_DocumentedAsymmetry" classname="Starfall.Tests.EditMode.ContractFixtureTests" runstate="Runnable" seed="1998480500" result="Passed" start-time="2026-09-19 05:31:50Z" end-time="2026-09-19 05:31:50Z" duration="0.000353" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                  <output><![CDATA[SESSION_CLOSED/unknown-close-reason.json was ACCEPTED by C# Strict, as documented in spec section 5.4.
+  Guid accepts any UUID version; long holds values above 2^53-1;
+  int holds 0 where the schema says minimum 1; a closed value set is a plain string.
+  The schema validator and Rust serde reject it at the server boundary.
+]]></output>
+                </test-case>
+              </test-suite>
+              <test-suite type="ParameterizedMethod" id="1027" name="Invalid_Rejected_ByStrictProfile" fullname="Starfall.Tests.EditMode.ContractFixtureTests.Invalid_Rejected_ByStrictProfile" classname="Starfall.Tests.EditMode.ContractFixtureTests" runstate="Runnable" testcasecount="11" result="Passed" start-time="2026-09-19 05:31:50Z" end-time="2026-09-19 05:31:50Z" duration="0.007047" total="11" passed="11" failed="0" inconclusive="0" skipped="0" asserts="0">
+                <properties />
+                <test-case id="1016" name="Invalid_Rejected_ByStrictProfile(PING_SERVER/actor-field-injected.json)" fullname="Starfall.Tests.EditMode.ContractFixtureTests.Invalid_Rejected_ByStrictProfile(PING_SERVER/actor-field-injected.json)" methodname="Invalid_Rejected_ByStrictProfile" classname="Starfall.Tests.EditMode.ContractFixtureTests" runstate="Runnable" seed="440198020" result="Passed" start-time="2026-09-19 05:31:50Z" end-time="2026-09-19 05:31:50Z" duration="0.001931" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                  <output><![CDATA[PING_SERVER/actor-field-injected.json rejected: Could not find member 'player_id' on object of type 'PingServerCommand'. Path 'player_id', line 6, position 14.
+]]></output>
+                </test-case>
+                <test-case id="1017" name="Invalid_Rejected_ByStrictProfile(PING_SERVER/probe-seq-negative.json)" fullname="Starfall.Tests.EditMode.ContractFixtureTests.Invalid_Rejected_ByStrictProfile(PING_SERVER/probe-seq-negative.json)" methodname="Invalid_Rejected_ByStrictProfile" classname="Starfall.Tests.EditMode.ContractFixtureTests" runstate="Runnable" seed="339717955" result="Passed" start-time="2026-09-19 05:31:50Z" end-time="2026-09-19 05:31:50Z" duration="0.000917" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                  <output><![CDATA[PING_SERVER/probe-seq-negative.json rejected: Error converting value -1 to type 'System.UInt32'. Path 'payload.probe_seq', line 7, position 19.
+]]></output>
+                </test-case>
+                <test-case id="1018" name="Invalid_Rejected_ByStrictProfile(PING_SERVER/probe-seq-above-u32.json)" fullname="Starfall.Tests.EditMode.ContractFixtureTests.Invalid_Rejected_ByStrictProfile(PING_SERVER/probe-seq-above-u32.json)" methodname="Invalid_Rejected_ByStrictProfile" classname="Starfall.Tests.EditMode.ContractFixtureTests" runstate="Runnable" seed="1131198732" result="Passed" start-time="2026-09-19 05:31:50Z" end-time="2026-09-19 05:31:50Z" duration="0.000304" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                  <output><![CDATA[PING_SERVER/probe-seq-above-u32.json rejected: Error converting value 4294967296 to type 'System.UInt32'. Path 'payload.probe_seq', line 7, position 27.
+]]></output>
+                </test-case>
+                <test-case id="1019" name="Invalid_Rejected_ByStrictProfile(PING_REPLY/missing-tick.json)" fullname="Starfall.Tests.EditMode.ContractFixtureTests.Invalid_Rejected_ByStrictProfile(PING_REPLY/missing-tick.json)" methodname="Invalid_Rejected_ByStrictProfile" classname="Starfall.Tests.EditMode.ContractFixtureTests" runstate="Runnable" seed="843418694" result="Passed" start-time="2026-09-19 05:31:50Z" end-time="2026-09-19 05:31:50Z" duration="0.000285" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                  <output><![CDATA[PING_REPLY/missing-tick.json rejected: Required property 'tick' not found in JSON. Path '', line 10, position 1.
+]]></output>
+                </test-case>
+                <test-case id="1020" name="Invalid_Rejected_ByStrictProfile(PING_REPLY/payload-unknown-field.json)" fullname="Starfall.Tests.EditMode.ContractFixtureTests.Invalid_Rejected_ByStrictProfile(PING_REPLY/payload-unknown-field.json)" methodname="Invalid_Rejected_ByStrictProfile" classname="Starfall.Tests.EditMode.ContractFixtureTests" runstate="Runnable" seed="2075797119" result="Passed" start-time="2026-09-19 05:31:50Z" end-time="2026-09-19 05:31:50Z" duration="0.000286" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                  <output><![CDATA[PING_REPLY/payload-unknown-field.json rejected: Could not find member 'client_sent_at' on object of type 'PingReplyPayload'. Path 'payload.client_sent_at', line 10, position 21.
+]]></output>
+                </test-case>
+                <test-case id="1021" name="Invalid_Rejected_ByStrictProfile(COMMAND_RESULT/payload-unknown-field.json)" fullname="Starfall.Tests.EditMode.ContractFixtureTests.Invalid_Rejected_ByStrictProfile(COMMAND_RESULT/payload-unknown-field.json)" methodname="Invalid_Rejected_ByStrictProfile" classname="Starfall.Tests.EditMode.ContractFixtureTests" runstate="Runnable" seed="136885781" result="Passed" start-time="2026-09-19 05:31:50Z" end-time="2026-09-19 05:31:50Z" duration="0.000288" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                  <output><![CDATA[COMMAND_RESULT/payload-unknown-field.json rejected: Could not find member 'queued_ticks' on object of type 'CommandResultPayload'. Path 'payload.queued_ticks', line 11, position 19.
+]]></output>
+                </test-case>
+                <test-case id="1022" name="Invalid_Rejected_ByStrictProfile(SESSION_READY/missing-session-id.json)" fullname="Starfall.Tests.EditMode.ContractFixtureTests.Invalid_Rejected_ByStrictProfile(SESSION_READY/missing-session-id.json)" methodname="Invalid_Rejected_ByStrictProfile" classname="Starfall.Tests.EditMode.ContractFixtureTests" runstate="Runnable" seed="1108735038" result="Passed" start-time="2026-09-19 05:31:50Z" end-time="2026-09-19 05:31:50Z" duration="0.000280" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                  <output><![CDATA[SESSION_READY/missing-session-id.json rejected: Required property 'session_id' not found in JSON. Path 'payload', line 12, position 3.
+]]></output>
+                </test-case>
+                <test-case id="1023" name="Invalid_Rejected_ByStrictProfile(SESSION_OPENED/missing-world-id.json)" fullname="Starfall.Tests.EditMode.ContractFixtureTests.Invalid_Rejected_ByStrictProfile(SESSION_OPENED/missing-world-id.json)" methodname="Invalid_Rejected_ByStrictProfile" classname="Starfall.Tests.EditMode.ContractFixtureTests" runstate="Runnable" seed="1638053357" result="Passed" start-time="2026-09-19 05:31:50Z" end-time="2026-09-19 05:31:50Z" duration="0.000297" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                  <output><![CDATA[SESSION_OPENED/missing-world-id.json rejected: Required property 'world_id' not found in JSON. Path '', line 16, position 1.
+]]></output>
+                </test-case>
+                <test-case id="1024" name="Invalid_Rejected_ByStrictProfile(SESSION_OPENED/actor-id-null.json)" fullname="Starfall.Tests.EditMode.ContractFixtureTests.Invalid_Rejected_ByStrictProfile(SESSION_OPENED/actor-id-null.json)" methodname="Invalid_Rejected_ByStrictProfile" classname="Starfall.Tests.EditMode.ContractFixtureTests" runstate="Runnable" seed="245699690" result="Passed" start-time="2026-09-19 05:31:50Z" end-time="2026-09-19 05:31:50Z" duration="0.000525" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                  <output><![CDATA[SESSION_OPENED/actor-id-null.json rejected: Error converting value {null} to type 'System.Guid'. Path 'actor_id', line 12, position 18.
+]]></output>
+                </test-case>
+                <test-case id="1025" name="Invalid_Rejected_ByStrictProfile(SESSION_CLOSED/actor-id-null.json)" fullname="Starfall.Tests.EditMode.ContractFixtureTests.Invalid_Rejected_ByStrictProfile(SESSION_CLOSED/actor-id-null.json)" methodname="Invalid_Rejected_ByStrictProfile" classname="Starfall.Tests.EditMode.ContractFixtureTests" runstate="Runnable" seed="235732712" result="Passed" start-time="2026-09-19 05:31:50Z" end-time="2026-09-19 05:31:50Z" duration="0.000386" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                  <output><![CDATA[SESSION_CLOSED/actor-id-null.json rejected: Error converting value {null} to type 'System.Guid'. Path 'actor_id', line 12, position 18.
+]]></output>
+                </test-case>
+                <test-case id="1026" name="Invalid_Rejected_ByStrictProfile(SESSION_CLOSED/correlation-id-null.json)" fullname="Starfall.Tests.EditMode.ContractFixtureTests.Invalid_Rejected_ByStrictProfile(SESSION_CLOSED/correlation-id-null.json)" methodname="Invalid_Rejected_ByStrictProfile" classname="Starfall.Tests.EditMode.ContractFixtureTests" runstate="Runnable" seed="132075730" result="Passed" start-time="2026-09-19 05:31:50Z" end-time="2026-09-19 05:31:50Z" duration="0.000378" asserts="0">
+                  <properties>
+                    <property name="retryIteration" value="0" />
+                    <property name="repeatIteration" value="0" />
+                  </properties>
+                  <output><![CDATA[SESSION_CLOSED/correlation-id-null.json rejected: Error converting value {null} to type 'System.Guid'. Path 'correlation_id', line 10, position 24.
+]]></output>
+                </test-case>
+              </test-suite>
+              <test-case id="1028" name="Invalid_Rejected_VisitedEveryCSharpCase" fullname="Starfall.Tests.EditMode.ContractFixtureTests.Invalid_Rejected_VisitedEveryCSharpCase" methodname="Invalid_Rejected_VisitedEveryCSharpCase" classname="Starfall.Tests.EditMode.ContractFixtureTests" runstate="Runnable" seed="1899793634" result="Passed" start-time="2026-09-19 05:31:50Z" end-time="2026-09-19 05:31:50Z" duration="0.015663" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[visited PING_SERVER/actor-field-injected.json
+visited PING_SERVER/probe-seq-negative.json
+visited PING_SERVER/probe-seq-above-u32.json
+visited PING_REPLY/missing-tick.json
+visited PING_REPLY/payload-unknown-field.json
+visited COMMAND_RESULT/payload-unknown-field.json
+visited SESSION_READY/missing-session-id.json
+visited SESSION_OPENED/missing-world-id.json
+visited SESSION_OPENED/actor-id-null.json
+visited SESSION_CLOSED/actor-id-null.json
+visited SESSION_CLOSED/correlation-id-null.json
+counter-examples the C# layer must reject: 11
+]]></output>
+              </test-case>
+              <test-case id="1039" name="NotDetectable_ListCoversExactlyFive" fullname="Starfall.Tests.EditMode.ContractFixtureTests.NotDetectable_ListCoversExactlyFive" methodname="NotDetectable_ListCoversExactlyFive" classname="Starfall.Tests.EditMode.ContractFixtureTests" runstate="Runnable" seed="1990691213" result="Passed" start-time="2026-09-19 05:31:50Z" end-time="2026-09-19 05:31:50Z" duration="0.005536" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[recorded as undetectable in C#: PING_SERVER/command-id-not-v7.json
+recorded as undetectable in C#: PING_REPLY/tick-above-safe-integer.json
+recorded as undetectable in C#: COMMAND_RESULT/unknown-reason-code.json
+recorded as undetectable in C#: SESSION_READY/tick-hz-zero.json
+recorded as undetectable in C#: SESSION_CLOSED/unknown-close-reason.json
+counter-examples C# is recorded as unable to detect: 5
+]]></output>
+              </test-case>
+              <test-case id="1036" name="UuidV7_MatchesSchemaPattern" fullname="Starfall.Tests.EditMode.ContractFixtureTests.UuidV7_MatchesSchemaPattern" methodname="UuidV7_MatchesSchemaPattern" classname="Starfall.Tests.EditMode.ContractFixtureTests" runstate="Runnable" seed="1320757676" result="Passed" start-time="2026-09-19 05:31:50Z" end-time="2026-09-19 05:31:50Z" duration="0.004679" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[pattern from contracts/common/primitives.schema.json: ^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+checked 1000 generated ids against the schema pattern
+]]></output>
+              </test-case>
+              <test-case id="1037" name="UuidV7_NoDuplicatesWithinSameMillisecond" fullname="Starfall.Tests.EditMode.ContractFixtureTests.UuidV7_NoDuplicatesWithinSameMillisecond" methodname="UuidV7_NoDuplicatesWithinSameMillisecond" classname="Starfall.Tests.EditMode.ContractFixtureTests" runstate="Runnable" seed="1339986732" result="Passed" start-time="2026-09-19 05:31:50Z" end-time="2026-09-19 05:31:51Z" duration="0.070769" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[generated 10000 ids inside millisecond 1789795910961 (shared timestamp prefix 01a0b826-4531), duplicates: 0
+]]></output>
+              </test-case>
+            </test-suite>
+            <test-suite type="TestFixture" id="1041" name="LiveServerTests" fullname="Starfall.Tests.EditMode.LiveServerTests" classname="Starfall.Tests.EditMode.LiveServerTests" runstate="Runnable" testcasecount="2" result="Skipped" label="Ignored" start-time="2026-09-19 05:31:51Z" end-time="2026-09-19 05:31:51Z" duration="0.007297" total="2" passed="0" failed="0" inconclusive="0" skipped="2" asserts="0">
+              <properties />
+              <reason>
+                <message><![CDATA[One or more child tests were ignored]]></message>
+              </reason>
+              <test-case id="1043" name="Live_ServerInitiatedClose_ReconnectsAsANewSession" fullname="Starfall.Tests.EditMode.LiveServerTests.Live_ServerInitiatedClose_ReconnectsAsANewSession" methodname="Live_ServerInitiatedClose_ReconnectsAsANewSession" classname="Starfall.Tests.EditMode.LiveServerTests" runstate="Runnable" seed="1291511661" result="Skipped" label="Ignored" start-time="2026-09-19 05:31:51Z" end-time="2026-09-19 05:31:51Z" duration="0.005603" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <reason>
+                  <message><![CDATA[SetUp : live server tests are gated: set STARFALL_LIVE_TESTS=1 and start starfall-game-server first. Not a pass - the report counts this as skipped.]]></message>
+                </reason>
+              </test-case>
+              <test-case id="1042" name="Live_ThreePings_RoundTripInOrder" fullname="Starfall.Tests.EditMode.LiveServerTests.Live_ThreePings_RoundTripInOrder" methodname="Live_ThreePings_RoundTripInOrder" classname="Starfall.Tests.EditMode.LiveServerTests" runstate="Runnable" seed="1266621966" result="Skipped" label="Ignored" start-time="2026-09-19 05:31:51Z" end-time="2026-09-19 05:31:51Z" duration="0.000259" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <reason>
+                  <message><![CDATA[SetUp : live server tests are gated: set STARFALL_LIVE_TESTS=1 and start starfall-game-server first. Not a pass - the report counts this as skipped.]]></message>
+                </reason>
+              </test-case>
+            </test-suite>
+            <test-suite type="TestFixture" id="1044" name="NarrowingAndRuntimeProfileTests" fullname="Starfall.Tests.EditMode.NarrowingAndRuntimeProfileTests" classname="Starfall.Tests.EditMode.NarrowingAndRuntimeProfileTests" runstate="Runnable" testcasecount="9" result="Passed" start-time="2026-09-19 05:31:51Z" end-time="2026-09-19 05:31:51Z" duration="0.037164" total="9" passed="9" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1045" name="Narrowing_ActorId_IsNonNullableAndAlwaysRequired" fullname="Starfall.Tests.EditMode.NarrowingAndRuntimeProfileTests.Narrowing_ActorId_IsNonNullableAndAlwaysRequired" methodname="Narrowing_ActorId_IsNonNullableAndAlwaysRequired" classname="Starfall.Tests.EditMode.NarrowingAndRuntimeProfileTests" runstate="Runnable" seed="347157363" result="Passed" start-time="2026-09-19 05:31:51Z" end-time="2026-09-19 05:31:51Z" duration="0.001560" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[SessionOpenedEvent.ActorId : System.Guid , Required = Always
+SessionClosedEvent.ActorId : System.Guid , Required = Always
+narrowed properties checked: 2
+]]></output>
+              </test-case>
+              <test-case id="1046" name="Narrowing_DoesNotLeakToFieldsTheEnvelopeLeavesNullable" fullname="Starfall.Tests.EditMode.NarrowingAndRuntimeProfileTests.Narrowing_DoesNotLeakToFieldsTheEnvelopeLeavesNullable" methodname="Narrowing_DoesNotLeakToFieldsTheEnvelopeLeavesNullable" classname="Starfall.Tests.EditMode.NarrowingAndRuntimeProfileTests" runstate="Runnable" seed="2131717261" result="Passed" start-time="2026-09-19 05:31:51Z" end-time="2026-09-19 05:31:51Z" duration="0.000651" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[  SessionOpenedEvent.CausationId : System.Nullable`1[System.Guid] , Required = AllowNull
+  SessionOpenedEvent.CorrelationId : System.Guid , Required = Always
+  SessionClosedEvent.CausationId : System.Nullable`1[System.Guid] , Required = AllowNull
+  SessionClosedEvent.CorrelationId : System.Guid , Required = Always
+  CommandResultMessage.CorrelationId : System.Nullable`1[System.Guid] , Required = AllowNull
+  PingServerCommand.ClientSentAt : System.String , Required = AllowNull
+nullable-envelope properties checked: 6
+]]></output>
+              </test-case>
+              <test-case id="1047" name="Narrowing_EnumValuesStayStrings" fullname="Starfall.Tests.EditMode.NarrowingAndRuntimeProfileTests.Narrowing_EnumValuesStayStrings" methodname="Narrowing_EnumValuesStayStrings" classname="Starfall.Tests.EditMode.NarrowingAndRuntimeProfileTests" runstate="Runnable" seed="557948181" result="Passed" start-time="2026-09-19 05:31:51Z" end-time="2026-09-19 05:31:51Z" duration="0.000328" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[  CommandResultPayload.Status : System.String
+  CommandResultPayload.ReasonCode : System.String
+  SessionOpenedPayload.Transport : System.String
+  SessionClosedPayload.CloseReason : System.String
+closed value sets checked: 4
+]]></output>
+              </test-case>
+              <test-case id="1048" name="Runtime_IgnoresUnknownMember_AndWarns" fullname="Starfall.Tests.EditMode.NarrowingAndRuntimeProfileTests.Runtime_IgnoresUnknownMember_AndWarns" methodname="Runtime_IgnoresUnknownMember_AndWarns" classname="Starfall.Tests.EditMode.NarrowingAndRuntimeProfileTests" runstate="Runnable" seed="154005207" result="Passed" start-time="2026-09-19 05:31:51Z" end-time="2026-09-19 05:31:51Z" duration="0.003737" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[ignored member at payload.queued_ticks
+]]></output>
+              </test-case>
+              <test-case id="1050" name="Runtime_MissingRequiredField_StillThrows" fullname="Starfall.Tests.EditMode.NarrowingAndRuntimeProfileTests.Runtime_MissingRequiredField_StillThrows" methodname="Runtime_MissingRequiredField_StillThrows" classname="Starfall.Tests.EditMode.NarrowingAndRuntimeProfileTests" runstate="Runnable" seed="75672143" result="Passed" start-time="2026-09-19 05:31:51Z" end-time="2026-09-19 05:31:51Z" duration="0.003158" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[Runtime rejected SESSION_READY/missing-session-id.json: Required property 'session_id' not found in JSON. Path 'payload', line 12, position 3.
+]]></output>
+              </test-case>
+              <test-case id="1051" name="Runtime_NullInNonNullableField_StillThrows" fullname="Starfall.Tests.EditMode.NarrowingAndRuntimeProfileTests.Runtime_NullInNonNullableField_StillThrows" methodname="Runtime_NullInNonNullableField_StillThrows" classname="Starfall.Tests.EditMode.NarrowingAndRuntimeProfileTests" runstate="Runnable" seed="666579636" result="Passed" start-time="2026-09-19 05:31:51Z" end-time="2026-09-19 05:31:51Z" duration="0.002118" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[Runtime rejected SESSION_CLOSED/correlation-id-null.json: Error converting value {null} to type 'System.Guid'. Path 'correlation_id', line 10, position 24.
+]]></output>
+              </test-case>
+              <test-case id="1053" name="Runtime_PrefixDependency_IsPinned" fullname="Starfall.Tests.EditMode.NarrowingAndRuntimeProfileTests.Runtime_PrefixDependency_IsPinned" methodname="Runtime_PrefixDependency_IsPinned" classname="Starfall.Tests.EditMode.NarrowingAndRuntimeProfileTests" runstate="Runnable" seed="1825972671" result="Passed" start-time="2026-09-19 05:31:51Z" end-time="2026-09-19 05:31:51Z" duration="0.002187" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[Newtonsoft unknown-member message: Could not find member 'client_sent_at' on object of type 'PingReplyPayload'. Path 'payload.client_sent_at', line 10, position 21.
+]]></output>
+              </test-case>
+              <test-case id="1049" name="Runtime_SameInput_IsAnExceptionUnderStrict" fullname="Starfall.Tests.EditMode.NarrowingAndRuntimeProfileTests.Runtime_SameInput_IsAnExceptionUnderStrict" methodname="Runtime_SameInput_IsAnExceptionUnderStrict" classname="Starfall.Tests.EditMode.NarrowingAndRuntimeProfileTests" runstate="Runnable" seed="450074664" result="Passed" start-time="2026-09-19 05:31:51Z" end-time="2026-09-19 05:31:51Z" duration="0.002068" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[Strict rejected the same input: Could not find member 'queued_ticks' on object of type 'CommandResultPayload'. Path 'payload.queued_ticks', line 11, position 19.
+]]></output>
+              </test-case>
+              <test-case id="1052" name="Runtime_ValidFixture_ProducesNoWarnings" fullname="Starfall.Tests.EditMode.NarrowingAndRuntimeProfileTests.Runtime_ValidFixture_ProducesNoWarnings" methodname="Runtime_ValidFixture_ProducesNoWarnings" classname="Starfall.Tests.EditMode.NarrowingAndRuntimeProfileTests" runstate="Runnable" seed="1095590285" result="Passed" start-time="2026-09-19 05:31:51Z" end-time="2026-09-19 05:31:51Z" duration="0.016028" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[valid fixtures read under Runtime with zero warnings: 12
+]]></output>
+              </test-case>
+            </test-suite>
+            <test-suite type="TestFixture" id="1054" name="RealtimeClientTests" fullname="Starfall.Tests.EditMode.RealtimeClientTests" classname="Starfall.Tests.EditMode.RealtimeClientTests" runstate="Runnable" testcasecount="18" result="Passed" start-time="2026-09-19 05:31:51Z" end-time="2026-09-19 05:31:51Z" duration="0.028725" total="18" passed="18" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1055" name="Backoff_BoundaryAttempts_AreAlwaysInsideTheCap" fullname="Starfall.Tests.EditMode.RealtimeClientTests.Backoff_BoundaryAttempts_AreAlwaysInsideTheCap" methodname="Backoff_BoundaryAttempts_AreAlwaysInsideTheCap" classname="Starfall.Tests.EditMode.RealtimeClientTests" runstate="Runnable" seed="1688868510" result="Passed" start-time="2026-09-19 05:31:51Z" end-time="2026-09-19 05:31:51Z" duration="0.004373" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[n=0  ceiling_ms=500  delay_ms=90
+n=1  ceiling_ms=1000  delay_ms=368
+n=5  ceiling_ms=10000  delay_ms=1261
+n=62  ceiling_ms=10000  delay_ms=2725
+n=63  ceiling_ms=10000  delay_ms=7576
+n=64  ceiling_ms=10000  delay_ms=3605
+n=100  ceiling_ms=10000  delay_ms=9153
+boundary attempts checked: 7
+]]></output>
+              </test-case>
+              <test-case id="1056" name="Backoff_CeilingDoublesThenClamps" fullname="Starfall.Tests.EditMode.RealtimeClientTests.Backoff_CeilingDoublesThenClamps" methodname="Backoff_CeilingDoublesThenClamps" classname="Starfall.Tests.EditMode.RealtimeClientTests" runstate="Runnable" seed="888214080" result="Passed" start-time="2026-09-19 05:31:51Z" end-time="2026-09-19 05:31:51Z" duration="0.001379" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[n=0 ceiling_ms=500 expected=500
+n=1 ceiling_ms=1000 expected=1000
+n=2 ceiling_ms=2000 expected=2000
+n=3 ceiling_ms=4000 expected=4000
+n=4 ceiling_ms=8000 expected=8000
+n=5 ceiling_ms=10000 expected=10000
+n=6 ceiling_ms=10000 expected=10000
+n=7 ceiling_ms=10000 expected=10000
+]]></output>
+              </test-case>
+              <test-case id="1057" name="Backoff_IsDeterministicForAFixedSeed" fullname="Starfall.Tests.EditMode.RealtimeClientTests.Backoff_IsDeterministicForAFixedSeed" methodname="Backoff_IsDeterministicForAFixedSeed" classname="Starfall.Tests.EditMode.RealtimeClientTests" runstate="Runnable" seed="42588843" result="Passed" start-time="2026-09-19 05:31:51Z" end-time="2026-09-19 05:31:51Z" duration="0.001781" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[seed 99 delays: 224, 866, 1936, 2757, 7225, 748, 2637, 1090, 2256, 7801, 2283, 7581
+]]></output>
+              </test-case>
+              <test-case id="1058" name="Backoff_RejectsNegativeAttempt" fullname="Starfall.Tests.EditMode.RealtimeClientTests.Backoff_RejectsNegativeAttempt" methodname="Backoff_RejectsNegativeAttempt" classname="Starfall.Tests.EditMode.RealtimeClientTests" runstate="Runnable" seed="1221871199" result="Passed" start-time="2026-09-19 05:31:51Z" end-time="2026-09-19 05:31:51Z" duration="0.000505" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1062" name="Command_AcceptedIsNotCompleted_UntilTheTypeResultArrives" fullname="Starfall.Tests.EditMode.RealtimeClientTests.Command_AcceptedIsNotCompleted_UntilTheTypeResultArrives" methodname="Command_AcceptedIsNotCompleted_UntilTheTypeResultArrives" classname="Starfall.Tests.EditMode.RealtimeClientTests" runstate="Runnable" seed="286203483" result="Passed" start-time="2026-09-19 05:31:51Z" end-time="2026-09-19 05:31:51Z" duration="0.008408" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1063" name="Command_Rejected_SettlesWithTheReasonCode" fullname="Starfall.Tests.EditMode.RealtimeClientTests.Command_Rejected_SettlesWithTheReasonCode" methodname="Command_Rejected_SettlesWithTheReasonCode" classname="Starfall.Tests.EditMode.RealtimeClientTests" runstate="Runnable" seed="1643972101" result="Passed" start-time="2026-09-19 05:31:51Z" end-time="2026-09-19 05:31:51Z" duration="0.000365" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1065" name="Command_ReplyBeforeResult_IsReportedAsAnOrderViolation" fullname="Starfall.Tests.EditMode.RealtimeClientTests.Command_ReplyBeforeResult_IsReportedAsAnOrderViolation" methodname="Command_ReplyBeforeResult_IsReportedAsAnOrderViolation" classname="Starfall.Tests.EditMode.RealtimeClientTests" runstate="Runnable" seed="1781983267" result="Passed" start-time="2026-09-19 05:31:51Z" end-time="2026-09-19 05:31:51Z" duration="0.000457" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[INFO starfall.net: socket open, waiting for SESSION_READY (attempt=0)
+ERROR starfall.net: PING_REPLY arrived before COMMAND_RESULT for command_id=01a0b826-45b7-745f-a9e0-65e5487b6a93 (violates I-15)
+]]></output>
+              </test-case>
+              <test-case id="1064" name="Command_UnknownReasonCode_IsCarriedThroughNotDropped" fullname="Starfall.Tests.EditMode.RealtimeClientTests.Command_UnknownReasonCode_IsCarriedThroughNotDropped" methodname="Command_UnknownReasonCode_IsCarriedThroughNotDropped" classname="Starfall.Tests.EditMode.RealtimeClientTests" runstate="Runnable" seed="517815284" result="Passed" start-time="2026-09-19 05:31:51Z" end-time="2026-09-19 05:31:51Z" duration="0.000276" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1069" name="Disconnect_AfterExplicitDisconnect_DoesNotReconnect" fullname="Starfall.Tests.EditMode.RealtimeClientTests.Disconnect_AfterExplicitDisconnect_DoesNotReconnect" methodname="Disconnect_AfterExplicitDisconnect_DoesNotReconnect" classname="Starfall.Tests.EditMode.RealtimeClientTests" runstate="Runnable" seed="1404055022" result="Passed" start-time="2026-09-19 05:31:51Z" end-time="2026-09-19 05:31:51Z" duration="0.002183" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1066" name="Disconnect_DropsInFlightCommands_AndSaysSoInOneLine" fullname="Starfall.Tests.EditMode.RealtimeClientTests.Disconnect_DropsInFlightCommands_AndSaysSoInOneLine" methodname="Disconnect_DropsInFlightCommands_AndSaysSoInOneLine" classname="Starfall.Tests.EditMode.RealtimeClientTests" runstate="Runnable" seed="2015315055" result="Passed" start-time="2026-09-19 05:31:51Z" end-time="2026-09-19 05:31:51Z" duration="0.000779" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[INFO starfall.net: socket open, waiting for SESSION_READY (attempt=0)
+INFO starfall.net: dropping 2 in-flight command(s) on disconnect (no resend, I-23)
+INFO starfall.net: reconnect attempt=0 delay_ms=200 (counter resets only on SESSION_READY)
+INFO starfall.net: disconnect detail: Failed socket died
+]]></output>
+              </test-case>
+              <test-case id="1067" name="Disconnect_WithNothingInFlight_StillLogsTheLine" fullname="Starfall.Tests.EditMode.RealtimeClientTests.Disconnect_WithNothingInFlight_StillLogsTheLine" methodname="Disconnect_WithNothingInFlight_StillLogsTheLine" classname="Starfall.Tests.EditMode.RealtimeClientTests" runstate="Runnable" seed="2000878901" result="Passed" start-time="2026-09-19 05:31:51Z" end-time="2026-09-19 05:31:51Z" duration="0.000173" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1059" name="Dispatch_UnknownMessageType_WarnsAndKeepsProcessing" fullname="Starfall.Tests.EditMode.RealtimeClientTests.Dispatch_UnknownMessageType_WarnsAndKeepsProcessing" methodname="Dispatch_UnknownMessageType_WarnsAndKeepsProcessing" classname="Starfall.Tests.EditMode.RealtimeClientTests" runstate="Runnable" seed="714383952" result="Passed" start-time="2026-09-19 05:31:51Z" end-time="2026-09-19 05:31:51Z" duration="0.000807" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[INFO starfall.net: socket open, waiting for SESSION_READY (attempt=0)
+WARN starfall.net: skipping frame: unknown contract type 'TOTALLY_NEW_MESSAGE'
+INFO starfall.net: SESSION_READY session_id=f756a2fa-0110-4f9d-8ff1-71d4811b7387 correlation_id=955db696-3732-49f4-8492-6559bec7b97a actor_id=01a0b1c2-7e57-7c11-8e57-000000000001 world_id=01a0b1c2-3d4e-7f01-8a2b-9c0d1e2f3a4b tick_hz=20 server_version=0.1.0 attempt=0
+]]></output>
+              </test-case>
+              <test-case id="1060" name="Dispatch_UnreadableFrame_WarnsAndKeepsProcessing" fullname="Starfall.Tests.EditMode.RealtimeClientTests.Dispatch_UnreadableFrame_WarnsAndKeepsProcessing" methodname="Dispatch_UnreadableFrame_WarnsAndKeepsProcessing" classname="Starfall.Tests.EditMode.RealtimeClientTests" runstate="Runnable" seed="1048792702" result="Passed" start-time="2026-09-19 05:31:51Z" end-time="2026-09-19 05:31:51Z" duration="0.000785" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1068" name="Reconnect_CounterResetsOnlyOnSessionReady" fullname="Starfall.Tests.EditMode.RealtimeClientTests.Reconnect_CounterResetsOnlyOnSessionReady" methodname="Reconnect_CounterResetsOnlyOnSessionReady" classname="Starfall.Tests.EditMode.RealtimeClientTests" runstate="Runnable" seed="1125625902" result="Passed" start-time="2026-09-19 05:31:51Z" end-time="2026-09-19 05:31:51Z" duration="0.000499" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[INFO starfall.net: socket open, waiting for SESSION_READY (attempt=0)
+INFO starfall.net: dropping 0 in-flight command(s) on disconnect (no resend, I-23)
+INFO starfall.net: reconnect attempt=0 delay_ms=200 (counter resets only on SESSION_READY)
+INFO starfall.net: disconnect detail: Failed closed before ready
+INFO starfall.net: socket open, waiting for SESSION_READY (attempt=1)
+INFO starfall.net: dropping 0 in-flight command(s) on disconnect (no resend, I-23)
+INFO starfall.net: reconnect attempt=1 delay_ms=896 (counter resets only on SESSION_READY)
+INFO starfall.net: disconnect detail: Failed closed before ready
+INFO starfall.net: socket open, waiting for SESSION_READY (attempt=2)
+INFO starfall.net: dropping 0 in-flight command(s) on disconnect (no resend, I-23)
+INFO starfall.net: reconnect attempt=2 delay_ms=639 (counter resets only on SESSION_READY)
+INFO starfall.net: disconnect detail: Failed closed before ready
+]]></output>
+              </test-case>
+              <test-case id="1072" name="SendPing_ProbeSeqIncrements" fullname="Starfall.Tests.EditMode.RealtimeClientTests.SendPing_ProbeSeqIncrements" methodname="SendPing_ProbeSeqIncrements" classname="Starfall.Tests.EditMode.RealtimeClientTests" runstate="Runnable" seed="1492342742" result="Passed" start-time="2026-09-19 05:31:51Z" end-time="2026-09-19 05:31:51Z" duration="0.000850" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1071" name="SendPing_ProducesAValidPingServerCommand" fullname="Starfall.Tests.EditMode.RealtimeClientTests.SendPing_ProducesAValidPingServerCommand" methodname="SendPing_ProducesAValidPingServerCommand" classname="Starfall.Tests.EditMode.RealtimeClientTests" runstate="Runnable" seed="473819079" result="Passed" start-time="2026-09-19 05:31:51Z" end-time="2026-09-19 05:31:51Z" duration="0.001143" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[sent: {"client_sent_at":"2026-09-19T05:31:51.104Z","command_id":"01a0b826-45c0-7503-942f-a64960053ac4","command_type":"PING_SERVER","payload":{"probe_seq":0},"schema_version":1}
+]]></output>
+              </test-case>
+              <test-case id="1070" name="SendPing_WhileNotOpen_ReturnsNullInsteadOfQueueing" fullname="Starfall.Tests.EditMode.RealtimeClientTests.SendPing_WhileNotOpen_ReturnsNullInsteadOfQueueing" methodname="SendPing_WhileNotOpen_ReturnsNullInsteadOfQueueing" classname="Starfall.Tests.EditMode.RealtimeClientTests" runstate="Runnable" seed="57231476" result="Passed" start-time="2026-09-19 05:31:51Z" end-time="2026-09-19 05:31:51Z" duration="0.000285" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1061" name="SessionReady_IsLoggedInTheFormatQaParses" fullname="Starfall.Tests.EditMode.RealtimeClientTests.SessionReady_IsLoggedInTheFormatQaParses" methodname="SessionReady_IsLoggedInTheFormatQaParses" classname="Starfall.Tests.EditMode.RealtimeClientTests" runstate="Runnable" seed="1053572783" result="Passed" start-time="2026-09-19 05:31:51Z" end-time="2026-09-19 05:31:51Z" duration="0.000623" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[INFO starfall.net: socket open, waiting for SESSION_READY (attempt=0)
+INFO starfall.net: SESSION_READY session_id=01a0b1c2-4a11-7b22-9c33-0d44e55f6a77 correlation_id=01a0b1c2-4a12-7c01-8d02-1e033f044a05 actor_id=01a0b1c2-7e57-7c11-8e57-000000000001 world_id=01a0b1c2-3d4e-7f01-8a2b-9c0d1e2f3a4b tick_hz=20 server_version=0.1.0 attempt=0
+]]></output>
+              </test-case>
+            </test-suite>
+            <test-suite type="TestFixture" id="1073" name="TransportHandshakeTests" fullname="Starfall.Tests.EditMode.TransportHandshakeTests" classname="Starfall.Tests.EditMode.TransportHandshakeTests" runstate="Runnable" testcasecount="2" result="Passed" start-time="2026-09-19 05:31:51Z" end-time="2026-09-19 05:31:51Z" duration="0.068088" total="2" passed="2" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1075" name="FailedUpgrade_ReportsDisconnectWithoutAStatusCode" fullname="Starfall.Tests.EditMode.TransportHandshakeTests.FailedUpgrade_ReportsDisconnectWithoutAStatusCode" methodname="FailedUpgrade_ReportsDisconnectWithoutAStatusCode" classname="Starfall.Tests.EditMode.TransportHandshakeTests" runstate="Runnable" seed="988578953" result="Passed" start-time="2026-09-19 05:31:51Z" end-time="2026-09-19 05:31:51Z" duration="0.062947" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[disconnect reported as: Failed WebSocketException(Success): Unable to connect to the remote server
+]]></output>
+              </test-case>
+              <test-case id="1074" name="Upgrade_CarriesTheAuthorizationHeader" fullname="Starfall.Tests.EditMode.TransportHandshakeTests.Upgrade_CarriesTheAuthorizationHeader" methodname="Upgrade_CarriesTheAuthorizationHeader" classname="Starfall.Tests.EditMode.TransportHandshakeTests" runstate="Runnable" seed="2007606362" result="Passed" start-time="2026-09-19 05:31:51Z" end-time="2026-09-19 05:31:51Z" duration="0.004367" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[--- upgrade request as it reached the socket ---
+GET /ws HTTP/1.1
+Host: 127.0.0.1:59609
+Connection: Upgrade
+Upgrade: websocket
+Sec-WebSocket-Version: 13
+Sec-WebSocket-Key: latggA1CvE+cfOURmtQ2Yg==
+Authorization: Bearer 01a0b1c2-7e57-7c11-8e57-000000000001.12004f438e12f26610239fdb6b24cfec619acee05a9d9c008e85e030b8312274
+
+
+Saving results to: C:/Users/CHOISOOYEON/AppData/LocalLow/Starfall/Starfall Dynasty\TestResults.xml
+]]></output>
+              </test-case>
+            </test-suite>
+          </test-suite>
+        </test-suite>
+      </test-suite>
+    </test-suite>
+  </test-suite>
+</test-run>

@@ -1,0 +1,9 @@
+{
+  "step": "C-bots-run",
+  "at": "2026-09-19T10:17:46Z",
+  "cmd": "C:\\WorkSpace\\SpaceHistoric\\tools\\bots\\target\\debug\\bots.exe run --scenario c --bots 30 --seed 42 --duration 60 --ramp 5 --interval 500 --burst 2000 --url ws://127.0.0.1:8080/ws --out C:\\WorkSpace\\SpaceHistoric\\_workspace\\p0-02-networking-spike\\evidence\\load\\c",
+  "exit": 0,
+  "stdout": "=== bots c-backpressure ===\nconnections attempted : 30\nsessions ready        : 30\ncorrelations collected: 30\ncommands sent         : 5451\nCOMMAND_RESULT        : 5451 (accepted 5307 / rejected 144)\nPING_REPLY            : 5307\nloss(missing results) : 0  missing replies: 0\nduplicates            : results 0 / replies 0   unmatched: results 0 / replies 0\norder violations (I-15): 0\ntick mismatches (AC-6c) : 0  (compared 5307)\nprobe_seq mismatches   : 0\nrejected by reason     : {\"TOO_MANY_IN_FLIGHT\": 144}\nrtt ms  n=5307 p50=Some(30.736) p99=Some(51.176) max=Some(66.769)\nack ms  n=5451 p50=Some(30.085) p99=Some(51.099) max=Some(66.759)\nconnect ms p50=Some(0.977) max=Some(3.324)   ready ms p50=Some(24.065) max=Some(50.027)\nserver-initiated closes: 0\nwire errors            : 0\nGATES one_to_one=true accepted_reply_pairing=true all_ok=true\nevidence -> C:\\WorkSpace\\SpaceHistoric\\_workspace\\p0-02-networking-spike\\evidence\\load\\c\nclock_base_unix_ms=1789813000274 (commands.csv 의 *_us 에 이 값을 더하면 벽시계가 된다)\n",
+  "stderr": "[bots] stage=c-backpressure url=ws://127.0.0.1:8080/ws bots=30 seed=42 duration=60s interval=500ms\n",
+  "elapsed_s": 66.39
+}

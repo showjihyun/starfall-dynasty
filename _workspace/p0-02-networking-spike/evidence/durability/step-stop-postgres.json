@@ -1,0 +1,9 @@
+{
+  "step": "stop-postgres",
+  "at": "2026-09-19T10:23:06Z",
+  "cmd": "docker compose stop postgres",
+  "exit": 0,
+  "stdout": "",
+  "stderr": " Container starfall-postgres-1  Stopping\n Container starfall-postgres-1  Stopped\n",
+  "elapsed_s": 0.37
+}

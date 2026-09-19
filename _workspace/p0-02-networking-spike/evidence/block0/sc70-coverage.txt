@@ -1,0 +1,16 @@
+# Contract coverage
+
+- types: 6
+- errors: 0
+- warnings: 0 (strict: counted as errors)
+
+| type | schema | fixtures | code |
+|------|--------|----------|------|
+| PING_SERVER | ok | 2 | producer:client=client/Assets/_Project/Scripts/Contracts/Generated/ContractTypes.cs, producer:bots=tools/bots/src/conn.rs, consumer:server=server/crates/contracts/src/commands.rs |
+| PING_REPLY | ok | 2 | producer:server=server/crates/contracts/src/lib.rs, consumer:client=client/Assets/_Project/Scripts/Contracts/Generated/ContractTypes.cs, consumer:bots=tools/bots/src/conn.rs |
+| COMMAND_RESULT | ok | 2 | producer:server=server/crates/contracts/src/lib.rs, consumer:client=client/Assets/_Project/Scripts/Contracts/Generated/CommandResultMessage.cs, consumer:bots=tools/bots/src/conn.rs |
+| SESSION_READY | ok | 2 | producer:server=server/bins/game-server/src/main.rs, consumer:client=client/Assets/_Project/Scripts/Contracts/Generated/ContractTypes.cs, consumer:bots=tools/bots/src/conn.rs |
+| SESSION_OPENED | ok | 2 | producer:server=server/crates/contracts/src/events.rs, consumer:server=server/crates/contracts/src/events.rs |
+| SESSION_CLOSED | ok | 2 | producer:server=server/bins/game-server/src/main.rs, consumer:server=server/bins/game-server/src/main.rs |
+
+RESULT: PASS

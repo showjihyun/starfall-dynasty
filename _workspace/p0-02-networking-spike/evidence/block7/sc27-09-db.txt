@@ -1,0 +1,13 @@
+=== SC-27 DB 대조 (열려 있던 6 세션) ===
+SERVER_SHUTDOWN | 6
+6 | 6
+=== SC-28 최종 사유 분포 ===
+CLIENT_CLOSED | 260
+IDLE_TIMEOUT | 1
+PROTOCOL_VIOLATION | 3
+SERVER_SHUTDOWN | 6
+SLOW_CONSUMER | 1
+=== SC-09 (정상 종료 경로) last_tick vs max(tick) ===
+last_tick=348693
+max_tick=348693
+last_tick >= max_tick : true

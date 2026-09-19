@@ -1,0 +1,9 @@
+{
+  "step": "SC-57-58-session-pairs",
+  "at": "2026-09-19T10:16:37Z",
+  "cmd": "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe C:\\WorkSpace\\SpaceHistoric\\tests\\e2e\\check_sessions.py --corr C:\\WorkSpace\\SpaceHistoric\\_workspace\\p0-02-networking-spike\\evidence\\load\\ab\\correlations.txt --evidence C:\\WorkSpace\\SpaceHistoric\\_workspace\\p0-02-networking-spike\\evidence\\load\\step-SC-57-58.json",
+  "exit": 1,
+  "stdout": "{\n  \"item\": \"SC-57/58 (AC-16a·b) 세션 쌍 대조\",\n  \"verdict\": \"FAIL\",\n  \"correlations_checked\": 181,\n  \"expected\": 181,\n  \"session_opened_rows\": 181,\n  \"session_closed_rows\": 180,\n  \"unpaired_or_duplicated\": [\n    {\n      \"correlation_id\": \"01a0b929-587b-743c-8854-94c93f00bf9d\",\n      \"opened\": 1,\n      \"closed\": 0\n    }\n  ],\n  \"correlations_absent_from_db\": [],\n  \"rows_with_null_actor_id\": 0,\n  \"close_reasons\": {\n    \"CLIENT_CLOSED\": 180\n  },\n  \"other_event_types_in_set\": {}\n}\n",
+  "stderr": "",
+  "elapsed_s": 1.66
+}

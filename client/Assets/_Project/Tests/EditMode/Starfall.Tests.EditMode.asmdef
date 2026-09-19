@@ -3,6 +3,7 @@
     "rootNamespace": "Starfall.Tests.EditMode",
     "references": [
         "Starfall.Contracts",
+        "Starfall.Net",
         "UnityEngine.TestRunner",
         "UnityEditor.TestRunner"
     ],

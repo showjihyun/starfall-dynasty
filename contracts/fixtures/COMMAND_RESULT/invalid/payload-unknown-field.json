@@ -1,0 +1,13 @@
+{
+  "message_id": "01a0b1c2-6c34-7115-8226-6d7e8f901234",
+  "message_type": "COMMAND_RESULT",
+  "schema_version": 1,
+  "tick": 1243,
+  "correlation_id": null,
+  "payload": {
+    "command_id": "01a0afaf-7e83-7f49-adfa-58ba04c2fd5a",
+    "status": "ACCEPTED",
+    "reason_code": null,
+    "queued_ticks": 2
+  }
+}

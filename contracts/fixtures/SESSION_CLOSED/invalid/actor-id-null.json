@@ -1,0 +1,17 @@
+{
+  "event_id": "01a0b1c2-8e54-7b64-8c75-d01234567894",
+  "event_type": "SESSION_CLOSED",
+  "schema_version": 1,
+  "world_id": "01a0b1c2-3d4e-7f01-8a2b-9c0d1e2f3a4b",
+  "tick": 24000,
+  "sequence": 3,
+  "occurred_at": "3800-01-01T20:00:00Z",
+  "recorded_at": "2026-09-18T13:23:31.884Z",
+  "correlation_id": "01a0b1c2-4a12-7c01-8d02-1e033f044a05",
+  "causation_id": null,
+  "actor_id": null,
+  "payload": {
+    "session_id": "01a0b1c2-4a11-7b22-9c33-0d44e55f6a77",
+    "close_reason": "CLIENT_CLOSED"
+  }
+}

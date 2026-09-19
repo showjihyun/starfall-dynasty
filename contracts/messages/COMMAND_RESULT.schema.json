@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.starfall.invalid/contracts/messages/COMMAND_RESULT.schema.json",
+  "title": "CommandResultMessage",
+  "description": "Adjudication result of one command, produced inside the tick that adjudicated it. ACCEPTED means the server took the command into the simulation on the envelope tick - it does NOT mean the intent completed. The type-specific result (PING_REPLY, and in later slices the resulting domain events) follows separately and always after this message for the same command_id. Every command the server could attribute to a command_id gets exactly one COMMAND_RESULT; the client uses that one-to-one property to detect loss.",
+  "allOf": [
+    {
+      "$ref": "../common/message-envelope.schema.json"
+    }
+  ],
+  "properties": {
+    "message_type": {
+      "const": "COMMAND_RESULT"
+    },
+    "schema_version": {
+      "const": 1
+    },
+    "payload": {
+      "$ref": "#/$defs/CommandResultPayload"
+    }
+  },
+  "unevaluatedProperties": false,
+  "$defs": {
+    "CommandResultPayload": {
+      "title": "CommandResultPayload",
+      "type": "object",
+      "required": [
+        "command_id",
+        "status",
+        "reason_code"
+      ],
+      "properties": {
+        "command_id": {
+          "description": "command_id of the command being answered. Echoed from the command envelope; the server treats it only as an idempotency key and never derives time or order from it.",
+          "$ref": "../common/primitives.schema.json#/$defs/UuidV7"
+        },
+        "status": {
+          "description": "ACCEPTED: taken into the simulation on the envelope tick. REJECTED: not taken; reason_code says why and no world state changed.",
+          "type": "string",
+          "enum": [
+            "ACCEPTED",
+            "REJECTED"
+          ]
+        },
+        "reason_code": {
+          "description": "Null when status is ACCEPTED, a RejectReasonCode when REJECTED. The schema cannot express that correlation (see ADR-0005 section 4); the server enforces it and invariant I-14 states it.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RejectReasonCode"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "RejectReasonCode": {
+      "title": "RejectReasonCode",
+      "description": "Closed set for schema_version 1. Values may be ADDED in a later version, so consumers must treat an unknown value as 'rejected for an unknown reason' and keep running, never crash or assume acceptance.",
+      "type": "string",
+      "enum": [
+        "MALFORMED_COMMAND",
+        "UNKNOWN_COMMAND_TYPE",
+        "SCHEMA_VERSION_UNSUPPORTED",
+        "DUPLICATE_COMMAND_ID",
+        "SERVER_BUSY",
+        "TOO_MANY_IN_FLIGHT"
+      ]
+    }
+  }
+}

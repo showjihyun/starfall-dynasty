@@ -1,0 +1,10 @@
+### SC-22 slow-consumer (수신 완전 중단 + 3000건)
+=== probe slow-consumer ===
+계약 항목: SC-22 (AC-7c): DB 의 close_reason=SLOW_CONSUMER 가 정본 (close code 1011 은 RST 로 유실될 수 있다)
+session_id=01a0b926-21df-7176-ac39-27eb4c83fe7b correlation_id=Some(01a0b926-2205-7008-8b00-3fc853ee219c) actor_id=01a0b1c2-b010-7000-8000-000000000006 tick_hz=20 server_version=0.1.0 ready_tick=329801
+close: code=None reason_text=None initiator=none
+token subject=01a0b1c2-b010-7000-8000-000000000006 actor_id_matches_subject=true
+sent=0 results=0 (accepted 0 / rejected 0) replies=0 order_violations=0 missing_results=0
+tick_mismatches=0 (compared 0) same_tick_holds=false
+errors=["socket error: IO error: 현재 연결은 원격 호스트에 의해 강제로 끊겼습니다. (os error 10054)"]
+rtt ms n=0 p50=None max=None

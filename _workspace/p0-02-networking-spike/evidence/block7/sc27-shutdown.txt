@@ -1,0 +1,7 @@
+=== SC-27: 종료 직전 상태 ===
+ws_connections=6 live=6 opened=271 closed=265 tick=348676
+=== stdin shutdown ===
+서버 종료 (try 13)
+2026-09-19T10:27:03.728795Z  INFO starfall_game_server: stdin 'shutdown' 수신 — graceful shutdown 시작
+2026-09-19T10:27:03.773743Z  INFO starfall_gateway::runtime: tick 루프 종료 — SERVER_SHUTDOWN 스윕 후 영속화 flush tick=348693 sessions_closed=6 pending_batches=1
+2026-09-19T10:27:03.833313Z  INFO starfall_game_server: starfall game-server 정상 종료 — 마지막 tick 까지 커밋 완료 tick=348692

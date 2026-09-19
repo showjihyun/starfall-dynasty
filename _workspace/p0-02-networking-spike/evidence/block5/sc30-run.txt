@@ -1,0 +1,21 @@
+[bots] stage=a-steady url=ws://127.0.0.1:8080/ws bots=12 seed=7 duration=20s interval=500ms
+=== bots a-steady ===
+connections attempted : 12
+sessions ready        : 12
+correlations collected: 12
+commands sent         : 480
+COMMAND_RESULT        : 480 (accepted 480 / rejected 0)
+PING_REPLY            : 480
+loss(missing results) : 0  missing replies: 0
+duplicates            : results 0 / replies 0   unmatched: results 0 / replies 0
+order violations (I-15): 0
+tick mismatches (AC-6c) : 0  (compared 480)
+probe_seq mismatches   : 0
+rtt ms  n=480 p50=Some(27.87) p99=Some(50.296) max=Some(50.457)
+ack ms  n=480 p50=Some(27.832) p99=Some(50.244) max=Some(50.414)
+connect ms p50=Some(0.93) max=Some(4.493)   ready ms p50=Some(18.864) max=Some(50.401)
+server-initiated closes: 0
+wire errors            : 0
+GATES one_to_one=true accepted_reply_pairing=true all_ok=true
+evidence -> _workspace/p0-02-networking-spike/evidence/block5/sc30-sample
+clock_base_unix_ms=1789813253022 (commands.csv 의 *_us 에 이 값을 더하면 벽시계가 된다)

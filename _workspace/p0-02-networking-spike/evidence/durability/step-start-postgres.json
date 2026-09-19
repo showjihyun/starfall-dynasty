@@ -1,0 +1,9 @@
+{
+  "step": "start-postgres",
+  "at": "2026-09-19T10:23:36Z",
+  "cmd": "docker compose start postgres",
+  "exit": 0,
+  "stdout": "",
+  "stderr": " Container starfall-postgres-1  Starting\n Container starfall-postgres-1  Started\n",
+  "elapsed_s": 0.37
+}

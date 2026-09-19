@@ -1,0 +1,9 @@
+{
+  "step": "docker-ps",
+  "at": "2026-09-19T04:33:06Z",
+  "cmd": "docker compose ps --format {{.Service}}\t{{.Status}}",
+  "exit": 0,
+  "stdout": "postgres\tUp About an hour (healthy)\nredis\tUp About an hour (healthy)\n",
+  "stderr": "",
+  "elapsed_s": 0.2
+}

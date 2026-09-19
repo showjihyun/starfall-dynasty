@@ -1,0 +1,12 @@
+=== SC-28 close 사유 분포 (블록 2~3) ===
+CLIENT_CLOSED | 5
+IDLE_TIMEOUT | 1
+PROTOCOL_VIOLATION | 2
+SLOW_CONSUMER | 1
+=== 이벤트 타입별 ===
+SESSION_CLOSED | 9
+SESSION_OPENED | 9
+=== sequence 빈틈 (0 기대) ===
+0
+=== 짝 없는 correlation (0 기대) ===
+0

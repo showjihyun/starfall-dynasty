@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="utf-8"?>
+<test-run id="2" testcasecount="2" result="Passed" total="2" passed="2" failed="0" inconclusive="0" skipped="0" asserts="0" engine-version="3.5.0.0" clr-version="4.0.30319.42000" start-time="2026-09-19 04:29:13Z" end-time="2026-09-19 04:29:14Z" duration="0.9604124">
+  <test-suite type="TestSuite" id="1000" name="Starfall Dynasty" fullname="Starfall Dynasty" runstate="Runnable" testcasecount="67" result="Passed" start-time="2026-09-19 04:29:13Z" end-time="2026-09-19 04:29:14Z" duration="0.960412" total="2" passed="2" failed="0" inconclusive="0" skipped="0" asserts="0">
+    <properties>
+      <property name="platform" value="EditMode" />
+    </properties>
+    <test-suite type="Assembly" id="1076" name="Starfall.Tests.EditMode.dll" fullname="C:/WorkSpace/SpaceHistoric/client/Library/ScriptAssemblies/Starfall.Tests.EditMode.dll" runstate="Runnable" testcasecount="67" result="Passed" start-time="2026-09-19 04:29:13Z" end-time="2026-09-19 04:29:14Z" duration="0.953906" total="2" passed="2" failed="0" inconclusive="0" skipped="0" asserts="0">
+      <properties>
+        <property name="_PID" value="47820" />
+        <property name="_APPDOMAIN" value="Unity Child Domain" />
+        <property name="platform" value="EditMode" />
+        <property name="EditorOnly" value="True" />
+      </properties>
+      <test-suite type="TestSuite" id="1077" name="Starfall" fullname="Starfall" runstate="Runnable" testcasecount="67" result="Passed" start-time="2026-09-19 04:29:13Z" end-time="2026-09-19 04:29:14Z" duration="0.953138" total="2" passed="2" failed="0" inconclusive="0" skipped="0" asserts="0">
+        <properties />
+        <test-suite type="TestSuite" id="1078" name="Tests" fullname="Starfall.Tests" runstate="Runnable" testcasecount="67" result="Passed" start-time="2026-09-19 04:29:13Z" end-time="2026-09-19 04:29:14Z" duration="0.952517" total="2" passed="2" failed="0" inconclusive="0" skipped="0" asserts="0">
+          <properties />
+          <test-suite type="TestSuite" id="1079" name="EditMode" fullname="Starfall.Tests.EditMode" runstate="Runnable" testcasecount="67" result="Passed" start-time="2026-09-19 04:29:13Z" end-time="2026-09-19 04:29:14Z" duration="0.951726" total="2" passed="2" failed="0" inconclusive="0" skipped="0" asserts="0">
+            <properties />
+            <test-suite type="TestFixture" id="1041" name="LiveServerTests" fullname="Starfall.Tests.EditMode.LiveServerTests" classname="Starfall.Tests.EditMode.LiveServerTests" runstate="Runnable" testcasecount="2" result="Passed" start-time="2026-09-19 04:29:13Z" end-time="2026-09-19 04:29:14Z" duration="0.950208" total="2" passed="2" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1043" name="Live_ServerInitiatedClose_ReconnectsAsANewSession" fullname="Starfall.Tests.EditMode.LiveServerTests.Live_ServerInitiatedClose_ReconnectsAsANewSession" methodname="Live_ServerInitiatedClose_ReconnectsAsANewSession" classname="Starfall.Tests.EditMode.LiveServerTests" runstate="Runnable" seed="1800162536" result="Passed" start-time="2026-09-19 04:29:13Z" end-time="2026-09-19 04:29:14Z" duration="0.790436" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[SC-51 QUERY correlation_id=01a0b7ec-f036-7726-b0b2-bc4c86cac79c (first)
+first session closed by the server; attempt counter is now 1
+SC-51 QUERY correlation_id=01a0b7ec-f2c0-7437-9a4b-d870a8ada005 (second)
+INFO starfall.net: socket open, waiting for SESSION_READY (attempt=0)
+INFO starfall.net: SESSION_READY session_id=01a0b7ec-f02a-756e-aa88-33b4bec8eee3 correlation_id=01a0b7ec-f036-7726-b0b2-bc4c86cac79c actor_id=01a0b1c2-7e57-7c11-8e57-000000000001 world_id=01a0b1c2-3d4e-7f01-8a2b-9c0d1e2f3a4b tick_hz=20 server_version=0.1.0 attempt=0
+WARN starfall.net: send failed - WebSocketException(ConnectionClosedPrematurely): The remote party closed the WebSocket connection without completing the close handshake.
+INFO starfall.net: dropping 1 in-flight command(s) on disconnect (no resend, I-23)
+INFO starfall.net: reconnect attempt=0 delay_ms=351 (counter resets only on SESSION_READY)
+INFO starfall.net: disconnect detail: Remote code=1002
+INFO starfall.net: socket open, waiting for SESSION_READY (attempt=1)
+INFO starfall.net: SESSION_READY session_id=01a0b7ec-f29f-72e8-8918-8c7137a65adf correlation_id=01a0b7ec-f2c0-7437-9a4b-d870a8ada005 actor_id=01a0b1c2-7e57-7c11-8e57-000000000001 world_id=01a0b1c2-3d4e-7f01-8a2b-9c0d1e2f3a4b tick_hz=20 server_version=0.1.0 attempt=1
+INFO starfall.net: closing session_id=01a0b7ec-f29f-72e8-8918-8c7137a65adf reason=CLIENT_CLOSED code=1000
+INFO starfall.net: dropping 0 in-flight command(s) on disconnect (no resend, I-23)
+INFO starfall.net: disconnected (Local code=1000 CLIENT_CLOSED), not reconnecting
+]]></output>
+              </test-case>
+              <test-case id="1042" name="Live_ThreePings_RoundTripInOrder" fullname="Starfall.Tests.EditMode.LiveServerTests.Live_ThreePings_RoundTripInOrder" methodname="Live_ThreePings_RoundTripInOrder" classname="Starfall.Tests.EditMode.LiveServerTests" runstate="Runnable" seed="1665647349" result="Passed" start-time="2026-09-19 04:29:14Z" end-time="2026-09-19 04:29:14Z" duration="0.146348" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[first frame on the wire: {"message_id":"01a0b7ec-f356-7709-bec7-39c89565c366","message_type":"SESSION_READY","schema_version":1,"tick":7323,"correlation_id":"01a0b7ec-f356-7709-bec7-39c62f5ebdae","payload":{"session_id":"01a0b7ec-f325-75f9-82d6-e42ca16e1337","world_id":"01a0b1c2-3d4e-7f01-8a2b-9c0d1e2f3a4b","actor_id":"01a0b1c2-7e57-7c11-8e57-000000000001","tick_hz":20,"server_version":"0.1.0"}}
+SESSION session_id=01a0b7ec-f325-75f9-82d6-e42ca16e1337 correlation_id=01a0b7ec-f356-7709-bec7-39c62f5ebdae actor_id=01a0b1c2-7e57-7c11-8e57-000000000001 world_id=01a0b1c2-3d4e-7f01-8a2b-9c0d1e2f3a4b server_version=0.1.0
+command 01a0b7ec-f35a-7cc5-a862-25b930362e2a -> Completed in 57.0 ms
+command 01a0b7ec-f35a-7606-8d79-bbe7b7ebc0f5 -> Completed in 57.1 ms
+command 01a0b7ec-f35a-70f2-bbdb-b269f050358d -> Completed in 57.1 ms
+frame order ok: COMMAND_RESULT[1] -> PING_REPLY[2] for 01a0b7ec-f35a-7cc5-a862-25b930362e2a probe_seq=0
+frame order ok: COMMAND_RESULT[3] -> PING_REPLY[4] for 01a0b7ec-f35a-7606-8d79-bbe7b7ebc0f5 probe_seq=1
+frame order ok: COMMAND_RESULT[5] -> PING_REPLY[6] for 01a0b7ec-f35a-70f2-bbdb-b269f050358d probe_seq=2
+command/reply pairs checked: 3
+SC-50 QUERY correlation_id=01a0b7ec-f356-7709-bec7-39c62f5ebdae
+SC-50 QUERY session_id=01a0b7ec-f325-75f9-82d6-e42ca16e1337
+INFO starfall.net: socket open, waiting for SESSION_READY (attempt=0)
+INFO starfall.net: SESSION_READY session_id=01a0b7ec-f325-75f9-82d6-e42ca16e1337 correlation_id=01a0b7ec-f356-7709-bec7-39c62f5ebdae actor_id=01a0b1c2-7e57-7c11-8e57-000000000001 world_id=01a0b1c2-3d4e-7f01-8a2b-9c0d1e2f3a4b tick_hz=20 server_version=0.1.0 attempt=0
+INFO starfall.net: closing session_id=01a0b7ec-f325-75f9-82d6-e42ca16e1337 reason=CLIENT_CLOSED code=1000
+INFO starfall.net: dropping 0 in-flight command(s) on disconnect (no resend, I-23)
+INFO starfall.net: disconnected (Remote code=1000 CLIENT_CLOSED), not reconnecting
+Saving results to: C:/Users/CHOISOOYEON/AppData/LocalLow/Starfall/Starfall Dynasty\TestResults.xml
+]]></output>
+              </test-case>
+            </test-suite>
+          </test-suite>
+        </test-suite>
+      </test-suite>
+    </test-suite>
+  </test-suite>
+</test-run>

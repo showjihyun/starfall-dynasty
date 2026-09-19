@@ -1,13 +1,22 @@
 [workspace]
 resolver = "3"
-members = ["crates/contracts", "crates/gateway", "bins/game-server"]
+members = [
+    "crates/contracts",
+    "crates/sim",
+    "crates/persistence",
+    "crates/gateway",
+    "bins/game-server",
+]
 
-# 이번 슬라이스에서 만드는 크레이트는 세 개뿐이다 (ADR-0001 §2 변경 2).
-# domain / sim / persistence / history 는 이름·위치만 ADR에 고정해 두고,
-# 처음 쓰는 슬라이스에서 만든다. 빈 크레이트는 링크 시간만 쓰고 아무 것도 증명하지 않는다.
+# p0-02 에서 sim / persistence 가 생겼다 (ADR-0001 §2).
+# domain / history 는 아직 만들지 않는다 — domain 은 월드 상태가 생기는 p1,
+# history 는 p2 다. 빈 크레이트는 링크 시간만 쓰고 아무 것도 증명하지 않는다.
 #
-# 의존 방향 (ADR-0001 §2): domain <- sim <- gateway/persistence, contracts 는 누구나,
-# history 는 domain 에만. starfall-gateway 에는 게임 규칙·월드 상태를 넣지 않는다.
+# 의존 방향 (ADR-0001 §2): contracts <- sim <- gateway, contracts <- persistence.
+#   - starfall-sim 에는 IO 가 없다 (axum/sqlx/redis/rand/chrono 금지 — AC-1, SC-04).
+#   - starfall-gateway 는 persistence 를 의존하지 않는다. tick 결과는 채널로 나가고
+#     바이너리가 그 채널을 persistence 에 연결한다.
+#   - starfall-gateway 에는 게임 규칙·월드 상태를 넣지 않는다.
 
 [workspace.package]
 version = "0.1.0"
@@ -19,10 +28,16 @@ publish = false
 [workspace.dependencies]
 # 공통 의존성 버전은 여기 한 곳에서만 고정한다.
 starfall-contracts = { path = "crates/contracts" }
+starfall-sim = { path = "crates/sim" }
+starfall-persistence = { path = "crates/persistence" }
 starfall-gateway = { path = "crates/gateway" }
 
-axum = { version = "0.8.9", default-features = false, features = ["http1", "json", "tokio"] }
-tokio = { version = "1.53.1", default-features = false, features = ["rt-multi-thread", "macros", "net", "signal", "time"] }
+# `ws` feature 는 p0-02 에서 켠다. 실측(server 검토 U-3): 크레이트 8개 추가
+# (tokio-tungstenite/tungstenite 0.29, sha1, data-encoding, rand 계열 4), 클린 빌드 +2.8초.
+# rand 가 트리에 들어오지만 tungstenite 의 마스킹 키 전용이고, starfall-sim 은 axum 을
+# 의존하지 않으므로 손이 닿지 않는다 (스펙 §8).
+axum = { version = "0.8.9", default-features = false, features = ["http1", "json", "tokio", "ws"] }
+tokio = { version = "1.53.1", default-features = false, features = ["rt-multi-thread", "macros", "net", "signal", "sync", "time"] }
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.151"
 uuid = { version = "1.26.1", default-features = false, features = ["std", "v7", "serde"] }
@@ -37,8 +52,24 @@ jsonschema = { version = "0.56.0", default-features = false }
 
 # /readyz 전용 (ADR-0003 §3.1). TLS feature 를 켜지 않는다 — 로컬은 평문이고,
 # rustls/ring 트리를 통째로 들이지 않아 빌드 시간을 아낀다. 원격 DB 가 생기면 TLS 추가 + ADR 갱신.
-sqlx = { version = "0.8.6", default-features = false, features = ["runtime-tokio", "postgres"] }
+# p0-02 에서 feature 4개 추가 (ADR-0007 §5). 실측(U-4): `migrate` 만으로는
+# `sqlx::migrate!` 가 없어 컴파일이 실패한다 — `macros` 가 함께 있어야 한다.
+# `uuid`/`json` 은 UUID·JSONB 바인딩용. `chrono`/`time` 은 **필요 없다** —
+# recorded_at 은 Rust 호스트 시계로 문자열을 만들어 TIMESTAMPTZ 로 넣는 대신
+# `RealTime` 문자열을 만들고 DB 에는 마이크로초 오프셋으로 바인딩한다 (persistence 참고).
+sqlx = { version = "0.8.6", default-features = false, features = ["runtime-tokio", "postgres", "macros", "migrate", "uuid", "json"] }
 redis = { version = "1.7.0", default-features = false, features = ["tokio-comp", "connection-manager"] }
+
+# 개발용 토큰 HMAC (ADR-0008 §1). **추가로 컴파일되는 크레이트는 0개다** —
+# sqlx-postgres 가 SCRAM 인증 때문에 hmac/sha2/subtle 을 이미 트리에 갖고 있다(server 실측).
+hmac = { version = "0.12.1", default-features = false }
+sha2 = { version = "0.10.9", default-features = false }
+subtle = { version = "2.6.1", default-features = false }
+
+# 게이트웨이 통합 테스트 전용(실제 WebSocket 클라이언트). dev-dependency 로만 쓴다 —
+# axum 의 `ws` feature 가 이미 같은 크레이트를 트리에 갖고 있어 추가 컴파일이 없다.
+tokio-tungstenite = { version = "0.29.0", default-features = false, features = ["connect", "handshake"] }
+futures-util = { version = "0.3.31", default-features = false, features = ["std", "sink"] }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"

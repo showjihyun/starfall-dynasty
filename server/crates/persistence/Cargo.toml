@@ -1,0 +1,29 @@
+[package]
+name = "starfall-persistence"
+description = "PostgreSQL 영속화 — 마이그레이션, 월드 행, tick 단위 트랜잭션 (ADR-0007)."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lints]
+# [workspace.lints] 는 멤버가 이 줄로 옵트인해야 적용된다.
+workspace = true
+
+[dependencies]
+starfall-contracts.workspace = true
+starfall-sim.workspace = true
+
+serde.workspace = true
+serde_json.workspace = true
+# feature 조합은 ADR-0007 §5 + server 실측(U-4):
+#   runtime-tokio, postgres, macros, migrate, uuid, json
+#   - `migrate` 만으로는 `sqlx::migrate!` 가 없어 컴파일이 실패한다.
+#   - `chrono`/`time` 은 필요 없다. recorded_at 은 RealTime 문자열로 만들어
+#     `$n::timestamptz` 로 캐스팅해 넣는다 — 시계 출처가 호스트 하나로 고정된다.
+sqlx.workspace = true
+thiserror.workspace = true
+tokio = { workspace = true, features = ["sync", "time"] }
+tracing.workspace = true
+uuid.workspace = true

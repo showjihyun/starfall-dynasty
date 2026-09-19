@@ -1,0 +1,93 @@
+{
+  "item": "SC-56 (AC-15e/AC-9c) 3자 대조",
+  "verdict": "PASS",
+  "sources": {
+    "bots": "C:\\WorkSpace\\SpaceHistoric\\_workspace\\p0-02-networking-spike\\evidence\\load\\a\\summary.json",
+    "server_metrics": "http://127.0.0.1:8080/debug/stats",
+    "db": "correlation 집합 30건"
+  },
+  "table": [
+    {
+      "quantity": "세션 수",
+      "bots": 30,
+      "server_metric": 30,
+      "db": 30
+    },
+    {
+      "quantity": "세션 종료 수",
+      "bots": 30,
+      "server_metric": 30,
+      "db": 30
+    },
+    {
+      "quantity": "명령 수",
+      "bots": 3570,
+      "server_metric": 3570,
+      "db": null
+    },
+    {
+      "quantity": "COMMAND_RESULT 수",
+      "bots": 3570,
+      "server_metric": 3570,
+      "db": null
+    },
+    {
+      "quantity": "PING_REPLY 수",
+      "bots": 3570,
+      "server_metric": 3570,
+      "db": null
+    }
+  ],
+  "mismatching_quantities": [],
+  "server_internal_1to1_delta(commands_received - enqueued{COMMAND_RESULT})": 66,
+  "enqueued_minus_written{COMMAND_RESULT}": 255,
+  "SC-31_send_accounting": {
+    "messages_enqueued_all": 8751,
+    "messages_written_all": 8496,
+    "messages_dropped_total": 255,
+    "send_queue_depth": 0,
+    "residual(enqueued - written - dropped - depth)": 0
+  },
+  "persist_backlog": 3,
+  "persist_backlog_limit": 600,
+  "domain_events_persisted_total": 85,
+  "domain_events_persist_failed_total": 0,
+  "ws_connections": 1,
+  "live_connections": 1,
+  "upgrade_rejected_total": [
+    {
+      "label": "auth_not_configured",
+      "count": 0
+    },
+    {
+      "label": "recording_backlog",
+      "count": 0
+    },
+    {
+      "label": "shutting_down",
+      "count": 0
+    },
+    {
+      "label": "no_credential",
+      "count": 1
+    },
+    {
+      "label": "invalid_token",
+      "count": 2
+    }
+  ],
+  "bot_gates": {
+    "one_to_one": true,
+    "accepted_reply_pairing": true,
+    "order_violations": 0,
+    "tick_mismatches": 0,
+    "ticks_compared": 3570,
+    "server_initiated_closes": 0,
+    "connections_attempted": 30,
+    "sessions_ready": 30,
+    "correlations_collected": 30,
+    "wire_errors": 0,
+    "all_ok": true
+  },
+  "note": "명령/응답의 DB 열이 비는 것은 정상이다 — 명령과 응답은 기록 대상이 아니다 (ADR-0007 §1). ws_connections 는 라우팅 표의 실제 길이이고 live_connections 는 소켓 수라, 종료 중에는 live 가 잠깐 더 크다(server §5). persist_backlog 는 정상 동작에서도 0~20 을 오간다 — 0 이 아닌 것이 이상이 아니다."
+}

@@ -30,3 +30,4 @@ Unity 6 클라이언트 + Rust 서버(서버가 최종 판정) + PostgreSQL. 버
 | 날짜 | 변경 내용 | 대상 | 사유 |
 |------|----------|------|------|
 | 2026-09-17 | 초기 구성 (에이전트 7, 스킬 8, 프로젝트 플러그인 4) | 전체 | 기획안 기반 게임 개발 하네스 도입 |
+| 2026-09-19 | 구현 역할(server·history·client·techart)을 Sonnet 5로, 판단 역할(architect·designer·qa)은 Opus 5 유지. 구현 역할에 TDD 원칙 추가 | agents/*, skills/starfall-dev | 구현은 스펙·스프린트 계약으로 목표가 고정되고 테스트가 즉시 오답을 알려주는 반면, 스펙·평가 기준의 오류는 아래 단계 전체로 번진다. 근거·예외·재검토 조건: skills/starfall-dev/references/model-assignment.md |

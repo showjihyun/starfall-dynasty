@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.starfall.invalid/contracts/events/domain/SESSION_OPENED.schema.json",
+  "title": "SessionOpenedEvent",
+  "description": "An authenticated actor became present in the world at this tick. This is a world fact, not a transport log line: it opens a presence interval that SESSION_CLOSED closes, and the pair is the audit spine later used to answer 'was this character present when X happened'. It is deliberately NOT a Historical Event (importance level 0) - see docs/specs/p0-02-networking-spike.md section 6. actor_id is narrowed to non-null here: a session always has an authenticated actor.",
+  "allOf": [
+    {
+      "$ref": "../../common/event-envelope.schema.json"
+    }
+  ],
+  "properties": {
+    "event_type": {
+      "const": "SESSION_OPENED"
+    },
+    "schema_version": {
+      "const": 1
+    },
+    "actor_id": {
+      "description": "Narrowed from the envelope: never null for this type.",
+      "$ref": "../../common/primitives.schema.json#/$defs/UuidV7"
+    },
+    "payload": {
+      "$ref": "#/$defs/SessionOpenedPayload"
+    }
+  },
+  "unevaluatedProperties": false,
+  "$defs": {
+    "SessionOpenedPayload": {
+      "title": "SessionOpenedPayload",
+      "type": "object",
+      "required": [
+        "session_id",
+        "transport"
+      ],
+      "properties": {
+        "session_id": {
+          "description": "Session this event opens. Same value the client received in SESSION_READY.",
+          "$ref": "../../common/primitives.schema.json#/$defs/UuidV7"
+        },
+        "transport": {
+          "description": "Transport the session was established on. A closed set today; a later transport (QUIC/WebTransport) adds a value, so consumers must tolerate unknown values.",
+          "type": "string",
+          "enum": [
+            "WEBSOCKET"
+          ]
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

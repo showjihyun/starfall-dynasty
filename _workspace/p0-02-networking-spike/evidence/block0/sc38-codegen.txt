@@ -1,0 +1,14 @@
+## SC-38 생성기 결정성
+unchanged SessionOpenedEvent.cs
+unchanged SessionReadyMessage.cs
+7 file(s) in C:\WorkSpace\SpaceHistoric\client\Assets\_Project\Scripts\Contracts\Generated
+unchanged SessionOpenedEvent.cs
+unchanged SessionReadyMessage.cs
+7 file(s) in C:\WorkSpace\SpaceHistoric\client\Assets\_Project\Scripts\Contracts\Generated
+run1 vs run2 diff:
+  identical
+client 제출본 vs 재생성 diff:
+  identical (client 제출본이 결정적 출력과 같다)
+## --check
+--check: up to date (7 file(s))
+check_exit=0

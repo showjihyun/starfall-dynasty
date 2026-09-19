@@ -1,0 +1,23 @@
+[package]
+name = "starfall-sim"
+description = "고정 tick 시뮬레이션 코어. IO 없음·결정적 (ADR-0006)."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lints]
+# [workspace.lints] 는 멤버가 이 줄로 옵트인해야 적용된다.
+# 빠뜨리면 린트가 꺼진 채 clippy 가 통과한다.
+workspace = true
+
+# ⚠ 아래 목록이 스펙 §8 / AC-1 / SC-04 의 **기계적 증거**다.
+#
+# QA 가 이 파일을 금지 크레이트 이름으로 grep 한다. 그래서 여기에는 그 이름들을 적지
+# 않는다 — 주석에 적으면 grep 이 주석에 걸려 검사가 무의미해진다.
+# 금지 목록과 그 이유는 src/lib.rs 모듈 문서에 있다.
+#
+# 한 줄 요약: 의존성은 `starfall-contracts` **하나뿐**이다. 비동기 런타임조차 없다.
+[dependencies]
+starfall-contracts.workspace = true

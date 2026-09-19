@@ -1,0 +1,9 @@
+{
+  "step": "pg-ready",
+  "at": "2026-09-19T10:23:36Z",
+  "cmd": "docker compose exec -T postgres pg_isready -U starfall -d starfall -t 60",
+  "exit": 0,
+  "stdout": "/var/run/postgresql:5432 - accepting connections\n",
+  "stderr": "",
+  "elapsed_s": 0.24
+}

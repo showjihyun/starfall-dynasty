@@ -1,0 +1,15 @@
+### SC-20 in-flight 폭주 (AC-7a)
+=== probe inflight ===
+계약 항목: SC-20 (AC-7a): TOO_MANY_IN_FLIGHT, 연결 유지, 보낸 수 == 받은 수
+session_id=01a0b82e-39e4-7220-aff9-461cd624a46c correlation_id=Some(01a0b82e-3a08-71b1-9e76-758030f59784) actor_id=01a0b1c2-b010-7000-8000-000000000003 tick_hz=20 server_version=0.1.0 ready_tick=4857
+close: code=Some(1000) reason_text=Some("") initiator=client
+token subject=01a0b1c2-b010-7000-8000-000000000003 actor_id_matches_subject=true
+sent=600 results=600 (accepted 596 / rejected 4) replies=596 order_violations=0 missing_results=0
+tick_mismatches=0 (compared 596) same_tick_holds=true
+rejected_by_reason={"TOO_MANY_IN_FLIGHT": 4}
+rtt ms n=596 p50=Some(34.726) max=Some(56.689)
+
+### SC-18 (AC-6b) stats 항등식 2회 표본
+Traceback (most recent call last):
+  File "<string>", line 3, in <module>
+FileNotFoundError: [Errno 2] No such file or directory: '/tmp/s1.json'

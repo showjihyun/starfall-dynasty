@@ -1,0 +1,12 @@
+{
+  "message_id": "01a0b1c2-6c33-7114-b225-5c6d7e8f9012",
+  "message_type": "COMMAND_RESULT",
+  "schema_version": 1,
+  "tick": 1242,
+  "correlation_id": null,
+  "payload": {
+    "command_id": "01a0afaf-7e84-729e-9f17-464483f27a6d",
+    "status": "REJECTED",
+    "reason_code": "NOT_IN_THE_CLOSED_SET"
+  }
+}

@@ -1,0 +1,11 @@
+=== 1회차 종료 전 상태 ===
+last_tick=720
+migr_installed_on=2026-09-19 05:35:46.471621+00
+stats: start_tick=0 tick=730 tick_total=731
+=== stdin shutdown ===
+종료됨 (try 8)
+2026-09-19T05:36:23.669349Z  INFO starfall_game_server: starfall game-server 정상 종료 — 마지막 tick 까지 커밋 완료 tick=742
+=== SC-08: STARFALL_TICK_HZ=10 으로 기동 시도 (거부 기대) ===
+2026-09-19T05:36:25.782891Z  INFO sqlx::postgres::notice: relation "_sqlx_migrations" already exists, skipping
+2026-09-19T05:36:25.815139Z ERROR starfall_game_server: 서버가 오류로 종료됐다 error=기동 거부: 월드 상수 불일치 — worlds.tick_hz=20, STARFALL_TICK_HZ=10 (I-19, ADR-0006 §3)
+exit=1

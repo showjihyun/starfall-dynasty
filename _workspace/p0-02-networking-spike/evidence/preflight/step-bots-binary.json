@@ -1,0 +1,7 @@
+{
+  "step": "bots-binary",
+  "at": "2026-09-19T04:33:07Z",
+  "exit": 0,
+  "path": "C:\\WorkSpace\\SpaceHistoric\\tools\\bots\\target\\debug\\bots.exe",
+  "hint": "없으면: cd tools/bots && cargo build"
+}

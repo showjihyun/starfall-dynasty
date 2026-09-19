@@ -1,0 +1,14 @@
+{
+  "message_id": "01a0b1c2-4a15-7002-b003-0f0e0d0c0b0a",
+  "message_type": "SESSION_READY",
+  "schema_version": 1,
+  "tick": 0,
+  "correlation_id": "01a0b1c2-7d42-7a56-9b67-6d7e8f901234",
+  "payload": {
+    "session_id": "01a0b1c2-7d41-7a55-8b66-5c6d7e8f9012",
+    "world_id": "01a0b1c2-3d4f-7a02-9b13-0e1f2a3b4c5d",
+    "actor_id": "01a0b1c2-2c02-7a46-9b68-9abcdef01234",
+    "tick_hz": 1,
+    "server_version": "0.1.0+spike.1"
+  }
+}

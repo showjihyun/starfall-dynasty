@@ -31,9 +31,9 @@ use starfall_contracts::registry::{CONTRACT_TYPES, ContractType};
 const SCHEMA_ID_PREFIX: &str = "https://schemas.starfall.invalid/contracts/";
 
 /// 기대하는 개수. 계약이 늘면 이 상수도 함께 올린다 — 조용히 줄어드는 것을 막는 가드다.
-const EXPECTED_SCHEMA_COUNT: usize = 7;
-const EXPECTED_VALID_FIXTURES: usize = 4;
-const EXPECTED_INVALID_FIXTURES: usize = 7;
+const EXPECTED_SCHEMA_COUNT: usize = 11;
+const EXPECTED_VALID_FIXTURES: usize = 12;
+const EXPECTED_INVALID_FIXTURES: usize = 16;
 
 // ---------------------------------------------------------------------------
 // 경로 해석 — 실패하면 명확히 죽는다
@@ -399,13 +399,22 @@ fn invalid_rejected_by_schema() {
 /// 구현 결과가 표와 다르면 표를 고치지 말고 architect 에게 알린다.
 /// `true` = 거부해야 한다.
 const SERDE_REJECTION_TABLE: &[(&str, bool)] = &[
+    // p0-01 (PING_SERVER / PING_REPLY) — 7건
     ("actor-field-injected.json", true),
     ("command-id-not-v7.json", true),
     ("probe-seq-negative.json", true),
     ("probe-seq-above-u32.json", true),
     ("missing-tick.json", true),
-    ("payload-unknown-field.json", true),
+    ("payload-unknown-field.json", true), // COMMAND_RESULT 의 같은 이름 반례도 이 행이 덮는다
     ("tick-above-safe-integer.json", true),
+    // p0-02 신규 4타입 — 9건 (파일 이름이 겹치는 actor-id-null.json 은 두 타입이 공유)
+    ("unknown-reason-code.json", true),  // 닫힌 열거형
+    ("tick-hz-zero.json", true),         // TickHz 범위 newtype
+    ("missing-session-id.json", true),   // 필수 필드
+    ("actor-id-null.json", true),        // 좁힘: 비-Option
+    ("missing-world-id.json", true),     // 필수 필드
+    ("unknown-close-reason.json", true), // 닫힌 열거형
+    ("correlation-id-null.json", true),  // 이벤트 envelope 의 correlation_id 는 비-Option
 ];
 
 #[test]

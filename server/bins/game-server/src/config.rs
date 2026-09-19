@@ -8,6 +8,8 @@
 use std::env::{self, VarError};
 use std::net::SocketAddr;
 
+use starfall_contracts::UuidV7;
+
 /// 설정 로드 실패.
 #[derive(Debug, thiserror::Error)]
 pub enum ConfigError {
@@ -33,6 +35,20 @@ pub enum ConfigError {
         /// 넣은 값.
         value: String,
     },
+    /// tick 주기 값이 계약 범위를 벗어난다.
+    #[error("STARFALL_TICK_HZ 의 값 {value:?} 은(는) 1 ..= 1000 의 정수여야 한다")]
+    TickHz {
+        /// 넣은 값.
+        value: String,
+    },
+    /// 월드 id 가 정규 UUIDv7 이 아니다.
+    #[error(
+        "STARFALL_WORLD_ID 의 값 {value:?} 은(는) 정규 소문자 하이픈 표기의 UUIDv7 이어야 한다"
+    )]
+    WorldId {
+        /// 넣은 값.
+        value: String,
+    },
 }
 
 /// 로그 출력 형식.
@@ -55,6 +71,18 @@ pub struct Config {
     pub database_url: String,
     /// Redis 접속 문자열. `/readyz` 가 쓴다.
     pub redis_url: String,
+    /// 실제 1초당 tick 수. 기본 20.
+    ///
+    /// **`worlds.tick_hz` 와 다르면 서버가 기동을 거부한다** (I-19, AC-2). 이 검사가
+    /// "환경 변수 하나로 저장된 이벤트의 게임 시간 의미가 조용히 달라지는" 경로를 막는다.
+    pub tick_hz: u32,
+    /// 붙을 월드. 기본은 마이그레이션이 시드한 스파이크 월드다.
+    pub world_id: UuidV7,
+    /// 개발용 토큰 HMAC 비밀 (ADR-0008).
+    ///
+    /// **기본값이 없다.** 기본값을 코드에 두면 그 값이 배포까지 따라간다. 없으면 프로세스는
+    /// 정상 기동하고 `/ws` 만 503 `auth_not_configured` 가 된다.
+    pub dev_auth_secret: Option<String>,
 }
 
 /// 기본 바인딩 주소.
@@ -64,6 +92,10 @@ pub struct Config {
 const DEFAULT_HTTP_ADDR: &str = "127.0.0.1:8080";
 const DEFAULT_DATABASE_URL: &str = "postgres://starfall:starfall_dev_only@127.0.0.1:15432/starfall";
 const DEFAULT_REDIS_URL: &str = "redis://127.0.0.1:16379/0";
+/// 마이그레이션 0001 이 시드하는 스파이크 월드 (ADR-0007 §2).
+const DEFAULT_WORLD_ID: &str = "01a0b1c2-3d4e-7f01-8a2b-9c0d1e2f3a4b";
+/// 기본 tick 주기 (ADR-0006 §1).
+const DEFAULT_TICK_HZ: &str = "20";
 
 fn var_opt(name: &'static str) -> Result<Option<String>, ConfigError> {
     match env::var(name) {
@@ -99,11 +131,43 @@ impl Config {
             _ => return Err(ConfigError::LogFormat { value: raw_format }),
         };
 
+        let raw_tick_hz = var_or("STARFALL_TICK_HZ", DEFAULT_TICK_HZ)?;
+        let tick_hz = raw_tick_hz
+            .parse::<u32>()
+            .ok()
+            .filter(|value| (1..=1000).contains(value))
+            .ok_or_else(|| ConfigError::TickHz {
+                value: raw_tick_hz.clone(),
+            })?;
+
+        let raw_world_id = var_or("STARFALL_WORLD_ID", DEFAULT_WORLD_ID)?;
+        let world_id = UuidV7::parse(&raw_world_id).ok_or_else(|| ConfigError::WorldId {
+            value: raw_world_id.clone(),
+        })?;
+
         Ok(Self {
             http_addr,
             log_format,
             database_url: var_or("DATABASE_URL", DEFAULT_DATABASE_URL)?,
             redis_url: var_or("REDIS_URL", DEFAULT_REDIS_URL)?,
+            tick_hz,
+            world_id,
+            // 빈 문자열은 "설정하지 않음"과 같게 다룬다 — `.env` 에서 값을 지웠을 때
+            // 절반만 설정된 상태가 생기지 않게 한다.
+            dev_auth_secret: var_opt("STARFALL_DEV_AUTH_SECRET")?.filter(|s| !s.is_empty()),
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// 기본값은 마이그레이션 시드와 ADR-0006 §1 을 그대로 따라야 한다.
+    #[test]
+    fn defaults_match_the_seeded_world() {
+        assert_eq!(DEFAULT_TICK_HZ, "20");
+        assert!(UuidV7::parse(DEFAULT_WORLD_ID).is_some());
+        assert_eq!(DEFAULT_WORLD_ID, "01a0b1c2-3d4e-7f01-8a2b-9c0d1e2f3a4b");
     }
 }

@@ -1,0 +1,6 @@
+# 블록 0 — 서버 게이트 (2026-09-19)
+## SC-01 cargo fmt --all --check
+exit=0
+## SC-04 sim Cargo.toml 금지 의존성
+grep_rc=1 (1=없음=PASS)
+2

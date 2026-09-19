@@ -1,0 +1,18 @@
+=== G-a: down -v (starfall 프로젝트 범위) ===
+ Container starfall-redis-1  Removing
+ Container starfall-redis-1  Removed
+ Volume starfall_postgres-data  Removing
+ Network starfall_default  Removing
+ Volume starfall_postgres-data  Removed
+ Network starfall_default  Removed
+=== up -d ===
+ Container starfall-postgres-1  Starting
+ Container starfall-redis-1  Starting
+ Container starfall-redis-1  Started
+ Container starfall-postgres-1  Started
+/var/run/postgresql:5432 - no response
+=== 볼륨 상태(타 프로젝트 불변 확인) ===
+1
+aether-smoke-api-1 aether-smoke-otel-collector-1 aether-smoke-postgres-1 aether-smoke-redis-1 aether-smoke-worker-1 livingfeed-minio-1 livingfeed-nats-1 livingfeed-nats-test-1 livingfeed-opensearch-1 livingfeed-qdrant-1 starfall-postgres-1 starfall-redis-1 
+=== 초기 테이블 ===
+psql: error: connection to server on socket "/var/run/postgresql/.s.PGSQL.5432" failed: FATAL:  database "starfall" does not exist

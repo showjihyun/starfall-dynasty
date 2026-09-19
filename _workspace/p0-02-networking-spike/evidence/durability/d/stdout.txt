@@ -1,0 +1,21 @@
+[bots] stage=d-durability url=ws://127.0.0.1:8080/ws bots=30 seed=42 duration=200s interval=500ms
+=== bots d-durability ===
+connections attempted : 30
+sessions ready        : 30
+correlations collected: 30
+commands sent         : 11815
+COMMAND_RESULT        : 11815 (accepted 11815 / rejected 0)
+PING_REPLY            : 11815
+loss(missing results) : 0  missing replies: 0
+duplicates            : results 0 / replies 0   unmatched: results 0 / replies 0
+order violations (I-15): 0
+tick mismatches (AC-6c) : 0  (compared 11815)
+probe_seq mismatches   : 0
+rtt ms  n=11815 p50=Some(26.044) p99=Some(50.35) max=Some(51.236)
+ack ms  n=11815 p50=Some(26.014) p99=Some(50.317) max=Some(51.201)
+connect ms p50=Some(0.875) max=Some(4.131)   ready ms p50=Some(22.501) max=Some(44.355)
+server-initiated closes: 0
+wire errors            : 0
+GATES one_to_one=true accepted_reply_pairing=true all_ok=true
+evidence -> C:\WorkSpace\SpaceHistoric\_workspace\p0-02-networking-spike\evidence\durability\d
+clock_base_unix_ms=1789813361442 (commands.csv 의 *_us 에 이 값을 더하면 벽시계가 된다)

@@ -1,0 +1,15 @@
+{
+  "item": "SC-57/58 (AC-16a·b) 세션 쌍 대조",
+  "verdict": "PASS",
+  "correlations_checked": 181,
+  "expected": 181,
+  "session_opened_rows": 181,
+  "session_closed_rows": 181,
+  "unpaired_or_duplicated": [],
+  "correlations_absent_from_db": [],
+  "rows_with_null_actor_id": 0,
+  "close_reasons": {
+    "CLIENT_CLOSED": 181
+  },
+  "other_event_types_in_set": {}
+}

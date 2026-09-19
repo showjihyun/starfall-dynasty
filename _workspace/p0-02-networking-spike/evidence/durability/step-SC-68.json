@@ -1,0 +1,18 @@
+{
+  "item": "SC-68 (AC-19c) persist_backlog <= 20 복귀 (정상 대역 0~20 — 20 tick 주기 커밋이라 0 이 아닌 것이 이상이 아니다, server §5)",
+  "verdict": "PASS",
+  "reached": true,
+  "elapsed_s": 1.045,
+  "final_value": 19,
+  "poll_interval_s": 1.0,
+  "samples": [
+    {
+      "t_s": 0.03,
+      "value": 618
+    },
+    {
+      "t_s": 1.045,
+      "value": 19
+    }
+  ]
+}

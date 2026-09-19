@@ -1,0 +1,8 @@
+=== probe order ===
+계약 항목: SC-19 (AC-6c): COMMAND_RESULT → PING_REPLY 순서, 같은 tick
+session_id=01a0b82d-ae9e-7651-8a42-a1e09a8ff9b1 correlation_id=Some(01a0b82d-aec6-71f1-b25e-62af001d93a0) actor_id=01a0b1c2-b010-7000-8000-000000000001 tick_hz=20 server_version=0.1.0 ready_tick=4144
+close: code=Some(1000) reason_text=Some("") initiator=client
+token subject=01a0b1c2-b010-7000-8000-000000000001 actor_id_matches_subject=true
+sent=12 results=12 (accepted 12 / rejected 0) replies=12 order_violations=0 missing_results=0
+tick_mismatches=0 (compared 12) same_tick_holds=true
+rtt ms n=12 p50=Some(23.708) max=Some(50.311)

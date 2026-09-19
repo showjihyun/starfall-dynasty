@@ -1,0 +1,555 @@
+//! 한 WebSocket 연결(= 한 세션)의 수명. 봇의 "행동"은 전부 여기 있고,
+//! **계측은 [`crate::ledger`] 가 한다** — 행동과 계측을 섞지 않아야 계측을 따로 테스트할 수 있다.
+
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+
+use futures_util::{SinkExt, StreamExt, stream::SplitSink, stream::SplitStream};
+use tokio::net::TcpStream;
+use tokio_tungstenite::tungstenite::http::HeaderValue;
+use tokio_tungstenite::tungstenite::protocol::frame::CloseFrame;
+use tokio_tungstenite::tungstenite::protocol::frame::coding::CloseCode;
+use tokio_tungstenite::tungstenite::{Message, client::IntoClientRequest};
+use tokio_tungstenite::{MaybeTlsStream, WebSocketStream};
+use uuid::Uuid;
+
+use crate::ledger::{Ledger, SessionRecord};
+use crate::wire::{self, Inbound, PingServerCommand};
+
+type Ws = WebSocketStream<MaybeTlsStream<TcpStream>>;
+type WsSink = SplitSink<Ws, Message>;
+type WsStreamHalf = SplitStream<Ws>;
+
+/// 모든 봇이 공유하는 단조 시계 + 그 기준점의 벽시계.
+///
+/// 왕복 지연은 단조 시계로만 재고(`us`), 벽시계는 **다른 도구(docker stop, psql)의 시각과
+/// 맞추기 위해서만** 쓴다(AC-19 의 중단 구간 슬라이싱). 두 용도를 섞지 않는다.
+#[derive(Debug, Clone, Copy)]
+pub struct Clock {
+    pub base: Instant,
+    pub wall_base_unix_ms: u64,
+}
+
+impl Clock {
+    pub fn start() -> Self {
+        Self {
+            base: Instant::now(),
+            wall_base_unix_ms: SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .map(|d| d.as_millis() as u64)
+                .unwrap_or(0),
+        }
+    }
+
+    pub fn us(&self) -> u64 {
+        self.base.elapsed().as_micros() as u64
+    }
+
+    pub fn wall_ms_at(&self, us: u64) -> u64 {
+        self.wall_base_unix_ms + us / 1000
+    }
+}
+
+/// 이 연결이 무엇을 하는가.
+#[derive(Debug, Clone)]
+pub enum Behavior {
+    /// A·D 단계: `interval` 마다 ping, `duration` 동안. 정상 Close 로 끝낸다.
+    Steady {
+        interval: Duration,
+        duration: Duration,
+        /// 시드에서 나온 초기 위상 지연. 30봇이 같은 순간에 몰려 보내는 인공적 부하를 없앤다.
+        phase: Duration,
+    },
+    /// B 단계 1회분: ping N 건을 보내고 응답을 기다린 뒤 닫는다.
+    Burst { pings: u32, grace: Duration },
+    /// C 단계 폭주 봇: 최대 속도로 N 건. in-flight 상한에 부딪히는 것이 목적이다.
+    /// **보내면서 계속 읽는다** — 읽지 않으면 설계대로 느린 소비자로 닫혀 AC-18(a)가 깨진다
+    /// (server 주의, 2026-09-19).
+    Flood { count: u32, grace: Duration },
+    /// AC-7(b): 같은 `command_id` 를 2회.
+    Duplicate,
+    /// AC-8(a)(b): 위반 프레임을 `count` 회 보낸다(앱 한도 16 KiB 초과 / 바이너리).
+    Violate { oversize: bool, count: u32 },
+    /// AC-8(c): 아무것도 보내지 않고 **읽지도 않는다**. 서버 Ping 에 Pong 이 가지 않는다.
+    Idle { wait: Duration },
+    /// AC-7(c): 읽지 않으면서 명령만 쏟아붓는다 → 서버 송신 큐 포화.
+    SlowConsumer { count: u32, wait: Duration },
+}
+
+#[derive(Debug)]
+pub struct ConnectionOutcome {
+    pub ledger: Ledger,
+    pub connect_ms: f64,
+    pub ready_ms: Option<f64>,
+    /// 서버가 업그레이드를 거절했을 때의 원인 문자열(클라이언트는 상태 코드를 구분할 수 없다 —
+    /// ADR-0005 §6. 원인 판정의 증거는 언제나 서버 쪽이다).
+    pub connect_error: Option<String>,
+}
+
+/// `SESSION_READY` 를 받는 **즉시** correlation 을 파일에 덧붙이는 싱크.
+///
+/// 왜 필요한가: SC-61(AC-17a)은 "A 단계가 **도는 동안**" 집합으로 조회해야 한다. 실행이 끝난 뒤
+/// 쓰는 `correlations.txt` 로는 그 시점에 조회할 대상이 없어 **구조적으로 측정 불가능**해진다.
+/// 한 연결에 한 줄, 그때 한 번만 쓴다(핫 경로가 아니다).
+#[derive(Debug)]
+pub struct LiveCorrelationSink {
+    file: std::sync::Mutex<std::fs::File>,
+}
+
+impl LiveCorrelationSink {
+    pub fn create(path: &std::path::Path) -> std::io::Result<Self> {
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        Ok(Self {
+            file: std::sync::Mutex::new(std::fs::File::create(path)?),
+        })
+    }
+
+    pub fn record(&self, correlation_id: Uuid) {
+        use std::io::Write as _;
+        if let Ok(mut f) = self.file.lock() {
+            let _ = writeln!(f, "{correlation_id}");
+            let _ = f.flush();
+        }
+    }
+}
+
+pub struct BotSpec {
+    pub label: String,
+    pub url: String,
+    pub token: String,
+    pub behavior: Behavior,
+    pub clock: Clock,
+    /// 있으면 `SESSION_READY` 수신 즉시 correlation 을 덧붙인다 (SC-61 용).
+    pub live_corr: Option<std::sync::Arc<LiveCorrelationSink>>,
+}
+
+impl std::fmt::Debug for BotSpec {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // 토큰은 비밀이 아니지만(ADR-0008 §3) 로그를 오염시키지 않도록 찍지 않는다.
+        f.debug_struct("BotSpec")
+            .field("label", &self.label)
+            .field("url", &self.url)
+            .field("behavior", &self.behavior)
+            .finish_non_exhaustive()
+    }
+}
+
+pub async fn run_connection(spec: BotSpec) -> ConnectionOutcome {
+    let mut ledger = Ledger::new(spec.label.clone());
+    let t_connect_start = spec.clock.us();
+
+    let mut request = match spec.url.as_str().into_client_request() {
+        Ok(r) => r,
+        Err(e) => {
+            ledger.on_error(format!("bad url: {e}"));
+            return ConnectionOutcome {
+                ledger,
+                connect_ms: 0.0,
+                ready_ms: None,
+                connect_error: Some(format!("bad url: {e}")),
+            };
+        }
+    };
+    match HeaderValue::from_str(&format!("Bearer {}", spec.token)) {
+        Ok(v) => {
+            request.headers_mut().insert("Authorization", v);
+        }
+        Err(e) => {
+            ledger.on_error(format!("bad token header: {e}"));
+        }
+    }
+
+    let ws = match tokio_tungstenite::connect_async(request).await {
+        Ok((ws, _response)) => ws,
+        Err(e) => {
+            let msg = format!("connect failed: {e}");
+            ledger.on_error(msg.clone());
+            return ConnectionOutcome {
+                ledger,
+                connect_ms: (spec.clock.us() - t_connect_start) as f64 / 1000.0,
+                ready_ms: None,
+                connect_error: Some(msg),
+            };
+        }
+    };
+    let connect_us = spec.clock.us();
+    let (sink, stream) = ws.split();
+
+    let mut conn = Conn {
+        sink,
+        stream,
+        ledger,
+        clock: spec.clock,
+        live_corr: spec.live_corr.clone(),
+        next_seq: 0,
+        connected_at_us: connect_us,
+        ready_at_us: None,
+        closed: false,
+    };
+
+    // SESSION_READY 는 그 연결의 첫 계약 메시지다(ADR-0005 §3). 읽지 않는 행동이라도
+    // 먼저 이것만은 받는다 — 받지 못하면 correlation 집합에 넣을 것이 없다.
+    conn.await_session_ready(Duration::from_secs(10)).await;
+
+    match spec.behavior {
+        Behavior::Steady {
+            interval,
+            duration,
+            phase,
+        } => conn.run_steady(interval, duration, phase).await,
+        Behavior::Burst { pings, grace } => conn.run_burst(pings, grace).await,
+        Behavior::Flood { count, grace } => conn.run_flood(count, grace).await,
+        Behavior::Duplicate => conn.run_duplicate().await,
+        Behavior::Violate { oversize, count } => conn.run_violate(oversize, count).await,
+        Behavior::Idle { wait } => conn.run_idle(wait).await,
+        Behavior::SlowConsumer { count, wait } => conn.run_slow_consumer(count, wait).await,
+    }
+
+    let ready_ms = conn
+        .ready_at_us
+        .map(|v| (v.saturating_sub(t_connect_start)) as f64 / 1000.0);
+    ConnectionOutcome {
+        ledger: conn.ledger,
+        connect_ms: (connect_us - t_connect_start) as f64 / 1000.0,
+        ready_ms,
+        connect_error: None,
+    }
+}
+
+struct Conn {
+    sink: WsSink,
+    stream: WsStreamHalf,
+    ledger: Ledger,
+    clock: Clock,
+    live_corr: Option<std::sync::Arc<LiveCorrelationSink>>,
+    next_seq: u32,
+    connected_at_us: u64,
+    ready_at_us: Option<u64>,
+    closed: bool,
+}
+
+impl Conn {
+    async fn await_session_ready(&mut self, timeout: Duration) {
+        let deadline = tokio::time::Instant::now() + timeout;
+        loop {
+            let next = tokio::time::timeout_at(deadline, self.stream.next()).await;
+            match next {
+                Err(_) => {
+                    self.ledger
+                        .on_error("timed out waiting for SESSION_READY".to_owned());
+                    return;
+                }
+                Ok(None) => {
+                    self.ledger
+                        .on_error("connection closed before SESSION_READY".to_owned());
+                    self.closed = true;
+                    return;
+                }
+                Ok(Some(Err(e))) => {
+                    self.ledger.on_error(format!("socket error: {e}"));
+                    self.closed = true;
+                    return;
+                }
+                Ok(Some(Ok(msg))) => {
+                    let ready = self.handle_message(msg);
+                    if self.ready_at_us.is_some() || self.closed {
+                        let _ = ready;
+                        return;
+                    }
+                }
+            }
+        }
+    }
+
+    /// 프레임 1건 처리. `true` 를 돌려주면 연결이 끝났다는 뜻이다.
+    fn handle_message(&mut self, msg: Message) -> bool {
+        let at = self.clock.us();
+        match msg {
+            Message::Text(text) => {
+                match wire::parse_inbound(text.as_str()) {
+                    Inbound::SessionReady(m) => {
+                        if self.ready_at_us.is_none() {
+                            self.ready_at_us = Some(at);
+                            self.ledger.on_session_ready(SessionRecord {
+                                bot: self.ledger.bot.clone(),
+                                session_id: m.payload.session_id,
+                                correlation_id: m.correlation_id,
+                                actor_id: m.payload.actor_id,
+                                tick_hz: m.payload.tick_hz,
+                                server_version: m.payload.server_version.clone(),
+                                ready_tick: m.tick,
+                                connected_at_us: self.connected_at_us,
+                                ready_at_us: at,
+                                closed_at_us: None,
+                                close_code: None,
+                                peer_close_code: None,
+                                close_reason_text: None,
+                                close_initiator: "none".to_owned(),
+                            });
+                            match m.correlation_id {
+                                // SC-61: 실행 중에 조회하려면 지금 기록해야 한다.
+                                Some(c) => {
+                                    if let Some(sink) = &self.live_corr {
+                                        sink.record(c);
+                                    }
+                                }
+                                // 스펙 §5.2: SESSION_READY 의 correlation_id 는 그 세션의
+                                // correlation 이다. null 이면 집합 대조가 불가능해진다 —
+                                // 조용히 넘기지 않고 오류로 남긴다.
+                                None => self.ledger.on_error(
+                                    "SESSION_READY.correlation_id is null (session set cannot be built)"
+                                        .to_owned(),
+                                ),
+                            }
+                        } else {
+                            self.ledger.on_session_ready(SessionRecord {
+                                bot: self.ledger.bot.clone(),
+                                session_id: m.payload.session_id,
+                                correlation_id: m.correlation_id,
+                                actor_id: m.payload.actor_id,
+                                tick_hz: m.payload.tick_hz,
+                                server_version: m.payload.server_version.clone(),
+                                ready_tick: m.tick,
+                                connected_at_us: self.connected_at_us,
+                                ready_at_us: at,
+                                closed_at_us: None,
+                                close_code: None,
+                                peer_close_code: None,
+                                close_reason_text: None,
+                                close_initiator: "none".to_owned(),
+                            });
+                        }
+                    }
+                    Inbound::CommandResult(m) => {
+                        if self.ready_at_us.is_none() {
+                            self.ledger.on_error(
+                                "first contract message was COMMAND_RESULT, not SESSION_READY"
+                                    .to_owned(),
+                            );
+                        }
+                        self.ledger.on_command_result(
+                            m.payload.command_id,
+                            &m.payload.status,
+                            m.payload.reason_code.as_deref(),
+                            at,
+                            m.tick,
+                        );
+                    }
+                    Inbound::PingReply(m) => {
+                        if self.ready_at_us.is_none() {
+                            self.ledger.on_error(
+                                "first contract message was PING_REPLY, not SESSION_READY"
+                                    .to_owned(),
+                            );
+                        }
+                        self.ledger.on_ping_reply(
+                            m.payload.command_id,
+                            m.payload.probe_seq,
+                            at,
+                            m.tick,
+                        );
+                    }
+                    Inbound::Unknown { message_type } => {
+                        self.ledger.on_unknown_message(&message_type);
+                    }
+                    Inbound::Malformed { reason, raw } => {
+                        self.ledger.on_wire_error(format!("{reason} | raw={raw}"));
+                    }
+                }
+                false
+            }
+            Message::Binary(_) => {
+                self.ledger
+                    .on_wire_error("server sent a binary frame (contract is text-only)".to_owned());
+                false
+            }
+            Message::Ping(_) | Message::Pong(_) => false,
+            Message::Close(frame) => {
+                let (code, reason) = match frame {
+                    Some(CloseFrame { code, reason }) => {
+                        (Some(u16::from(code)), Some(reason.as_str().to_owned()))
+                    }
+                    None => (None, None),
+                };
+                self.ledger.on_close(at, code, reason, "server");
+                self.closed = true;
+                true
+            }
+            Message::Frame(_) => false,
+        }
+    }
+
+    async fn send_ping(&mut self, command_id: Uuid) {
+        let seq = self.next_seq;
+        self.next_seq = self.next_seq.wrapping_add(1);
+        let cmd = PingServerCommand::new(command_id, seq);
+        let text = match serde_json::to_string(&cmd) {
+            Ok(t) => t,
+            Err(e) => {
+                self.ledger.on_error(format!("serialize failed: {e}"));
+                return;
+            }
+        };
+        // 송신 시각은 **소켓에 넣기 직전**에 찍는다. 그래야 왕복에 우리 직렬화 비용이 섞이지 않는다.
+        let at = self.clock.us();
+        match self.sink.send(Message::text(text)).await {
+            Ok(()) => self.ledger.on_sent(command_id, seq, at),
+            Err(e) => {
+                self.ledger.on_error(format!("send failed: {e}"));
+                self.closed = true;
+            }
+        }
+    }
+
+    async fn pump_for(&mut self, dur: Duration) {
+        let deadline = tokio::time::Instant::now() + dur;
+        while !self.closed {
+            match tokio::time::timeout_at(deadline, self.stream.next()).await {
+                Err(_) => return,
+                Ok(None) => {
+                    self.closed = true;
+                    return;
+                }
+                Ok(Some(Err(e))) => {
+                    self.ledger.on_error(format!("socket error: {e}"));
+                    self.closed = true;
+                    return;
+                }
+                Ok(Some(Ok(msg))) => {
+                    if self.handle_message(msg) {
+                        return;
+                    }
+                }
+            }
+        }
+    }
+
+    async fn run_steady(&mut self, interval: Duration, duration: Duration, phase: Duration) {
+        if !phase.is_zero() {
+            self.pump_for(phase).await;
+        }
+        let end = tokio::time::Instant::now() + duration;
+        while !self.closed && tokio::time::Instant::now() < end {
+            self.send_ping(Uuid::now_v7()).await;
+            let next = (tokio::time::Instant::now() + interval).min(end);
+            let gap = next.saturating_duration_since(tokio::time::Instant::now());
+            if gap.is_zero() {
+                break;
+            }
+            self.pump_for(gap).await;
+        }
+        // 마지막 왕복이 돌아올 시간을 준다. 이 유예가 없으면 "손실"이 우리 조급함이 된다.
+        self.pump_for(Duration::from_millis(1500)).await;
+        self.close_client_side().await;
+    }
+
+    async fn run_burst(&mut self, pings: u32, grace: Duration) {
+        for _ in 0..pings {
+            if self.closed {
+                break;
+            }
+            self.send_ping(Uuid::now_v7()).await;
+            self.pump_for(Duration::from_millis(30)).await;
+        }
+        self.pump_for(grace).await;
+        self.close_client_side().await;
+    }
+
+    async fn run_flood(&mut self, count: u32, grace: Duration) {
+        for i in 0..count {
+            if self.closed {
+                break;
+            }
+            self.send_ping(Uuid::now_v7()).await;
+            // 16건마다 읽는다. 명령 1건이 응답 2건(COMMAND_RESULT + PING_REPLY)을 만들므로
+            // 너무 드물게 읽으면 우리가 느린 소비자가 되어 서버가 연결을 닫는다 — 그러면
+            // AC-18(a)의 "연결이 유지된다"를 우리 손으로 깨뜨린다.
+            if i % 16 == 15 {
+                self.pump_for(Duration::from_millis(2)).await;
+            }
+        }
+        self.pump_for(grace).await;
+        self.close_client_side().await;
+    }
+
+    async fn run_duplicate(&mut self) {
+        let id = Uuid::now_v7();
+        self.send_ping(id).await;
+        self.pump_for(Duration::from_millis(300)).await;
+        // 같은 command_id 를 그대로 다시 보낸다. probe_seq 는 증가하지만 서버는
+        // command_id 로만 중복 제거한다(ADR-0006 §6).
+        self.send_ping(id).await;
+        self.pump_for(Duration::from_millis(1500)).await;
+        self.close_client_side().await;
+    }
+
+    async fn run_violate(&mut self, oversize: bool, count: u32) {
+        for _ in 0..count {
+            if self.closed {
+                break;
+            }
+            let msg = if oversize {
+                // 앱 한도 16 KiB 초과, 라이브러리 한도 64 KiB 미만. 이 사이여야 서버가 셀 수 있다
+                // (ADR-0005 §2 — 같은 값이면 tungstenite 가 먼저 끊어 계수 자체가 불가능하다).
+                let filler = "x".repeat(20 * 1024);
+                Message::text(format!(
+                    "{{\"message_type\":\"PING_SERVER\",\"pad\":\"{filler}\"}}"
+                ))
+            } else {
+                Message::binary(vec![0u8; 64])
+            };
+            if let Err(e) = self.sink.send(msg).await {
+                self.ledger.on_error(format!("send failed: {e}"));
+                self.closed = true;
+                break;
+            }
+            self.pump_for(Duration::from_millis(200)).await;
+        }
+        self.pump_for(Duration::from_secs(3)).await;
+        if !self.closed {
+            self.close_client_side().await;
+        }
+    }
+
+    async fn run_idle(&mut self, wait: Duration) {
+        // 읽지 않는다 → tungstenite 가 서버 Ping 에 Pong 을 보내지 않는다.
+        tokio::time::sleep(wait).await;
+        // 그 뒤에 버퍼에 쌓인 것(서버의 Close 포함)을 비운다.
+        self.pump_for(Duration::from_secs(5)).await;
+    }
+
+    async fn run_slow_consumer(&mut self, count: u32, wait: Duration) {
+        for _ in 0..count {
+            let text = self.ping_text();
+            if self.sink.send(Message::text(text)).await.is_err() {
+                break;
+            }
+        }
+        tokio::time::sleep(wait).await;
+        self.pump_for(Duration::from_secs(5)).await;
+    }
+
+    /// 읽지 않는 행동용 — 원장에 기록하지 않는다(응답을 받지 않을 것이므로 1:1 대조 대상이 아니다).
+    fn ping_text(&self) -> String {
+        let cmd = PingServerCommand::new(Uuid::now_v7(), 0);
+        serde_json::to_string(&cmd).unwrap_or_else(|_| "{}".to_owned())
+    }
+
+    async fn close_client_side(&mut self) {
+        if self.closed {
+            return;
+        }
+        let frame = CloseFrame {
+            code: CloseCode::Normal,
+            reason: "".into(),
+        };
+        if self.sink.send(Message::Close(Some(frame))).await.is_err() {
+            return;
+        }
+        let at = self.clock.us();
+        self.ledger.on_close(at, Some(1000), None, "client");
+        // 서버의 Close 응답을 기다린다(양방향 Close 교환 — ADR-0005 §2).
+        self.pump_for(Duration::from_secs(3)).await;
+    }
+}

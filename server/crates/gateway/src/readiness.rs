@@ -54,6 +54,17 @@ impl CheckStatus {
     }
 }
 
+/// 점검 1회의 결과. **즉시 실패와 타임아웃을 구분한다** — 재시도 정책이 여기 달려 있다.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum CheckOutcome {
+    /// 왕복 성공.
+    Ok,
+    /// 즉시 실패(끊긴 연결·접속 거부). 1회 재시도 대상이다.
+    FailedFast,
+    /// 제한 시간 초과. 재시도하지 않는다.
+    TimedOut,
+}
+
 /// 의존성 점검 핸들.
 ///
 /// `Clone` 이 싸다 — `PgPool` 과 `redis::Client` 는 내부가 `Arc` 다.
@@ -117,28 +128,63 @@ impl Probes {
         })
     }
 
+    /// 각 점검을 한 번 돌리고, **즉시 실패했을 때만** 1회 재시도한다 (ADR-0007 §9).
+    ///
+    /// # 왜 타임아웃에는 재시도하지 않는가
+    ///
+    /// p0-01 에서 컨테이너 재생성 직후 첫 `/readyz` 가 Redis broken pipe 로 1회 503 을 냈다.
+    /// 원인은 풀에 남은 **끊긴 연결**이고, 그 실패는 마이크로초 단위로 즉시 돌아온다. 그래서
+    /// 즉시 실패만 재시도하면 총 소요가 사실상 점검당 2초를 넘지 않는다.
+    ///
+    /// 타임아웃까지 재시도하면 점검당 최악 4초가 되어 ADR-0003 §3.1 제약 2(점검당 2초)와
+    /// 충돌한다. 그리고 느린(그러나 살아 있는) DB 의 동작이 조용히 바뀐다 —
+    /// readiness 가 매달리면 그 자체가 장애다.
+    async fn check_with_retry<F, Fut>(check: F) -> CheckStatus
+    where
+        F: Fn() -> Fut,
+        Fut: Future<Output = CheckOutcome>,
+    {
+        match check().await {
+            CheckOutcome::Ok => CheckStatus::Ok,
+            // 타임아웃 = 재시도 없음.
+            CheckOutcome::TimedOut => CheckStatus::Unavailable,
+            CheckOutcome::FailedFast => match check().await {
+                CheckOutcome::Ok => CheckStatus::Ok,
+                _ => CheckStatus::Unavailable,
+            },
+        }
+    }
+
     async fn check_postgres(&self) -> CheckStatus {
+        Self::check_with_retry(|| self.check_postgres_once()).await
+    }
+
+    async fn check_redis(&self) -> CheckStatus {
+        Self::check_with_retry(|| self.check_redis_once()).await
+    }
+
+    async fn check_postgres_once(&self) -> CheckOutcome {
         // `SELECT 1` 은 풀에서 연결을 하나 얻어 실제로 왕복한다.
         // sqlx 의 test_before_acquire(기본 true)가 죽은 연결을 걸러 주므로,
         // 컨테이너를 내렸다 올려도 다음 점검이 새 연결로 복구된다.
         let query = sqlx::query("SELECT 1").execute(&self.postgres);
         match tokio::time::timeout(CHECK_TIMEOUT, query).await {
-            Ok(Ok(_)) => CheckStatus::Ok,
+            Ok(Ok(_)) => CheckOutcome::Ok,
             Ok(Err(error)) => {
                 tracing::warn!(%error, "readiness: PostgreSQL 점검 실패");
-                CheckStatus::Unavailable
+                CheckOutcome::FailedFast
             }
             Err(_) => {
                 tracing::warn!(
                     timeout_ms = CHECK_TIMEOUT.as_millis(),
                     "readiness: PostgreSQL 점검 타임아웃"
                 );
-                CheckStatus::Unavailable
+                CheckOutcome::TimedOut
             }
         }
     }
 
-    async fn check_redis(&self) -> CheckStatus {
+    async fn check_redis_once(&self) -> CheckOutcome {
         let ping = async {
             let manager = self
                 .redis_connection
@@ -151,17 +197,17 @@ impl Probes {
         };
 
         match tokio::time::timeout(CHECK_TIMEOUT, ping).await {
-            Ok(Ok(_)) => CheckStatus::Ok,
+            Ok(Ok(_)) => CheckOutcome::Ok,
             Ok(Err(error)) => {
                 tracing::warn!(%error, "readiness: Redis 점검 실패");
-                CheckStatus::Unavailable
+                CheckOutcome::FailedFast
             }
             Err(_) => {
                 tracing::warn!(
                     timeout_ms = CHECK_TIMEOUT.as_millis(),
                     "readiness: Redis 점검 타임아웃"
                 );
-                CheckStatus::Unavailable
+                CheckOutcome::TimedOut
             }
         }
     }

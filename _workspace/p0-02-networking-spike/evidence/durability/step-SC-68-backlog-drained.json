@@ -1,0 +1,9 @@
+{
+  "step": "SC-68-backlog-drained",
+  "at": "2026-09-19T10:23:38Z",
+  "cmd": "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe C:\\WorkSpace\\SpaceHistoric\\tests\\e2e\\poll_until.py backlog --target 20 --timeout 180 --evidence C:\\WorkSpace\\SpaceHistoric\\_workspace\\p0-02-networking-spike\\evidence\\durability\\step-SC-68.json",
+  "exit": 0,
+  "stdout": "{\n  \"item\": \"SC-68 (AC-19c) persist_backlog <= 20 복귀 (정상 대역 0~20 — 20 tick 주기 커밋이라 0 이 아닌 것이 이상이 아니다, server §5)\",\n  \"verdict\": \"PASS\",\n  \"reached\": true,\n  \"elapsed_s\": 1.045,\n  \"final_value\": 19,\n  \"poll_interval_s\": 1.0,\n  \"samples\": [\n    {\n      \"t_s\": 0.03,\n      \"value\": 618\n    },\n    {\n      \"t_s\": 1.045,\n      \"value\": 19\n    }\n  ]\n}\n",
+  "stderr": "",
+  "elapsed_s": 1.15
+}

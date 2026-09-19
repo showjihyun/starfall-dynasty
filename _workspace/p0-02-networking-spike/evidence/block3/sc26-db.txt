@@ -1,0 +1,2 @@
+SESSION_OPENED | close_reason=- | tick=330450
+SESSION_CLOSED | close_reason=IDLE_TIMEOUT | tick=331051

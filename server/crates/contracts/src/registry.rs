@@ -16,12 +16,21 @@ use serde::de::DeserializeOwned;
 use serde_json::Value;
 
 use crate::commands::PingServerCommand;
-use crate::messages::PingReplyMessage;
+use crate::events::{SessionClosedEvent, SessionOpenedEvent};
+use crate::messages::{CommandResultMessage, PingReplyMessage, SessionReadyMessage};
 
 /// `PING_SERVER` 레지스트리 이름.
 pub const PING_SERVER: &str = "PING_SERVER";
 /// `PING_REPLY` 레지스트리 이름.
 pub const PING_REPLY: &str = "PING_REPLY";
+/// `COMMAND_RESULT` 레지스트리 이름.
+pub const COMMAND_RESULT: &str = "COMMAND_RESULT";
+/// `SESSION_READY` 레지스트리 이름.
+pub const SESSION_READY: &str = "SESSION_READY";
+/// `SESSION_OPENED` 레지스트리 이름.
+pub const SESSION_OPENED: &str = "SESSION_OPENED";
+/// `SESSION_CLOSED` 레지스트리 이름.
+pub const SESSION_CLOSED: &str = "SESSION_CLOSED";
 
 /// JSON 값을 해당 Rust 타입으로 역직렬화한 뒤 다시 직렬화하는 함수.
 ///
@@ -80,6 +89,38 @@ pub static CONTRACT_TYPES: &[ContractType] = &[
         rust_type: "starfall_contracts::messages::PingReplyMessage",
         round_trip: round_trip_as::<PingReplyMessage>,
     },
+    ContractType {
+        name: COMMAND_RESULT,
+        kind: "server_message",
+        schema_path: "messages/COMMAND_RESULT.schema.json",
+        schema_version: 1,
+        rust_type: "starfall_contracts::messages::CommandResultMessage",
+        round_trip: round_trip_as::<CommandResultMessage>,
+    },
+    ContractType {
+        name: SESSION_READY,
+        kind: "server_message",
+        schema_path: "messages/SESSION_READY.schema.json",
+        schema_version: 1,
+        rust_type: "starfall_contracts::messages::SessionReadyMessage",
+        round_trip: round_trip_as::<SessionReadyMessage>,
+    },
+    ContractType {
+        name: SESSION_OPENED,
+        kind: "domain_event",
+        schema_path: "events/domain/SESSION_OPENED.schema.json",
+        schema_version: 1,
+        rust_type: "starfall_contracts::events::SessionOpenedEvent",
+        round_trip: round_trip_as::<SessionOpenedEvent>,
+    },
+    ContractType {
+        name: SESSION_CLOSED,
+        kind: "domain_event",
+        schema_path: "events/domain/SESSION_CLOSED.schema.json",
+        schema_version: 1,
+        rust_type: "starfall_contracts::events::SessionClosedEvent",
+        round_trip: round_trip_as::<SessionClosedEvent>,
+    },
 ];
 
 /// 이름으로 계약 타입을 찾는다.
@@ -103,8 +144,17 @@ mod tests {
 
     #[test]
     fn find_returns_registered_types() {
-        assert!(find(PING_SERVER).is_some());
-        assert!(find(PING_REPLY).is_some());
+        for name in [
+            PING_SERVER,
+            PING_REPLY,
+            COMMAND_RESULT,
+            SESSION_READY,
+            SESSION_OPENED,
+            SESSION_CLOSED,
+        ] {
+            assert!(find(name).is_some(), "{name} 이 대응표에 없다");
+        }
+        assert_eq!(CONTRACT_TYPES.len(), 6);
         assert!(find("NOT_A_CONTRACT_TYPE").is_none());
     }
 }

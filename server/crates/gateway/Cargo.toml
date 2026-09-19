@@ -13,15 +13,29 @@ publish.workspace = true
 workspace = true
 
 [dependencies]
+starfall-contracts.workspace = true
+starfall-sim.workspace = true
+
 axum.workspace = true
+futures-util.workspace = true
 serde.workspace = true
+serde_json.workspace = true
 thiserror.workspace = true
 tokio = { workspace = true, features = ["sync"] }
 tracing.workspace = true
+
+# 개발용 토큰 HMAC (ADR-0008 §1). 추가로 컴파일되는 크레이트는 0개다 —
+# sqlx-postgres 가 SCRAM 인증 때문에 이미 트리에 갖고 있다(server 실측).
+hmac.workspace = true
+sha2.workspace = true
+subtle.workspace = true
 
 # /readyz 의존성 점검 전용 (ADR-0003 §3.1). TLS feature 는 켜지 않는다 — 로컬은 평문이다.
 redis.workspace = true
 sqlx.workspace = true
 
 [dev-dependencies]
-serde_json.workspace = true
+# 통합 테스트용 실제 WebSocket 클라이언트. **dev 전용**이라 프로덕션 의존 트리는 늘지 않는다
+# (axum 의 `ws` feature 가 이미 같은 크레이트를 트리에 갖고 있다).
+tokio = { workspace = true, features = ["sync", "rt-multi-thread", "macros", "net", "time"] }
+tokio-tungstenite.workspace = true
