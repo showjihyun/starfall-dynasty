@@ -1,0 +1,632 @@
+{
+  "cores": 12,
+  "old_budget_s": 2.0,
+  "new_budget_polls": 10,
+  "results": [
+    {
+      "multiplier": 0,
+      "hog_processes": 0,
+      "runs": 10,
+      "parsed": 10,
+      "polls": [
+        2,
+        2,
+        2,
+        2,
+        2,
+        2,
+        2,
+        2,
+        2,
+        2
+      ],
+      "elapsed_s": [
+        0.06,
+        0.069,
+        0.069,
+        0.064,
+        0.066,
+        0.069,
+        0.057,
+        0.057,
+        0.059,
+        0.064
+      ],
+      "old_form_fail": 0,
+      "new_form_fail": 0,
+      "test_rc_nonzero": 0,
+      "rows": [
+        {
+          "run": 0,
+          "test_rc": 0,
+          "polls": 2,
+          "elapsed_s": 0.06,
+          "old_form_pass": true,
+          "new_form_pass": true,
+          "wall_s": 0.3
+        },
+        {
+          "run": 1,
+          "test_rc": 0,
+          "polls": 2,
+          "elapsed_s": 0.069,
+          "old_form_pass": true,
+          "new_form_pass": true,
+          "wall_s": 0.27
+        },
+        {
+          "run": 2,
+          "test_rc": 0,
+          "polls": 2,
+          "elapsed_s": 0.069,
+          "old_form_pass": true,
+          "new_form_pass": true,
+          "wall_s": 0.27
+        },
+        {
+          "run": 3,
+          "test_rc": 0,
+          "polls": 2,
+          "elapsed_s": 0.064,
+          "old_form_pass": true,
+          "new_form_pass": true,
+          "wall_s": 0.31
+        },
+        {
+          "run": 4,
+          "test_rc": 0,
+          "polls": 2,
+          "elapsed_s": 0.066,
+          "old_form_pass": true,
+          "new_form_pass": true,
+          "wall_s": 0.26
+        },
+        {
+          "run": 5,
+          "test_rc": 0,
+          "polls": 2,
+          "elapsed_s": 0.069,
+          "old_form_pass": true,
+          "new_form_pass": true,
+          "wall_s": 0.28
+        },
+        {
+          "run": 6,
+          "test_rc": 0,
+          "polls": 2,
+          "elapsed_s": 0.057,
+          "old_form_pass": true,
+          "new_form_pass": true,
+          "wall_s": 0.27
+        },
+        {
+          "run": 7,
+          "test_rc": 0,
+          "polls": 2,
+          "elapsed_s": 0.057,
+          "old_form_pass": true,
+          "new_form_pass": true,
+          "wall_s": 0.27
+        },
+        {
+          "run": 8,
+          "test_rc": 0,
+          "polls": 2,
+          "elapsed_s": 0.059,
+          "old_form_pass": true,
+          "new_form_pass": true,
+          "wall_s": 0.28
+        },
+        {
+          "run": 9,
+          "test_rc": 0,
+          "polls": 2,
+          "elapsed_s": 0.064,
+          "old_form_pass": true,
+          "new_form_pass": true,
+          "wall_s": 0.28
+        }
+      ]
+    },
+    {
+      "multiplier": 1,
+      "hog_processes": 12,
+      "runs": 10,
+      "parsed": 10,
+      "polls": [
+        2,
+        2,
+        2,
+        2,
+        2,
+        2,
+        2,
+        2,
+        2,
+        2
+      ],
+      "elapsed_s": [
+        0.056,
+        0.06,
+        0.071,
+        0.061,
+        0.065,
+        0.062,
+        0.061,
+        0.061,
+        0.065,
+        0.058
+      ],
+      "old_form_fail": 0,
+      "new_form_fail": 0,
+      "test_rc_nonzero": 0,
+      "rows": [
+        {
+          "run": 0,
+          "test_rc": 0,
+          "polls": 2,
+          "elapsed_s": 0.056,
+          "old_form_pass": true,
+          "new_form_pass": true,
+          "wall_s": 0.48
+        },
+        {
+          "run": 1,
+          "test_rc": 0,
+          "polls": 2,
+          "elapsed_s": 0.06,
+          "old_form_pass": true,
+          "new_form_pass": true,
+          "wall_s": 0.47
+        },
+        {
+          "run": 2,
+          "test_rc": 0,
+          "polls": 2,
+          "elapsed_s": 0.071,
+          "old_form_pass": true,
+          "new_form_pass": true,
+          "wall_s": 0.33
+        },
+        {
+          "run": 3,
+          "test_rc": 0,
+          "polls": 2,
+          "elapsed_s": 0.061,
+          "old_form_pass": true,
+          "new_form_pass": true,
+          "wall_s": 0.33
+        },
+        {
+          "run": 4,
+          "test_rc": 0,
+          "polls": 2,
+          "elapsed_s": 0.065,
+          "old_form_pass": true,
+          "new_form_pass": true,
+          "wall_s": 0.3
+        },
+        {
+          "run": 5,
+          "test_rc": 0,
+          "polls": 2,
+          "elapsed_s": 0.062,
+          "old_form_pass": true,
+          "new_form_pass": true,
+          "wall_s": 0.3
+        },
+        {
+          "run": 6,
+          "test_rc": 0,
+          "polls": 2,
+          "elapsed_s": 0.061,
+          "old_form_pass": true,
+          "new_form_pass": true,
+          "wall_s": 0.31
+        },
+        {
+          "run": 7,
+          "test_rc": 0,
+          "polls": 2,
+          "elapsed_s": 0.061,
+          "old_form_pass": true,
+          "new_form_pass": true,
+          "wall_s": 0.31
+        },
+        {
+          "run": 8,
+          "test_rc": 0,
+          "polls": 2,
+          "elapsed_s": 0.065,
+          "old_form_pass": true,
+          "new_form_pass": true,
+          "wall_s": 0.31
+        },
+        {
+          "run": 9,
+          "test_rc": 0,
+          "polls": 2,
+          "elapsed_s": 0.058,
+          "old_form_pass": true,
+          "new_form_pass": true,
+          "wall_s": 0.25
+        }
+      ]
+    },
+    {
+      "multiplier": 2,
+      "hog_processes": 24,
+      "runs": 10,
+      "parsed": 10,
+      "polls": [
+        3,
+        3,
+        2,
+        3,
+        3,
+        2,
+        2,
+        3,
+        3,
+        2
+      ],
+      "elapsed_s": [
+        0.118,
+        0.126,
+        0.06,
+        0.127,
+        0.116,
+        0.068,
+        0.063,
+        0.127,
+        0.121,
+        0.056
+      ],
+      "old_form_fail": 0,
+      "new_form_fail": 0,
+      "test_rc_nonzero": 0,
+      "rows": [
+        {
+          "run": 0,
+          "test_rc": 0,
+          "polls": 3,
+          "elapsed_s": 0.118,
+          "old_form_pass": true,
+          "new_form_pass": true,
+          "wall_s": 1.11
+        },
+        {
+          "run": 1,
+          "test_rc": 0,
+          "polls": 3,
+          "elapsed_s": 0.126,
+          "old_form_pass": true,
+          "new_form_pass": true,
+          "wall_s": 0.39
+        },
+        {
+          "run": 2,
+          "test_rc": 0,
+          "polls": 2,
+          "elapsed_s": 0.06,
+          "old_form_pass": true,
+          "new_form_pass": true,
+          "wall_s": 0.27
+        },
+        {
+          "run": 3,
+          "test_rc": 0,
+          "polls": 3,
+          "elapsed_s": 0.127,
+          "old_form_pass": true,
+          "new_form_pass": true,
+          "wall_s": 0.39
+        },
+        {
+          "run": 4,
+          "test_rc": 0,
+          "polls": 3,
+          "elapsed_s": 0.116,
+          "old_form_pass": true,
+          "new_form_pass": true,
+          "wall_s": 0.39
+        },
+        {
+          "run": 5,
+          "test_rc": 0,
+          "polls": 2,
+          "elapsed_s": 0.068,
+          "old_form_pass": true,
+          "new_form_pass": true,
+          "wall_s": 0.42
+        },
+        {
+          "run": 6,
+          "test_rc": 0,
+          "polls": 2,
+          "elapsed_s": 0.063,
+          "old_form_pass": true,
+          "new_form_pass": true,
+          "wall_s": 0.33
+        },
+        {
+          "run": 7,
+          "test_rc": 0,
+          "polls": 3,
+          "elapsed_s": 0.127,
+          "old_form_pass": true,
+          "new_form_pass": true,
+          "wall_s": 0.39
+        },
+        {
+          "run": 8,
+          "test_rc": 0,
+          "polls": 3,
+          "elapsed_s": 0.121,
+          "old_form_pass": true,
+          "new_form_pass": true,
+          "wall_s": 0.36
+        },
+        {
+          "run": 9,
+          "test_rc": 0,
+          "polls": 2,
+          "elapsed_s": 0.056,
+          "old_form_pass": true,
+          "new_form_pass": true,
+          "wall_s": 0.34
+        }
+      ]
+    },
+    {
+      "multiplier": 4,
+      "hog_processes": 48,
+      "runs": 10,
+      "parsed": 10,
+      "polls": [
+        2,
+        3,
+        3,
+        3,
+        2,
+        2,
+        3,
+        3,
+        3,
+        2
+      ],
+      "elapsed_s": [
+        0.054,
+        0.12,
+        0.12,
+        0.123,
+        0.06,
+        0.056,
+        0.118,
+        0.131,
+        0.133,
+        0.062
+      ],
+      "old_form_fail": 0,
+      "new_form_fail": 0,
+      "test_rc_nonzero": 0,
+      "rows": [
+        {
+          "run": 0,
+          "test_rc": 0,
+          "polls": 2,
+          "elapsed_s": 0.054,
+          "old_form_pass": true,
+          "new_form_pass": true,
+          "wall_s": 0.92
+        },
+        {
+          "run": 1,
+          "test_rc": 0,
+          "polls": 3,
+          "elapsed_s": 0.12,
+          "old_form_pass": true,
+          "new_form_pass": true,
+          "wall_s": 0.47
+        },
+        {
+          "run": 2,
+          "test_rc": 0,
+          "polls": 3,
+          "elapsed_s": 0.12,
+          "old_form_pass": true,
+          "new_form_pass": true,
+          "wall_s": 0.5
+        },
+        {
+          "run": 3,
+          "test_rc": 0,
+          "polls": 3,
+          "elapsed_s": 0.123,
+          "old_form_pass": true,
+          "new_form_pass": true,
+          "wall_s": 0.39
+        },
+        {
+          "run": 4,
+          "test_rc": 0,
+          "polls": 2,
+          "elapsed_s": 0.06,
+          "old_form_pass": true,
+          "new_form_pass": true,
+          "wall_s": 0.47
+        },
+        {
+          "run": 5,
+          "test_rc": 0,
+          "polls": 2,
+          "elapsed_s": 0.056,
+          "old_form_pass": true,
+          "new_form_pass": true,
+          "wall_s": 0.41
+        },
+        {
+          "run": 6,
+          "test_rc": 0,
+          "polls": 3,
+          "elapsed_s": 0.118,
+          "old_form_pass": true,
+          "new_form_pass": true,
+          "wall_s": 0.42
+        },
+        {
+          "run": 7,
+          "test_rc": 0,
+          "polls": 3,
+          "elapsed_s": 0.131,
+          "old_form_pass": true,
+          "new_form_pass": true,
+          "wall_s": 0.53
+        },
+        {
+          "run": 8,
+          "test_rc": 0,
+          "polls": 3,
+          "elapsed_s": 0.133,
+          "old_form_pass": true,
+          "new_form_pass": true,
+          "wall_s": 0.52
+        },
+        {
+          "run": 9,
+          "test_rc": 0,
+          "polls": 2,
+          "elapsed_s": 0.062,
+          "old_form_pass": true,
+          "new_form_pass": true,
+          "wall_s": 0.55
+        }
+      ]
+    },
+    {
+      "multiplier": 8,
+      "hog_processes": 96,
+      "runs": 10,
+      "parsed": 10,
+      "polls": [
+        3,
+        3,
+        3,
+        2,
+        2,
+        3,
+        2,
+        3,
+        3,
+        2
+      ],
+      "elapsed_s": [
+        0.136,
+        0.123,
+        0.119,
+        0.068,
+        0.055,
+        0.12,
+        0.058,
+        0.118,
+        0.125,
+        0.06
+      ],
+      "old_form_fail": 0,
+      "new_form_fail": 0,
+      "test_rc_nonzero": 0,
+      "rows": [
+        {
+          "run": 0,
+          "test_rc": 0,
+          "polls": 3,
+          "elapsed_s": 0.136,
+          "old_form_pass": true,
+          "new_form_pass": true,
+          "wall_s": 0.89
+        },
+        {
+          "run": 1,
+          "test_rc": 0,
+          "polls": 3,
+          "elapsed_s": 0.123,
+          "old_form_pass": true,
+          "new_form_pass": true,
+          "wall_s": 0.48
+        },
+        {
+          "run": 2,
+          "test_rc": 0,
+          "polls": 3,
+          "elapsed_s": 0.119,
+          "old_form_pass": true,
+          "new_form_pass": true,
+          "wall_s": 0.48
+        },
+        {
+          "run": 3,
+          "test_rc": 0,
+          "polls": 2,
+          "elapsed_s": 0.068,
+          "old_form_pass": true,
+          "new_form_pass": true,
+          "wall_s": 0.44
+        },
+        {
+          "run": 4,
+          "test_rc": 0,
+          "polls": 2,
+          "elapsed_s": 0.055,
+          "old_form_pass": true,
+          "new_form_pass": true,
+          "wall_s": 0.42
+        },
+        {
+          "run": 5,
+          "test_rc": 0,
+          "polls": 3,
+          "elapsed_s": 0.12,
+          "old_form_pass": true,
+          "new_form_pass": true,
+          "wall_s": 0.45
+        },
+        {
+          "run": 6,
+          "test_rc": 0,
+          "polls": 2,
+          "elapsed_s": 0.058,
+          "old_form_pass": true,
+          "new_form_pass": true,
+          "wall_s": 0.52
+        },
+        {
+          "run": 7,
+          "test_rc": 0,
+          "polls": 3,
+          "elapsed_s": 0.118,
+          "old_form_pass": true,
+          "new_form_pass": true,
+          "wall_s": 0.44
+        },
+        {
+          "run": 8,
+          "test_rc": 0,
+          "polls": 3,
+          "elapsed_s": 0.125,
+          "old_form_pass": true,
+          "new_form_pass": true,
+          "wall_s": 0.5
+        },
+        {
+          "run": 9,
+          "test_rc": 0,
+          "polls": 2,
+          "elapsed_s": 0.06,
+          "old_form_pass": true,
+          "new_form_pass": true,
+          "wall_s": 0.58
+        }
+      ]
+    }
+  ]
+}

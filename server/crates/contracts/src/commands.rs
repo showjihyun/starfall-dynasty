@@ -14,7 +14,10 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::primitives::{ConstSchemaVersion, ProbeSeq, RealTime, UuidV7, required_nullable};
+use crate::primitives::{
+    ConstSchemaVersion, ControlAxisMilli, InputSeq, ProbeSeq, QuaternionComponentMicro, RealTime,
+    UuidV7, required_nullable,
+};
 
 /// `PING_SERVER` 의 타입 상수.
 ///
@@ -59,4 +62,68 @@ pub struct PingServerCommand {
     pub client_sent_at: Option<RealTime>,
     /// 타입별 payload.
     pub payload: PingServerPayload,
+}
+
+// ---------------------------------------------------------------------------
+// SET_SHIP_CONTROL
+// ---------------------------------------------------------------------------
+
+/// `SET_SHIP_CONTROL` 의 타입 상수.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub enum SetShipControlType {
+    /// 유일한 값.
+    #[default]
+    #[serde(rename = "SET_SHIP_CONTROL")]
+    SetShipControl,
+}
+
+/// `SET_SHIP_CONTROL` payload — 한 tick의 조작 의도 전체.
+///
+/// **위치·속도·현재 자세 필드가 없다**(I-26). `additionalProperties: false` +
+/// `deny_unknown_fields` 가 함께, 그것들을 주입한 명령을 스키마와 serde 양쪽에서 거부한다.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SetShipControlPayload {
+    /// 세션의 입력 카운터. 서버는 마지막으로 적용한 값을 `WORLD_SNAPSHOT.ack_input_seq` 로
+    /// 돌려준다.
+    pub input_seq: InputSeq,
+    /// 함선 로컬 +X(우현) 추력 의도.
+    pub thrust_x_milli: ControlAxisMilli,
+    /// 함선 로컬 +Y(위) 추력 의도.
+    pub thrust_y_milli: ControlAxisMilli,
+    /// 함선 로컬 +Z(전방) 추력 의도. 양수는 주 엔진, 음수는 후진 추력.
+    pub thrust_z_milli: ControlAxisMilli,
+    /// 함선 로컬 +Z 축 둘레 수동 롤 의도. 0이 아니면 그 tick 오토레벨이 쉰다.
+    pub roll_milli: ControlAxisMilli,
+    /// 목표 자세 쿼터니언 x. **의도이지 현재 상태에 대한 주장이 아니다**(I-26).
+    pub aim_x_micro: QuaternionComponentMicro,
+    /// 목표 자세 쿼터니언 y.
+    pub aim_y_micro: QuaternionComponentMicro,
+    /// 목표 자세 쿼터니언 z.
+    pub aim_z_micro: QuaternionComponentMicro,
+    /// 목표 자세 쿼터니언 w.
+    pub aim_w_micro: QuaternionComponentMicro,
+    /// 브레이크. 켜져 있으면 추력이 무시되고 감쇠 하나만 적용된다.
+    pub brake: bool,
+    /// 비행 보조. `false` 면 순수 뉴턴 비행(감쇠·오토레벨 없음).
+    pub flight_assist: bool,
+}
+
+/// `SET_SHIP_CONTROL` — 세션의 함선에 대한 한 tick의 조작 의도.
+///
+/// 대응 스키마: `contracts/commands/SET_SHIP_CONTROL.schema.json`
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SetShipControlCommand {
+    /// 클라이언트가 만든 UUIDv7. 멱등 키다.
+    pub command_id: UuidV7,
+    /// 언제나 `SET_SHIP_CONTROL`.
+    pub command_type: SetShipControlType,
+    /// 언제나 1.
+    pub schema_version: ConstSchemaVersion<1>,
+    /// 전송 시점의 클라이언트 시계, 또는 null. 참고용이며 규칙에 쓰지 않는다.
+    #[serde(deserialize_with = "required_nullable")]
+    pub client_sent_at: Option<RealTime>,
+    /// 타입별 payload.
+    pub payload: SetShipControlPayload,
 }

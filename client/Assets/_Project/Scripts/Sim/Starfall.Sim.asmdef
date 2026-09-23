@@ -1,0 +1,18 @@
+{
+    "name": "Starfall.Sim",
+    "rootNamespace": "Starfall.Sim",
+    "references": [
+        "Starfall.Contracts"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": true,
+    "precompiledReferences": [
+        "Newtonsoft.Json.dll"
+    ],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": true
+}

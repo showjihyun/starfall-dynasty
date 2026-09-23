@@ -40,6 +40,17 @@ namespace Starfall.Net
         /// </summary>
         public const string DefaultSubject = "01a0b1c2-7e57-7c11-8e57-000000000001";
 
+        /// <summary>
+        /// The second identity for the SC-64/65 "two sessions in one Unity process" observer
+        /// harness (sprint contract section 0.11 / client ack issue 6): one process holds
+        /// session A (the normal, potentially-interactive identity above, unaffected) and
+        /// session B (this one) at the same time, each with its own socket, actor_id and CSV.
+        /// One hex digit past <see cref="DefaultSubject"/> so it stays trivially disjoint from
+        /// both that identity and the 30 bot identities (p0-02 02_client_ack.md section 2),
+        /// without needing an environment override.
+        /// </summary>
+        public const string SecondObserverSubject = "01a0b1c2-7e57-7c11-8e57-000000000002";
+
         /// <summary>Subject id to authenticate as: the override variable when set, otherwise
         /// <see cref="DefaultSubject"/>.</summary>
         public static string ResolveSubject()

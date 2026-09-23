@@ -1,0 +1,188 @@
+{
+  "stage": "e-fly",
+  "url": "ws://127.0.0.1:8080/ws",
+  "bots": 1,
+  "seed": 99,
+  "duration_secs": 45,
+  "interval_ms": 500,
+  "clock_base_unix_ms": 1789912850330,
+  "finished_unix_ms": 1789912896910,
+  "connect_ms": {
+    "count": 1,
+    "min_ms": 3.631,
+    "p50_ms": 3.631,
+    "p90_ms": 3.631,
+    "p99_ms": 3.631,
+    "max_ms": 3.631,
+    "mean_ms": 3.631
+  },
+  "ready_ms": {
+    "count": 1,
+    "min_ms": 30.313,
+    "p50_ms": 30.313,
+    "p90_ms": 30.313,
+    "p99_ms": 30.313,
+    "max_ms": 30.313,
+    "mean_ms": 30.313
+  },
+  "gates": {
+    "one_to_one": true,
+    "accepted_reply_pairing": true,
+    "order_violations": 0,
+    "tick_mismatches": 0,
+    "ticks_compared": 0,
+    "server_initiated_closes": 0,
+    "connections_attempted": 1,
+    "sessions_ready": 1,
+    "correlations_collected": 1,
+    "wire_errors": 0,
+    "all_ok": true
+  },
+  "aggregate": {
+    "bot": "<aggregate of 1>",
+    "distinct_command_ids": 90,
+    "sent_total": 90,
+    "results_total": 90,
+    "replies_total": 0,
+    "accepted": 0,
+    "rejected": 90,
+    "rejected_by_reason": {
+      "UNKNOWN_COMMAND_TYPE": 90
+    },
+    "unknown_status": 0,
+    "missing_results": 0,
+    "missing_replies": 0,
+    "duplicate_results": 0,
+    "duplicate_replies": 0,
+    "unmatched_results": 0,
+    "unmatched_replies": 0,
+    "probe_seq_mismatches": 0,
+    "order_violations": 0,
+    "tick_mismatches": 0,
+    "ticks_compared": 0,
+    "unknown_message_types": {},
+    "wire_errors": [],
+    "errors": [],
+    "rtt": {
+      "count": 0,
+      "min_ms": null,
+      "p50_ms": null,
+      "p90_ms": null,
+      "p99_ms": null,
+      "max_ms": null,
+      "mean_ms": null
+    },
+    "ack": {
+      "count": 90,
+      "min_ms": 0.238,
+      "p50_ms": 0.393,
+      "p90_ms": 0.443,
+      "p99_ms": 0.464,
+      "max_ms": 0.464,
+      "mean_ms": 0.3845888888888887
+    }
+  },
+  "snapshots": {
+    "observer_actor_id": null,
+    "controlled_ship_id": null,
+    "snapshots_received": 465,
+    "snapshot_bytes_received": 405015,
+    "intervals_checked": 464,
+    "interval_violations": 0,
+    "first_snapshots_excluded": 1,
+    "snapshot_interval_ticks": 2,
+    "ship_order_violations": 0,
+    "controlled_ship_missing": 0,
+    "ack_regressions": 0,
+    "ack_last": null,
+    "presence_values": {
+      "ACTIVE": 465
+    },
+    "lingering_seen": false,
+    "empty_ship_ticks": 0,
+    "max_ships_seen": 1,
+    "own_path_length_m": 0.0,
+    "own_displacement_m": 0.0,
+    "own_speed_max_mps": 0.0,
+    "own_max_radius_m": 2512.4689052802228,
+    "nearest_ship_min_m": null,
+    "first_contact_2000m_tick": null,
+    "errors": []
+  },
+  "snapshots_per_bot": [
+    {
+      "observer_actor_id": "01a0b1c2-b010-7000-8000-000000000000",
+      "controlled_ship_id": "01a0bf1e-9fc5-738e-b1bb-cef8d216006a",
+      "snapshots_received": 465,
+      "snapshot_bytes_received": 405015,
+      "intervals_checked": 464,
+      "interval_violations": 0,
+      "first_snapshots_excluded": 1,
+      "snapshot_interval_ticks": 2,
+      "ship_order_violations": 0,
+      "controlled_ship_missing": 0,
+      "ack_regressions": 0,
+      "ack_last": null,
+      "presence_values": {
+        "ACTIVE": 465
+      },
+      "lingering_seen": false,
+      "empty_ship_ticks": 0,
+      "max_ships_seen": 1,
+      "own_path_length_m": 0.0,
+      "own_displacement_m": 0.0,
+      "own_speed_max_mps": 0.0,
+      "own_max_radius_m": 2512.4689052802228,
+      "nearest_ship_min_m": null,
+      "first_contact_2000m_tick": null,
+      "errors": []
+    }
+  ],
+  "per_bot": [
+    {
+      "bot": "bot-000",
+      "distinct_command_ids": 90,
+      "sent_total": 90,
+      "results_total": 90,
+      "replies_total": 0,
+      "accepted": 0,
+      "rejected": 90,
+      "rejected_by_reason": {
+        "UNKNOWN_COMMAND_TYPE": 90
+      },
+      "unknown_status": 0,
+      "missing_results": 0,
+      "missing_replies": 0,
+      "duplicate_results": 0,
+      "duplicate_replies": 0,
+      "unmatched_results": 0,
+      "unmatched_replies": 0,
+      "probe_seq_mismatches": 0,
+      "order_violations": 0,
+      "tick_mismatches": 0,
+      "ticks_compared": 0,
+      "unknown_message_types": {},
+      "wire_errors": [],
+      "errors": [],
+      "rtt": {
+        "count": 0,
+        "min_ms": null,
+        "p50_ms": null,
+        "p90_ms": null,
+        "p99_ms": null,
+        "max_ms": null,
+        "mean_ms": null
+      },
+      "ack": {
+        "count": 90,
+        "min_ms": 0.238,
+        "p50_ms": 0.393,
+        "p90_ms": 0.443,
+        "p99_ms": 0.464,
+        "max_ms": 0.464,
+        "mean_ms": 0.3845888888888887
+      }
+    }
+  ],
+  "connect_errors": []
+}

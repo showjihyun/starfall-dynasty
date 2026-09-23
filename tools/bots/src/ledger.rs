@@ -17,12 +17,35 @@ use uuid::Uuid;
 
 use crate::stats;
 
+/// 서버가 먼저 닫을 때의 close code → `SESSION_CLOSED.close_reason` (ADR-0005 §2 표).
+///
+/// 봇이 DB 의 `close_reason` 을 대신하지는 않는다(판정 정본은 DB). 다만 **표에 없는 code 는 조용히
+/// 넘기지 않고 `UNKNOWN` 으로 드러낸다** — 새 code(예: 4001)가 생겼는데 도구가 모르면 그 경로가
+/// 탔는지 아무도 모른다(계약 §7a). `1001` 은 두 사유(`IDLE_TIMEOUT`·`SERVER_SHUTDOWN`)가 공유한다.
+pub fn close_code_meaning(code: u16) -> &'static str {
+    match code {
+        1000 => "CLIENT_CLOSED",
+        1001 => "IDLE_TIMEOUT|SERVER_SHUTDOWN",
+        1002 => "PROTOCOL_VIOLATION",
+        1011 => "SLOW_CONSUMER",
+        4001 => "SUPERSEDED",
+        _ => "UNKNOWN",
+    }
+}
+
 pub const STATUS_ACCEPTED: &str = "ACCEPTED";
 pub const STATUS_REJECTED: &str = "REJECTED";
 
 #[derive(Debug, Clone)]
 struct CommandRecord {
     probe_seq: u32,
+    /// 이 명령이 `PING_REPLY` 를 기대하는가.
+    ///
+    /// **`PING_SERVER` 만 true 다.** 정본은 스펙 `docs/specs/p1-01-ship-movement.md` **§5.1a**
+    /// (명령 → 기대 응답 규범 표): `SET_SHIP_CONTROL` 은 `COMMAND_RESULT` 만 내고 `PING_REPLY` 를
+    /// 내지 않는다. 명령 타입이 늘면 **그 표를 먼저 보고** 여기를 고친다. 이 구분이 없으면
+    /// `accepted == replies_total` 게이트가 **수락된 조작 명령마다 거짓 실패**한다.
+    expects_ping_reply: bool,
     sent_us: u64,
     sent_count: u32,
     result_us: Option<u64>,
@@ -68,6 +91,8 @@ pub struct Ledger {
     results_total: u64,
     replies_total: u64,
     accepted: u64,
+    /// ACCEPTED 중 **`PING_REPLY` 를 기대하는** 명령 수. `replies_total` 의 짝이다.
+    accepted_expecting_reply: u64,
     rejected: u64,
     rejected_by_reason: BTreeMap<String, u64>,
     unknown_status: u64,
@@ -83,6 +108,17 @@ pub struct Ledger {
     wire_errors: Vec<String>,
     pub session: Option<SessionRecord>,
     pub errors: Vec<String>,
+    /// probe 가 붙이는 이름표 `(표지, command_id)`. 분석이 "어느 명령이 어느 단계였나"를 알게 한다
+    /// (예: `range_turn` 의 주입 프레임·선회 시작). 판정 게이트에는 쓰지 않는다.
+    pub marks: Vec<(String, Uuid)>,
+}
+
+/// 한 명령의 결과 요약 (`Ledger::result_of`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CommandOutcome {
+    pub status: String,
+    pub reason_code: Option<String>,
+    pub tick: u64,
 }
 
 impl Ledger {
@@ -94,6 +130,7 @@ impl Ledger {
             results_total: 0,
             replies_total: 0,
             accepted: 0,
+            accepted_expecting_reply: 0,
             rejected: 0,
             rejected_by_reason: BTreeMap::new(),
             unknown_status: 0,
@@ -108,7 +145,33 @@ impl Ledger {
             wire_errors: Vec::new(),
             session: None,
             errors: Vec::new(),
+            marks: Vec::new(),
         }
+    }
+
+    pub fn mark(&mut self, label: &str, command_id: Uuid) {
+        self.marks.push((label.to_owned(), command_id));
+    }
+
+    /// 표지가 `label` 인 명령들의 `(probe_seq, 결과)`. 결과가 없으면 `None` 이다(빠뜨리지 않는다).
+    pub fn marked_outcomes(&self, label: &str) -> Vec<(u32, Option<CommandOutcome>)> {
+        self.marks
+            .iter()
+            .filter(|(l, _)| l == label)
+            .filter_map(|(_, id)| {
+                let seq = self.commands.get(id)?.probe_seq;
+                Some((seq, self.result_of(*id)))
+            })
+            .collect()
+    }
+
+    pub fn result_of(&self, command_id: Uuid) -> Option<CommandOutcome> {
+        let r = self.commands.get(&command_id)?;
+        Some(CommandOutcome {
+            status: r.status.clone()?,
+            reason_code: r.reason_code.clone(),
+            tick: r.result_tick?,
+        })
     }
 
     pub fn on_session_ready(&mut self, rec: SessionRecord) {
@@ -160,13 +223,30 @@ impl Ledger {
         }
     }
 
+    /// `PING_SERVER` 송신 기록 — `PING_REPLY` 를 기대한다.
     pub fn on_sent(&mut self, command_id: Uuid, probe_seq: u32, at_us: u64) {
+        self.on_sent_inner(command_id, probe_seq, at_us, true);
+    }
+
+    /// `SET_SHIP_CONTROL` 처럼 **`COMMAND_RESULT` 만 받는** 명령의 송신 기록.
+    pub fn on_sent_no_reply(&mut self, command_id: Uuid, probe_seq: u32, at_us: u64) {
+        self.on_sent_inner(command_id, probe_seq, at_us, false);
+    }
+
+    fn on_sent_inner(
+        &mut self,
+        command_id: Uuid,
+        probe_seq: u32,
+        at_us: u64,
+        expects_ping_reply: bool,
+    ) {
         self.sent_total += 1;
         self.commands
             .entry(command_id)
             .and_modify(|r| r.sent_count += 1)
             .or_insert(CommandRecord {
                 probe_seq,
+                expects_ping_reply,
                 sent_us: at_us,
                 sent_count: 1,
                 result_us: None,
@@ -192,7 +272,16 @@ impl Ledger {
     ) {
         self.results_total += 1;
         match status {
-            STATUS_ACCEPTED => self.accepted += 1,
+            STATUS_ACCEPTED => {
+                self.accepted += 1;
+                if self
+                    .commands
+                    .get(&command_id)
+                    .is_some_and(|r| r.expects_ping_reply)
+                {
+                    self.accepted_expecting_reply += 1;
+                }
+            }
             STATUS_REJECTED => {
                 self.rejected += 1;
                 let key = reason_code.unwrap_or("<null>").to_owned();
@@ -338,7 +427,14 @@ impl Ledger {
             if r.result_count == 0 {
                 missing_results += 1;
             }
-            if r.status.as_deref() == Some(STATUS_ACCEPTED) && r.reply_count == 0 {
+            // **`expects_ping_reply` 를 빠뜨리면 같은 버그가 여기서 되살아난다.**
+            // `accepted_reply_pairing_holds` 를 고치고 이 줄을 그대로 두는 바람에
+            // 라운드 3 의 회귀 테스트가 한 번 더 빨간불을 냈다 — 응답을 내지 않는
+            // 명령은 "응답 누락"이 아니다.
+            if r.expects_ping_reply
+                && r.status.as_deref() == Some(STATUS_ACCEPTED)
+                && r.reply_count == 0
+            {
                 missing_replies += 1;
             }
         }
@@ -349,6 +445,7 @@ impl Ledger {
             results_total: self.results_total,
             replies_total: self.replies_total,
             accepted: self.accepted,
+            accepted_expecting_reply: self.accepted_expecting_reply,
             rejected: self.rejected,
             rejected_by_reason: self.rejected_by_reason.clone(),
             unknown_status: self.unknown_status,
@@ -386,6 +483,8 @@ pub struct LedgerSummary {
     pub results_total: u64,
     pub replies_total: u64,
     pub accepted: u64,
+    /// ACCEPTED 중 `PING_REPLY` 를 기대하는 명령 수.
+    pub accepted_expecting_reply: u64,
     pub rejected: u64,
     pub rejected_by_reason: BTreeMap<String, u64>,
     pub unknown_status: u64,
@@ -426,12 +525,50 @@ impl LedgerSummary {
         self.ticks_compared > 0 && self.tick_mismatches == 0
     }
 
+    /// ACCEPTED 중 **응답을 기대하는 것만** `PING_REPLY` 와 1:1 이어야 한다.
+    ///
+    /// **라운드 2 에서 이 게이트가 거짓 통과했다**: 옛 판정은 `accepted == replies_total` 이었는데,
+    /// `SET_SHIP_CONTROL` 은 `PING_REPLY` 를 내지 않으므로 **명령이 하나도 수락되지 않을 때만**
+    /// (`0 == 0`) 통과하는 검사였다. 서버가 조작 명령을 전부 거부하던 동안 조용히 초록이었고,
+    /// 고쳐진 뒤에야 `accepted=199, replies=0` 으로 거짓 실패가 됐다(계약 §3.3 — 도구가 틀리면
+    /// 빨간불이 켜져야 하는데, 이 항목은 **틀렸는데 초록불**이었다).
     pub fn accepted_reply_pairing_holds(&self) -> bool {
-        self.accepted == self.replies_total
+        self.accepted_expecting_reply == self.replies_total
             && self.missing_replies == 0
             && self.duplicate_replies == 0
             && self.unmatched_replies == 0
             && self.probe_seq_mismatches == 0
+    }
+
+    /// 스펙 §5.1a 공통 규칙: 판정에 들어간 명령은 수락이든 거부든 **정확히 하나의**
+    /// `COMMAND_RESULT` 를 낳는다. 받은 결과는 전부 둘 중 하나로 분류돼야 한다
+    /// (닫힌 집합 밖의 `status` 가 섞이면 여기서 깨진다).
+    pub fn results_partition_holds(&self) -> bool {
+        self.results_total == self.accepted + self.rejected
+    }
+
+    /// **위 두 항등식의 짝.** 스펙 §5.1a "게이트를 쓸 때의 의무"(architect R3 판정 2).
+    ///
+    /// `results_partition_holds` 와 `accepted_reply_pairing_holds` 는 입력이 전부 0 이면
+    /// `0 == 0 + 0`, `0 == 0` 으로 **자명하게 성립한다.** 라운드 2 의 짝 게이트가 바로 그렇게
+    /// 초록불이었다 — 서버가 조작 명령 200 건을 전부 `UNKNOWN_COMMAND_TYPE` 으로 거부하는 동안
+    /// `accepted = 0` 이었고, **어떤 응답 표를 참조했든 통과했을 것이다.** 수락 경로가 한 번도
+    /// 타지 않았으면 그 게이트는 아무것도 검사하지 않은 것이다.
+    pub fn accepted_path_exercised(&self) -> bool {
+        self.accepted > 0
+    }
+
+    /// 스펙 §5.1a 에서 유도한 명령→응답 게이트 **3단언**. 입력이 전부 0 이면 반드시 false 다.
+    ///
+    /// | 단언 | 대상 |
+    /// |------|------|
+    /// | `results_total == accepted + rejected` | 모든 명령 (1:1) |
+    /// | `replies_total == accepted_expecting_reply` | 타입별 응답 (`PING_SERVER` 만 `PING_REPLY`) |
+    /// | `accepted > 0` | 위 둘이 자명하게 성립하는 상태를 통과로 읽지 않는다 |
+    pub fn command_reply_gates_hold(&self) -> bool {
+        self.results_partition_holds()
+            && self.accepted_reply_pairing_holds()
+            && self.accepted_path_exercised()
     }
 }
 
@@ -449,6 +586,7 @@ pub fn aggregate(
         results_total: 0,
         replies_total: 0,
         accepted: 0,
+        accepted_expecting_reply: 0,
         rejected: 0,
         rejected_by_reason: BTreeMap::new(),
         unknown_status: 0,
@@ -474,6 +612,7 @@ pub fn aggregate(
         out.results_total += s.results_total;
         out.replies_total += s.replies_total;
         out.accepted += s.accepted;
+        out.accepted_expecting_reply += s.accepted_expecting_reply;
         out.rejected += s.rejected;
         out.unknown_status += s.unknown_status;
         out.missing_results += s.missing_results;

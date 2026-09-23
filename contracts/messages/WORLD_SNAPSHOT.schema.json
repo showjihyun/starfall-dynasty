@@ -1,0 +1,189 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.starfall.invalid/contracts/messages/WORLD_SNAPSHOT.schema.json",
+  "title": "WorldSnapshotMessage",
+  "description": "The authoritative state of every ship in the star system at the envelope tick. This is the ONLY way a client learns where anything is, its own ship included: the client's prediction is always re-based on the your-ship fields of the newest snapshot (I-35). It is a FULL snapshot, not a delta - with at most a few dozen ships a delta would buy bandwidth at the price of per-session baseline state, and baseline state is where state-sync bugs live (ADR-0011). Sent every snapshot_interval_ticks ticks to every open session; the ships array is identical for all recipients, the five fields above it are per-recipient. 좌표계 규약 (ADR-0009 section 1): 왼손 좌표계, Y-up. +X = 함선 기준 오른쪽, +Y = 위, +Z = 전방(뱃머리). 쿼터니언은 (x,y,z,w) 순서의 Hamilton 곱. 이 문장이 축 의미의 정본이며 구현은 여기서만 읽는다.",
+  "allOf": [
+    {
+      "$ref": "../common/message-envelope.schema.json"
+    }
+  ],
+  "properties": {
+    "message_type": {
+      "const": "WORLD_SNAPSHOT"
+    },
+    "schema_version": {
+      "const": 1
+    },
+    "payload": {
+      "$ref": "#/$defs/WorldSnapshotPayload"
+    }
+  },
+  "unevaluatedProperties": false,
+  "$defs": {
+    "WorldSnapshotPayload": {
+      "title": "WorldSnapshotPayload",
+      "type": "object",
+      "required": [
+        "star_system_id",
+        "soft_boundary_radius_mm",
+        "hard_boundary_radius_mm",
+        "snapshot_interval_ticks",
+        "controlled_ship_id",
+        "ack_input_seq",
+        "ships"
+      ],
+      "properties": {
+        "star_system_id": {
+          "description": "Star system these coordinates are local to. One system exists today; the field is here so a later system never has to be told apart by guessing.",
+          "$ref": "../common/primitives.schema.json#/$defs/DataId"
+        },
+        "soft_boundary_radius_mm": {
+          "description": "Beyond this radius the server applies a constant pull back toward the origin. The client draws the boundary warning here. It is not a wall.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 20000000
+        },
+        "hard_boundary_radius_mm": {
+          "description": "The wall. The server projects any ship that reaches it back onto this sphere and removes the outward radial velocity (I-34). The maximum is the float32 rendering budget of ADR-0009 section 3, not a design choice: a larger world needs a Floating Origin slice first.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 20000000
+        },
+        "snapshot_interval_ticks": {
+          "description": "How many ticks apart consecutive snapshots are. The client sizes its interpolation buffer from this instead of measuring arrival times (ADR-0012).",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 255
+        },
+        "controlled_ship_id": {
+          "description": "The ship this session's actor is flying, or null if it has none. It is the entry in ships the client must predict rather than interpolate.",
+          "anyOf": [
+            {
+              "$ref": "../common/primitives.schema.json#/$defs/UuidV7"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "ack_input_seq": {
+          "description": "Newest SET_SHIP_CONTROL input_seq the server had applied for this session as of this tick, or null if it has applied none. The client rebases on this ship state and replays every input after this value. Without it, prediction cannot be reconciled at all (ADR-0012 section 3).",
+          "anyOf": [
+            {
+              "$ref": "../common/primitives.schema.json#/$defs/InputSeq"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "ships": {
+          "description": "Every ship in the system, active and lingering, ordered by ship_id so the same world state always serialises to the same bytes (I-37).",
+          "type": "array",
+          "minItems": 0,
+          "maxItems": 64,
+          "items": {
+            "$ref": "#/$defs/ShipState"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "ShipState": {
+      "title": "ShipState",
+      "type": "object",
+      "description": "One ship's authoritative state, quantised (ADR-0009). Consumers renormalise the orientation before use. Angular velocity is TWO values, not one: the attitude controller's world-frame vector and the roll scalar. 좌표계 규약 (ADR-0009 section 1): 왼손 좌표계, Y-up. +X = 함선 기준 오른쪽, +Y = 위, +Z = 전방(뱃머리). 쿼터니언은 (x,y,z,w) 순서의 Hamilton 곱. 이 문장이 축 의미의 정본이며 구현은 여기서만 읽는다.",
+      "required": [
+        "ship_id",
+        "actor_id",
+        "ship_class_id",
+        "presence",
+        "position_x_mm",
+        "position_y_mm",
+        "position_z_mm",
+        "velocity_x_mm_s",
+        "velocity_y_mm_s",
+        "velocity_z_mm_s",
+        "orientation_x_micro",
+        "orientation_y_micro",
+        "orientation_z_micro",
+        "orientation_w_micro",
+        "angular_velocity_x_mdeg_s",
+        "angular_velocity_y_mdeg_s",
+        "angular_velocity_z_mdeg_s",
+        "angular_velocity_roll_mdeg_s"
+      ],
+      "properties": {
+        "ship_id": {
+          "description": "Identity of the ship entity. A ship is not its pilot (GDD section 4): this id, not actor_id, is what later slices attach ship history to, and it survives a reconnect inside the linger window.",
+          "$ref": "../common/primitives.schema.json#/$defs/UuidV7"
+        },
+        "actor_id": {
+          "description": "Actor this ship belongs to, decided by the server from the authenticated session. It stays set while the ship is LINGERING.",
+          "$ref": "../common/primitives.schema.json#/$defs/UuidV7"
+        },
+        "ship_class_id": {
+          "description": "Row of the SHIP_CLASS data table this ship was built from. It fixes the acceleration, speed and turn limits the server applied, so the client predicts with the same numbers.",
+          "$ref": "../common/primitives.schema.json#/$defs/DataId"
+        },
+        "presence": {
+          "description": "ACTIVE means a live session is flying it. LINGERING means the session ended and the ship is coasting until its linger window expires - still visible to everyone, still solid world state, and reclaimed intact if the same actor reconnects in time. A ship that vanishes the instant its pilot disconnects is the exact opposite of a world that remembers.",
+          "type": "string",
+          "enum": [
+            "ACTIVE",
+            "LINGERING"
+          ]
+        },
+        "position_x_mm": {
+          "$ref": "../common/primitives.schema.json#/$defs/PositionMm"
+        },
+        "position_y_mm": {
+          "$ref": "../common/primitives.schema.json#/$defs/PositionMm"
+        },
+        "position_z_mm": {
+          "$ref": "../common/primitives.schema.json#/$defs/PositionMm"
+        },
+        "velocity_x_mm_s": {
+          "description": "Required for remote extrapolation: without it a late snapshot makes every other ship stall and then jump.",
+          "$ref": "../common/primitives.schema.json#/$defs/VelocityMmPerSecond"
+        },
+        "velocity_y_mm_s": {
+          "$ref": "../common/primitives.schema.json#/$defs/VelocityMmPerSecond"
+        },
+        "velocity_z_mm_s": {
+          "$ref": "../common/primitives.schema.json#/$defs/VelocityMmPerSecond"
+        },
+        "orientation_x_micro": {
+          "$ref": "../common/primitives.schema.json#/$defs/QuaternionComponentMicro"
+        },
+        "orientation_y_micro": {
+          "$ref": "../common/primitives.schema.json#/$defs/QuaternionComponentMicro"
+        },
+        "orientation_z_micro": {
+          "$ref": "../common/primitives.schema.json#/$defs/QuaternionComponentMicro"
+        },
+        "orientation_w_micro": {
+          "$ref": "../common/primitives.schema.json#/$defs/QuaternionComponentMicro"
+        },
+        "angular_velocity_x_mdeg_s": {
+          "description": "World-frame angular velocity of the ATTITUDE controller (omega_aim), x component. IT DOES NOT INCLUDE ROLL - roll is carried separately in angular_velocity_roll_mdeg_s. The two are separate state with separate slew limits and they are integrated as two successive first-order steps, so their sum is not enough to reproduce them: a consumer that split the sum would mis-attribute the roll component and diverge while turning.",
+          "$ref": "../common/primitives.schema.json#/$defs/AngularVelocityMdegPerSecond"
+        },
+        "angular_velocity_y_mdeg_s": {
+          "description": "World-frame angular velocity of the attitude controller (omega_aim), y component. Roll not included.",
+          "$ref": "../common/primitives.schema.json#/$defs/AngularVelocityMdegPerSecond"
+        },
+        "angular_velocity_z_mdeg_s": {
+          "description": "World-frame angular velocity of the attitude controller (omega_aim), z component. Roll not included.",
+          "$ref": "../common/primitives.schema.json#/$defs/AngularVelocityMdegPerSecond"
+        },
+        "angular_velocity_roll_mdeg_s": {
+          "description": "Roll rate about the ship-local +Z (forward) axis, the state of the manual-roll and auto-levelling controller. Carried as its own scalar because the attitude controller's angular velocity is not guaranteed to be perpendicular to the forward axis, so the roll rate cannot be recovered by projecting the vector above (ADR-0010 section 2).",
+          "$ref": "../common/primitives.schema.json#/$defs/AngularVelocityMdegPerSecond"
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

@@ -1,0 +1,3356 @@
+{
+  "injected": [
+    {
+      "input_seq": 18,
+      "outcome": {
+        "reason": "MALFORMED_COMMAND",
+        "status": "REJECTED",
+        "tick": 427750
+      }
+    },
+    {
+      "input_seq": 19,
+      "outcome": {
+        "reason": "MALFORMED_COMMAND",
+        "status": "REJECTED",
+        "tick": 427751
+      }
+    },
+    {
+      "input_seq": 20,
+      "outcome": {
+        "reason": "MALFORMED_COMMAND",
+        "status": "REJECTED",
+        "tick": 427752
+      }
+    },
+    {
+      "input_seq": 21,
+      "outcome": {
+        "reason": "MALFORMED_COMMAND",
+        "status": "REJECTED",
+        "tick": 427754
+      }
+    }
+  ],
+  "own_series": [
+    {
+      "ack_input_seq": null,
+      "angular_velocity_mdeg_s": [
+        0,
+        0,
+        0
+      ],
+      "angular_velocity_roll_mdeg_s": -6860,
+      "orientation_micro": [
+        -96684,
+        -859890,
+        -1500,
+        501237
+      ],
+      "position_mm": [
+        2165064,
+        -250000,
+        1250000
+      ],
+      "tick": 427730,
+      "velocity_mm_s": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "ack_input_seq": 2,
+      "angular_velocity_mdeg_s": [
+        2473,
+        21860,
+        89
+      ],
+      "angular_velocity_roll_mdeg_s": -6282,
+      "orientation_micro": [
+        -91050,
+        -853158,
+        -4370,
+        513627
+      ],
+      "position_mm": [
+        2164834,
+        -249974,
+        1249875
+      ],
+      "tick": 427732,
+      "velocity_mm_s": [
+        -3064,
+        353,
+        -1653
+      ]
+    },
+    {
+      "ack_input_seq": 4,
+      "angular_velocity_mdeg_s": [
+        4868,
+        43728,
+        331
+      ],
+      "angular_velocity_roll_mdeg_s": -5587,
+      "orientation_micro": [
+        -84829,
+        -835974,
+        -7123,
+        542127
+      ],
+      "position_mm": [
+        2164285,
+        -249910,
+        1249613
+      ],
+      "tick": 427734,
+      "velocity_mm_s": [
+        -6331,
+        727,
+        -2882
+      ]
+    },
+    {
+      "ack_input_seq": 5,
+      "angular_velocity_mdeg_s": [
+        7168,
+        65602,
+        816
+      ],
+      "angular_velocity_roll_mdeg_s": -4769,
+      "orientation_micro": [
+        -77969,
+        -806736,
+        -9702,
+        585666
+      ],
+      "position_mm": [
+        2163387,
+        -249808,
+        1249288
+      ],
+      "tick": 427736,
+      "velocity_mm_s": [
+        -9880,
+        1120,
+        -3286
+      ]
+    },
+    {
+      "ack_input_seq": 7,
+      "angular_velocity_mdeg_s": [
+        8033,
+        74550,
+        1287
+      ],
+      "angular_velocity_roll_mdeg_s": -3889,
+      "orientation_micro": [
+        -70710,
+        -767223,
+        -11926,
+        637360
+      ],
+      "position_mm": [
+        2162121,
+        -249667,
+        1249005
+      ],
+      "tick": 427738,
+      "velocity_mm_s": [
+        -13593,
+        1510,
+        -2607
+      ]
+    },
+    {
+      "ack_input_seq": 9,
+      "angular_velocity_mdeg_s": [
+        8006,
+        74546,
+        1452
+      ],
+      "angular_velocity_roll_mdeg_s": -3066,
+      "orientation_micro": [
+        -63872,
+        -724352,
+        -13834,
+        686326
+      ],
+      "position_mm": [
+        2160488,
+        -249489,
+        1248859
+      ],
+      "tick": 427740,
+      "velocity_mm_s": [
+        -17230,
+        1870,
+        -999
+      ]
+    },
+    {
+      "ack_input_seq": 11,
+      "angular_velocity_mdeg_s": [
+        8002,
+        74539,
+        1548
+      ],
+      "angular_velocity_roll_mdeg_s": -2307,
+      "orientation_micro": [
+        -57406,
+        -678320,
+        -15385,
+        732359
+      ],
+      "position_mm": [
+        2158508,
+        -249278,
+        1248932
+      ],
+      "tick": 427742,
+      "velocity_mm_s": [
+        -20622,
+        2186,
+        1340
+      ]
+    },
+    {
+      "ack_input_seq": 12,
+      "angular_velocity_mdeg_s": [
+        8004,
+        74533,
+        1577
+      ],
+      "angular_velocity_roll_mdeg_s": -1618,
+      "orientation_micro": [
+        -51262,
+        -629337,
+        -16558,
+        775263
+      ],
+      "position_mm": [
+        2156214,
+        -249039,
+        1249270
+      ],
+      "tick": 427744,
+      "velocity_mm_s": [
+        -23682,
+        2456,
+        4102
+      ]
+    },
+    {
+      "ack_input_seq": 14,
+      "angular_velocity_mdeg_s": [
+        7995,
+        74527,
+        1544
+      ],
+      "angular_velocity_roll_mdeg_s": -1006,
+      "orientation_micro": [
+        -45387,
+        -577624,
+        -17350,
+        814855
+      ],
+      "position_mm": [
+        2153643,
+        -248776,
+        1249914
+      ],
+      "tick": 427746,
+      "velocity_mm_s": [
+        -26359,
+        2678,
+        7242
+      ]
+    },
+    {
+      "ack_input_seq": 15,
+      "angular_velocity_mdeg_s": [
+        7961,
+        74524,
+        1458
+      ],
+      "angular_velocity_roll_mdeg_s": -472,
+      "orientation_micro": [
+        -39734,
+        -523411,
+        -17771,
+        850968
+      ],
+      "position_mm": [
+        2150835,
+        -248495,
+        1250896
+      ],
+      "tick": 427748,
+      "velocity_mm_s": [
+        -28607,
+        2849,
+        10705
+      ]
+    },
+    {
+      "ack_input_seq": 17,
+      "angular_velocity_mdeg_s": [
+        7890,
+        74523,
+        1329
+      ],
+      "angular_velocity_roll_mdeg_s": 0,
+      "orientation_micro": [
+        -34264,
+        -466938,
+        -17841,
+        883446
+      ],
+      "position_mm": [
+        2147838,
+        -248201,
+        1252244
+      ],
+      "tick": 427750,
+      "velocity_mm_s": [
+        -30386,
+        2967,
+        14432
+      ]
+    },
+    {
+      "ack_input_seq": 17,
+      "angular_velocity_mdeg_s": [
+        7773,
+        74525,
+        1169
+      ],
+      "angular_velocity_roll_mdeg_s": 353,
+      "orientation_micro": [
+        -28940,
+        -408455,
+        -17613,
+        912149
+      ],
+      "position_mm": [
+        2144700,
+        -247899,
+        1253981
+      ],
+      "tick": 427752,
+      "velocity_mm_s": [
+        -31667,
+        3033,
+        18359
+      ]
+    },
+    {
+      "ack_input_seq": 17,
+      "angular_velocity_mdeg_s": [
+        7601,
+        74528,
+        989
+      ],
+      "angular_velocity_roll_mdeg_s": 646,
+      "orientation_micro": [
+        -23748,
+        -348219,
+        -17125,
+        936956
+      ],
+      "position_mm": [
+        2141473,
+        -247594,
+        1256121
+      ],
+      "tick": 427754,
+      "velocity_mm_s": [
+        -32428,
+        3047,
+        22421
+      ]
+    },
+    {
+      "ack_input_seq": 22,
+      "angular_velocity_mdeg_s": [
+        7367,
+        74528,
+        801
+      ],
+      "angular_velocity_roll_mdeg_s": 862,
+      "orientation_micro": [
+        -18687,
+        -286497,
+        -16431,
+        957758
+      ],
+      "position_mm": [
+        2138210,
+        -247292,
+        1258672
+      ],
+      "tick": 427756,
+      "velocity_mm_s": [
+        -32654,
+        3012,
+        26546
+      ]
+    },
+    {
+      "ack_input_seq": 24,
+      "angular_velocity_mdeg_s": [
+        6991,
+        73814,
+        608
+      ],
+      "angular_velocity_roll_mdeg_s": 1004,
+      "orientation_micro": [
+        -13801,
+        -223864,
+        -15590,
+        974398
+      ],
+      "position_mm": [
+        2134965,
+        -246997,
+        1261636
+      ],
+      "tick": 427758,
+      "velocity_mm_s": [
+        -32345,
+        2930,
+        30665
+      ]
+    },
+    {
+      "ack_input_seq": 26,
+      "angular_velocity_mdeg_s": [
+        5093,
+        56772,
+        339
+      ],
+      "angular_velocity_roll_mdeg_s": 1057,
+      "orientation_micro": [
+        -9986,
+        -171830,
+        -14680,
+        984967
+      ],
+      "position_mm": [
+        2131786,
+        -246712,
+        1265007
+      ],
+      "tick": 427760,
+      "velocity_mm_s": [
+        -31571,
+        2812,
+        34723
+      ]
+    },
+    {
+      "ack_input_seq": 27,
+      "angular_velocity_mdeg_s": [
+        3687,
+        43527,
+        187
+      ],
+      "angular_velocity_roll_mdeg_s": 1052,
+      "orientation_micro": [
+        -7216,
+        -131570,
+        -13762,
+        991185
+      ],
+      "position_mm": [
+        2128711,
+        -246442,
+        1268778
+      ],
+      "tick": 427762,
+      "velocity_mm_s": [
+        -30445,
+        2669,
+        38698
+      ]
+    },
+    {
+      "ack_input_seq": 29,
+      "angular_velocity_mdeg_s": [
+        2660,
+        33309,
+        102
+      ],
+      "angular_velocity_roll_mdeg_s": 1018,
+      "orientation_micro": [
+        -5213,
+        -100598,
+        -12867,
+        994830
+      ],
+      "position_mm": [
+        2125769,
+        -246187,
+        1272940
+      ],
+      "tick": 427764,
+      "velocity_mm_s": [
+        -29057,
+        2510,
+        42588
+      ]
+    },
+    {
+      "ack_input_seq": 30,
+      "angular_velocity_mdeg_s": [
+        1916,
+        25461,
+        56
+      ],
+      "angular_velocity_roll_mdeg_s": 969,
+      "orientation_micro": [
+        -3766,
+        -76852,
+        -12012,
+        996963
+      ],
+      "position_mm": [
+        2122982,
+        -245948,
+        1277486
+      ],
+      "tick": 427766,
+      "velocity_mm_s": [
+        -27471,
+        2340,
+        46402
+      ]
+    },
+    {
+      "ack_input_seq": 32,
+      "angular_velocity_mdeg_s": [
+        1340,
+        11258,
+        91
+      ],
+      "angular_velocity_roll_mdeg_s": 912,
+      "orientation_micro": [
+        -2698,
+        -62249,
+        -11188,
+        997994
+      ],
+      "position_mm": [
+        2120328,
+        -245724,
+        1282299
+      ],
+      "tick": 427768,
+      "velocity_mm_s": [
+        -26451,
+        2239,
+        47977
+      ]
+    },
+    {
+      "ack_input_seq": 34,
+      "angular_velocity_mdeg_s": [
+        782,
+        -10735,
+        161
+      ],
+      "angular_velocity_roll_mdeg_s": 847,
+      "orientation_micro": [
+        -1887,
+        -66798,
+        -10369,
+        997711
+      ],
+      "position_mm": [
+        2117708,
+        -245502,
+        1287050
+      ],
+      "tick": 427770,
+      "velocity_mm_s": [
+        -26113,
+        2210,
+        47365
+      ]
+    },
+    {
+      "ack_input_seq": 35,
+      "angular_velocity_mdeg_s": [
+        248,
+        -32728,
+        193
+      ],
+      "angular_velocity_roll_mdeg_s": 780,
+      "orientation_micro": [
+        -1362,
+        -90480,
+        -9575,
+        995851
+      ],
+      "position_mm": [
+        2115122,
+        -245283,
+        1291741
+      ],
+      "tick": 427772,
+      "velocity_mm_s": [
+        -25776,
+        2181,
+        46752
+      ]
+    },
+    {
+      "ack_input_seq": 37,
+      "angular_velocity_mdeg_s": [
+        -257,
+        -54722,
+        191
+      ],
+      "angular_velocity_roll_mdeg_s": 712,
+      "orientation_micro": [
+        -1135,
+        -133155,
+        -8814,
+        991055
+      ],
+      "position_mm": [
+        2112570,
+        -245067,
+        1296370
+      ],
+      "tick": 427774,
+      "velocity_mm_s": [
+        -25438,
+        2153,
+        46140
+      ]
+    },
+    {
+      "ack_input_seq": 39,
+      "angular_velocity_mdeg_s": [
+        -669,
+        -74997,
+        168
+      ],
+      "angular_velocity_roll_mdeg_s": 639,
+      "orientation_micro": [
+        -1185,
+        -193700,
+        -8086,
+        981027
+      ],
+      "position_mm": [
+        2110052,
+        -244854,
+        1300938
+      ],
+      "tick": 427776,
+      "velocity_mm_s": [
+        -25100,
+        2124,
+        45527
+      ]
+    },
+    {
+      "ack_input_seq": 40,
+      "angular_velocity_mdeg_s": [
+        -638,
+        -74997,
+        182
+      ],
+      "angular_velocity_roll_mdeg_s": 564,
+      "orientation_micro": [
+        -1306,
+        -257427,
+        -7394,
+        966269
+      ],
+      "position_mm": [
+        2107567,
+        -244644,
+        1305445
+      ],
+      "tick": 427778,
+      "velocity_mm_s": [
+        -24763,
+        2096,
+        44915
+      ]
+    },
+    {
+      "ack_input_seq": 42,
+      "angular_velocity_mdeg_s": [
+        -613,
+        -74997,
+        197
+      ],
+      "angular_velocity_roll_mdeg_s": 491,
+      "orientation_micro": [
+        -1440,
+        -320051,
+        -6741,
+        947375
+      ],
+      "position_mm": [
+        2105116,
+        -244436,
+        1309890
+      ],
+      "tick": 427780,
+      "velocity_mm_s": [
+        -24425,
+        2067,
+        44302
+      ]
+    },
+    {
+      "ack_input_seq": 44,
+      "angular_velocity_mdeg_s": [
+        -594,
+        -74997,
+        212
+      ],
+      "angular_velocity_roll_mdeg_s": 420,
+      "orientation_micro": [
+        -1578,
+        -381307,
+        -6129,
+        924427
+      ],
+      "position_mm": [
+        2102699,
+        -244232,
+        1314275
+      ],
+      "tick": 427782,
+      "velocity_mm_s": [
+        -24087,
+        2039,
+        43690
+      ]
+    },
+    {
+      "ack_input_seq": 45,
+      "angular_velocity_mdeg_s": [
+        -582,
+        -74997,
+        225
+      ],
+      "angular_velocity_roll_mdeg_s": 351,
+      "orientation_micro": [
+        -1713,
+        -440931,
+        -5558,
+        897522
+      ],
+      "position_mm": [
+        2100315,
+        -244030,
+        1318598
+      ],
+      "tick": 427784,
+      "velocity_mm_s": [
+        -23749,
+        2010,
+        43077
+      ]
+    },
+    {
+      "ack_input_seq": 47,
+      "angular_velocity_mdeg_s": [
+        -575,
+        -74997,
+        235
+      ],
+      "angular_velocity_roll_mdeg_s": 285,
+      "orientation_micro": [
+        -1838,
+        -498668,
+        -5026,
+        866777
+      ],
+      "position_mm": [
+        2097966,
+        -243831,
+        1322859
+      ],
+      "tick": 427786,
+      "velocity_mm_s": [
+        -23412,
+        1981,
+        42465
+      ]
+    },
+    {
+      "ack_input_seq": 49,
+      "angular_velocity_mdeg_s": [
+        -571,
+        -74997,
+        242
+      ],
+      "angular_velocity_roll_mdeg_s": 223,
+      "orientation_micro": [
+        -1948,
+        -554271,
+        -4532,
+        832322
+      ],
+      "position_mm": [
+        2095650,
+        -243635,
+        1327060
+      ],
+      "tick": 427788,
+      "velocity_mm_s": [
+        -23074,
+        1953,
+        41852
+      ]
+    },
+    {
+      "ack_input_seq": 51,
+      "angular_velocity_mdeg_s": [
+        -570,
+        -74997,
+        244
+      ],
+      "angular_velocity_roll_mdeg_s": 166,
+      "orientation_micro": [
+        -2039,
+        -607502,
+        -4073,
+        794305
+      ],
+      "position_mm": [
+        2093368,
+        -243442,
+        1331199
+      ],
+      "tick": 427790,
+      "velocity_mm_s": [
+        -22736,
+        1924,
+        41240
+      ]
+    },
+    {
+      "ack_input_seq": 52,
+      "angular_velocity_mdeg_s": [
+        -571,
+        -74997,
+        241
+      ],
+      "angular_velocity_roll_mdeg_s": 113,
+      "orientation_micro": [
+        -2108,
+        -658134,
+        -3646,
+        752889
+      ],
+      "position_mm": [
+        2091120,
+        -243252,
+        1335277
+      ],
+      "tick": 427792,
+      "velocity_mm_s": [
+        -22399,
+        1896,
+        40627
+      ]
+    },
+    {
+      "ack_input_seq": 54,
+      "angular_velocity_mdeg_s": [
+        -572,
+        -74997,
+        234
+      ],
+      "angular_velocity_roll_mdeg_s": 0,
+      "orientation_micro": [
+        -2132,
+        -705950,
+        -3266,
+        708251
+      ],
+      "position_mm": [
+        2088905,
+        -243064,
+        1339294
+      ],
+      "tick": 427794,
+      "velocity_mm_s": [
+        -22061,
+        1867,
+        40015
+      ]
+    },
+    {
+      "ack_input_seq": 55,
+      "angular_velocity_mdeg_s": [
+        -571,
+        -74997,
+        219
+      ],
+      "angular_velocity_roll_mdeg_s": 0,
+      "orientation_micro": [
+        -2129,
+        -750745,
+        -2909,
+        660582
+      ],
+      "position_mm": [
+        2086724,
+        -242880,
+        1343250
+      ],
+      "tick": 427796,
+      "velocity_mm_s": [
+        -21723,
+        1838,
+        39402
+      ]
+    },
+    {
+      "ack_input_seq": 57,
+      "angular_velocity_mdeg_s": [
+        -568,
+        -74997,
+        203
+      ],
+      "angular_velocity_roll_mdeg_s": 0,
+      "orientation_micro": [
+        -2127,
+        -792328,
+        -2550,
+        610086
+      ],
+      "position_mm": [
+        2084577,
+        -242698,
+        1347144
+      ],
+      "tick": 427798,
+      "velocity_mm_s": [
+        -21386,
+        1810,
+        38790
+      ]
+    },
+    {
+      "ack_input_seq": 59,
+      "angular_velocity_mdeg_s": [
+        -563,
+        -74997,
+        186
+      ],
+      "angular_velocity_roll_mdeg_s": 0,
+      "orientation_micro": [
+        -2125,
+        -830520,
+        -2192,
+        556980
+      ],
+      "position_mm": [
+        2082464,
+        -242519,
+        1350977
+      ],
+      "tick": 427800,
+      "velocity_mm_s": [
+        -21048,
+        1781,
+        38177
+      ]
+    },
+    {
+      "ack_input_seq": 60,
+      "angular_velocity_mdeg_s": [
+        -556,
+        -74997,
+        169
+      ],
+      "angular_velocity_roll_mdeg_s": 0,
+      "orientation_micro": [
+        -2123,
+        -865159,
+        -1839,
+        501490
+      ],
+      "position_mm": [
+        2080384,
+        -242343,
+        1354749
+      ],
+      "tick": 427802,
+      "velocity_mm_s": [
+        -20710,
+        1753,
+        37565
+      ]
+    },
+    {
+      "ack_input_seq": 62,
+      "angular_velocity_mdeg_s": [
+        -543,
+        -74997,
+        148
+      ],
+      "angular_velocity_roll_mdeg_s": -96,
+      "orientation_micro": [
+        -2049,
+        -896095,
+        -1529,
+        443855
+      ],
+      "position_mm": [
+        2078339,
+        -242170,
+        1358459
+      ],
+      "tick": 427804,
+      "velocity_mm_s": [
+        -20373,
+        1724,
+        36952
+      ]
+    },
+    {
+      "ack_input_seq": 64,
+      "angular_velocity_mdeg_s": [
+        -524,
+        -74997,
+        125
+      ],
+      "angular_velocity_roll_mdeg_s": -111,
+      "orientation_micro": [
+        -1961,
+        -923197,
+        -1232,
+        384320
+      ],
+      "position_mm": [
+        2076327,
+        -242000,
+        1362108
+      ],
+      "tick": 427806,
+      "velocity_mm_s": [
+        -20035,
+        1696,
+        36340
+      ]
+    },
+    {
+      "ack_input_seq": 66,
+      "angular_velocity_mdeg_s": [
+        -499,
+        -74997,
+        102
+      ],
+      "angular_velocity_roll_mdeg_s": -121,
+      "orientation_micro": [
+        -1862,
+        -946349,
+        -948,
+        323141
+      ],
+      "position_mm": [
+        2074349,
+        -241832,
+        1365696
+      ],
+      "tick": 427808,
+      "velocity_mm_s": [
+        -19697,
+        1667,
+        35727
+      ]
+    },
+    {
+      "ack_input_seq": 67,
+      "angular_velocity_mdeg_s": [
+        -468,
+        -74997,
+        79
+      ],
+      "angular_velocity_roll_mdeg_s": -126,
+      "orientation_micro": [
+        -1755,
+        -965451,
+        -680,
+        260579
+      ],
+      "position_mm": [
+        2072404,
+        -241668,
+        1369223
+      ],
+      "tick": 427810,
+      "velocity_mm_s": [
+        -19360,
+        1638,
+        35115
+      ]
+    },
+    {
+      "ack_input_seq": 69,
+      "angular_velocity_mdeg_s": [
+        -380,
+        -66369,
+        52
+      ],
+      "angular_velocity_roll_mdeg_s": -126,
+      "orientation_micro": [
+        -1646,
+        -979674,
+        -446,
+        200588
+      ],
+      "position_mm": [
+        2070494,
+        -241506,
+        1372689
+      ],
+      "tick": 427812,
+      "velocity_mm_s": [
+        -19022,
+        1610,
+        34502
+      ]
+    },
+    {
+      "ack_input_seq": 70,
+      "angular_velocity_mdeg_s": [
+        -264,
+        -50942,
+        28
+      ],
+      "angular_velocity_roll_mdeg_s": -122,
+      "orientation_micro": [
+        -1539,
+        -988109,
+        -286,
+        153745
+      ],
+      "position_mm": [
+        2068617,
+        -241347,
+        1376093
+      ],
+      "tick": 427814,
+      "velocity_mm_s": [
+        -18684,
+        1581,
+        33890
+      ]
+    },
+    {
+      "ack_input_seq": 72,
+      "angular_velocity_mdeg_s": [
+        -181,
+        -39004,
+        16
+      ],
+      "angular_velocity_roll_mdeg_s": -116,
+      "orientation_micro": [
+        -1436,
+        -993058,
+        -180,
+        117616
+      ],
+      "position_mm": [
+        2066774,
+        -241191,
+        1379436
+      ],
+      "tick": 427816,
+      "velocity_mm_s": [
+        -18347,
+        1553,
+        33277
+      ]
+    },
+    {
+      "ack_input_seq": 74,
+      "angular_velocity_mdeg_s": [
+        -123,
+        -29819,
+        9
+      ],
+      "angular_velocity_roll_mdeg_s": -110,
+      "orientation_micro": [
+        -1339,
+        -995952,
+        -109,
+        89875
+      ],
+      "position_mm": [
+        2064964,
+        -241038,
+        1382718
+      ],
+      "tick": 427818,
+      "velocity_mm_s": [
+        -18009,
+        1524,
+        32665
+      ]
+    },
+    {
+      "ack_input_seq": 75,
+      "angular_velocity_mdeg_s": [
+        -83,
+        -22778,
+        5
+      ],
+      "angular_velocity_roll_mdeg_s": -103,
+      "orientation_micro": [
+        -1248,
+        -997641,
+        -64,
+        68633
+      ],
+      "position_mm": [
+        2063189,
+        -240888,
+        1385938
+      ],
+      "tick": 427820,
+      "velocity_mm_s": [
+        -17671,
+        1496,
+        32052
+      ]
+    },
+    {
+      "ack_input_seq": 77,
+      "angular_velocity_mdeg_s": [
+        -56,
+        -17390,
+        3
+      ],
+      "angular_velocity_roll_mdeg_s": -96,
+      "orientation_micro": [
+        -1163,
+        -998626,
+        -34,
+        52390
+      ],
+      "position_mm": [
+        2061447,
+        -240741,
+        1389098
+      ],
+      "tick": 427822,
+      "velocity_mm_s": [
+        -17333,
+        1467,
+        31440
+      ]
+    },
+    {
+      "ack_input_seq": 79,
+      "angular_velocity_mdeg_s": [
+        -37,
+        -13273,
+        1
+      ],
+      "angular_velocity_roll_mdeg_s": -90,
+      "orientation_micro": [
+        -1083,
+        -999200,
+        -16,
+        39983
+      ],
+      "position_mm": [
+        2059739,
+        -240596,
+        1392196
+      ],
+      "tick": 427824,
+      "velocity_mm_s": [
+        -16996,
+        1438,
+        30827
+      ]
+    },
+    {
+      "ack_input_seq": 81,
+      "angular_velocity_mdeg_s": [
+        -24,
+        -10129,
+        1
+      ],
+      "angular_velocity_roll_mdeg_s": -84,
+      "orientation_micro": [
+        -1009,
+        -999534,
+        -5,
+        30510
+      ],
+      "position_mm": [
+        2058065,
+        -240454,
+        1395232
+      ],
+      "tick": 427826,
+      "velocity_mm_s": [
+        -16658,
+        1410,
+        30215
+      ]
+    },
+    {
+      "ack_input_seq": 82,
+      "angular_velocity_mdeg_s": [
+        -16,
+        -7729,
+        0
+      ],
+      "angular_velocity_roll_mdeg_s": 0,
+      "orientation_micro": [
+        -974,
+        -999729,
+        2,
+        23280
+      ],
+      "position_mm": [
+        2056424,
+        -240315,
+        1398208
+      ],
+      "tick": 427828,
+      "velocity_mm_s": [
+        -16320,
+        1381,
+        29602
+      ]
+    },
+    {
+      "ack_input_seq": 84,
+      "angular_velocity_mdeg_s": [
+        8,
+        14271,
+        0
+      ],
+      "angular_velocity_roll_mdeg_s": 0,
+      "orientation_micro": [
+        -973,
+        -999521,
+        7,
+        30931
+      ],
+      "position_mm": [
+        2054818,
+        -240179,
+        1401122
+      ],
+      "tick": 427830,
+      "velocity_mm_s": [
+        -15983,
+        1353,
+        28990
+      ]
+    },
+    {
+      "ack_input_seq": 85,
+      "angular_velocity_mdeg_s": [
+        32,
+        36271,
+        0
+      ],
+      "angular_velocity_roll_mdeg_s": 0,
+      "orientation_micro": [
+        -972,
+        -998330,
+        11,
+        57755
+      ],
+      "position_mm": [
+        2053245,
+        -240046,
+        1403975
+      ],
+      "tick": 427832,
+      "velocity_mm_s": [
+        -15645,
+        1324,
+        28377
+      ]
+    },
+    {
+      "ack_input_seq": 87,
+      "angular_velocity_mdeg_s": [
+        55,
+        58271,
+        -1
+      ],
+      "angular_velocity_roll_mdeg_s": 0,
+      "orientation_micro": [
+        -969,
+        -994614,
+        13,
+        103644
+      ],
+      "position_mm": [
+        2051705,
+        -239916,
+        1406767
+      ],
+      "tick": 427834,
+      "velocity_mm_s": [
+        -15307,
+        1295,
+        27765
+      ]
+    },
+    {
+      "ack_input_seq": 89,
+      "angular_velocity_mdeg_s": [
+        73,
+        75000,
+        -2
+      ],
+      "angular_velocity_roll_mdeg_s": 0,
+      "orientation_micro": [
+        -962,
+        -986127,
+        13,
+        165988
+      ],
+      "position_mm": [
+        2050200,
+        -239789,
+        1409498
+      ],
+      "tick": 427836,
+      "velocity_mm_s": [
+        -14970,
+        1267,
+        27152
+      ]
+    },
+    {
+      "ack_input_seq": 91,
+      "angular_velocity_mdeg_s": [
+        73,
+        75000,
+        -2
+      ],
+      "angular_velocity_roll_mdeg_s": 0,
+      "orientation_micro": [
+        -950,
+        -973165,
+        13,
+        230106
+      ],
+      "position_mm": [
+        2048728,
+        -239664,
+        1412167
+      ],
+      "tick": 427838,
+      "velocity_mm_s": [
+        -14632,
+        1238,
+        26540
+      ]
+    },
+    {
+      "ack_input_seq": 92,
+      "angular_velocity_mdeg_s": [
+        73,
+        75000,
+        -2
+      ],
+      "angular_velocity_roll_mdeg_s": 0,
+      "orientation_micro": [
+        -934,
+        -956039,
+        13,
+        293239
+      ],
+      "position_mm": [
+        2047290,
+        -239542,
+        1414775
+      ],
+      "tick": 427840,
+      "velocity_mm_s": [
+        -14294,
+        1210,
+        25927
+      ]
+    },
+    {
+      "ack_input_seq": 94,
+      "angular_velocity_mdeg_s": [
+        73,
+        75000,
+        -2
+      ],
+      "angular_velocity_roll_mdeg_s": 0,
+      "orientation_micro": [
+        -914,
+        -934821,
+        13,
+        355117
+      ],
+      "position_mm": [
+        2045886,
+        -239424,
+        1417322
+      ],
+      "tick": 427842,
+      "velocity_mm_s": [
+        -13957,
+        1181,
+        25315
+      ]
+    },
+    {
+      "ack_input_seq": 95,
+      "angular_velocity_mdeg_s": [
+        73,
+        75000,
+        -2
+      ],
+      "angular_velocity_roll_mdeg_s": 0,
+      "orientation_micro": [
+        -890,
+        -909604,
+        13,
+        415476
+      ],
+      "position_mm": [
+        2044516,
+        -239308,
+        1419807
+      ],
+      "tick": 427844,
+      "velocity_mm_s": [
+        -13619,
+        1153,
+        24702
+      ]
+    },
+    {
+      "ack_input_seq": 97,
+      "angular_velocity_mdeg_s": [
+        73,
+        75000,
+        -2
+      ],
+      "angular_velocity_roll_mdeg_s": 0,
+      "orientation_micro": [
+        -863,
+        -880494,
+        13,
+        474057
+      ],
+      "position_mm": [
+        2043179,
+        -239195,
+        1422231
+      ],
+      "tick": 427846,
+      "velocity_mm_s": [
+        -13281,
+        1124,
+        24090
+      ]
+    },
+    {
+      "ack_input_seq": 99,
+      "angular_velocity_mdeg_s": [
+        73,
+        75000,
+        -2
+      ],
+      "angular_velocity_roll_mdeg_s": 0,
+      "orientation_micro": [
+        -831,
+        -847616,
+        13,
+        530609
+      ],
+      "position_mm": [
+        2041877,
+        -239084,
+        1424594
+      ],
+      "tick": 427848,
+      "velocity_mm_s": [
+        -12944,
+        1095,
+        23477
+      ]
+    },
+    {
+      "ack_input_seq": 100,
+      "angular_velocity_mdeg_s": [
+        72,
+        75000,
+        -2
+      ],
+      "angular_velocity_roll_mdeg_s": 0,
+      "orientation_micro": [
+        -796,
+        -811112,
+        13,
+        584891
+      ],
+      "position_mm": [
+        2040608,
+        -238977,
+        1426896
+      ],
+      "tick": 427850,
+      "velocity_mm_s": [
+        -12606,
+        1067,
+        22865
+      ]
+    },
+    {
+      "ack_input_seq": 102,
+      "angular_velocity_mdeg_s": [
+        72,
+        75000,
+        -2
+      ],
+      "angular_velocity_roll_mdeg_s": 0,
+      "orientation_micro": [
+        -758,
+        -771136,
+        13,
+        636670
+      ],
+      "position_mm": [
+        2039372,
+        -238872,
+        1429137
+      ],
+      "tick": 427852,
+      "velocity_mm_s": [
+        -12268,
+        1038,
+        22252
+      ]
+    },
+    {
+      "ack_input_seq": 104,
+      "angular_velocity_mdeg_s": [
+        72,
+        75000,
+        -1
+      ],
+      "angular_velocity_roll_mdeg_s": 0,
+      "orientation_micro": [
+        -716,
+        -727861,
+        13,
+        685724
+      ],
+      "position_mm": [
+        2038171,
+        -238771,
+        1431316
+      ],
+      "tick": 427854,
+      "velocity_mm_s": [
+        -11931,
+        1010,
+        21640
+      ]
+    },
+    {
+      "ack_input_seq": 105,
+      "angular_velocity_mdeg_s": [
+        72,
+        75000,
+        -1
+      ],
+      "angular_velocity_roll_mdeg_s": 0,
+      "orientation_micro": [
+        -671,
+        -681471,
+        13,
+        731845
+      ],
+      "position_mm": [
+        2037003,
+        -238672,
+        1433434
+      ],
+      "tick": 427856,
+      "velocity_mm_s": [
+        -11593,
+        981,
+        21027
+      ]
+    },
+    {
+      "ack_input_seq": 107,
+      "angular_velocity_mdeg_s": [
+        72,
+        75000,
+        -1
+      ],
+      "angular_velocity_roll_mdeg_s": 0,
+      "orientation_micro": [
+        -624,
+        -632165,
+        13,
+        774833
+      ],
+      "position_mm": [
+        2035869,
+        -238576,
+        1435491
+      ],
+      "tick": 427858,
+      "velocity_mm_s": [
+        -11255,
+        953,
+        20415
+      ]
+    },
+    {
+      "ack_input_seq": 109,
+      "angular_velocity_mdeg_s": [
+        72,
+        75000,
+        -1
+      ],
+      "angular_velocity_roll_mdeg_s": 0,
+      "orientation_micro": [
+        -573,
+        -580154,
+        13,
+        814506
+      ],
+      "position_mm": [
+        2034769,
+        -238483,
+        1437486
+      ],
+      "tick": 427860,
+      "velocity_mm_s": [
+        -10917,
+        924,
+        19802
+      ]
+    },
+    {
+      "ack_input_seq": 110,
+      "angular_velocity_mdeg_s": [
+        73,
+        75000,
+        -1
+      ],
+      "angular_velocity_roll_mdeg_s": 0,
+      "orientation_micro": [
+        -520,
+        -525661,
+        13,
+        850694
+      ],
+      "position_mm": [
+        2033703,
+        -238392,
+        1439421
+      ],
+      "tick": 427862,
+      "velocity_mm_s": [
+        -10580,
+        895,
+        19190
+      ]
+    },
+    {
+      "ack_input_seq": 112,
+      "angular_velocity_mdeg_s": [
+        73,
+        75000,
+        -1
+      ],
+      "angular_velocity_roll_mdeg_s": 0,
+      "orientation_micro": [
+        -465,
+        -468918,
+        13,
+        883242
+      ],
+      "position_mm": [
+        2032670,
+        -238305,
+        1441294
+      ],
+      "tick": 427864,
+      "velocity_mm_s": [
+        -10242,
+        867,
+        18577
+      ]
+    },
+    {
+      "ack_input_seq": 114,
+      "angular_velocity_mdeg_s": [
+        73,
+        75000,
+        -1
+      ],
+      "angular_velocity_roll_mdeg_s": 0,
+      "orientation_micro": [
+        -407,
+        -410169,
+        13,
+        912010
+      ],
+      "position_mm": [
+        2031671,
+        -238221,
+        1443105
+      ],
+      "tick": 427866,
+      "velocity_mm_s": [
+        -9904,
+        838,
+        17965
+      ]
+    },
+    {
+      "ack_input_seq": 115,
+      "angular_velocity_mdeg_s": [
+        73,
+        75000,
+        -1
+      ],
+      "angular_velocity_roll_mdeg_s": 0,
+      "orientation_micro": [
+        -348,
+        -349664,
+        13,
+        936875
+      ],
+      "position_mm": [
+        2030706,
+        -238139,
+        1444856
+      ],
+      "tick": 427868,
+      "velocity_mm_s": [
+        -9567,
+        810,
+        17352
+      ]
+    },
+    {
+      "ack_input_seq": 117,
+      "angular_velocity_mdeg_s": [
+        73,
+        75000,
+        -1
+      ],
+      "angular_velocity_roll_mdeg_s": 0,
+      "orientation_micro": [
+        -287,
+        -287663,
+        13,
+        957732
+      ],
+      "position_mm": [
+        2029775,
+        -238060,
+        1446545
+      ],
+      "tick": 427870,
+      "velocity_mm_s": [
+        -9229,
+        781,
+        16740
+      ]
+    },
+    {
+      "ack_input_seq": 118,
+      "angular_velocity_mdeg_s": [
+        72,
+        74293,
+        0
+      ],
+      "angular_velocity_roll_mdeg_s": 0,
+      "orientation_micro": [
+        -225,
+        -224731,
+        13,
+        974421
+      ],
+      "position_mm": [
+        2028877,
+        -237984,
+        1448173
+      ],
+      "tick": 427872,
+      "velocity_mm_s": [
+        -8891,
+        752,
+        16127
+      ]
+    },
+    {
+      "ack_input_seq": 120,
+      "angular_velocity_mdeg_s": [
+        56,
+        57113,
+        0
+      ],
+      "angular_velocity_roll_mdeg_s": 0,
+      "orientation_micro": [
+        -173,
+        -172457,
+        13,
+        985017
+      ],
+      "position_mm": [
+        2028013,
+        -237911,
+        1449740
+      ],
+      "tick": 427874,
+      "velocity_mm_s": [
+        -8554,
+        724,
+        15515
+      ]
+    },
+    {
+      "ack_input_seq": 122,
+      "angular_velocity_mdeg_s": [
+        43,
+        43768,
+        0
+      ],
+      "angular_velocity_roll_mdeg_s": 0,
+      "orientation_micro": [
+        -133,
+        -132023,
+        13,
+        991247
+      ],
+      "position_mm": [
+        2027183,
+        -237841,
+        1451246
+      ],
+      "tick": 427876,
+      "velocity_mm_s": [
+        -8216,
+        695,
+        14902
+      ]
+    },
+    {
+      "ack_input_seq": 123,
+      "angular_velocity_mdeg_s": [
+        33,
+        33480,
+        0
+      ],
+      "angular_velocity_roll_mdeg_s": 0,
+      "orientation_micro": [
+        -102,
+        -100926,
+        13,
+        994894
+      ],
+      "position_mm": [
+        2026387,
+        -237773,
+        1452690
+      ],
+      "tick": 427878,
+      "velocity_mm_s": [
+        -7878,
+        667,
+        14290
+      ]
+    },
+    {
+      "ack_input_seq": 125,
+      "angular_velocity_mdeg_s": [
+        25,
+        25582,
+        0
+      ],
+      "angular_velocity_roll_mdeg_s": 0,
+      "orientation_micro": [
+        -78,
+        -77090,
+        13,
+        997024
+      ],
+      "position_mm": [
+        2025624,
+        -237709,
+        1454073
+      ],
+      "tick": 427880,
+      "velocity_mm_s": [
+        -7541,
+        638,
+        13677
+      ]
+    },
+    {
+      "ack_input_seq": 127,
+      "angular_velocity_mdeg_s": [
+        19,
+        19535,
+        0
+      ],
+      "angular_velocity_roll_mdeg_s": 0,
+      "orientation_micro": [
+        -60,
+        -58854,
+        13,
+        998267
+      ],
+      "position_mm": [
+        2024896,
+        -237647,
+        1455395
+      ],
+      "tick": 427882,
+      "velocity_mm_s": [
+        -7203,
+        610,
+        13065
+      ]
+    },
+    {
+      "ack_input_seq": 128,
+      "angular_velocity_mdeg_s": [
+        15,
+        14911,
+        0
+      ],
+      "angular_velocity_roll_mdeg_s": 0,
+      "orientation_micro": [
+        -46,
+        -44920,
+        13,
+        998991
+      ],
+      "position_mm": [
+        2024201,
+        -237588,
+        1456655
+      ],
+      "tick": 427884,
+      "velocity_mm_s": [
+        -6865,
+        581,
+        12452
+      ]
+    },
+    {
+      "ack_input_seq": 130,
+      "angular_velocity_mdeg_s": [
+        11,
+        11380,
+        0
+      ],
+      "angular_velocity_roll_mdeg_s": 0,
+      "orientation_micro": [
+        -35,
+        -34279,
+        13,
+        999412
+      ],
+      "position_mm": [
+        2023539,
+        -237532,
+        1457855
+      ],
+      "tick": 427886,
+      "velocity_mm_s": [
+        -6528,
+        552,
+        11840
+      ]
+    },
+    {
+      "ack_input_seq": 132,
+      "angular_velocity_mdeg_s": [
+        9,
+        8684,
+        0
+      ],
+      "angular_velocity_roll_mdeg_s": 0,
+      "orientation_micro": [
+        -27,
+        -26156,
+        13,
+        999658
+      ],
+      "position_mm": [
+        2022912,
+        -237479,
+        1458993
+      ],
+      "tick": 427888,
+      "velocity_mm_s": [
+        -6190,
+        524,
+        11227
+      ]
+    },
+    {
+      "ack_input_seq": 133,
+      "angular_velocity_mdeg_s": [
+        7,
+        -13316,
+        1
+      ],
+      "angular_velocity_roll_mdeg_s": 0,
+      "orientation_micro": [
+        -21,
+        -32974,
+        13,
+        999456
+      ],
+      "position_mm": [
+        2022318,
+        -237429,
+        1460069
+      ],
+      "tick": 427890,
+      "velocity_mm_s": [
+        -5852,
+        495,
+        10615
+      ]
+    },
+    {
+      "ack_input_seq": 135,
+      "angular_velocity_mdeg_s": [
+        5,
+        -35316,
+        2
+      ],
+      "angular_velocity_roll_mdeg_s": 0,
+      "orientation_micro": [
+        -17,
+        -58964,
+        14,
+        998260
+      ],
+      "position_mm": [
+        2021759,
+        -237382,
+        1461085
+      ],
+      "tick": 427892,
+      "velocity_mm_s": [
+        -5514,
+        467,
+        10002
+      ]
+    },
+    {
+      "ack_input_seq": 137,
+      "angular_velocity_mdeg_s": [
+        3,
+        -57316,
+        2
+      ],
+      "angular_velocity_roll_mdeg_s": 0,
+      "orientation_micro": [
+        -14,
+        -104020,
+        15,
+        994575
+      ],
+      "position_mm": [
+        2021232,
+        -237337,
+        1462039
+      ],
+      "tick": 427894,
+      "velocity_mm_s": [
+        -5177,
+        438,
+        9390
+      ]
+    },
+    {
+      "ack_input_seq": 139,
+      "angular_velocity_mdeg_s": [
+        1,
+        -75000,
+        2
+      ],
+      "angular_velocity_roll_mdeg_s": 0,
+      "orientation_micro": [
+        -14,
+        -165950,
+        16,
+        986134
+      ],
+      "position_mm": [
+        2020740,
+        -237295,
+        1462932
+      ],
+      "tick": 427896,
+      "velocity_mm_s": [
+        -4839,
+        410,
+        8777
+      ]
+    },
+    {
+      "ack_input_seq": 140,
+      "angular_velocity_mdeg_s": [
+        1,
+        -75000,
+        2
+      ],
+      "angular_velocity_roll_mdeg_s": 0,
+      "orientation_micro": [
+        -14,
+        -230069,
+        16,
+        973174
+      ],
+      "position_mm": [
+        2020281,
+        -237257,
+        1463764
+      ],
+      "tick": 427898,
+      "velocity_mm_s": [
+        -4501,
+        381,
+        8165
+      ]
+    },
+    {
+      "ack_input_seq": 142,
+      "angular_velocity_mdeg_s": [
+        1,
+        -75000,
+        2
+      ],
+      "angular_velocity_roll_mdeg_s": 0,
+      "orientation_micro": [
+        -14,
+        -293202,
+        17,
+        956050
+      ],
+      "position_mm": [
+        2019857,
+        -237221,
+        1464535
+      ],
+      "tick": 427900,
+      "velocity_mm_s": [
+        -4164,
+        352,
+        7552
+      ]
+    },
+    {
+      "ack_input_seq": 143,
+      "angular_velocity_mdeg_s": [
+        1,
+        -75000,
+        2
+      ],
+      "angular_velocity_roll_mdeg_s": 0,
+      "orientation_micro": [
+        -14,
+        -355081,
+        17,
+        934835
+      ],
+      "position_mm": [
+        2019466,
+        -237188,
+        1465244
+      ],
+      "tick": 427902,
+      "velocity_mm_s": [
+        -3826,
+        324,
+        6940
+      ]
+    },
+    {
+      "ack_input_seq": 145,
+      "angular_velocity_mdeg_s": [
+        1,
+        -75000,
+        2
+      ],
+      "angular_velocity_roll_mdeg_s": 0,
+      "orientation_micro": [
+        -14,
+        -415441,
+        18,
+        909620
+      ],
+      "position_mm": [
+        2019108,
+        -237157,
+        1465892
+      ],
+      "tick": 427904,
+      "velocity_mm_s": [
+        -3488,
+        295,
+        6327
+      ]
+    },
+    {
+      "ack_input_seq": 147,
+      "angular_velocity_mdeg_s": [
+        1,
+        -75000,
+        2
+      ],
+      "angular_velocity_roll_mdeg_s": 0,
+      "orientation_micro": [
+        -14,
+        -474023,
+        18,
+        880512
+      ],
+      "position_mm": [
+        2018785,
+        -237130,
+        1466479
+      ],
+      "tick": 427906,
+      "velocity_mm_s": [
+        -3151,
+        267,
+        5715
+      ]
+    },
+    {
+      "ack_input_seq": 148,
+      "angular_velocity_mdeg_s": [
+        1,
+        -75000,
+        2
+      ],
+      "angular_velocity_roll_mdeg_s": 0,
+      "orientation_micro": [
+        -14,
+        -530577,
+        18,
+        847637
+      ],
+      "position_mm": [
+        2018495,
+        -237105,
+        1467004
+      ],
+      "tick": 427908,
+      "velocity_mm_s": [
+        -2813,
+        238,
+        5102
+      ]
+    },
+    {
+      "ack_input_seq": 150,
+      "angular_velocity_mdeg_s": [
+        1,
+        -75000,
+        2
+      ],
+      "angular_velocity_roll_mdeg_s": 0,
+      "orientation_micro": [
+        -14,
+        -584860,
+        19,
+        811134
+      ],
+      "position_mm": [
+        2018239,
+        -237084,
+        1467468
+      ],
+      "tick": 427910,
+      "velocity_mm_s": [
+        -2475,
+        209,
+        4490
+      ]
+    },
+    {
+      "ack_input_seq": 152,
+      "angular_velocity_mdeg_s": [
+        0,
+        -75000,
+        2
+      ],
+      "angular_velocity_roll_mdeg_s": 0,
+      "orientation_micro": [
+        -14,
+        -636640,
+        19,
+        771161
+      ],
+      "position_mm": [
+        2018017,
+        -237065,
+        1467871
+      ],
+      "tick": 427912,
+      "velocity_mm_s": [
+        -2138,
+        181,
+        3877
+      ]
+    },
+    {
+      "ack_input_seq": 154,
+      "angular_velocity_mdeg_s": [
+        0,
+        -75000,
+        2
+      ],
+      "angular_velocity_roll_mdeg_s": 0,
+      "orientation_micro": [
+        -14,
+        -685696,
+        18,
+        727888
+      ],
+      "position_mm": [
+        2017828,
+        -237049,
+        1468213
+      ],
+      "tick": 427914,
+      "velocity_mm_s": [
+        -1800,
+        152,
+        3265
+      ]
+    },
+    {
+      "ack_input_seq": 155,
+      "angular_velocity_mdeg_s": [
+        0,
+        -75000,
+        1
+      ],
+      "angular_velocity_roll_mdeg_s": 0,
+      "orientation_micro": [
+        -14,
+        -731819,
+        18,
+        681500
+      ],
+      "position_mm": [
+        2017674,
+        -237036,
+        1468494
+      ],
+      "tick": 427916,
+      "velocity_mm_s": [
+        -1462,
+        124,
+        2652
+      ]
+    },
+    {
+      "ack_input_seq": 157,
+      "angular_velocity_mdeg_s": [
+        0,
+        -75000,
+        1
+      ],
+      "angular_velocity_roll_mdeg_s": 0,
+      "orientation_micro": [
+        -14,
+        -774809,
+        18,
+        632195
+      ],
+      "position_mm": [
+        2017553,
+        -237026,
+        1468713
+      ],
+      "tick": 427918,
+      "velocity_mm_s": [
+        -1125,
+        95,
+        2040
+      ]
+    },
+    {
+      "ack_input_seq": 158,
+      "angular_velocity_mdeg_s": [
+        0,
+        -75000,
+        1
+      ],
+      "angular_velocity_roll_mdeg_s": 0,
+      "orientation_micro": [
+        -14,
+        -814484,
+        17,
+        580186
+      ],
+      "position_mm": [
+        2017466,
+        -237018,
+        1468871
+      ],
+      "tick": 427920,
+      "velocity_mm_s": [
+        -787,
+        67,
+        1427
+      ]
+    },
+    {
+      "ack_input_seq": 160,
+      "angular_velocity_mdeg_s": [
+        1,
+        -75000,
+        1
+      ],
+      "angular_velocity_roll_mdeg_s": 0,
+      "orientation_micro": [
+        -14,
+        -850674,
+        16,
+        525694
+      ],
+      "position_mm": [
+        2017412,
+        -237014,
+        1468968
+      ],
+      "tick": 427922,
+      "velocity_mm_s": [
+        -449,
+        38,
+        815
+      ]
+    },
+    {
+      "ack_input_seq": 162,
+      "angular_velocity_mdeg_s": [
+        1,
+        -75000,
+        1
+      ],
+      "angular_velocity_roll_mdeg_s": 0,
+      "orientation_micro": [
+        -14,
+        -883224,
+        16,
+        468952
+      ],
+      "position_mm": [
+        2017393,
+        -237012,
+        1469003
+      ],
+      "tick": 427924,
+      "velocity_mm_s": [
+        -112,
+        9,
+        202
+      ]
+    },
+    {
+      "ack_input_seq": 163,
+      "angular_velocity_mdeg_s": [
+        1,
+        -75000,
+        1
+      ],
+      "angular_velocity_roll_mdeg_s": 0,
+      "orientation_micro": [
+        -14,
+        -911994,
+        15,
+        410204
+      ],
+      "position_mm": [
+        2017393,
+        -237012,
+        1469003
+      ],
+      "tick": 427926,
+      "velocity_mm_s": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "ack_input_seq": 165,
+      "angular_velocity_mdeg_s": [
+        1,
+        -75000,
+        1
+      ],
+      "angular_velocity_roll_mdeg_s": 0,
+      "orientation_micro": [
+        -14,
+        -936862,
+        13,
+        349700
+      ],
+      "position_mm": [
+        2017393,
+        -237012,
+        1469003
+      ],
+      "tick": 427928,
+      "velocity_mm_s": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "ack_input_seq": 167,
+      "angular_velocity_mdeg_s": [
+        1,
+        -75000,
+        1
+      ],
+      "angular_velocity_roll_mdeg_s": 0,
+      "orientation_micro": [
+        -14,
+        -957721,
+        12,
+        287700
+      ],
+      "position_mm": [
+        2017393,
+        -237012,
+        1469003
+      ],
+      "tick": 427930,
+      "velocity_mm_s": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "ack_input_seq": 168,
+      "angular_velocity_mdeg_s": [
+        1,
+        -74304,
+        1
+      ],
+      "angular_velocity_roll_mdeg_s": 0,
+      "orientation_micro": [
+        -14,
+        -974413,
+        10,
+        224764
+      ],
+      "position_mm": [
+        2017393,
+        -237012,
+        1469003
+      ],
+      "tick": 427932,
+      "velocity_mm_s": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "ack_input_seq": 170,
+      "angular_velocity_mdeg_s": [
+        1,
+        -57122,
+        0
+      ],
+      "angular_velocity_roll_mdeg_s": 0,
+      "orientation_micro": [
+        -14,
+        -985013,
+        8,
+        172482
+      ],
+      "position_mm": [
+        2017393,
+        -237012,
+        1469003
+      ],
+      "tick": 427934,
+      "velocity_mm_s": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "ack_input_seq": 172,
+      "angular_velocity_mdeg_s": [
+        1,
+        -43775,
+        0
+      ],
+      "angular_velocity_roll_mdeg_s": 0,
+      "orientation_micro": [
+        -14,
+        -991244,
+        7,
+        132042
+      ],
+      "position_mm": [
+        2017393,
+        -237012,
+        1469003
+      ],
+      "tick": 427936,
+      "velocity_mm_s": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "ack_input_seq": 173,
+      "angular_velocity_mdeg_s": [
+        1,
+        -33485,
+        0
+      ],
+      "angular_velocity_roll_mdeg_s": 0,
+      "orientation_micro": [
+        -14,
+        -994892,
+        6,
+        100941
+      ],
+      "position_mm": [
+        2017393,
+        -237012,
+        1469003
+      ],
+      "tick": 427938,
+      "velocity_mm_s": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "ack_input_seq": 175,
+      "angular_velocity_mdeg_s": [
+        1,
+        -25586,
+        0
+      ],
+      "angular_velocity_roll_mdeg_s": 0,
+      "orientation_micro": [
+        -14,
+        -997023,
+        5,
+        77101
+      ],
+      "position_mm": [
+        2017393,
+        -237012,
+        1469003
+      ],
+      "tick": 427940,
+      "velocity_mm_s": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "ack_input_seq": 177,
+      "angular_velocity_mdeg_s": [
+        1,
+        -19538,
+        0
+      ],
+      "angular_velocity_roll_mdeg_s": 0,
+      "orientation_micro": [
+        -14,
+        -998266,
+        4,
+        58863
+      ],
+      "position_mm": [
+        2017393,
+        -237012,
+        1469003
+      ],
+      "tick": 427942,
+      "velocity_mm_s": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "ack_input_seq": 179,
+      "angular_velocity_mdeg_s": [
+        1,
+        -14914,
+        0
+      ],
+      "angular_velocity_roll_mdeg_s": 0,
+      "orientation_micro": [
+        -14,
+        -998990,
+        3,
+        44927
+      ],
+      "position_mm": [
+        2017393,
+        -237012,
+        1469003
+      ],
+      "tick": 427944,
+      "velocity_mm_s": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "ack_input_seq": 180,
+      "angular_velocity_mdeg_s": [
+        0,
+        -11382,
+        0
+      ],
+      "angular_velocity_roll_mdeg_s": 0,
+      "orientation_micro": [
+        -14,
+        -999412,
+        2,
+        34284
+      ],
+      "position_mm": [
+        2017393,
+        -237012,
+        1469003
+      ],
+      "tick": 427946,
+      "velocity_mm_s": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "ack_input_seq": 182,
+      "angular_velocity_mdeg_s": [
+        0,
+        -8685,
+        0
+      ],
+      "angular_velocity_roll_mdeg_s": 0,
+      "orientation_micro": [
+        -14,
+        -999658,
+        2,
+        26160
+      ],
+      "position_mm": [
+        2017393,
+        -237012,
+        1469003
+      ],
+      "tick": 427948,
+      "velocity_mm_s": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "ack_input_seq": 183,
+      "angular_velocity_mdeg_s": [
+        0,
+        -6627,
+        0
+      ],
+      "angular_velocity_roll_mdeg_s": 0,
+      "orientation_micro": [
+        -14,
+        -999801,
+        2,
+        19960
+      ],
+      "position_mm": [
+        2017393,
+        -237012,
+        1469003
+      ],
+      "tick": 427950,
+      "velocity_mm_s": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "ack_input_seq": 183,
+      "angular_velocity_mdeg_s": [
+        0,
+        -5056,
+        0
+      ],
+      "angular_velocity_roll_mdeg_s": 0,
+      "orientation_micro": [
+        -14,
+        -999884,
+        1,
+        15229
+      ],
+      "position_mm": [
+        2017393,
+        -237012,
+        1469003
+      ],
+      "tick": 427952,
+      "velocity_mm_s": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "ack_input_seq": 183,
+      "angular_velocity_mdeg_s": [
+        0,
+        -3858,
+        0
+      ],
+      "angular_velocity_roll_mdeg_s": 0,
+      "orientation_micro": [
+        -14,
+        -999932,
+        1,
+        11619
+      ],
+      "position_mm": [
+        2017393,
+        -237012,
+        1469003
+      ],
+      "tick": 427954,
+      "velocity_mm_s": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "ack_input_seq": 183,
+      "angular_velocity_mdeg_s": [
+        0,
+        -2943,
+        0
+      ],
+      "angular_velocity_roll_mdeg_s": 0,
+      "orientation_micro": [
+        -14,
+        -999961,
+        1,
+        8865
+      ],
+      "position_mm": [
+        2017393,
+        -237012,
+        1469003
+      ],
+      "tick": 427956,
+      "velocity_mm_s": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "ack_input_seq": 183,
+      "angular_velocity_mdeg_s": [
+        0,
+        -2246,
+        0
+      ],
+      "angular_velocity_roll_mdeg_s": 0,
+      "orientation_micro": [
+        -14,
+        -999977,
+        1,
+        6763
+      ],
+      "position_mm": [
+        2017393,
+        -237012,
+        1469003
+      ],
+      "tick": 427958,
+      "velocity_mm_s": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "ack_input_seq": 183,
+      "angular_velocity_mdeg_s": [
+        0,
+        0,
+        0
+      ],
+      "angular_velocity_roll_mdeg_s": 0,
+      "orientation_micro": [
+        -14,
+        -999983,
+        1,
+        5908
+      ],
+      "position_mm": [
+        2017393,
+        -237012,
+        1469003
+      ],
+      "tick": 427960,
+      "velocity_mm_s": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "ack_input_seq": 183,
+      "angular_velocity_mdeg_s": [
+        0,
+        0,
+        0
+      ],
+      "angular_velocity_roll_mdeg_s": 0,
+      "orientation_micro": [
+        -14,
+        -999983,
+        1,
+        5908
+      ],
+      "position_mm": [
+        2017393,
+        -237012,
+        1469003
+      ],
+      "tick": 427962,
+      "velocity_mm_s": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "ack_input_seq": 183,
+      "angular_velocity_mdeg_s": [
+        0,
+        0,
+        0
+      ],
+      "angular_velocity_roll_mdeg_s": 0,
+      "orientation_micro": [
+        -14,
+        -999983,
+        1,
+        5908
+      ],
+      "position_mm": [
+        2017393,
+        -237012,
+        1469003
+      ],
+      "tick": 427964,
+      "velocity_mm_s": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "ack_input_seq": 183,
+      "angular_velocity_mdeg_s": [
+        0,
+        0,
+        0
+      ],
+      "angular_velocity_roll_mdeg_s": 0,
+      "orientation_micro": [
+        -14,
+        -999983,
+        1,
+        5908
+      ],
+      "position_mm": [
+        2017393,
+        -237012,
+        1469003
+      ],
+      "tick": 427966,
+      "velocity_mm_s": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "ack_input_seq": 183,
+      "angular_velocity_mdeg_s": [
+        0,
+        0,
+        0
+      ],
+      "angular_velocity_roll_mdeg_s": 0,
+      "orientation_micro": [
+        -14,
+        -999983,
+        1,
+        5908
+      ],
+      "position_mm": [
+        2017393,
+        -237012,
+        1469003
+      ],
+      "tick": 427968,
+      "velocity_mm_s": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "ack_input_seq": 183,
+      "angular_velocity_mdeg_s": [
+        0,
+        0,
+        0
+      ],
+      "angular_velocity_roll_mdeg_s": 0,
+      "orientation_micro": [
+        -14,
+        -999983,
+        1,
+        5908
+      ],
+      "position_mm": [
+        2017393,
+        -237012,
+        1469003
+      ],
+      "tick": 427970,
+      "velocity_mm_s": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "ack_input_seq": 183,
+      "angular_velocity_mdeg_s": [
+        0,
+        0,
+        0
+      ],
+      "angular_velocity_roll_mdeg_s": 0,
+      "orientation_micro": [
+        -14,
+        -999983,
+        1,
+        5908
+      ],
+      "position_mm": [
+        2017393,
+        -237012,
+        1469003
+      ],
+      "tick": 427972,
+      "velocity_mm_s": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "ack_input_seq": 183,
+      "angular_velocity_mdeg_s": [
+        0,
+        0,
+        0
+      ],
+      "angular_velocity_roll_mdeg_s": 0,
+      "orientation_micro": [
+        -14,
+        -999983,
+        1,
+        5908
+      ],
+      "position_mm": [
+        2017393,
+        -237012,
+        1469003
+      ],
+      "tick": 427974,
+      "velocity_mm_s": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "ack_input_seq": 183,
+      "angular_velocity_mdeg_s": [
+        0,
+        0,
+        0
+      ],
+      "angular_velocity_roll_mdeg_s": 0,
+      "orientation_micro": [
+        -14,
+        -999983,
+        1,
+        5908
+      ],
+      "position_mm": [
+        2017393,
+        -237012,
+        1469003
+      ],
+      "tick": 427976,
+      "velocity_mm_s": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "ack_input_seq": 183,
+      "angular_velocity_mdeg_s": [
+        0,
+        0,
+        0
+      ],
+      "angular_velocity_roll_mdeg_s": 0,
+      "orientation_micro": [
+        -14,
+        -999983,
+        1,
+        5908
+      ],
+      "position_mm": [
+        2017393,
+        -237012,
+        1469003
+      ],
+      "tick": 427978,
+      "velocity_mm_s": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "ack_input_seq": 183,
+      "angular_velocity_mdeg_s": [
+        0,
+        0,
+        0
+      ],
+      "angular_velocity_roll_mdeg_s": 0,
+      "orientation_micro": [
+        -14,
+        -999983,
+        1,
+        5908
+      ],
+      "position_mm": [
+        2017393,
+        -237012,
+        1469003
+      ],
+      "tick": 427980,
+      "velocity_mm_s": [
+        0,
+        0,
+        0
+      ]
+    }
+  ],
+  "params": {
+    "carry_forward_max_ticks": 10,
+    "tick_hz": 20,
+    "turn_rate_max_deg_s": 75.0
+  },
+  "report": {
+    "carry": {
+      "holds": true,
+      "injected": 4,
+      "injected_seq_acked": 0,
+      "missing_results": 0,
+      "other_outcomes": 0,
+      "path_m": 7.483453270718357,
+      "reject_tick_first": 427750,
+      "reject_tick_last": 427754,
+      "rejected_malformed": 4,
+      "span_within_carry": true,
+      "speed_drops": 0,
+      "speed_first_mps": 33.769730662236555,
+      "speed_last_mps": 39.541884552964845,
+      "why_not": [],
+      "window_pairs": 2
+    },
+    "turn": {
+      "holds": true,
+      "limit_deg_per_tick": 3.75,
+      "max_deg_per_tick": 3.7487103670973605,
+      "max_total_deg_per_tick": 3.7488024186833417,
+      "moving_pairs": 96,
+      "omega_aim_max_deg_s": 75.00017195980287,
+      "omega_aim_over_limit": 0,
+      "omega_roll_max_deg_s": 0.912,
+      "omega_samples": 107,
+      "over_limit_pairs": 0,
+      "pairs": 106,
+      "saturated_pairs": 57,
+      "total_over_limit_pairs": 0,
+      "turn_start_tick": 427768,
+      "why_not": []
+    }
+  },
+  "turn_start_tick": 427768
+}

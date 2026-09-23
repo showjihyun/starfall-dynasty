@@ -2,10 +2,12 @@
 //!
 //! envelope 을 펼쳐 쓰는 이유는 [`crate::commands`] 모듈 문서와 같다.
 
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::primitives::{
-    ConstSchemaVersion, ProbeSeq, ServerVersion, Tick, TickHz, UuidV7, required_nullable,
+    AngularVelocityMdegPerSecond, ConstSchemaVersion, DataId, InputSeq, PositionMm, ProbeSeq,
+    QuaternionComponentMicro, ServerVersion, Tick, TickHz, UuidV7, VelocityMmPerSecond,
+    required_nullable,
 };
 
 /// `PING_REPLY` 의 타입 상수.
@@ -100,6 +102,10 @@ pub enum RejectReasonCode {
     ServerBusy,
     /// 세션의 미응답 명령 상한을 넘었다.
     TooManyInFlight,
+    /// 지속 초과 전송(`rate_limit_hz` 초과). p1-01 신규.
+    RateLimited,
+    /// `input_seq` 가 이미 적용한 값보다 크지 않다. p1-01 신규(ADR-0011 §4).
+    StaleInput,
 }
 
 /// `COMMAND_RESULT` payload.
@@ -221,4 +227,149 @@ pub struct SessionReadyMessage {
     pub correlation_id: Option<UuidV7>,
     /// 타입별 payload.
     pub payload: SessionReadyPayload,
+}
+
+// ---------------------------------------------------------------------------
+// WORLD_SNAPSHOT
+// ---------------------------------------------------------------------------
+
+/// `WORLD_SNAPSHOT` 의 타입 상수.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub enum WorldSnapshotType {
+    /// 유일한 값.
+    #[default]
+    #[serde(rename = "WORLD_SNAPSHOT")]
+    WorldSnapshot,
+}
+
+/// 함선의 존재 상태. `ACTIVE` 는 조종사가 있다, `LINGERING` 은 세션이 끝나고 잔류 중이다.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum ShipPresence {
+    /// 살아 있는 세션이 조종 중이다.
+    Active,
+    /// 세션이 끝나고 잔류 창 안에서 표류 중이다.
+    Lingering,
+}
+
+/// 배열 원소 하나 — 함선 한 척의 권위 상태(양자화됨, ADR-0009).
+///
+/// 각속도는 **둘**이다 — `angular_velocity_{x,y,z}_mdeg_s`(`ω_aim`, 월드 프레임)와
+/// `angular_velocity_roll_mdeg_s`(`ω_roll`, 전방축 스칼라). 합에서 복원할 수 없다
+/// (ADR-0010 §1.1).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ShipState {
+    /// 함선 엔티티 식별자. 캐릭터 ≠ 함선(GDD §4) — 잔류 재개에도 이 값이 그대로다.
+    pub ship_id: UuidV7,
+    /// 이 함선이 속한 행위자.
+    pub actor_id: UuidV7,
+    /// `SHIP_CLASS` 테이블의 행.
+    pub ship_class_id: DataId,
+    /// `ACTIVE` 또는 `LINGERING`.
+    pub presence: ShipPresence,
+    /// 위치 X.
+    pub position_x_mm: PositionMm,
+    /// 위치 Y.
+    pub position_y_mm: PositionMm,
+    /// 위치 Z.
+    pub position_z_mm: PositionMm,
+    /// 속도 X. 타 함선 외삽에 필요하다.
+    pub velocity_x_mm_s: VelocityMmPerSecond,
+    /// 속도 Y.
+    pub velocity_y_mm_s: VelocityMmPerSecond,
+    /// 속도 Z.
+    pub velocity_z_mm_s: VelocityMmPerSecond,
+    /// 자세 x.
+    pub orientation_x_micro: QuaternionComponentMicro,
+    /// 자세 y.
+    pub orientation_y_micro: QuaternionComponentMicro,
+    /// 자세 z.
+    pub orientation_z_micro: QuaternionComponentMicro,
+    /// 자세 w.
+    pub orientation_w_micro: QuaternionComponentMicro,
+    /// `ω_aim` 월드 프레임 각속도 x. **롤을 포함하지 않는다.**
+    pub angular_velocity_x_mdeg_s: AngularVelocityMdegPerSecond,
+    /// `ω_aim` y.
+    pub angular_velocity_y_mdeg_s: AngularVelocityMdegPerSecond,
+    /// `ω_aim` z.
+    pub angular_velocity_z_mdeg_s: AngularVelocityMdegPerSecond,
+    /// `ω_roll` — 전방축 둘레 롤 각속도. 별도 스칼라로 싣는다(ADR-0010 §2).
+    pub angular_velocity_roll_mdeg_s: AngularVelocityMdegPerSecond,
+}
+
+/// `1 ..= 20_000_000` (mm) — float32 예산이 강제하는 경계 상한(ADR-0009 §3).
+fn de_boundary_radius_mm<'de, D>(deserializer: D) -> Result<i64, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let raw = i64::deserialize(deserializer)?;
+    if (1..=20_000_000).contains(&raw) {
+        Ok(raw)
+    } else {
+        Err(serde::de::Error::custom(format!(
+            "경계 반경은 1 ..= 20000000 mm 여야 한다 (받음: {raw})"
+        )))
+    }
+}
+
+/// `1 ..= 255` — `snapshot_interval_ticks`.
+fn de_snapshot_interval_ticks<'de, D>(deserializer: D) -> Result<u16, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let raw = u16::deserialize(deserializer)?;
+    if (1..=255).contains(&raw) {
+        Ok(raw)
+    } else {
+        Err(serde::de::Error::custom(format!(
+            "snapshot_interval_ticks 는 1 ..= 255 여야 한다 (받음: {raw})"
+        )))
+    }
+}
+
+/// `WORLD_SNAPSHOT` payload. 월드부(수신자 공통) + 세션부(수신자별).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct WorldSnapshotPayload {
+    /// 이 좌표가 속한 성계.
+    pub star_system_id: DataId,
+    /// soft 경계. 이 밖이면 원점 방향 당김이 더해진다.
+    #[serde(deserialize_with = "de_boundary_radius_mm")]
+    pub soft_boundary_radius_mm: i64,
+    /// hard 경계. 벽. 상한은 float32 렌더 예산이지 설계 선택이 아니다(ADR-0009 §3).
+    #[serde(deserialize_with = "de_boundary_radius_mm")]
+    pub hard_boundary_radius_mm: i64,
+    /// 연속 스냅샷 사이의 tick 간격.
+    #[serde(deserialize_with = "de_snapshot_interval_ticks")]
+    pub snapshot_interval_ticks: u16,
+    /// 이 세션이 조종 중인 함선, 또는 없으면 `null`.
+    #[serde(deserialize_with = "required_nullable")]
+    pub controlled_ship_id: Option<UuidV7>,
+    /// 서버가 이 세션에 대해 마지막으로 적용한 `input_seq`, 또는 아직 없으면 `null`.
+    #[serde(deserialize_with = "required_nullable")]
+    pub ack_input_seq: Option<InputSeq>,
+    /// 월드의 모든 함선(잔류 포함), `ship_id` 오름차순(I-37).
+    pub ships: Vec<ShipState>,
+}
+
+/// `WORLD_SNAPSHOT` — 그 tick 의 모든 함선의 권위 상태.
+///
+/// 대응 스키마: `contracts/messages/WORLD_SNAPSHOT.schema.json`
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct WorldSnapshotMessage {
+    /// 추적·로그 상관용 서버 생성 UUIDv7.
+    pub message_id: UuidV7,
+    /// 언제나 `WORLD_SNAPSHOT`.
+    pub message_type: WorldSnapshotType,
+    /// 언제나 1.
+    pub schema_version: ConstSchemaVersion<1>,
+    /// 이 스냅샷을 만든 tick.
+    pub tick: Tick,
+    /// 이 슬라이스에서는 언제나 `null`(스펙 §5.2).
+    #[serde(deserialize_with = "required_nullable")]
+    pub correlation_id: Option<UuidV7>,
+    /// 타입별 payload.
+    pub payload: WorldSnapshotPayload,
 }

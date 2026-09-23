@@ -1,0 +1,58 @@
+{
+  "schema_version": 1,
+  "id": "cradle",
+  "display_name": "Cradle",
+  "coordinate_space": {
+    "frame": "system_local",
+    "unit": "meter",
+    "server_type": "f64",
+    "origin": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "up_axis": [
+      0.0,
+      1.0,
+      0.0
+    ]
+  },
+  "play_area": {
+    "soft_boundary_radius_m": 10000.0,
+    "hard_boundary_radius_m": 12000.0,
+    "boundary_pull_mps2": 25.0
+  },
+  "spawn": {
+    "ring_radius_m": 2500.0,
+    "plane": "ecliptic",
+    "point_count": 2,
+    "clearance_m": 150.0,
+    "max_probe_attempts": 12,
+    "radial_offset_step_m": 150.0,
+    "initial_velocity_mps": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "initial_facing": "system_origin",
+    "assignment_rule": "seeded hash of actor_id mod point_count, then clearance probe forward",
+    "points_m": []
+  },
+  "presence": {
+    "linger_seconds": 30,
+    "reconnect_resume_window_seconds": 30
+  },
+  "reference_markers": [
+    {
+      "id": "star-cradle",
+      "display_name": "Cradle",
+      "kind": "star",
+      "position_m": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "visual_radius_m": 600.0
+    }
+  ]
+}

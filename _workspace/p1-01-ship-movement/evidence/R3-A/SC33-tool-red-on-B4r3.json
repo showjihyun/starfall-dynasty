@@ -1,0 +1,158 @@
+{
+  "before_tick": 367674,
+  "after_tick": 367896,
+  "start_tick": [
+    365692,
+    365692
+  ],
+  "scalars": {
+    "snapshots_sent_total": {
+      "before": 1066,
+      "after": 1175,
+      "delta": 109
+    },
+    "snapshot_bytes_total": {
+      "before": 2518957,
+      "after": 2614298,
+      "delta": 95341
+    },
+    "send_queue_bytes": {
+      "before": 0,
+      "after": 0,
+      "delta": 0
+    },
+    "send_queue_bytes_max": {
+      "before": 12288,
+      "after": 18432,
+      "delta": 6144
+    },
+    "input_superseded_total": {
+      "before": 0,
+      "after": 1,
+      "delta": 1
+    },
+    "input_carried_forward_total": {
+      "before": 1832,
+      "after": 1911,
+      "delta": 79
+    },
+    "aim_degenerate_total": {
+      "before": 0,
+      "after": 0,
+      "delta": 0
+    },
+    "ships_active": {
+      "before": 0,
+      "after": 0,
+      "delta": 0
+    },
+    "ships_lingering": {
+      "before": 0,
+      "after": 1,
+      "delta": 1
+    }
+  },
+  "labels": {
+    "commands_rejected_total": {
+      "MALFORMED_COMMAND": {
+        "after": 27,
+        "delta": 27
+      },
+      "UNKNOWN_COMMAND_TYPE": {
+        "after": 0,
+        "delta": 0
+      },
+      "SCHEMA_VERSION_UNSUPPORTED": {
+        "after": 0,
+        "delta": 0
+      },
+      "DUPLICATE_COMMAND_ID": {
+        "after": 0,
+        "delta": 0
+      },
+      "SERVER_BUSY": {
+        "after": 0,
+        "delta": 0
+      },
+      "TOO_MANY_IN_FLIGHT": {
+        "after": 0,
+        "delta": 0
+      },
+      "RATE_LIMITED": {
+        "after": 0,
+        "delta": 0
+      },
+      "STALE_INPUT": {
+        "after": 0,
+        "delta": 0
+      }
+    },
+    "messages_enqueued_total": {
+      "SESSION_READY": {
+        "after": 9,
+        "delta": 5
+      },
+      "COMMAND_RESULT": {
+        "after": 295,
+        "delta": 95
+      },
+      "PING_REPLY": {
+        "after": 0,
+        "delta": 0
+      },
+      "WORLD_SNAPSHOT": {
+        "after": 1175,
+        "delta": 109
+      }
+    },
+    "messages_written_total": {
+      "SESSION_READY": {
+        "after": 9,
+        "delta": 5
+      },
+      "COMMAND_RESULT": {
+        "after": 295,
+        "delta": 95
+      },
+      "PING_REPLY": {
+        "after": 0,
+        "delta": 0
+      },
+      "WORLD_SNAPSHOT": {
+        "after": 1175,
+        "delta": 109
+      }
+    }
+  },
+  "snapshots_sent_vs_written_world_snapshot": [
+    109,
+    109
+  ],
+  "reject_checks": [
+    {
+      "label": "MALFORMED_COMMAND",
+      "bot_observed": 27,
+      "server_delta": 27,
+      "match": true
+    },
+    {
+      "label": "STALE_INPUT",
+      "bot_observed": 40,
+      "server_delta": 0,
+      "match": false
+    },
+    {
+      "label": "RATE_LIMITED",
+      "bot_observed": 6,
+      "server_delta": 0,
+      "match": false
+    }
+  ],
+  "unchanged_new_scalars": [
+    "aim_degenerate_total"
+  ],
+  "fails": [
+    "commands_rejected_total{STALE_INPUT} 델타 0 ≠ 봇이 받은 거부 40",
+    "commands_rejected_total{RATE_LIMITED} 델타 0 ≠ 봇이 받은 거부 6"
+  ]
+}

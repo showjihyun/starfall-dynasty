@@ -4,6 +4,10 @@
     "references": [
         "Starfall.Contracts",
         "Starfall.Net",
+        "Starfall.Sim",
+        "Starfall.Flight",
+        "Starfall.Remote",
+        "Starfall.Greybox",
         "UnityEngine.TestRunner",
         "UnityEditor.TestRunner"
     ],

@@ -32,11 +32,13 @@
 //! 루프(전용 OS 스레드 + `std::thread::sleep`)는 게이트웨이의 `runtime` 모듈에 있다.
 //! 이 크레이트가 루프를 가지면 `sleep` 과 `Instant` 가 결정적 코어로 들어온다.
 
+mod entities;
 mod session;
 mod simulation;
+pub mod world;
 
 pub use session::{DEDUP_CAPACITY, SessionSnapshot};
 pub use simulation::{
     DomainEventBody, IdSource, InboundCommand, Outbound, PendingEvent, PersistBatch, ServerMessage,
-    Simulation, Submission, TickOutcome, WorldConstants,
+    ShipClassData, Simulation, Submission, TickOutcome, WorldConstants,
 };

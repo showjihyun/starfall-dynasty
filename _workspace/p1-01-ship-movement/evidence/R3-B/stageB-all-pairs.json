@@ -1,0 +1,64 @@
+{
+  "item": "SC-14/SC-76 (AC-3g/AC-20a) ship_id 기준 함선 이벤트 짝짓기",
+  "verdict": "PASS",
+  "pairing_key": "ship_id (correlation_id 아님 — I-41)",
+  "ships_checked": 55,
+  "spawned_total": 55,
+  "despawned_total": 55,
+  "unpaired_or_duplicated": [],
+  "actors_with_more_than_one_ship": [
+    {
+      "actor_id": "01a0b1c2-b010-7000-8000-000000000000",
+      "ships": 6
+    },
+    {
+      "actor_id": "01a0b1c2-b010-7000-8000-000000000001",
+      "ships": 7
+    },
+    {
+      "actor_id": "01a0b1c2-b010-7000-8000-000000000002",
+      "ships": 7
+    },
+    {
+      "actor_id": "01a0b1c2-b010-7000-8000-000000000003",
+      "ships": 6
+    },
+    {
+      "actor_id": "01a0b1c2-b010-7000-8000-000000000004",
+      "ships": 2
+    },
+    {
+      "actor_id": "01a0b1c2-b010-7000-8000-000000000005",
+      "ships": 2
+    },
+    {
+      "actor_id": "01a0b1c2-b010-7000-8000-000000000006",
+      "ships": 2
+    },
+    {
+      "actor_id": "01a0b1c2-b010-7000-8000-000000000007",
+      "ships": 3
+    },
+    {
+      "actor_id": "01a0b1c2-b010-7000-8000-000000000008",
+      "ships": 3
+    },
+    {
+      "actor_id": "01a0b1c2-b010-7000-8000-000000000009",
+      "ships": 2
+    },
+    {
+      "actor_id": "01a0b1c2-b010-7000-8000-000000000017",
+      "ships": 2
+    },
+    {
+      "actor_id": "01a0b1c2-b010-7000-8000-000000000090",
+      "ships": 4
+    }
+  ],
+  "tick_window": {
+    "from_tick": 395701,
+    "to_tick": null,
+    "mode": "tick 구간 한정"
+  }
+}

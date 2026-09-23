@@ -20,7 +20,8 @@
 use serde::{Deserialize, Serialize};
 
 use crate::primitives::{
-    ConstSchemaVersion, GameTime, RealTime, Sequence, Tick, UuidV7, required_nullable,
+    ConstSchemaVersion, DataId, GameTime, PositionMm, QuaternionComponentMicro, RealTime, Sequence,
+    Tick, UuidV7, required_nullable,
 };
 
 /// 세션이 수립된 전송 수단. 닫힌 집합(현재 1종).
@@ -47,6 +48,10 @@ pub enum SessionCloseReason {
     ServerShutdown,
     /// 소켓 오류.
     TransportError,
+    /// 같은 actor 가 더 새 세션을 열어 이 세션의 함선을 같은 tick에 넘겨받았다(잔류 없이,
+    /// 사용자 결정 5, ADR-0011 §6.3). **이 사유만** `causation_id` 가 비-null이고, 그 값은
+    /// 넘겨받은 `SESSION_OPENED.event_id` 다.
+    Superseded,
 }
 
 /// `SESSION_OPENED` 의 타입 상수.
@@ -151,4 +156,147 @@ pub struct SessionClosedEvent {
     pub actor_id: UuidV7,
     /// 타입별 payload.
     pub payload: SessionClosedPayload,
+}
+
+// ---------------------------------------------------------------------------
+// SHIP_SPAWNED / SHIP_DESPAWNED
+// ---------------------------------------------------------------------------
+
+/// `SHIP_SPAWNED` 의 타입 상수.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub enum ShipSpawnedType {
+    /// 유일한 값.
+    #[default]
+    #[serde(rename = "SHIP_SPAWNED")]
+    ShipSpawned,
+}
+
+/// `SHIP_DESPAWNED` 의 타입 상수.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub enum ShipDespawnedType {
+    /// 유일한 값.
+    #[default]
+    #[serde(rename = "SHIP_DESPAWNED")]
+    ShipDespawned,
+}
+
+/// 함선이 사라진 이유. 닫힌 집합(현재 2종).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum DespawnReason {
+    /// 잔류 창이 만료됐다.
+    LingerExpired,
+    /// 서버가 정상 종료했다.
+    ServerShutdown,
+}
+
+/// `SHIP_SPAWNED` payload.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ShipSpawnedPayload {
+    /// 새 함선 엔티티.
+    pub ship_id: UuidV7,
+    /// 함선이 스폰된 세션. `SESSION_OPENED` 와 같은 값.
+    pub session_id: UuidV7,
+    /// `SHIP_CLASS` 테이블의 행.
+    pub ship_class_id: DataId,
+    /// 위치가 속한 성계.
+    pub star_system_id: DataId,
+    /// 스폰 위치 X.
+    pub position_x_mm: PositionMm,
+    /// 스폰 위치 Y.
+    pub position_y_mm: PositionMm,
+    /// 스폰 위치 Z.
+    pub position_z_mm: PositionMm,
+    /// 스폰 자세 x.
+    pub orientation_x_micro: QuaternionComponentMicro,
+    /// 스폰 자세 y.
+    pub orientation_y_micro: QuaternionComponentMicro,
+    /// 스폰 자세 z.
+    pub orientation_z_micro: QuaternionComponentMicro,
+    /// 스폰 자세 w.
+    pub orientation_w_micro: QuaternionComponentMicro,
+}
+
+/// `SHIP_DESPAWNED` payload.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ShipDespawnedPayload {
+    /// 사라진 함선. `SHIP_SPAWNED` 와 같은 `ship_id` 로 짝짓는다(correlation 아님, I-41).
+    pub ship_id: UuidV7,
+    /// 이 함선을 마지막으로 몰았던 세션.
+    pub last_session_id: UuidV7,
+    /// 사라진 이유.
+    pub despawn_reason: DespawnReason,
+    /// 마지막 위치 X.
+    pub position_x_mm: PositionMm,
+    /// 마지막 위치 Y.
+    pub position_y_mm: PositionMm,
+    /// 마지막 위치 Z.
+    pub position_z_mm: PositionMm,
+}
+
+/// `SHIP_SPAWNED` — 함선 엔티티가 존재를 시작했다.
+///
+/// 대응 스키마: `contracts/events/domain/SHIP_SPAWNED.schema.json`
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ShipSpawnedEvent {
+    /// 저장·전달 멱등 키.
+    pub event_id: UuidV7,
+    /// 언제나 `SHIP_SPAWNED`.
+    pub event_type: ShipSpawnedType,
+    /// 언제나 1.
+    pub schema_version: ConstSchemaVersion<1>,
+    /// 월드(샤드) id.
+    pub world_id: UuidV7,
+    /// 발행한 tick.
+    pub tick: Tick,
+    /// 그 tick 안의 발행 순서.
+    pub sequence: Sequence,
+    /// 게임 시간.
+    pub occurred_at: GameTime,
+    /// 실제 시각. 감사 전용.
+    pub recorded_at: RealTime,
+    /// 이 스폰을 일으킨 세션의 correlation.
+    pub correlation_id: UuidV7,
+    /// **좁혀졌다 — 비-null**. 언제나 같은 tick의 `SESSION_OPENED.event_id`.
+    pub causation_id: UuidV7,
+    /// **좁혀졌다 — 비-null**. 이 함선이 속한 행위자.
+    pub actor_id: UuidV7,
+    /// 타입별 payload.
+    pub payload: ShipSpawnedPayload,
+}
+
+/// `SHIP_DESPAWNED` — 함선 엔티티가 존재를 마쳤다.
+///
+/// 대응 스키마: `contracts/events/domain/SHIP_DESPAWNED.schema.json`
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ShipDespawnedEvent {
+    /// 저장·전달 멱등 키.
+    pub event_id: UuidV7,
+    /// 언제나 `SHIP_DESPAWNED`.
+    pub event_type: ShipDespawnedType,
+    /// 언제나 1.
+    pub schema_version: ConstSchemaVersion<1>,
+    /// 월드(샤드) id.
+    pub world_id: UuidV7,
+    /// 발행한 tick.
+    pub tick: Tick,
+    /// 그 tick 안의 발행 순서.
+    pub sequence: Sequence,
+    /// 게임 시간.
+    pub occurred_at: GameTime,
+    /// 실제 시각. 감사 전용.
+    pub recorded_at: RealTime,
+    /// 이 잔류를 시작시킨 세션의 correlation.
+    pub correlation_id: UuidV7,
+    /// **좁혀졌다 — 비-null**. 그 잔류를 시작시킨 `SESSION_CLOSED.event_id`(여러 tick 전일 수
+    /// 있다 — 상관과 인과가 다른 시각을 가리킨다, HSE §102).
+    pub causation_id: UuidV7,
+    /// **좁혀졌다 — 비-null**. 이 함선이 속했던 행위자.
+    pub actor_id: UuidV7,
+    /// 타입별 payload.
+    pub payload: ShipDespawnedPayload,
 }

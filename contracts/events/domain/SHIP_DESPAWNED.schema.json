@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.starfall.invalid/contracts/events/domain/SHIP_DESPAWNED.schema.json",
+  "title": "ShipDespawnedEvent",
+  "description": "The ship entity opened by SHIP_SPAWNED stopped existing, with the reason and the last position it held. A ship does NOT despawn when its pilot disconnects - it lingers, visible and coasting, and this event fires only when that window expires or the server shuts down. The final position is the answer to 'where was that ship when it left', which is the question event reconstruction asks first and which no other record can answer once the in-memory world drops the ship. Pair it with its SHIP_SPAWNED by ship_id, not by correlation_id: a ship can outlive several sessions, and correlation_id here names the session whose close started the linger. Importance level 0 by design. actor_id and causation_id are both narrowed to non-null: the linger that ended was always started by a SESSION_CLOSED, so a cause always exists.",
+  "allOf": [
+    {
+      "$ref": "../../common/event-envelope.schema.json"
+    }
+  ],
+  "properties": {
+    "event_type": {
+      "const": "SHIP_DESPAWNED"
+    },
+    "schema_version": {
+      "const": 1
+    },
+    "actor_id": {
+      "description": "Narrowed from the envelope: the actor the ship belonged to.",
+      "$ref": "../../common/primitives.schema.json#/$defs/UuidV7"
+    },
+    "causation_id": {
+      "description": "Narrowed from the envelope: the event_id of the SESSION_CLOSED that ended this ship's last session and started its linger window. Possibly many ticks earlier - correlation and causation are different questions (HSE section 102).",
+      "$ref": "../../common/primitives.schema.json#/$defs/UuidV7"
+    },
+    "payload": {
+      "$ref": "#/$defs/ShipDespawnedPayload"
+    }
+  },
+  "unevaluatedProperties": false,
+  "$defs": {
+    "ShipDespawnedPayload": {
+      "title": "ShipDespawnedPayload",
+      "type": "object",
+      "required": [
+        "ship_id",
+        "last_session_id",
+        "despawn_reason",
+        "position_x_mm",
+        "position_y_mm",
+        "position_z_mm"
+      ],
+      "properties": {
+        "ship_id": {
+          "description": "Ship that stopped existing. Matches exactly one SHIP_SPAWNED with the same ship_id.",
+          "$ref": "../../common/primitives.schema.json#/$defs/UuidV7"
+        },
+        "last_session_id": {
+          "description": "The last session that flew this ship. Not necessarily the session that spawned it: a reconnect inside the linger window reclaims the ship under a new session.",
+          "$ref": "../../common/primitives.schema.json#/$defs/UuidV7"
+        },
+        "despawn_reason": {
+          "description": "Why the ship stopped existing. A closed set today; destruction, docking and scuttling add values later, so consumers must tolerate unknown values. Note what is NOT here: a pilot disconnecting does not despawn a ship.",
+          "type": "string",
+          "enum": [
+            "LINGER_EXPIRED",
+            "SERVER_SHUTDOWN"
+          ]
+        },
+        "position_x_mm": {
+          "$ref": "../../common/primitives.schema.json#/$defs/PositionMm"
+        },
+        "position_y_mm": {
+          "$ref": "../../common/primitives.schema.json#/$defs/PositionMm"
+        },
+        "position_z_mm": {
+          "$ref": "../../common/primitives.schema.json#/$defs/PositionMm"
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

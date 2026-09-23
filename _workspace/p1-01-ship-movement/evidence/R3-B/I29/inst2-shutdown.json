@@ -1,0 +1,35 @@
+{
+  "item": "SC-13 (AC-3f) 정상 종료 디스폰 — (a) 잔류 / (b) 활성",
+  "verdict": "FAIL",
+  "server_shutdown_despawns": 1,
+  "a_lingering": 0,
+  "b_active_same_tick": 1,
+  "cause_wrong_or_not_earlier": [
+    {
+      "ship_id": "01a0c48b-5c7b-7109-8fef-a496af3ff9d0",
+      "tick": 430030,
+      "sequence": 0,
+      "cause_type": "SHIP_DESPAWNED",
+      "cause_tick": 430030,
+      "cause_sequence": 0,
+      "cause_earlier": false
+    }
+  ],
+  "rows": [
+    {
+      "ship_id": "01a0c48b-5c7b-7109-8fef-a496af3ff9d0",
+      "tick": 430030,
+      "sequence": 0,
+      "cause_type": "SHIP_DESPAWNED",
+      "cause_tick": 430030,
+      "cause_sequence": 0,
+      "cause_earlier": false
+    }
+  ],
+  "note": "(a)(b) 중 하나라도 0 이면 그 경로는 이 실행에서 타지 않았다 — PASS 아님",
+  "tick_window": {
+    "from_tick": 427105,
+    "to_tick": null,
+    "mode": "tick 구간 한정"
+  }
+}

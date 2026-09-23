@@ -12,7 +12,7 @@
 
 use std::collections::{HashSet, VecDeque};
 
-use starfall_contracts::UuidV7;
+use starfall_contracts::{SetShipControlPayload, UuidV7};
 
 /// 세션마다 기억하는 최근 `command_id` 수 (ADR-0006 §6).
 ///
@@ -28,6 +28,19 @@ use starfall_contracts::UuidV7;
 /// **이것을 진짜 멱등성으로 착각하지 말 것.**
 pub const DEDUP_CAPACITY: usize = 1024;
 
+/// 한 tick 동안 이 세션의 입력 판정 진행 상태 — [`SessionState::step_ship_control`] 가
+/// 매 `SET_SHIP_CONTROL` 마다 갱신하고, tick 끝의 물리 적분 단계가 읽는다.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ShipControlAdmission {
+    /// 후보가 아니다(`input_seq` 가 세션의 마지막 적용값보다 크지 않다) — `STALE_INPUT`.
+    Stale,
+    /// 이 tick의 세션별 처리 한도를 넘었다 — `RATE_LIMITED`.
+    RateLimited,
+    /// 후보로 접수됐다. 이전에 이 tick에서 이긴 후보가 있었으면 그것은 방금 밀려났다
+    /// (`superseded = true`).
+    Accepted { superseded_previous: bool },
+}
+
 /// 한 세션의 시뮬레이션 상태.
 #[derive(Debug)]
 pub(crate) struct SessionState {
@@ -39,6 +52,26 @@ pub(crate) struct SessionState {
     order: VecDeque<UuidV7>,
     /// 같은 집합의 조회용 색인. **순회하지 않으므로** 결정성에 영향이 없다.
     seen: HashSet<UuidV7>,
+    /// 서버가 이 세션에 대해 마지막으로 **적용한** `input_seq`. 재개 포함, 새 세션은
+    /// 언제나 `None` 에서 시작한다(ADR-0011 §4·§6).
+    pub(crate) last_applied_input_seq: Option<u32>,
+    /// 이번 tick 동안 제출된 `SET_SHIP_CONTROL` 중 지금 이기고 있는 것 — `(tick, payload)`.
+    /// tick이 끝나면 물리 적분이 이 값을 읽고, 다음 tick 시작 시 [`SessionState::last_applied_input_seq`]
+    /// 로 확정된다. tick 번호를 함께 들고 있는 이유: 이 세션에 이번 tick 입력이 **없었던**
+    /// 경우와 구분하기 위해서다(값을 매 tick 지우지 않고 "이 tick 것이 맞는가"만 본다).
+    pub(crate) tick_winner: Option<(u64, SetShipControlPayload)>,
+    /// 이번 tick 동안 이 세션에서 몇 건의 `SET_SHIP_CONTROL` 을 후보 판정에 넣었는가
+    /// (세션별 tick당 처리 한도 — RATE_LIMITED 판정용). tick마다 리셋된다.
+    tick_processed_count: u32,
+    tick_processed_at: u64,
+    /// 이 세션이 지금 조종하는 함선(있다면) — R4 S-2, architect 1.6-1(b).
+    ///
+    /// 세션을 닫을 때 자기가 조종하던 함선을 **이 필드로** 찾는다. `Simulation::actor_ship`
+    /// (actor → 함선 표)를 거치지 않는 이유: 동시 접속(같은 actor 의 두 번째 `OpenSession`,
+    /// I-29 R3 §6.7)이 있으면 그 표는 **다른** 세션이 조종하는 함선을 가리킬 수 있다 —
+    /// QA 가 찾은 원인 2가 정확히 이것이었다("표가 다른 함선을 가리키자 전이가 조용히
+    /// 건너뛰어졌다"). 이 필드는 그 세션 자신의 기록이라 흔들리지 않는다.
+    pub(crate) controlling_ship: Option<UuidV7>,
 }
 
 impl SessionState {
@@ -48,6 +81,11 @@ impl SessionState {
             correlation_id,
             order: VecDeque::with_capacity(64),
             seen: HashSet::with_capacity(64),
+            last_applied_input_seq: None,
+            tick_winner: None,
+            tick_processed_count: 0,
+            tick_processed_at: 0,
+            controlling_ship: None,
         }
     }
 
@@ -65,11 +103,55 @@ impl SessionState {
         true
     }
 
+    /// `SET_SHIP_CONTROL` 한 건을 이번 tick의 후보 판정에 넣는다(ADR-0011 §4).
+    ///
+    /// 세션 안에서 **도착 순서대로** 불러야 한다 — "가장 마지막에 도착한 것이 이긴다"가
+    /// 이 순서에 의존한다. `per_tick_cap` 은 `rate_limit_hz` 에서 유도한 세션당 tick 처리
+    /// 상한이다.
+    pub(crate) fn step_ship_control(
+        &mut self,
+        tick: u64,
+        payload: SetShipControlPayload,
+        per_tick_cap: u32,
+    ) -> ShipControlAdmission {
+        if self.tick_processed_at != tick {
+            self.tick_processed_at = tick;
+            self.tick_processed_count = 0;
+        }
+        self.tick_processed_count += 1;
+        if self.tick_processed_count > per_tick_cap {
+            return ShipControlAdmission::RateLimited;
+        }
+
+        let seq = payload.input_seq.get();
+        let is_candidate = self.last_applied_input_seq.is_none_or(|last| seq > last);
+        if !is_candidate {
+            return ShipControlAdmission::Stale;
+        }
+
+        let superseded_previous =
+            matches!(&self.tick_winner, Some((winner_tick, _)) if *winner_tick == tick);
+        self.tick_winner = Some((tick, payload));
+        self.last_applied_input_seq = Some(seq);
+        ShipControlAdmission::Accepted {
+            superseded_previous,
+        }
+    }
+
+    /// 이번 tick에 이 세션이 확정한 입력(있다면). 물리 적분 단계가 tick 끝에 부른다.
+    pub(crate) fn winning_input_for_tick(&self, tick: u64) -> Option<&SetShipControlPayload> {
+        match &self.tick_winner {
+            Some((winner_tick, payload)) if *winner_tick == tick => Some(payload),
+            _ => None,
+        }
+    }
+
     pub(crate) fn snapshot(&self) -> SessionSnapshot {
         SessionSnapshot {
             actor_id: self.actor_id,
             correlation_id: self.correlation_id,
             remembered_commands: self.order.len(),
+            last_applied_input_seq: self.last_applied_input_seq,
         }
     }
 }
@@ -85,6 +167,9 @@ pub struct SessionSnapshot {
     pub correlation_id: UuidV7,
     /// 지금 기억 중인 `command_id` 수.
     pub remembered_commands: usize,
+    /// 서버가 이 세션에 대해 마지막으로 적용한 `input_seq`(`WORLD_SNAPSHOT.ack_input_seq` 와
+    /// 같은 값 — ADR-0011 §4).
+    pub last_applied_input_seq: Option<u32>,
 }
 
 #[cfg(test)]

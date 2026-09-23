@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "id": "p1-01-default",
+  "snapshot": {
+    "snapshot_hz": 0,
+    "max_entities_per_snapshot": 64,
+    "egress_budget_kib_s_per_session": 192.0,
+    "fallback_snapshot_hz_if_over_budget": 5
+  },
+  "input": {
+    "client_send_hz": 20,
+    "carry_forward_max_ticks": 10,
+    "rate_limit_hz": 40,
+    "protocol_violation_hz": 100
+  },
+  "prediction": {
+    "remote_interp_delay_ms": 200.0,
+    "remote_extrapolate_max_ms": 250.0,
+    "reconcile_ignore_threshold_m": 0.005,
+    "reconcile_smooth_threshold_m": 0.25,
+    "reconcile_smooth_duration_ms": 200.0,
+    "reconcile_hard_snap_threshold_m": 5.0,
+    "reconcile_orientation_ignore_threshold_deg": 0.02,
+    "reconcile_orientation_smooth_threshold_deg": 1.0,
+    "reconcile_orientation_hard_snap_deg": 15.0
+  }
+}

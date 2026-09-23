@@ -68,7 +68,12 @@ fn read_invalid_fixtures(type_name: &str) -> Vec<(String, String)> {
 #[test]
 fn server_message_fixtures_round_trip() {
     let mut checked = 0usize;
-    for type_name in ["SESSION_READY", "COMMAND_RESULT", "PING_REPLY"] {
+    for type_name in [
+        "SESSION_READY",
+        "COMMAND_RESULT",
+        "PING_REPLY",
+        "WORLD_SNAPSHOT",
+    ] {
         let fixtures = read_valid_fixtures(type_name);
         assert_eq!(
             fixtures.len(),
@@ -84,6 +89,7 @@ fn server_message_fixtures_round_trip() {
                 Inbound::SessionReady(m) => serde_json::to_value(&*m),
                 Inbound::CommandResult(m) => serde_json::to_value(&*m),
                 Inbound::PingReply(m) => serde_json::to_value(&*m),
+                Inbound::WorldSnapshot(m) => serde_json::to_value(&*m),
                 Inbound::Unknown { message_type } => {
                     panic!("{name}: 모르는 타입으로 읽혔다: {message_type}")
                 }
@@ -100,8 +106,8 @@ fn server_message_fixtures_round_trip() {
         }
     }
     assert_eq!(
-        checked, 6,
-        "서버 메시지 유효 fixture 6건을 전부 검사해야 한다"
+        checked, 8,
+        "서버 메시지 유효 fixture 8건을 전부 검사해야 한다 (p1-01 의 WORLD_SNAPSHOT 2건 포함)"
     );
     eprintln!("checked {checked} valid server-message fixtures");
 }
@@ -200,4 +206,70 @@ fn contract_type_literals_are_present() {
     assert_eq!(wire::PING_REPLY, "PING_REPLY");
     assert_eq!(wire::COMMAND_RESULT, "COMMAND_RESULT");
     assert_eq!(wire::SESSION_READY, "SESSION_READY");
+}
+
+/// p1-01: 봇이 **보내는** 조작 명령이 계약 fixture 와 같은 모양인가.
+#[test]
+fn set_ship_control_fixtures_round_trip() {
+    let fixtures = read_valid_fixtures("SET_SHIP_CONTROL");
+    assert_eq!(
+        fixtures.len(),
+        2,
+        "SET_SHIP_CONTROL 유효 fixture 는 2건이다"
+    );
+    for (name, text) in &fixtures {
+        let original: serde_json::Value =
+            serde_json::from_str(text).unwrap_or_else(|e| panic!("{name}: {e}"));
+        let cmd: wire::SetShipControlCommand =
+            serde_json::from_str(text).unwrap_or_else(|e| panic!("{name}: 봇이 읽지 못한다: {e}"));
+        let back = serde_json::to_value(&cmd).unwrap_or_else(|e| panic!("{name}: {e}"));
+        assert_eq!(back, original, "{name}: 왕복 결과가 원본과 다르다");
+    }
+    eprintln!("checked {} valid SET_SHIP_CONTROL fixtures", fixtures.len());
+}
+
+/// **I-26 의 계약 수준 방어**: 위치·현재 자세 필드가 주입된 명령을 봇 타입이 거부한다.
+/// 봇이 받아들이면 "어휘에 없다"를 시험하는 치트 시나리오가 무의미해진다.
+#[test]
+fn injected_position_and_attitude_fields_are_rejected_by_the_bot_type() {
+    let mut checked = 0usize;
+    for file in [
+        "position-field-injected.json",
+        "attitude-field-injected.json",
+    ] {
+        let found = read_invalid_fixtures("SET_SHIP_CONTROL")
+            .into_iter()
+            .find(|(n, _)| n == file);
+        let Some((name, text)) = found else {
+            panic!("반례 fixture 가 없다: SET_SHIP_CONTROL/invalid/{file}");
+        };
+        let parsed: Result<wire::SetShipControlCommand, _> = serde_json::from_str(&text);
+        assert!(
+            parsed.is_err(),
+            "{name}: 봇 타입이 주입된 필드를 받아들였다 — deny_unknown_fields 가 꺼졌는가?"
+        );
+        checked += 1;
+    }
+    assert_eq!(checked, 2);
+}
+
+/// 봇이 만드는 조작 명령에 **위치·자세 필드가 없다**(어휘 부재가 곧 방어다).
+#[test]
+fn generated_control_command_has_no_position_or_attitude_fields() {
+    let cmd = wire::SetShipControlCommand::new(uuid::Uuid::now_v7(), 1).with_thrust(0, 0, 1000);
+    let v = serde_json::to_value(&cmd).expect("serialize");
+    let payload = v["payload"].as_object().expect("payload object");
+    for banned in [
+        "position_x_mm",
+        "position_y_mm",
+        "position_z_mm",
+        "velocity_x_mm_s",
+        "orientation_x_micro",
+        "ship_id",
+    ] {
+        assert!(!payload.contains_key(banned), "금지 필드가 있다: {banned}");
+    }
+    assert_eq!(payload.len(), 11, "SET_SHIP_CONTROL payload 는 11필드다");
+    assert_eq!(payload["aim_w_micro"], serde_json::json!(1_000_000));
+    assert_eq!(payload["flight_assist"], serde_json::json!(true));
 }

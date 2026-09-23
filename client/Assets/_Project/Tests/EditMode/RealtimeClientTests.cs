@@ -104,6 +104,35 @@ namespace Starfall.Tests.EditMode
             Assert.Throws<ArgumentNullException>(() => ReconnectPolicy.DelayMs(0, null));
         }
 
+        // ------------------------------------------------------------------ SUPERSEDED (close code 4001, R3 decision 5)
+        //
+        // Pure function, no transport (01_architect_decisions.md R3 1.3: "재연결 정책은 순수
+        // C#이라 전송 계층 없이 테스트 가능할 것이다"). The RealtimeClient-level behaviour tests
+        // below cover the wiring; this covers the policy table itself.
+
+        [Test]
+        public void ShouldReconnect_IsFalseOnlyForTheSupersededCloseCode()
+        {
+            int?[] codes = { null, 1000, 1001, 1006, 4000, ReconnectPolicy.SupersededCloseCode, 4002 };
+            bool[] expected = { true, true, true, true, true, false, true };
+
+            for (int i = 0; i < codes.Length; i++)
+            {
+                bool actual = ReconnectPolicy.ShouldReconnect(codes[i]);
+                TestContext.WriteLine("close_code=" + (codes[i].HasValue ? codes[i].Value.ToString(CultureInfo.InvariantCulture) : "null") +
+                                      " should_reconnect=" + actual);
+                Assert.That(actual, Is.EqualTo(expected[i]), "close_code=" + codes[i]);
+            }
+        }
+
+        [Test]
+        public void ShouldReconnect_SupersededCloseCodeIs4001()
+        {
+            // RFC 6455 application range, ADR-0005's close-code table (R3 1.3): a magic number
+            // pinned as a named constant so it appears exactly once in the codebase.
+            Assert.That(ReconnectPolicy.SupersededCloseCode, Is.EqualTo(4001));
+        }
+
         // ------------------------------------------------------------------ SC-45
 
         [Test]
@@ -330,6 +359,103 @@ namespace Starfall.Tests.EditMode
             Assert.That(_transport.ConnectCount, Is.EqualTo(connectsBefore),
                 "an explicit disconnect must end the reconnect loop");
             Assert.That(_log.Contains("not reconnecting"), Is.True);
+        }
+
+        // ------------------------------------------------------------------ SUPERSEDED (close code 4001, R3 decision 5)
+        //
+        // 01_architect_decisions.md "R3 추가 판정" section 1.3: when the same actor opens a
+        // second session, the server hands the ship to the newer session in the same tick and
+        // closes the old connection with WebSocket close code 4001. This rule is load-bearing,
+        // not optional (leader's brief): SESSION_READY is the only point _attempt resets to 0
+        // (OnSessionReady above), so if the client auto-reconnected here, two windows on the
+        // same account would push each other off at the ~500 ms backoff floor forever, each
+        // cycle writing a permanent SESSION_OPENED/SESSION_CLOSED pair to the history record.
+
+        [Test]
+        public void Disconnect_WithSupersededCloseCode_DoesNotReconnect()
+        {
+            ConnectAndOpen();
+            int connectsBefore = _transport.ConnectCount;
+
+            _transport.SimulateDisconnect(DisconnectKind.Remote, ReconnectPolicy.SupersededCloseCode,
+                "another session took over");
+            _client.Pump();
+            _client.Pump();
+
+            Assert.That(_transport.ConnectCount, Is.EqualTo(connectsBefore),
+                "close code 4001 must end the reconnect loop, exactly like an explicit Disconnect()");
+        }
+
+        [Test]
+        public void Disconnect_WithSupersededCloseCode_LogsAGreppableLine()
+        {
+            ConnectAndOpen();
+
+            _transport.SimulateDisconnect(DisconnectKind.Remote, ReconnectPolicy.SupersededCloseCode, "detail");
+            _client.Pump();
+
+            foreach (string line in _log.Lines) TestContext.WriteLine(line);
+            Assert.That(_log.Contains("starfall.net: SUPERSEDED close_code=4001"), Is.True,
+                "QA and a developer reading client/Logs/Editor.log both need a single fixed " +
+                "line to confirm the client actually stopped, not a screenshot of two windows");
+        }
+
+        [Test]
+        public void Disconnect_WithSupersededCloseCode_RaisesSupersededElsewhere()
+        {
+            ConnectAndOpen();
+
+            bool raised = false;
+            _client.SupersededElsewhere += () => raised = true;
+
+            _transport.SimulateDisconnect(DisconnectKind.Remote, ReconnectPolicy.SupersededCloseCode, "detail");
+            _client.Pump();
+
+            Assert.That(raised, Is.True,
+                "the HUD (GreyboxSession) needs an event to show 'connected elsewhere', " +
+                "not just a log line nobody is watching live");
+        }
+
+        [Test]
+        public void Disconnect_WithSupersededCloseCode_StillDropsInFlightCommands()
+        {
+            // The 4001 branch must not skip the existing disconnect bookkeeping (I-23) - it is
+            // an additional decision made after the normal disconnect handling, not a
+            // replacement for it.
+            ConnectAndOpen();
+            _client.SendPing();
+
+            _transport.SimulateDisconnect(DisconnectKind.Remote, ReconnectPolicy.SupersededCloseCode, "detail");
+            _client.Pump();
+
+            Assert.That(_log.Contains("starfall.net: dropping 1 in-flight command(s) on disconnect (no resend, I-23)"),
+                Is.True);
+        }
+
+        [TestCase(null, TestName = "OtherCloseCode_NoCodeAtAll_StillReconnects")]
+        [TestCase(1000, TestName = "OtherCloseCode_NormalClosure_StillReconnects")]
+        [TestCase(1001, TestName = "OtherCloseCode_GoingAway_StillReconnects")]
+        [TestCase(1006, TestName = "OtherCloseCode_AbnormalClosure_StillReconnects")]
+        [TestCase(4000, TestName = "OtherCloseCode_AdjacentAppRangeCode_StillReconnects")]
+        [TestCase(4002, TestName = "OtherCloseCode_AdjacentAppRangeCode2_StillReconnects")]
+        public void Disconnect_WithAnyOtherCloseCode_StillReconnects(int? closeCode)
+        {
+            // world_full's refused upgrade (no close code), a dropped TCP connection,
+            // SLOW_CONSUMER, a normal 1000 close - every close code except 4001 must keep
+            // reconnecting exactly as before this change.
+            ConnectAndOpen();
+            int connectsBefore = _transport.ConnectCount;
+
+            _transport.SimulateDisconnect(DisconnectKind.Remote, closeCode, "detail");
+            _client.Pump();
+
+            Assert.That(_client.Attempt, Is.EqualTo(1),
+                "close_code=" + closeCode + " must still schedule a reconnect (attempt incremented)");
+            // The reconnect itself only fires once the backoff timer elapses, which this test
+            // does not advance - Attempt climbing is the observable proof a retry was scheduled
+            // (see Reconnect_CounterResetsOnlyOnSessionReady above for the same pattern).
+            Assert.That(_transport.ConnectCount, Is.EqualTo(connectsBefore),
+                "no immediate reconnect before the backoff delay elapses");
         }
 
         [Test]

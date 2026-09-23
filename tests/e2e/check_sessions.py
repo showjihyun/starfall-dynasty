@@ -14,6 +14,13 @@ import sys
 import db
 
 
+
+# `contracts/events/domain/SESSION_CLOSED.schema.json` 의 close_reason enum (계약 7차: SUPERSEDED 추가).
+KNOWN_CLOSE_REASONS = {
+    "CLIENT_CLOSED", "IDLE_TIMEOUT", "PROTOCOL_VIOLATION", "SLOW_CONSUMER",
+    "SERVER_SHUTDOWN", "TRANSPORT_ERROR", "SUPERSEDED",
+}
+
 def run(args: argparse.Namespace) -> int:
     db.require_tables("domain_events")
     corr = db.read_correlations(args.corr)
@@ -56,6 +63,9 @@ def run(args: argparse.Namespace) -> int:
             "group by 1 order by 1;"
         )
     )
+    # 계약 enum(`SESSION_CLOSED.schema.json`) 밖의 값은 조용히 넘기지 않는다. `SUPERSEDED` 는 계약 7차
+    # (사용자 결정 5)에서 들어온 정상값이다 — 같은 actor 의 새 세션이 넘겨받았다.
+    unknown_reasons = {k: v for k, v in reasons.items() if k not in KNOWN_CLOSE_REASONS}
     # 이벤트 쌍이 actor_id 를 실제로 갖는가 (좁힘: 비-null — I-10)
     null_actor = db.scalar_int(
         "select count(*) from domain_events "
@@ -70,6 +80,7 @@ def run(args: argparse.Namespace) -> int:
         and not absent
         and null_actor == 0
         and opened == expect
+        and not unknown_reasons
     )
     result = {
         "item": "SC-57/58 (AC-16a·b) 세션 쌍 대조",
@@ -83,6 +94,7 @@ def run(args: argparse.Namespace) -> int:
         "correlations_absent_from_db": absent,
         "rows_with_null_actor_id": null_actor,
         "close_reasons": reasons,
+        "close_reasons_unknown_to_contract": unknown_reasons,
         "other_event_types_in_set": other_types,
     }
     db.emit(result, args.evidence)

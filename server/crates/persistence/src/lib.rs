@@ -25,11 +25,12 @@ use sqlx::postgres::{PgPool, PgPoolOptions};
 use sqlx::{Row, Transaction};
 use starfall_contracts::events::{
     SessionClosedEvent, SessionClosedType, SessionOpenedEvent, SessionOpenedType,
+    ShipDespawnedEvent, ShipDespawnedType, ShipSpawnedEvent, ShipSpawnedType,
 };
 use starfall_contracts::primitives::{
     ConstSchemaVersion, GameCalendar, GameTime, RealTime, ServerVersion, UuidV7,
 };
-use starfall_sim::{DomainEventBody, PendingEvent, PersistBatch, WorldConstants};
+use starfall_sim::{DomainEventBody, PendingEvent, PersistBatch};
 
 /// 영속화 실패.
 #[derive(Debug, thiserror::Error)]
@@ -108,6 +109,20 @@ pub async fn run_migrations(pool: &PgPool) -> Result<(), PersistenceError> {
     Ok(())
 }
 
+/// `worlds` 테이블(DB)에서만 오는 월드 상수. `data/` 3종에서 오는 나머지
+/// (`starfall_sim::WorldConstants` 의 게임 데이터 필드)는 이 크레이트가 모른다 —
+/// `persistence` 는 DB만 알고 `data/` 로딩은 `bins/game-server` 의 몫이다. 호출자가 이
+/// 값과 게임 데이터를 합쳐 `WorldConstants` 를 완성한다.
+#[derive(Debug, Clone)]
+pub struct WorldBasics {
+    /// 월드(샤드) id.
+    pub world_id: UuidV7,
+    /// 게임 달력 상수. 월드 수명 동안 불변 (I-19).
+    pub calendar: GameCalendar,
+    /// 서버 빌드 버전.
+    pub server_version: ServerVersion,
+}
+
 /// `worlds` 행을 읽고 설정과 대조한다. 다르면 **기동을 거부한다** (AC-2).
 ///
 /// # Errors
@@ -118,7 +133,7 @@ pub async fn load_world(
     world_id: UuidV7,
     configured_tick_hz: u32,
     server_version: ServerVersion,
-) -> Result<(WorldConstants, Option<u64>), PersistenceError> {
+) -> Result<(WorldBasics, Option<u64>), PersistenceError> {
     let row = sqlx::query(
         "SELECT tick_hz, calendar_epoch, calendar_scale, last_tick FROM worlds WHERE world_id = $1",
     )
@@ -149,7 +164,7 @@ pub async fn load_world(
         })?;
 
     Ok((
-        WorldConstants {
+        WorldBasics {
             world_id,
             calendar,
             server_version,
@@ -356,7 +371,62 @@ fn contract_payload(event: &PendingEvent, recorded_at: &RealTime) -> (&'static s
                 extract_payload(&full),
             )
         }
+        DomainEventBody::ShipSpawned(payload) => {
+            let full = ShipSpawnedEvent {
+                event_id: event.event_id,
+                event_type: ShipSpawnedType::ShipSpawned,
+                schema_version: ConstSchemaVersion,
+                world_id: event.world_id,
+                tick: event.tick,
+                sequence: event.sequence,
+                occurred_at: event.occurred_at.clone(),
+                recorded_at: recorded_at.clone(),
+                correlation_id: event.correlation_id,
+                causation_id: non_null_causation(event),
+                actor_id: event.actor_id,
+                payload: payload.clone(),
+            };
+            (
+                starfall_contracts::registry::SHIP_SPAWNED,
+                extract_payload(&full),
+            )
+        }
+        DomainEventBody::ShipDespawned(payload) => {
+            let full = ShipDespawnedEvent {
+                event_id: event.event_id,
+                event_type: ShipDespawnedType::ShipDespawned,
+                schema_version: ConstSchemaVersion,
+                world_id: event.world_id,
+                tick: event.tick,
+                sequence: event.sequence,
+                occurred_at: event.occurred_at.clone(),
+                recorded_at: recorded_at.clone(),
+                correlation_id: event.correlation_id,
+                causation_id: non_null_causation(event),
+                actor_id: event.actor_id,
+                payload: *payload,
+            };
+            (
+                starfall_contracts::registry::SHIP_DESPAWNED,
+                extract_payload(&full),
+            )
+        }
     }
+}
+
+/// `SHIP_SPAWNED`/`SHIP_DESPAWNED` 는 계약이 `causation_id` 를 비-null 로 좁힌다(I-30) —
+/// `Simulation` 이 항상 `Some` 을 채워 보낸다는 것이 불변식이다. 그래도 `unwrap`/`expect`
+/// 로 패닉하지 않는다 — 어겨졌다면 서버가 죽는 것보다 **눈에 띄게 틀린 값**(이벤트 자신의
+/// id)을 저장하고 로그로 드러내는 편이 낫다(rust-authoritative-server §8).
+fn non_null_causation(event: &PendingEvent) -> UuidV7 {
+    event.causation_id.unwrap_or_else(|| {
+        tracing::error!(
+            event_id = %event.event_id,
+            event_type = event.body.event_type(),
+            "I-30 위반 — SHIP_* 이벤트의 causation_id 가 None 이다. event_id 로 대신한다"
+        );
+        event.event_id
+    })
 }
 
 fn extract_payload<T: serde::Serialize>(event: &T) -> Value {

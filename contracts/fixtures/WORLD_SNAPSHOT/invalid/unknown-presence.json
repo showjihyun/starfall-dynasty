@@ -1,0 +1,57 @@
+{
+  "message_id": "01a0b1c2-9c04-7d14-9155-4c667788dd99",
+  "message_type": "WORLD_SNAPSHOT",
+  "schema_version": 1,
+  "tick": 24000,
+  "correlation_id": null,
+  "payload": {
+    "star_system_id": "cradle",
+    "soft_boundary_radius_mm": 10000000,
+    "hard_boundary_radius_mm": 12000000,
+    "snapshot_interval_ticks": 2,
+    "controlled_ship_id": "01a0b1c2-8b01-7a11-8b22-9c33d44e55f6",
+    "ack_input_seq": 1042,
+    "ships": [
+      {
+        "ship_id": "01a0b1c2-8b01-7a11-8b22-9c33d44e55f6",
+        "actor_id": "01a0b1c2-2c01-7a45-8b67-89abcdef0123",
+        "ship_class_id": "scout-s01",
+        "presence": "ACTIVE",
+        "position_x_mm": 1500000,
+        "position_y_mm": -250000,
+        "position_z_mm": 42000,
+        "velocity_x_mm_s": 18000,
+        "velocity_y_mm_s": 0,
+        "velocity_z_mm_s": -3500,
+        "orientation_x_micro": 0,
+        "orientation_y_micro": 707107,
+        "orientation_z_micro": 0,
+        "orientation_w_micro": 707107,
+        "angular_velocity_x_mdeg_s": 0,
+        "angular_velocity_y_mdeg_s": 12000,
+        "angular_velocity_z_mdeg_s": 0,
+        "angular_velocity_roll_mdeg_s": -4500
+      },
+      {
+        "ship_id": "01a0b1c2-8b02-7a12-9c33-0d44e55f6a77",
+        "actor_id": "01a0b1c2-2c02-7b46-8c68-9abcdef01234",
+        "ship_class_id": "scout-s01",
+        "presence": "GHOST",
+        "position_x_mm": -3200000,
+        "position_y_mm": 118000,
+        "position_z_mm": 990000,
+        "velocity_x_mm_s": -4200,
+        "velocity_y_mm_s": 0,
+        "velocity_z_mm_s": 0,
+        "orientation_x_micro": 0,
+        "orientation_y_micro": 0,
+        "orientation_z_micro": 0,
+        "orientation_w_micro": 1000000,
+        "angular_velocity_x_mdeg_s": 0,
+        "angular_velocity_y_mdeg_s": 0,
+        "angular_velocity_z_mdeg_s": 0,
+        "angular_velocity_roll_mdeg_s": 0
+      }
+    ]
+  }
+}

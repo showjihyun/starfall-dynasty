@@ -1,0 +1,8 @@
+SC-32 ship 01a0c484-dcf2-77e2-9ebe-62d63518ea68 despawn tick (DB LINGER_EXPIRED) 425445
+observer rows for ship: 326 presence {'ACTIVE': 26, 'LINGERING': 300}
+first/last row tick 424794 425444 | LINGERING span 424846 .. 425444
+rows after despawn tick: 0
+observer snapshot tick range 424778 .. 425648 -> watched after despawn: True
+LINGERING -> ACTIVE reversal rows: 0
+observer controlled ship 01a0c484-d9d2-7575-8a3a-7a886b4813e8 != leg1 ship True
+leg2 new ship 01a0c485-6fa0-7373-92c6-02351af9dea4 (linger expired -> new spawn)

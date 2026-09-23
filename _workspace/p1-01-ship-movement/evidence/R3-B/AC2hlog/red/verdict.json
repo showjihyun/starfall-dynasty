@@ -1,0 +1,259 @@
+{
+  "label": "red",
+  "expect": "fail",
+  "mode": "strict",
+  "exe": "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Temp\\claude\\C--WorkSpace-SpaceHistoric\\84d80a95-10c8-429a-b327-e769291e85db\\scratchpad\\red-logsink\\target\\debug\\starfall-game-server.exe",
+  "rust_log": null,
+  "pipe": {
+    "capacity": 4096,
+    "capacity_source": "GetNamedPipeInfo",
+    "info": {
+      "ok": true,
+      "out_buffer": 4096,
+      "in_buffer": 4096
+    },
+    "max_avail": 4256,
+    "first_full_at_s": 4.093,
+    "samples": 1365
+  },
+  "fills": [
+    {
+      "cmd": "run --scenario b --bots 4 --cycles 5 --pings 1 --url ws://127.0.0.1:8080/ws --out C:\\WorkSpace\\SpaceHistoric\\_workspace\\p1-01-ship-movement\\evidence\\R3-B\\AC2hlog\\red\\fill-1",
+      "rc": 1,
+      "timed_out": true,
+      "elapsed_s": 60.02,
+      "log": "fill-1.log",
+      "round": 1,
+      "peek_after": 4256
+    }
+  ],
+  "probe": {
+    "cmd": "probe --case auth-ok --url ws://127.0.0.1:8080/ws --label bot-090",
+    "rc": 1,
+    "timed_out": true,
+    "elapsed_s": 20.02,
+    "log": "probe-auth-ok.log"
+  },
+  "health": [
+    [
+      "000",
+      "000"
+    ],
+    [
+      "000",
+      "000"
+    ],
+    [
+      "000",
+      "000"
+    ],
+    [
+      "000",
+      "000"
+    ],
+    [
+      "000",
+      "000"
+    ],
+    [
+      "000",
+      "000"
+    ],
+    [
+      "000",
+      "000"
+    ],
+    [
+      "000",
+      "000"
+    ],
+    [
+      "000",
+      "000"
+    ],
+    [
+      "000",
+      "000"
+    ]
+  ],
+  "stdout_bytes_after": 12993,
+  "stderr_bytes": 0,
+  "dropped_total": null,
+  "drop_notices": 0,
+  "shutdown": {
+    "rc": 0,
+    "without_drain": false,
+    "released_by_drain": true,
+    "hard_killed": false
+  },
+  "verdict": "FAIL",
+  "condition_occurred": true,
+  "condition_basis": [
+    "peek 4256 B >= 용량 4096 B"
+  ],
+  "health_samples": 10,
+  "healthz_200": 0,
+  "stats_200": 0,
+  "session_ready_under_full": false,
+  "shutdown_ok": false,
+  "fail_reasons": [
+    "health 0/10 · stats 0/10 (최소 표본 3)",
+    "파이프가 찬 상태에서 SESSION_READY 도달 = False",
+    "shutdown rc=0 without_drain=False drop_probe=False"
+  ],
+  "timeline": [
+    {
+      "t_s": 0.343,
+      "event": "spawned",
+      "pid": 15632,
+      "exe": "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Temp\\claude\\C--WorkSpace-SpaceHistoric\\84d80a95-10c8-429a-b327-e769291e85db\\scratchpad\\red-logsink\\target\\debug\\starfall-game-server.exe",
+      "exe_mtime": "2026-09-21T23:41:42",
+      "rust_log": null,
+      "pipe_info": {
+        "ok": true,
+        "out_buffer": 4096,
+        "in_buffer": 4096
+      },
+      "pipe_capacity": 4096,
+      "capacity_source": "GetNamedPipeInfo"
+    },
+    {
+      "t_s": 0.859,
+      "event": "ready",
+      "peek": 1440
+    },
+    {
+      "t_s": 60.875,
+      "event": "fill_round",
+      "cmd": "run --scenario b --bots 4 --cycles 5 --pings 1 --url ws://127.0.0.1:8080/ws --out C:\\WorkSpace\\SpaceHistoric\\_workspace\\p1-01-ship-movement\\evidence\\R3-B\\AC2hlog\\red\\fill-1",
+      "rc": 1,
+      "timed_out": true,
+      "elapsed_s": 60.02,
+      "log": "fill-1.log",
+      "round": 1,
+      "peek_after": 4256
+    },
+    {
+      "t_s": 60.875,
+      "event": "fill_done",
+      "peek_now": 4256,
+      "peek_max": 4256,
+      "capacity": 4096
+    },
+    {
+      "t_s": 66.89,
+      "event": "health",
+      "i": 0,
+      "healthz": "000",
+      "stats": "000",
+      "peek": 4256
+    },
+    {
+      "t_s": 73.421,
+      "event": "health",
+      "i": 1,
+      "healthz": "000",
+      "stats": "000",
+      "peek": 4256
+    },
+    {
+      "t_s": 79.953,
+      "event": "health",
+      "i": 2,
+      "healthz": "000",
+      "stats": "000",
+      "peek": 4256
+    },
+    {
+      "t_s": 86.5,
+      "event": "health",
+      "i": 3,
+      "healthz": "000",
+      "stats": "000",
+      "peek": 4256
+    },
+    {
+      "t_s": 93.031,
+      "event": "health",
+      "i": 4,
+      "healthz": "000",
+      "stats": "000",
+      "peek": 4256
+    },
+    {
+      "t_s": 99.593,
+      "event": "health",
+      "i": 5,
+      "healthz": "000",
+      "stats": "000",
+      "peek": 4256
+    },
+    {
+      "t_s": 106.125,
+      "event": "health",
+      "i": 6,
+      "healthz": "000",
+      "stats": "000",
+      "peek": 4256
+    },
+    {
+      "t_s": 112.671,
+      "event": "health",
+      "i": 7,
+      "healthz": "000",
+      "stats": "000",
+      "peek": 4256
+    },
+    {
+      "t_s": 119.187,
+      "event": "health",
+      "i": 8,
+      "healthz": "000",
+      "stats": "000",
+      "peek": 4256
+    },
+    {
+      "t_s": 125.718,
+      "event": "health",
+      "i": 9,
+      "healthz": "000",
+      "stats": "000",
+      "peek": 4256
+    },
+    {
+      "t_s": 146.234,
+      "event": "probe_session_ready",
+      "ok": false,
+      "cmd": "probe --case auth-ok --url ws://127.0.0.1:8080/ws --label bot-090",
+      "rc": 1,
+      "timed_out": true,
+      "elapsed_s": 20.02,
+      "log": "probe-auth-ok.log",
+      "peek": 4256
+    },
+    {
+      "t_s": 146.234,
+      "event": "shutdown_sent",
+      "reader_running": false
+    },
+    {
+      "t_s": 166.25,
+      "event": "shutdown_timeout",
+      "waited_s": 20.0
+    },
+    {
+      "t_s": 166.25,
+      "event": "drain_resumed",
+      "reason": "shutdown 이 시간 안에 안 먹었다 — 소비자를 되살려 본다"
+    },
+    {
+      "t_s": 166.312,
+      "event": "exited",
+      "rc": 0,
+      "elapsed_s": 20.08,
+      "without_drain": false,
+      "released_by_drain": true,
+      "hard_killed": false
+    }
+  ]
+}

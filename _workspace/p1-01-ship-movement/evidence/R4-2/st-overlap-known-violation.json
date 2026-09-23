@@ -1,0 +1,21 @@
+{
+  "item": "I-29 actor 당 동시 1척 (수명 구간 겹침)",
+  "verdict": "FAIL",
+  "ships_checked": 6,
+  "concurrent_overlaps": [
+    {
+      "actor_id": "01a0b1c2-b010-7000-8000-000000000044",
+      "ship_a": "01a0c48b-5c7b-7109-8fef-a496af3ff9d0",
+      "a_spawn": 428680,
+      "a_despawn": 430030,
+      "ship_b": "01a0c48b-663f-76d3-b9b8-2de5ba0ab1f2",
+      "b_spawn": 428730,
+      "b_despawn": 429561
+    }
+  ],
+  "tick_window": {
+    "from_tick": 427105,
+    "to_tick": 430030,
+    "mode": "tick 구간 한정"
+  }
+}

@@ -24,27 +24,37 @@
 //! 왕복·반례 거부·`required` 변이·정수 상한을 자동으로 덮는다.
 
 pub mod commands;
+pub mod data;
 pub mod dispatch;
 pub mod events;
 pub mod messages;
 pub mod primitives;
 pub mod registry;
 
-pub use commands::{PingServerCommand, PingServerPayload, PingServerType};
+pub use commands::{
+    PingServerCommand, PingServerPayload, PingServerType, SetShipControlCommand,
+    SetShipControlPayload, SetShipControlType,
+};
+pub use data::{ShipClassTable, StarSystemTable, SyncTuningTable};
 pub use events::{
-    SessionCloseReason, SessionClosedEvent, SessionClosedPayload, SessionClosedType,
+    DespawnReason, SessionCloseReason, SessionClosedEvent, SessionClosedPayload, SessionClosedType,
     SessionOpenedEvent, SessionOpenedPayload, SessionOpenedType, SessionTransport,
+    ShipDespawnedEvent, ShipDespawnedPayload, ShipDespawnedType, ShipSpawnedEvent,
+    ShipSpawnedPayload, ShipSpawnedType,
 };
 pub use messages::{
     CommandResultMessage, CommandResultPayload, CommandResultType, CommandStatus, PingReplyMessage,
     PingReplyPayload, PingReplyType, RejectReasonCode, SessionReadyMessage, SessionReadyPayload,
-    SessionReadyType,
+    SessionReadyType, ShipPresence, ShipState, WorldSnapshotMessage, WorldSnapshotPayload,
+    WorldSnapshotType,
 };
 pub use primitives::{
-    ConstSchemaVersion, GameCalendar, GameTime, MAX_SAFE_INTEGER, ProbeSeq, RealTime, Sequence,
-    ServerVersion, Tick, TickHz, UuidV7,
+    AngularVelocityMdegPerSecond, ConstSchemaVersion, ControlAxisMilli, DataId, GameCalendar,
+    GameTime, InputSeq, MAX_SAFE_INTEGER, PositionMm, ProbeSeq, QuaternionComponentMicro, RealTime,
+    SchemaVersion, Sequence, ServerVersion, Tick, TickHz, UuidV7, VelocityMmPerSecond,
 };
 pub use registry::{
     COMMAND_RESULT, CONTRACT_TYPES, ContractType, PING_REPLY, PING_SERVER, SESSION_CLOSED,
-    SESSION_OPENED, SESSION_READY,
+    SESSION_OPENED, SESSION_READY, SET_SHIP_CONTROL, SHIP_CLASS, SHIP_DESPAWNED, SHIP_SPAWNED,
+    STAR_SYSTEM, SYNC_TUNING, WORLD_SNAPSHOT,
 };

@@ -521,6 +521,226 @@ impl<'de> Deserialize<'de> for TickHz {
     }
 }
 
+// ---------------------------------------------------------------------------
+// 범위 검증 정수 newtype (물리량 — ADR-0009 §2)
+// ---------------------------------------------------------------------------
+
+/// `$min ..= $max` 범위의 정수 newtype 을 만든다. 여섯 물리량 전부가 이 매크로를 쓴다 —
+/// 언어 정수 타입(`i64`/`i32`/`u32`)만으로는 계약의 진짜 범위(예: `InputSeq` 의 `1..`)를
+/// 강제하지 못하기 때문이다.
+macro_rules! bounded_int_newtype {
+    ($name:ident, $repr:ty, $min:expr, $max:expr, $label:literal) => {
+        #[doc = concat!("범위 검증 ", $label, " (", stringify!($repr), ").")]
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+        pub struct $name($repr);
+
+        impl $name {
+            /// 범위 안이면 감싼다.
+            #[must_use]
+            pub const fn new(value: $repr) -> Option<Self> {
+                if value >= $min && value <= $max {
+                    Some(Self(value))
+                } else {
+                    None
+                }
+            }
+
+            /// 내부 값.
+            #[must_use]
+            pub const fn get(self) -> $repr {
+                self.0
+            }
+
+            /// 범위 밖이면 클램프해서 감싼다 — 이미 같은 범위로 양자화된 값(물리 계산 뒤
+            /// `world::quantise::quantise` 를 거친 값 등)을 넣을 때 쓴다. `unwrap`/`expect`
+            /// 없이 언제나 성공한다(clippy `unwrap_used`/`expect_used` 를 운영 경로에서
+            /// 피하는 자리 — rust-authoritative-server §8).
+            #[must_use]
+            pub const fn saturating(value: $repr) -> Self {
+                if value < $min {
+                    Self($min)
+                } else if value > $max {
+                    Self($max)
+                } else {
+                    Self(value)
+                }
+            }
+        }
+
+        impl Serialize for $name {
+            fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+                Serialize::serialize(&self.0, serializer)
+            }
+        }
+
+        impl<'de> Deserialize<'de> for $name {
+            fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+                let raw = <$repr>::deserialize(deserializer)?;
+                Self::new(raw).ok_or_else(|| {
+                    D::Error::custom(format!(
+                        "{} 는 {} ..= {} 범위여야 한다 (받음: {raw})",
+                        $label, $min, $max
+                    ))
+                })
+            }
+        }
+    };
+}
+
+bounded_int_newtype!(
+    PositionMm,
+    i64,
+    -1_000_000_000_000i64,
+    1_000_000_000_000i64,
+    "PositionMm"
+);
+bounded_int_newtype!(
+    VelocityMmPerSecond,
+    i32,
+    -100_000_000i32,
+    100_000_000i32,
+    "VelocityMmPerSecond"
+);
+bounded_int_newtype!(
+    QuaternionComponentMicro,
+    i32,
+    -1_000_000i32,
+    1_000_000i32,
+    "QuaternionComponentMicro"
+);
+bounded_int_newtype!(
+    AngularVelocityMdegPerSecond,
+    i32,
+    -3_600_000i32,
+    3_600_000i32,
+    "AngularVelocityMdegPerSecond"
+);
+bounded_int_newtype!(
+    ControlAxisMilli,
+    i32,
+    -1_000i32,
+    1_000i32,
+    "ControlAxisMilli"
+);
+bounded_int_newtype!(InputSeq, u32, 1u32, u32::MAX, "InputSeq");
+
+// ---------------------------------------------------------------------------
+// DataId — data/ 테이블 `id` 필드와 글자 그대로 같은 문자열 (ADR-0009 §2)
+// ---------------------------------------------------------------------------
+
+/// `data/` 테이블 행의 식별자. lower-kebab-case, 변환 없음.
+///
+/// `data/` 는 **파일 이름이 아니라 이 값으로** 색인한다 — 파일을 옮겨도 과거 도메인 이벤트의
+/// 참조가 끊기지 않는다(principle 5). 패턴: `^[a-z][a-z0-9]*(-[a-z0-9]+)*$`.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct DataId(String);
+
+/// `^[a-z][a-z0-9]*(-[a-z0-9]+)*$` 를 손으로 검사한다(정규식 크레이트를 들이지 않는다).
+fn is_lower_kebab(value: &str) -> bool {
+    let mut segments = value.split('-');
+    let Some(first) = segments.next() else {
+        return false;
+    };
+    let mut chars = first.bytes();
+    let Some(head) = chars.next() else {
+        return false;
+    };
+    if !head.is_ascii_lowercase() {
+        return false;
+    }
+    if !chars.all(|b| b.is_ascii_lowercase() || b.is_ascii_digit()) {
+        return false;
+    }
+    for segment in segments {
+        if segment.is_empty()
+            || !segment
+                .bytes()
+                .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit())
+        {
+            return false;
+        }
+    }
+    true
+}
+
+impl DataId {
+    /// 패턴을 만족하면 감싼다.
+    #[must_use]
+    pub fn parse(value: impl Into<String>) -> Option<Self> {
+        let value = value.into();
+        is_lower_kebab(&value).then_some(Self(value))
+    }
+
+    /// 원본 문자열.
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl fmt::Display for DataId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+
+impl Serialize for DataId {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_str(&self.0)
+    }
+}
+
+impl<'de> Deserialize<'de> for DataId {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let raw = String::deserialize(deserializer)?;
+        Self::parse(raw.clone())
+            .ok_or_else(|| D::Error::custom(format!("DataId 패턴에 맞지 않는다: {raw}")))
+    }
+}
+
+/// `data/` 테이블 파일의 스키마 버전. 계약 범위 `1 ..= 2147483647`(공통 `SchemaVersion` 정의).
+///
+/// [`ConstSchemaVersion`] 과 다르다 — 와이어 envelope 의 `schema_version` 은 타입마다
+/// **고정된 상수**이지만, 데이터 테이블의 `schema_version` 은 파일마다 있는 **평범한 정수
+/// 필드**다(지금은 전부 1이지만 계약이 고정하지 않는다).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct SchemaVersion(u32);
+
+impl SchemaVersion {
+    /// 범위 안이면 감싼다.
+    #[must_use]
+    pub const fn new(value: u32) -> Option<Self> {
+        if value >= 1 && value <= 2_147_483_647 {
+            Some(Self(value))
+        } else {
+            None
+        }
+    }
+
+    /// 내부 값.
+    #[must_use]
+    pub const fn get(self) -> u32 {
+        self.0
+    }
+}
+
+impl Serialize for SchemaVersion {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_u32(self.0)
+    }
+}
+
+impl<'de> Deserialize<'de> for SchemaVersion {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let raw = u32::deserialize(deserializer)?;
+        Self::new(raw).ok_or_else(|| {
+            D::Error::custom(format!(
+                "schema_version 은 1 ..= 2147483647 이어야 한다 (받음: {raw})"
+            ))
+        })
+    }
+}
+
 /// 서버 빌드 버전 문자열. 계약 패턴 `^[0-9A-Za-z][0-9A-Za-z.+_-]{0,63}$`.
 ///
 /// **로그·버그 리포트 전용이다.** 기능 게이팅에 쓰지 않는다 — 호환성은 타입별
@@ -782,5 +1002,38 @@ mod tests {
     fn const_schema_version_rejects_other_values() {
         assert!(serde_json::from_str::<ConstSchemaVersion<1>>("1").is_ok());
         assert!(serde_json::from_str::<ConstSchemaVersion<1>>("2").is_err());
+    }
+
+    #[test]
+    fn input_seq_rejects_zero() {
+        assert!(serde_json::from_str::<InputSeq>("1").is_ok());
+        assert!(serde_json::from_str::<InputSeq>("4294967295").is_ok());
+        assert!(serde_json::from_str::<InputSeq>("0").is_err());
+    }
+
+    #[test]
+    fn control_axis_milli_rejects_above_range() {
+        assert!(serde_json::from_str::<ControlAxisMilli>("1000").is_ok());
+        assert!(serde_json::from_str::<ControlAxisMilli>("-1000").is_ok());
+        assert!(serde_json::from_str::<ControlAxisMilli>("1001").is_err());
+        assert!(serde_json::from_str::<ControlAxisMilli>("-1001").is_err());
+    }
+
+    #[test]
+    fn position_mm_round_trips_and_rejects_out_of_range() {
+        let value: PositionMm = serde_json::from_str("18375").unwrap();
+        assert_eq!(value.get(), 18375);
+        assert_eq!(serde_json::to_string(&value).unwrap(), "18375");
+        assert!(serde_json::from_str::<PositionMm>("1000000000001").is_err());
+    }
+
+    #[test]
+    fn data_id_accepts_lower_kebab_and_rejects_other_shapes() {
+        for raw in ["scout-s01", "cradle", "p1-01-default"] {
+            assert!(DataId::parse(raw).is_some(), "거부됐다: {raw}");
+        }
+        for raw in ["Scout-S01", "-scout", "scout--s01", "scout-", "", "SCOUT"] {
+            assert!(DataId::parse(raw).is_none(), "통과했다: {raw}");
+        }
     }
 }

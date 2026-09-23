@@ -1,0 +1,70 @@
+{
+  "start_tick": 430357,
+  "run_from_tick": 430380,
+  "A": {
+    "label": "bot-050",
+    "snaps": {
+      "before": {
+        "tick": 430380,
+        "ws_connections": 0,
+        "ships_active": 0,
+        "ships_lingering": 0
+      },
+      "s1_only": {
+        "tick": 430422,
+        "ws_connections": 1,
+        "ships_active": 1,
+        "ships_lingering": 0
+      },
+      "after_s2": {
+        "tick": 430462,
+        "ws_connections": 1,
+        "ships_active": 1,
+        "ships_lingering": 0
+      },
+      "both_closed": {
+        "tick": 430653,
+        "ws_connections": 1,
+        "ships_active": 1,
+        "ships_lingering": 0
+      },
+      "after_linger": {
+        "tick": 431353,
+        "ws_connections": 0,
+        "ships_active": 0,
+        "ships_lingering": 0
+      }
+    }
+  },
+  "B": {
+    "label": "bot-051",
+    "snaps": {
+      "before": {
+        "tick": 431353,
+        "ws_connections": 0,
+        "ships_active": 0,
+        "ships_lingering": 0
+      },
+      "s1_only": {
+        "tick": 431393,
+        "ws_connections": 1,
+        "ships_active": 1,
+        "ships_lingering": 0
+      },
+      "after_s2": {
+        "tick": 431433,
+        "ws_connections": 1,
+        "ships_active": 1,
+        "ships_lingering": 0
+      },
+      "s1_closed": {
+        "tick": 431433,
+        "ws_connections": 1,
+        "ships_active": 1,
+        "ships_lingering": 0
+      }
+    },
+    "s2_pid": 36712,
+    "note": "S2 가 살아 있는 동안 qa 가 stdin shutdown 을 보낸다"
+  }
+}

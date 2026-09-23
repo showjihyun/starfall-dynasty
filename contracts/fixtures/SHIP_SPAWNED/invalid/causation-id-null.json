@@ -1,0 +1,26 @@
+{
+  "event_id": "01a0b1c2-4a14-7d0a-b8e2-3f0a4b5c6d7e",
+  "event_type": "SHIP_SPAWNED",
+  "schema_version": 1,
+  "world_id": "01a0b1c2-3d4e-7f01-8a2b-9c0d1e2f3a4b",
+  "tick": 1200,
+  "sequence": 1,
+  "occurred_at": "3800-01-01T01:00:00Z",
+  "recorded_at": "2026-09-18T13:04:22.417Z",
+  "correlation_id": "01a0b1c2-4a12-7c01-8d02-1e033f044a05",
+  "causation_id": null,
+  "actor_id": "01a0b1c2-2c01-7a45-8b67-89abcdef0123",
+  "payload": {
+    "ship_id": "01a0b1c2-8b01-7a11-8b22-9c33d44e55f6",
+    "session_id": "01a0b1c2-4a11-7b22-9c33-0d44e55f6a77",
+    "ship_class_id": "scout-s01",
+    "star_system_id": "cradle",
+    "position_x_mm": 0,
+    "position_y_mm": 0,
+    "position_z_mm": -8000000,
+    "orientation_x_micro": 0,
+    "orientation_y_micro": 0,
+    "orientation_z_micro": 0,
+    "orientation_w_micro": 1000000
+  }
+}

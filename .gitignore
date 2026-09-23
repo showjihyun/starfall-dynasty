@@ -14,6 +14,9 @@ target/
 **/*.rs.bk
 # server/.sqlx/ IS tracked on purpose: it is the offline metadata that lets the
 # workspace build without a database. Never add a .sqlx pattern here (server review R, AC-11).
+# server/crates/sim/tests/data/replay/ IS tracked on purpose: the determinism replay
+# artifacts are the shared reference Unity EditMode reads by relative path, so they must
+# exist in a fresh clone. Never ignore them (ADR-0010 section 3.1).
 
 # ---------- Unity (client/) ----------
 # .meta files are tracked. Never ignore them: Unity GUIDs live there.
@@ -87,3 +90,9 @@ desktop.ini
 .idea/
 *.swp
 *~
+
+# 화면 녹화는 추적하지 않는다 — SC-59 육안 검증 1회가 153 MB 였다.
+# 관찰 기록(.md)과 색인 프레임(.png)은 추적하므로 증거 사슬은 끊기지 않는다.
+# (리더가 2026-09-23 추가 — architect 확인 대기. 이 파일의 "volatile output만 무시" 원칙에 따른 것)
+_workspace/**/*.mp4
+_workspace/**/*.mkv

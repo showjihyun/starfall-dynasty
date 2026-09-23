@@ -63,7 +63,7 @@ namespace Starfall.Contracts.Generated
 
         public sealed class SessionClosedPayload
         {
-            /// <summary>CLIENT_CLOSED: the peer closed cleanly. IDLE_TIMEOUT: no pong within the liveness window. PROTOCOL_VIOLATION: the peer exceeded the violation budget. SLOW_CONSUMER: the outbound queue filled and the server dropped the connection to protect the tick loop. SERVER_SHUTDOWN: graceful shutdown. TRANSPORT_ERROR: the socket failed. Values may be ADDED in a later version; consumers must tolerate unknown values.</summary>
+            /// <summary>CLIENT_CLOSED: the peer closed cleanly. IDLE_TIMEOUT: no pong within the liveness window. PROTOCOL_VIOLATION: the peer exceeded the violation budget. SLOW_CONSUMER: the outbound queue filled and the server dropped the connection to protect the tick loop. SERVER_SHUTDOWN: graceful shutdown. TRANSPORT_ERROR: the socket failed. SUPERSEDED: the same actor opened a newer session, which took over this session's ship in the same tick without a linger window; this is the only reason whose causation_id is non-null, and it is that newer session's SESSION_OPENED.event_id (same tick, smaller sequence). Every other reason is a transport fact with no causing event, so its causation_id stays null. Values may be ADDED in a later version; consumers must tolerate unknown values.</summary>
             [JsonProperty("close_reason", Required = Required.Always)]
             public string CloseReason { get; set; }
 

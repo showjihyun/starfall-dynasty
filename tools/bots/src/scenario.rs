@@ -23,6 +23,8 @@ pub enum Stage {
     Backpressure,
     /// D 기록 내구성 — A 와 같은 부하를 길게. 그 사이 QA 가 DB 를 멈춘다
     Durability,
+    /// **p1-01 비행 부하** — 모든 봇이 `SET_SHIP_CONTROL` 로 전방 추력을 넣는다.
+    Fly,
 }
 
 impl Stage {
@@ -32,6 +34,7 @@ impl Stage {
             "b" | "churn" => Some(Self::Churn),
             "c" | "backpressure" => Some(Self::Backpressure),
             "d" | "durability" => Some(Self::Durability),
+            "e" | "fly" | "move" => Some(Self::Fly),
             _ => None,
         }
     }
@@ -42,6 +45,7 @@ impl Stage {
             Self::Churn => "b-churn",
             Self::Backpressure => "c-backpressure",
             Self::Durability => "d-durability",
+            Self::Fly => "e-fly",
         }
     }
 }
@@ -128,6 +132,14 @@ pub async fn run(cfg: &RunConfig) -> (Clock, Vec<ConnectionOutcome>) {
                 pings: cfg.pings,
                 grace: Duration::from_millis(1500),
             },
+            Stage::Fly => Behavior::Fly {
+                interval: cfg.interval,
+                duration: cfg.duration,
+                // 전방(로컬 +Z) 최대 추력. ADR-0009 §1의 축 규약.
+                thrust: (0, 0, 1000),
+                brake_last: Duration::ZERO,
+                phase,
+            },
             Stage::Backpressure => {
                 if i + 1 == cfg.bots {
                     Behavior::Flood {
@@ -197,6 +209,23 @@ pub enum ProbeCase {
     Oversize,
     Binary,
     Idle,
+    // ── p1-01 치트 7종 ──────────────────────────────────────────────────────
+    /// 조작 입력을 정상 주기로 보낸다(관측용).
+    Fly,
+    /// 위치 필드 주입 (계약 반례 원문 그대로).
+    CheatPosition,
+    /// 현재 자세 필드 주입.
+    CheatAttitude,
+    /// 조작 값 범위 초과 (`thrust_z_milli = 5000`).
+    CheatRange,
+    /// `input_seq` 역행·반복.
+    CheatSeq,
+    /// `SESSION_READY` 직후 폭주 (10배 속도).
+    CheatFlood,
+    /// 접속 직후, `SESSION_READY` 를 기다리지 않고 전송.
+    CheatPreReady,
+    /// SC-24 (c)(d) 한 실행: 유효 → 범위 초과 → 유효 재개 → `aim_*` 극단값. 분석은 `range_turn`.
+    CheatRangeTurn,
 }
 
 impl ProbeCase {
@@ -210,6 +239,14 @@ impl ProbeCase {
             "oversize" => Some(Self::Oversize),
             "binary" => Some(Self::Binary),
             "idle" => Some(Self::Idle),
+            "fly" => Some(Self::Fly),
+            "cheat-position" => Some(Self::CheatPosition),
+            "cheat-attitude" => Some(Self::CheatAttitude),
+            "cheat-range" => Some(Self::CheatRange),
+            "cheat-seq" => Some(Self::CheatSeq),
+            "cheat-flood" => Some(Self::CheatFlood),
+            "pre-ready" => Some(Self::CheatPreReady),
+            "cheat-range-turn" => Some(Self::CheatRangeTurn),
             _ => None,
         }
     }
@@ -224,6 +261,14 @@ impl ProbeCase {
             Self::Oversize => "oversize",
             Self::Binary => "binary",
             Self::Idle => "idle",
+            Self::Fly => "fly",
+            Self::CheatPosition => "cheat-position",
+            Self::CheatAttitude => "cheat-attitude",
+            Self::CheatRange => "cheat-range",
+            Self::CheatSeq => "cheat-seq",
+            Self::CheatFlood => "cheat-flood",
+            Self::CheatPreReady => "pre-ready",
+            Self::CheatRangeTurn => "cheat-range-turn",
         }
     }
 
@@ -240,6 +285,82 @@ impl ProbeCase {
             Self::Oversize => "SC-24 (AC-8a): 위반 계수 후 close 1002 + PROTOCOL_VIOLATION",
             Self::Binary => "SC-25 (AC-8b): 바이너리 프레임도 같은 예산, close 1002",
             Self::Idle => "SC-26 (AC-8c): Pong 없음 → close 1001 + IDLE_TIMEOUT",
+            Self::Fly => "SC-61/62 관측용: SET_SHIP_CONTROL 정상 주기 전송",
+            Self::CheatPosition => {
+                "SC-23/SC-66 (AC-5a/AC-17a): 위치 필드 주입 → MALFORMED_COMMAND, 상태 변화 0"
+            }
+            Self::CheatAttitude => {
+                "SC-23/SC-66 (AC-5a/AC-17a): 현재 자세 필드 주입 → MALFORMED_COMMAND"
+            }
+            Self::CheatRange => "SC-24/SC-67 (AC-5c/AC-17b): 범위 초과 → 거부 + 이월로 조작 유지",
+            Self::CheatSeq => "SC-67 (AC-17d): input_seq 역행 → STALE_INPUT, ack 후퇴 없음",
+            Self::CheatFlood => {
+                "SC-20/SC-25 (AC-6): 폭주 — 큰 burst 가 SLOW_CONSUMER 로 끊기지 않는다"
+            }
+            Self::CheatPreReady => {
+                "SC-68 (AC-17g): SESSION_READY 이전 전송이 함선을 만들거나 움직이지 않는다"
+            }
+            Self::CheatRangeTurn => {
+                "SC-24 (c)(d) / SC-67: 범위 초과 거부 + 같은 실행에서 이월 지속, aim 극단값의 tick 당 회전 ≤ 한도"
+            }
+        }
+    }
+}
+
+/// 치트 프레임 원문. **계약 반례 파일을 그대로** 보낸다 — 봇의 타입을 거치면
+/// "어휘에 없는 필드"를 시험할 수 없다(직렬화 단계에서 우리가 먼저 막아 버린다).
+fn cheat_frames(case: ProbeCase, count: u32) -> Vec<String> {
+    let rel = match case {
+        ProbeCase::CheatPosition => {
+            "contracts/fixtures/SET_SHIP_CONTROL/invalid/position-field-injected.json"
+        }
+        ProbeCase::CheatAttitude => {
+            "contracts/fixtures/SET_SHIP_CONTROL/invalid/attitude-field-injected.json"
+        }
+        ProbeCase::CheatRange => {
+            "contracts/fixtures/SET_SHIP_CONTROL/invalid/thrust-above-range.json"
+        }
+        _ => return Vec::new(),
+    };
+    let Some(root) = repo_root() else {
+        eprintln!("[bots] 레포 루트를 찾지 못했다 — 치트 프레임을 읽을 수 없다");
+        return Vec::new();
+    };
+    let path = root.join(rel);
+    match std::fs::read_to_string(&path) {
+        Ok(text) => {
+            // command_id 만 매번 새로 만든다. 나머지 필드는 원문 그대로 둔다.
+            (0..count)
+                .map(|_| match serde_json::from_str::<serde_json::Value>(&text) {
+                    Ok(mut v) => {
+                        if let Some(obj) = v.as_object_mut() {
+                            obj.insert(
+                                "command_id".to_owned(),
+                                serde_json::json!(uuid::Uuid::now_v7().to_string()),
+                            );
+                        }
+                        v.to_string()
+                    }
+                    Err(_) => text.clone(),
+                })
+                .collect()
+        }
+        Err(e) => {
+            eprintln!("[bots] 치트 프레임을 읽지 못했다 {}: {e}", path.display());
+            Vec::new()
+        }
+    }
+}
+
+/// `contracts/registry/types.json` 을 마커로 레포 루트를 찾는다(p0-02 테스트와 같은 방식).
+fn repo_root() -> Option<PathBuf> {
+    let mut dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    loop {
+        if dir.join("contracts/registry/types.json").is_file() {
+            return Some(dir);
+        }
+        if !dir.pop() {
+            return None;
         }
     }
 }
@@ -285,6 +406,43 @@ pub async fn run_probe(
         // **폴링 자체를 멈춰야** 서버의 유휴 타임아웃이 발동한다(server 주의).
         ProbeCase::Idle => Behavior::Idle {
             wait: Duration::from_secs(45),
+        },
+        ProbeCase::Fly => Behavior::Fly {
+            interval: Duration::from_millis(50),
+            duration: Duration::from_secs(u64::from(count.max(10))),
+            thrust: (0, 0, 1000),
+            brake_last: Duration::ZERO,
+            phase: Duration::ZERO,
+        },
+        ProbeCase::CheatPosition | ProbeCase::CheatAttitude => Behavior::CheatRaw {
+            frames: cheat_frames(case, count.max(5)),
+            gap: Duration::from_millis(120),
+            grace: Duration::from_secs(2),
+        },
+        ProbeCase::CheatRange => Behavior::CheatRaw {
+            frames: cheat_frames(case, count.max(5)),
+            gap: Duration::from_millis(120),
+            grace: Duration::from_secs(2),
+        },
+        ProbeCase::CheatSeq => Behavior::CheatSeqRewind {
+            rounds: count.max(3),
+        },
+        ProbeCase::CheatFlood => Behavior::Fly {
+            // 정상 주기의 10배. AC-6의 "빨리 보내도 더 가지 못한다".
+            interval: Duration::from_millis(5),
+            duration: Duration::from_secs(u64::from(count.max(30))),
+            thrust: (0, 0, 1000),
+            brake_last: Duration::ZERO,
+            phase: Duration::ZERO,
+        },
+        ProbeCase::CheatPreReady => Behavior::PreReady {
+            count: count.max(5),
+        },
+        // count = 주입 프레임 수. 위반 예산(10초 8건) 아래로 묶는다.
+        ProbeCase::CheatRangeTurn => Behavior::RangeTurn {
+            frames: cheat_frames(ProbeCase::CheatRange, count.clamp(1, 6)),
+            lead: Duration::from_millis(1000),
+            turn_hold: Duration::from_millis(3000),
         },
     };
     run_connection(BotSpec {

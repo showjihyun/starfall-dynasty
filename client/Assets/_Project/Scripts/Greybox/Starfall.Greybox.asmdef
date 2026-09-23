@@ -1,0 +1,23 @@
+{
+    "name": "Starfall.Greybox",
+    "rootNamespace": "Starfall.Greybox",
+    "references": [
+        "Starfall.Sim",
+        "Starfall.Flight",
+        "Starfall.Remote",
+        "Starfall.Net",
+        "Starfall.Contracts",
+        "Unity.InputSystem"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": true,
+    "precompiledReferences": [
+        "Newtonsoft.Json.dll"
+    ],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

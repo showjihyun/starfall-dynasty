@@ -23,6 +23,8 @@
 //! 정상 종료는 **Ctrl-C 또는 stdin 에 `shutdown` 한 줄**이다 (스펙 §5.5).
 
 mod config;
+mod data;
+mod logsink;
 
 use std::process::ExitCode;
 use std::sync::Arc;
@@ -30,9 +32,11 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use config::{Config, LogFormat};
-use starfall_contracts::ServerVersion;
-use starfall_persistence::PersistHandles;
-use starfall_sim::Simulation;
+use data::GameData;
+use starfall_contracts::{ServerVersion, UuidV7};
+use starfall_persistence::{PersistHandles, WorldBasics};
+use starfall_sim::world::{BoundaryConstants, ShipClassConstants};
+use starfall_sim::{ShipClassData, Simulation, WorldConstants};
 use tokio::sync::{Notify, mpsc};
 use tracing_subscriber::EnvFilter;
 
@@ -49,7 +53,8 @@ fn main() -> ExitCode {
         }
     };
 
-    init_tracing(config.log_format);
+    // 가드는 `main` 이 끝날 때까지 살아 있어야 한다 — 떨어뜨리는 순간 로그 싱크가 닫힌다.
+    let _log_guard = init_tracing(config.log_format);
 
     let runtime = match tokio::runtime::Runtime::new() {
         Ok(runtime) => runtime,
@@ -68,43 +73,100 @@ fn main() -> ExitCode {
     }
 }
 
-fn init_tracing(format: LogFormat) {
+/// tracing 초기화. 반환한 가드는 **프로세스가 끝날 때까지** 들고 있어야 한다.
+///
+/// # 로그 쓰기는 이벤트를 낸 스레드에서 하지 않는다 (p1-01 라운드 2, S-B·S-C)
+///
+/// 기본 writer(`std::io::stdout()`)는 동기다. stdout 이 아무도 드레인하지 않는 파이프면
+/// 4 KiB 뒤 그 `tracing::…!` 호출이 블로킹되고, 그 스레드가 tokio 워커라 **워커가 하나씩
+/// 잠겨 서버 전체가 멎는다**(실측: 워커 12개 전부 대기, HTTP·stdin `shutdown` 무응답,
+/// 세션이 `submit.close()` 에 도달하지 못해 유령으로 남음). [`logsink`] 모듈 문서 참고.
+fn init_tracing(format: LogFormat) -> Option<logsink::FlushGuard> {
     let filter = EnvFilter::try_from_default_env()
         .unwrap_or_else(|_| EnvFilter::new("info,starfall_gateway=debug"));
-    let builder = tracing_subscriber::fmt().with_env_filter(filter);
 
+    // 드레인 스레드를 만들지 못했으면 동기 writer 로 돌아간다 — 로그가 아예 없는 것보다는
+    // 낫다. 이 경로는 스레드 생성 실패뿐이라 실질적으로 일어나지 않는다.
+    let Some((writer, guard)) = logsink::non_blocking_stdout() else {
+        let builder = tracing_subscriber::fmt().with_env_filter(filter);
+        match format {
+            LogFormat::Pretty => builder.init(),
+            LogFormat::Json => builder.json().init(),
+        }
+        tracing::warn!("로그 드레인 스레드를 만들지 못했다 — 동기 stdout 으로 돌아간다");
+        return None;
+    };
+
+    let builder = tracing_subscriber::fmt()
+        .with_env_filter(filter)
+        .with_ansi(false) // 파이프로 나가는 로그에 ANSI 이스케이프를 섞지 않는다.
+        .with_writer(writer);
     match format {
         LogFormat::Pretty => builder.init(),
         LogFormat::Json => builder.json().init(),
     }
+    Some(guard)
 }
 
 async fn serve(config: Config) -> Result<(), Box<dyn std::error::Error>> {
     let server_version = ServerVersion::parse(VERSION)
         .ok_or("CARGO_PKG_VERSION 이 계약의 server_version 패턴에 맞지 않는다")?;
 
+    // ── 0. 게임 데이터 (`data/`) ────────────────────────────────────────────
+    // 마이그레이션·DB 접속보다 먼저다 — DB 가 죽어 있어도 데이터 자체가 깨졌으면
+    // 그 사실을 먼저 안다. 실패는 기동 거부다(I-38).
+    let cwd = std::env::current_dir()?;
+    let resolved_data_dir = data::resolve_data_dir(&cwd, config.data_dir_override.as_deref())
+        .map_err(|error| {
+            tracing::error!(%error, "데이터 디렉토리 해석 실패");
+            error
+        })?;
+    let game_data = data::load(&resolved_data_dir, config.tick_hz).map_err(|error| {
+        tracing::error!(%error, "게임 데이터 로딩 실패");
+        error
+    })?;
+    tracing::info!(
+        data_dir = %game_data.data_dir.display(),
+        ship_classes = game_data.ship_classes.len(),
+        spawn_points = game_data.spawn_point_count(),
+        snapshot_interval_ticks = game_data.snapshot_interval_ticks,
+        "게임 데이터 로딩 완료"
+    );
+
     // ── 1. 스키마와 월드 ────────────────────────────────────────────────────
     // 여기서만 DB 를 기다린다. 마이그레이션과 월드 대조는 **기동 조건**이다 —
     // `/readyz` 의 지연 연결(ADR-0003 §3.1 제약 1)과는 성격이 다르다.
     let pool = starfall_persistence::pool(&config.database_url)?;
     starfall_persistence::run_migrations(&pool).await?;
-    let (world, last_tick) =
+    let (world_basics, last_tick) =
         starfall_persistence::load_world(&pool, config.world_id, config.tick_hz, server_version)
             .await?;
     let start_tick = starfall_persistence::resume_tick(&pool, config.world_id).await?;
     tracing::info!(
         world_id = %config.world_id,
         tick_hz = config.tick_hz,
-        calendar_epoch = %world.calendar.epoch(),
-        calendar_scale = world.calendar.scale(),
+        calendar_epoch = %world_basics.calendar.epoch(),
+        calendar_scale = world_basics.calendar.scale(),
         last_tick = ?last_tick,
         start_tick,
         "월드 확인 — tick 을 이어서 시작한다 (ADR-0006 §2.3)"
     );
 
+    // DB(worlds 행)와 data/(게임 데이터)를 합쳐 시뮬레이션이 쓰는 전체 WorldConstants 를
+    // 만든다. 두 출처가 이렇게 나뉜 이유는 각자의 크레이트 경계 때문이다 —
+    // `starfall-persistence` 는 DB만, `data.rs`(이 바이너리)는 `data/` 만 안다.
+    let world = build_world_constants(config.world_id, world_basics, &game_data)?;
+
     // ── 2. 관측과 제출 경로 ─────────────────────────────────────────────────
     let stats = starfall_gateway::Stats::new();
     stats.set_start_tick(start_tick);
+    stats.set_data_loaded(
+        &game_data.data_dir.display().to_string(),
+        game_data.ship_classes.len() as u64,
+        game_data.spawn_point_count() as u64,
+        u64::from(game_data.snapshot_interval_ticks),
+        world.max_entities_per_snapshot as u64,
+    );
     let (persisted, failed, last_committed) = stats.persist_handles();
 
     let (persist_tx, persist_rx) = mpsc::channel(starfall_gateway::runtime::PERSIST_QUEUE_CAPACITY);
@@ -266,4 +328,92 @@ fn spawn_stdin_listener(notify: Arc<Notify>) {
     if let Err(error) = spawned {
         tracing::warn!(%error, "stdin 리스너 스레드를 만들지 못했다 — Ctrl-C 만 쓸 수 있다");
     }
+}
+
+/// `worlds` 행(`WorldBasics`)과 `data/`(`GameData`)를 합쳐 시뮬레이션이 쓰는
+/// `WorldConstants` 를 만든다. 두 크레이트(`persistence`·이 바이너리의 `data`)가 서로를
+/// 모르므로 이 조립은 여기, 바이너리에서만 할 수 있다.
+///
+/// # Errors
+///
+/// `game_data.ship_classes` 가 비어 있으면 실패한다 — S2 의 로더가 이미 막으므로 정상
+/// 경로에서는 일어나지 않는다(방어적 처리).
+fn build_world_constants(
+    world_id: UuidV7,
+    basics: WorldBasics,
+    game_data: &GameData,
+) -> Result<WorldConstants, Box<dyn std::error::Error>> {
+    let (_, ship_class_table) = game_data
+        .ship_classes
+        .iter()
+        .next()
+        .ok_or("data/ships/ 에 함선 클래스가 없다 — S2 가 이미 막았어야 한다")?;
+    let movement = &ship_class_table.movement;
+    let ship_class = ShipClassData {
+        movement: ShipClassConstants {
+            max_speed_mps: movement.max_speed_mps,
+            main_thrust_mps2: movement.main_thrust_mps2,
+            reverse_thrust_mps2: movement.reverse_thrust_mps2,
+            lateral_thrust_mps2: movement.lateral_thrust_mps2,
+            brake_decel_mps2: movement.brake_decel_mps2,
+            assist_linear_decel_mps2: movement.assist_linear_decel_mps2,
+            assist_lateral_decel_mps2: movement.assist_lateral_decel_mps2,
+            turn_rate_max_deg_s: movement.turn_rate_max_deg_s,
+            turn_accel_deg_s2: movement.turn_accel_deg_s2,
+            turn_gain_deg_s_per_sin_half: movement.turn_gain_deg_s_per_sin_half,
+            turn_deadzone_sin_half: movement.turn_deadzone_sin_half,
+            roll_rate_max_deg_s: movement.roll_rate_max_deg_s,
+            roll_accel_deg_s2: movement.roll_accel_deg_s2,
+            auto_level_rate_deg_s: movement.auto_level_rate_deg_s,
+            auto_level_deadzone_sin: movement.auto_level_deadzone_sin,
+        },
+        hull_radius_m: ship_class_table.geometry.hull_radius_m,
+    };
+
+    let play_area = &game_data.star_system.play_area;
+    let spawn = &game_data.star_system.spawn;
+    let presence = &game_data.star_system.presence;
+    let sync = &game_data.sync_tuning;
+
+    let tick_hz = basics.calendar.tick_hz();
+    let rate_limit_hz = u32::try_from(sync.input.rate_limit_hz).unwrap_or(1).max(1);
+    let rate_limit_per_tick_cap = rate_limit_hz.div_ceil(tick_hz.max(1)).max(1);
+
+    Ok(WorldConstants {
+        world_id: basics.world_id,
+        calendar: basics.calendar,
+        server_version: basics.server_version,
+        star_system_id: game_data.star_system.id.clone(),
+        boundary: BoundaryConstants {
+            soft_boundary_radius_m: play_area.soft_boundary_radius_m,
+            hard_boundary_radius_m: play_area.hard_boundary_radius_m,
+            boundary_pull_mps2: play_area.boundary_pull_mps2,
+        },
+        spawn_points_m: spawn.points_m.clone(),
+        spawn_clearance_m: spawn.clearance_m,
+        spawn_max_probe_attempts: u32::try_from(spawn.max_probe_attempts).unwrap_or(1),
+        spawn_radial_offset_step_m: spawn.radial_offset_step_m,
+        // world_seed_le8 — world_id 의 하위 8바이트(judgement call, data.rs 모듈 문서 참고
+        // — designer 데이터에 별도 시드 필드가 없다).
+        spawn_world_seed: world_seed_from_world_id(world_id),
+        linger_seconds: presence.linger_seconds as f64,
+        reconnect_resume_window_seconds: presence.reconnect_resume_window_seconds as f64,
+        ship_class_id: ship_class_table.id.clone(),
+        ship_class,
+        snapshot_interval_ticks: game_data.snapshot_interval_ticks,
+        carry_forward_max_ticks: u32::try_from(sync.input.carry_forward_max_ticks).unwrap_or(0),
+        rate_limit_per_tick_cap,
+        max_entities_per_snapshot: usize::try_from(sync.snapshot.max_entities_per_snapshot)
+            .unwrap_or(1),
+    })
+}
+
+/// `world_id` 의 하위 8바이트를 리틀엔디안 `u64` 로 — 스폰 해시의 `world_seed_le8`
+/// (ADR-0010 §4). `data/` 에 별도 시드 필드가 없고 `world_id` 가 월드마다 고정·고유하므로
+/// 이것으로 충분하다(judgement call).
+fn world_seed_from_world_id(world_id: UuidV7) -> u64 {
+    let bytes = world_id.get().into_bytes();
+    let mut low8 = [0u8; 8];
+    low8.copy_from_slice(&bytes[8..16]);
+    u64::from_le_bytes(low8)
 }

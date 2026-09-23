@@ -1,0 +1,58 @@
+{
+  "schema_version": 1,
+  "id": "scout-s01",
+  "display_name": "Scout S-01",
+  "hull_class": "scout",
+  "gdd_source": "GDD 6.1 One-Person Ship Fantasy",
+  "designer_note": "GDD 6.1 has no movement numbers. Every value under `movement` is a designer assumption (see docs/design/p1-01-ship-movement-design.md, marked '가정:'). Units are carried in the field name; never strip a unit suffix.",
+
+  "movement": {
+    "model": "assisted_6dof",
+
+    "max_speed_mps": 140.0,
+    "main_thrust_mps2": 35.0,
+    "reverse_thrust_mps2": 18.0,
+    "lateral_thrust_mps2": 18.0,
+    "brake_decel_mps2": 50.0,
+
+    "assist_linear_decel_mps2": 7.0,
+    "assist_lateral_decel_mps2": 22.0,
+
+    "turn_rate_max_deg_s": 75.0,
+    "turn_accel_deg_s2": 220.0,
+    "turn_gain_deg_s_per_sin_half": 290.0,
+    "turn_deadzone_sin_half": 0.0009,
+
+    "roll_rate_max_deg_s": 90.0,
+    "roll_accel_deg_s2": 300.0,
+    "auto_level_rate_deg_s": 40.0,
+    "auto_level_deadzone_sin": 0.002
+  },
+
+  "derived_for_review": {
+    "note": "Not read by code. Recomputed by QA from `movement` to catch a silent retune.",
+    "zero_to_max_speed_s": 4.0,
+    "zero_to_max_speed_distance_m": 280.0,
+    "brake_from_max_speed_s": 2.8,
+    "brake_from_max_speed_distance_m": 196.0,
+    "coast_to_rest_from_max_speed_s": 20.0,
+    "coast_to_rest_distance_m": 1400.0,
+    "flip_180_deg_s": 2.8,
+    "position_delta_per_tick_at_max_speed_m": 7.0,
+    "rotation_delta_per_tick_at_max_rate_deg": 3.75
+  },
+
+  "geometry": {
+    "hull_radius_m": 12.0,
+    "note": "p1-01 has NO collision. Ships pass through each other. hull_radius_m is used only for spawn clearance and for the nearest-ship distance metric."
+  },
+
+  "reference_stats_unused_in_p1_01": {
+    "note": "Verbatim GDD 6.1 stats, parked here so nobody re-invents them. No p1-01 code may read this block.",
+    "crew": 1,
+    "cargo_capacity_t": 20,
+    "weapon_hardpoints": 1,
+    "warp_range_ly": 1.2,
+    "shield": 100
+  }
+}

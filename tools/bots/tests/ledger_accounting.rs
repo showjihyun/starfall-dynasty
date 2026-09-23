@@ -345,3 +345,274 @@ fn server_initiated_close_is_recorded_as_server() {
     assert_eq!(s.close_initiator, "server");
     assert_eq!(s.close_code, Some(1011));
 }
+
+// ---------------------------------------------------------------------------
+// 라운드 3 (2026-09-21) — `accepted_reply_pairing` 게이트가 **틀렸는데 초록불**이었다
+//
+// 옛 판정은 `accepted == replies_total` 이었다. `SET_SHIP_CONTROL` 은 계약상
+// `COMMAND_RESULT` 만 내고 `PING_REPLY` 를 내지 않으므로, 이 게이트는 실제로는
+// **"수락된 명령이 하나도 없을 때만 통과"** 하는 검사였다.
+//
+// 서버가 `SET_SHIP_CONTROL` 을 전부 `UNKNOWN_COMMAND_TYPE` 으로 거부하던 동안에는
+// `accepted = 0` 이라 `0 == 0` 으로 **조용히 통과**했고(라운드 2 의 시나리오 e 전 실행),
+// 서버가 고쳐지자 `accepted=199, replies=0` 으로 **거짓 실패**가 됐다.
+//
+// 계약 §3.3 은 "도구가 틀렸을 때 빨간불이 켜지는가"를 묻는다. 이 항목은 그 반대였다 —
+// **틀렸는데 초록불.** 아래 두 테스트가 양방향을 고정한다.
+// ---------------------------------------------------------------------------
+
+/// `SET_SHIP_CONTROL` 처럼 `PING_REPLY` 를 내지 않는 명령이 **수락돼도** 짝 게이트는 통과한다.
+///
+/// 옛 코드에서는 이 케이스가 `accepted(3) == replies_total(0)` 실패로 빨간불이었다.
+#[test]
+fn accepted_commands_without_a_ping_reply_do_not_break_the_pairing_gate() {
+    let mut l = Ledger::new("bot-000");
+    for i in 0..3u32 {
+        let id = Uuid::now_v7();
+        l.on_sent_no_reply(id, i, 1_000 * u64::from(i));
+        l.on_command_result(id, STATUS_ACCEPTED, None, 10_000 + u64::from(i), 10);
+    }
+    let s = l.finish();
+    assert_eq!(s.sent_total, 3);
+    assert_eq!(s.accepted, 3);
+    assert_eq!(
+        s.replies_total, 0,
+        "SET_SHIP_CONTROL 은 PING_REPLY 를 내지 않는다"
+    );
+    assert_eq!(
+        s.accepted_expecting_reply, 0,
+        "응답을 기대하는 명령이 0건이어야 한다"
+    );
+    assert!(
+        s.accepted_reply_pairing_holds(),
+        "응답을 내지 않는 명령이 수락된 것을 짝 위반으로 세면 안 된다"
+    );
+}
+
+/// 반대 방향: `PING_SERVER` 가 수락됐는데 `PING_REPLY` 가 없으면 **여전히 빨간불**이어야 한다.
+///
+/// 위 수정이 게이트를 무력화하지 않았다는 증거다 — 이것이 없으면
+/// "거짓 실패를 없앴다"가 "검사를 없앴다"와 구분되지 않는다.
+#[test]
+fn a_missing_ping_reply_for_an_accepted_ping_still_fails_the_gate() {
+    let mut l = Ledger::new("bot-000");
+    let replied = Uuid::now_v7();
+    l.on_sent(replied, 0, 0);
+    l.on_command_result(replied, STATUS_ACCEPTED, None, 10_000, 10);
+    l.on_ping_reply(replied, 0, 11_000, 10);
+
+    let silent = Uuid::now_v7();
+    l.on_sent(silent, 1, 1_000);
+    l.on_command_result(silent, STATUS_ACCEPTED, None, 12_000, 10);
+    // PING_REPLY 가 오지 않는다.
+
+    let s = l.finish();
+    assert_eq!(s.accepted, 2);
+    assert_eq!(
+        s.accepted_expecting_reply, 2,
+        "둘 다 응답을 기대하는 명령이다"
+    );
+    assert_eq!(s.replies_total, 1);
+    assert!(
+        !s.accepted_reply_pairing_holds(),
+        "PING_SERVER 의 응답 누락은 여전히 잡혀야 한다"
+    );
+}
+
+/// 두 종류가 **섞여 있을 때**도 맞게 센다 — 실제 시나리오 e 가 이 모양이다
+/// (연결 직후 PING_SERVER 몇 건 + 이후 SET_SHIP_CONTROL 다수).
+#[test]
+fn mixed_command_types_are_paired_by_what_each_type_actually_answers() {
+    let mut l = Ledger::new("bot-000");
+    for i in 0..2u32 {
+        let id = Uuid::now_v7();
+        l.on_sent(id, i, u64::from(i));
+        l.on_command_result(id, STATUS_ACCEPTED, None, 10_000, 10);
+        l.on_ping_reply(id, i, 11_000, 10);
+    }
+    for i in 0..20u32 {
+        let id = Uuid::now_v7();
+        l.on_sent_no_reply(id, i, 100 + u64::from(i));
+        l.on_command_result(id, STATUS_ACCEPTED, None, 12_000, 11);
+    }
+    let s = l.finish();
+    assert_eq!(s.accepted, 22);
+    assert_eq!(s.accepted_expecting_reply, 2);
+    assert_eq!(s.replies_total, 2);
+    assert!(s.accepted_reply_pairing_holds());
+    assert!(s.one_to_one_holds(), "보낸 22 == COMMAND_RESULT 22");
+}
+
+// ── 명령→응답 게이트 3단언 (스펙 §5.1a, architect R3 판정 2) ──────────────────────
+//
+// "카운터 항등식은 입력이 전부 0 일 때 반드시 실패해야 한다." 아래 테스트는 그 규율을
+// 게이트 자신에게 적용한다: **아무 일도 일어나지 않은 실행**이 초록불을 받지 못하는지 본다.
+
+fn ready_session(bot: &str) -> SessionRecord {
+    SessionRecord {
+        bot: bot.to_owned(),
+        session_id: Uuid::now_v7(),
+        correlation_id: Some(Uuid::now_v7()),
+        actor_id: Uuid::now_v7(),
+        tick_hz: 20,
+        server_version: "0.1.0".to_owned(),
+        ready_tick: 1,
+        connected_at_us: 0,
+        ready_at_us: 10,
+        closed_at_us: None,
+        close_code: None,
+        peer_close_code: None,
+        close_reason_text: None,
+        close_initiator: "none".to_owned(),
+    }
+}
+
+/// 입력 0: 두 항등식은 자명하게 성립한다 — **그것이 결함이다.** 짝 단언이 막아야 한다.
+#[test]
+fn an_all_zero_ledger_fails_the_command_reply_gates() {
+    let s = Ledger::new("bot-000").finish();
+    // 자명한 성립을 먼저 고정한다. 이 셋이 true 인 것은 정상이고, 그래서 짝이 필요하다.
+    assert!(s.results_partition_holds(), "0 == 0 + 0");
+    assert!(s.accepted_reply_pairing_holds(), "0 == 0");
+    assert!(s.one_to_one_holds(), "0 == 0");
+    assert!(
+        !s.accepted_path_exercised(),
+        "accepted = 0 인데 수락 경로가 탔다고 읽으면 안 된다"
+    );
+    assert!(
+        !s.command_reply_gates_hold(),
+        "입력이 전부 0 인 실행이 명령→응답 게이트를 통과했다 — 분모가 0 인 항등식"
+    );
+}
+
+/// **라운드 2 의 실제 모양**: 조작 명령 200 건이 전부 `UNKNOWN_COMMAND_TYPE` 으로 거부됐고
+/// 옛 게이트는 `0 == 0` 으로 초록이었다. 1:1 과 분류 항등식은 **정당하게** 성립하므로
+/// (거부도 응답이다) 실패시키는 것은 `accepted > 0` 하나여야 한다.
+#[test]
+fn round2_shape_every_control_rejected_fails_the_command_reply_gates() {
+    let mut l = Ledger::new("bot-000");
+    for i in 0..200u32 {
+        let id = Uuid::now_v7();
+        l.on_sent_no_reply(id, i + 1, u64::from(i) * 50_000);
+        l.on_command_result(
+            id,
+            STATUS_REJECTED,
+            Some("UNKNOWN_COMMAND_TYPE"),
+            u64::from(i) * 50_000 + 30_000,
+            100 + u64::from(i),
+        );
+    }
+    let s = l.finish();
+    assert_eq!((s.sent_total, s.results_total, s.rejected), (200, 200, 200));
+    assert!(s.one_to_one_holds(), "거부도 응답이다 — 1:1 은 성립한다");
+    assert!(s.results_partition_holds());
+    assert!(
+        s.accepted_reply_pairing_holds(),
+        "0 == 0 — 옛 게이트가 본 초록불"
+    );
+    assert!(
+        !s.command_reply_gates_hold(),
+        "수락이 0 건인 실행은 명령→응답 게이트를 통과하면 안 된다"
+    );
+}
+
+/// 분류 항등식이 실제로 무언가를 검사하는가: 닫힌 집합 밖의 `status` 는 분류를 깨뜨린다.
+#[test]
+fn an_unknown_status_breaks_the_results_partition() {
+    let mut l = Ledger::new("bot-000");
+    let ok = Uuid::now_v7();
+    l.on_sent_no_reply(ok, 1, 0);
+    l.on_command_result(ok, STATUS_ACCEPTED, None, 10_000, 10);
+    let odd = Uuid::now_v7();
+    l.on_sent_no_reply(odd, 2, 1_000);
+    l.on_command_result(odd, "DEFERRED", None, 11_000, 10);
+    let s = l.finish();
+    assert_eq!(s.results_total, 2);
+    assert_eq!(s.accepted + s.rejected, 1);
+    assert!(!s.results_partition_holds());
+    assert!(!s.command_reply_gates_hold());
+}
+
+/// 정상: 수락이 있고 두 항등식이 성립하면 3단언 전부 통과(거짓 실패 방지).
+#[test]
+fn a_run_with_accepted_commands_passes_all_three_assertions() {
+    let mut l = Ledger::new("bot-000");
+    let ping = Uuid::now_v7();
+    l.on_sent(ping, 0, 0);
+    l.on_command_result(ping, STATUS_ACCEPTED, None, 10_000, 10);
+    l.on_ping_reply(ping, 0, 11_000, 10);
+    for i in 0..5u32 {
+        let id = Uuid::now_v7();
+        l.on_sent_no_reply(id, i + 1, 100 + u64::from(i));
+        l.on_command_result(id, STATUS_ACCEPTED, None, 12_000, 11);
+    }
+    let stale = Uuid::now_v7();
+    l.on_sent_no_reply(stale, 1, 200);
+    l.on_command_result(stale, STATUS_REJECTED, Some("STALE_INPUT"), 12_500, 11);
+    let s = l.finish();
+    assert_eq!(
+        (s.accepted, s.rejected, s.accepted_expecting_reply),
+        (6, 1, 1)
+    );
+    assert!(s.command_reply_gates_hold());
+}
+
+/// 리포트 층까지 같은 규율이 전달되는가: 세션은 섰지만 명령이 하나도 수락되지 않은 실행은
+/// `all_ok = false` 여야 한다. (게이트 함수만 고치고 `report::build` 가 안 부르면 여기서 잡힌다.)
+#[test]
+fn a_report_with_ready_sessions_but_nothing_accepted_is_not_all_ok() {
+    use starfall_bots::conn::{Clock, ConnectionOutcome};
+    use starfall_bots::report::{self, RunMeta};
+    use starfall_bots::snapshot::SnapshotLedger;
+
+    let mut outcomes = Vec::new();
+    for b in 0..2 {
+        let bot = format!("bot-{b:03}");
+        let mut l = Ledger::new(bot.clone());
+        l.on_session_ready(ready_session(&bot));
+        l.on_close(1_000, Some(1000), None, "client");
+        outcomes.push(ConnectionOutcome {
+            ledger: l,
+            snapshots: SnapshotLedger::new(None),
+            connect_ms: 1.0,
+            ready_ms: Some(2.0),
+            connect_error: None,
+        });
+    }
+    let rep = report::build(
+        RunMeta {
+            stage: "e-fly",
+            url: "ws://127.0.0.1:0/ws",
+            bots: 2,
+            seed: 1,
+            duration_secs: 1,
+            interval_ms: 50,
+            clock: Clock::start(),
+        },
+        &outcomes,
+    );
+    assert_eq!(rep.gates.sessions_ready, 2);
+    assert!(rep.gates.one_to_one, "0 == 0 — 자명하게 성립");
+    assert!(rep.gates.accepted_reply_pairing, "0 == 0 — 자명하게 성립");
+    assert!(rep.gates.results_partition, "0 == 0 + 0 — 자명하게 성립");
+    assert!(!rep.gates.accepted_exercised);
+    assert!(
+        !rep.gates.all_ok,
+        "명령이 하나도 수락되지 않은 실행이 all_ok 를 받았다"
+    );
+}
+
+/// ADR-0005 §2 close code 표: 새 code 4001(`SUPERSEDED`)을 알고, 표에 없는 code 는 `UNKNOWN` 으로 드러낸다.
+#[test]
+fn close_codes_map_to_close_reasons_and_unknown_codes_surface() {
+    use starfall_bots::ledger::close_code_meaning;
+    assert_eq!(close_code_meaning(4001), "SUPERSEDED");
+    assert_eq!(close_code_meaning(1011), "SLOW_CONSUMER");
+    assert_eq!(close_code_meaning(1000), "CLIENT_CLOSED");
+    assert_eq!(
+        close_code_meaning(4002),
+        "UNKNOWN",
+        "모르는 code 를 아는 사유로 읽으면 안 된다"
+    );
+    assert_eq!(close_code_meaning(1006), "UNKNOWN");
+}

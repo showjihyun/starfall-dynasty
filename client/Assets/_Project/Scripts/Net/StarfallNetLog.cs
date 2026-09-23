@@ -40,6 +40,11 @@ namespace Starfall.Net
         /// <summary>Token that QA greps for to collect the 31st session's correlation id.</summary>
         public const string SessionReadyTag = "SESSION_READY";
 
+        /// <summary>Token for <see cref="Superseded"/>, grepped the same way as
+        /// <see cref="SessionReadyTag"/> so a developer or QA can confirm from
+        /// client/Logs/Editor.log alone that the client actually stopped reconnecting.</summary>
+        public const string SupersededTag = "SUPERSEDED";
+
         /// <summary>
         /// <c>starfall.net: SESSION_READY session_id=… correlation_id=… actor_id=… world_id=…
         /// tick_hz=… server_version=… attempt=…</c>
@@ -80,6 +85,19 @@ namespace Starfall.Net
             Prefix + "reconnect attempt=" + attempt.ToString(CultureInfo.InvariantCulture) +
             " delay_ms=" + delayMs.ToString(CultureInfo.InvariantCulture) +
             " (counter resets only on SESSION_READY)";
+
+        /// <summary>
+        /// <c>starfall.net: SUPERSEDED close_code=4001, not reconnecting (R3 decision 5: another
+        /// session for this actor took over the ship in the same tick)</c>
+        /// <para>
+        /// Fixed wording, same as <see cref="SessionReady"/> and <see cref="Reconnect"/>: this is
+        /// the one line that proves - after the fact, from a log file, without watching two
+        /// windows live - that the client stopped instead of grinding a reconnect loop.
+        /// </para>
+        /// </summary>
+        public static string Superseded(int closeCode) =>
+            Prefix + SupersededTag + " close_code=" + closeCode.ToString(CultureInfo.InvariantCulture) +
+            ", not reconnecting (R3 decision 5: another session for this actor took over the ship in the same tick)";
 
         /// <summary>
         /// <c>starfall.net: closing session_id=… reason=… code=1000</c>
