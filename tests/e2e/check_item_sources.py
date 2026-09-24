@@ -67,7 +67,7 @@ EXIT_SOURCE_VIOLATION = 1
 EXIT_UNNAMED_ONLY = 3
 # 기본 실행이 제외를 적을 때 같이 찍는 수. **이 수가 출력에 있어야 만기가 지났는지·
 # 늘었는지가 그 자리에서 읽힌다**(architect R23). `--include-rust` 실행으로 갱신한다.
-RUST_KNOWN_MISMATCHES = 11
+RUST_KNOWN_MISMATCHES = 8
 RUST_KNOWN_LIST = "SC-14·19·20·21·24·25·26·67"
 # **규칙 7 의 대상은 verdict 라벨이다** (architect R23). 로그가 관련 항목을 *가리키는*
 # 표식은 금지가 아니라 표시의 문제다 — 이것을 위반으로 잡으면 게이트가 "로그에서 SC
