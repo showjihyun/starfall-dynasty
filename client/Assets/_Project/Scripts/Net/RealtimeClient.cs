@@ -89,6 +89,9 @@ namespace Starfall.Net
 
         public bool IsReady => Session.HasValue;
 
+        /// <summary>H-14: forwards IRealtimeTransport.QueueFullTotal (SC-89 (d) observation).</summary>
+        public long OutboundQueueFullTotal => _transport.QueueFullTotal;
+
         /// <summary>Raised on the main thread once the server has told us who we are.</summary>
         public event Action<SessionIdentity> SessionReady;
 
@@ -333,6 +336,14 @@ namespace Starfall.Net
             int dropped = Pending.FailAllOnDisconnect();
             // Written even when zero: "nothing was in flight" is evidence too (AC-14).
             _log.Info(StarfallNetLog.DroppedInFlight(dropped));
+
+            // SC-89 (R8/R9 finding): 1002 is not a policy stop like 4001 - it falls straight
+            // into the normal reconnect path below - so without this line the string
+            // "PROTOCOL_VIOLATION" never appeared anywhere in this client's log, and QA had to
+            // cross-reference the server log/DB close_reason by hand. Logged unconditionally,
+            // before the reconnect-decision branches, so it appears whether or not this client
+            // still wants to be connected. Diagnostics only - does not change ShouldReconnect.
+            if (info.CloseCode == 1002) _log.Info(StarfallNetLog.ProtocolViolationClosed());
 
             Action<int> ended = SessionEnded;
             if (ended != null) ended(dropped);

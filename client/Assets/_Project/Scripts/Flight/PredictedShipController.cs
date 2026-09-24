@@ -28,6 +28,15 @@ namespace Starfall.Flight
         /// signal, not expected behaviour.</summary>
         public long HardSnapTotal { get; private set; }
 
+        /// <summary>H-16 (K-1 (4)): prediction_history_overflow_total. Must stay 0 on any
+        /// normal path - the cap (carry_forward_max_ticks + M) is a worst-case safety net, not
+        /// a value normal play should ever reach.</summary>
+        public long PredictionHistoryOverflowTotal { get; private set; }
+
+        /// <summary>H-16 cap: carry_forward_max_ticks (10) + M (20) - the worst case of the two
+        /// bounded exit paths from an un-sent carry-forward run (K-1 (4)).</summary>
+        public const int MaxHistoryEntries = 30;
+
         public PredictedShipController(ShipClassStats ship, ShipIntegrator.Boundary boundary, double dt, ShipSimState initialState)
         {
             _ship = ship;
@@ -38,12 +47,27 @@ namespace Starfall.Flight
 
         /// <summary>One input sent = one tick predicted (ADR-0012 section 6). Call this exactly
         /// once per SET_SHIP_CONTROL the client sends, with the SAME quantized input
-        /// (SetShipControlBuilder.ToDequantizedInput), never with a fresh raw-float value.</summary>
-        public void ApplyInput(ShipControlInputD input)
+        /// (SetShipControlBuilder.ToDequantizedInput), never with a fresh raw-float value.
+        /// <paramref name="derivedFromSeq"/>: null when this tick's own input_seq was actually
+        /// sent; the source seq (H-15) when this is a carry-forward/dormant prediction that was
+        /// not sent (TickCatchUp rules 4/5). Enforces the H-16 history cap after appending.</summary>
+        public void ApplyInput(ShipControlInputD input, uint? derivedFromSeq = null)
         {
-            (ShipSimState next, List<InputRecord> newHistory) = PredictionHistory.ApplyInput(_history, CurrentState, input, _ship, _boundary, _dt);
+            (ShipSimState next, List<InputRecord> newHistory) = PredictionHistory.ApplyInput(
+                _history, CurrentState, input, _ship, _boundary, _dt, derivedFromSeq);
             CurrentState = next;
             _history = newHistory;
+            EnforceHistoryCap();
+        }
+
+        void EnforceHistoryCap()
+        {
+            (List<InputRecord> trimmed, int dropped) = PredictionHistory.EnforceCap(_history, MaxHistoryEntries);
+            if (dropped > 0)
+            {
+                _history = trimmed;
+                PredictionHistoryOverflowTotal += dropped;
+            }
         }
 
         /// <summary>COMMAND_RESULT{REJECTED, *} for one command_id: the server never applied
@@ -51,6 +75,15 @@ namespace Starfall.Flight
         public void DropRejected(uint rejectedInputSeq)
         {
             _history = PredictionHistory.DropRejected(_history, rejectedInputSeq);
+        }
+
+        /// <summary>H-2 (RebaseHold.Action.ForceRebaseDiscardingUnsent): drops every
+        /// carry-forward/dormant (never-sent) entry from the retained history before the
+        /// caller proceeds to Reconcile - the hold exceeded its 500ms ceiling, so those entries
+        /// are discarded outright rather than guessed at (architect R4 판정 section 5).</summary>
+        public void DiscardUnsentHistory()
+        {
+            _history = RebaseHold.DiscardUnsentEntries(_history);
         }
 
         /// <summary>Call on every WORLD_SNAPSHOT. Rebases on the confirmed state and replays

@@ -42,6 +42,10 @@ run 옵션 (기본값):
 probe case:
   auth-ok order duplicate inflight slow-consumer oversize binary idle
   fly cheat-position cheat-attitude cheat-range cheat-seq cheat-flood pre-ready   (p1-01)
+  tick-burst         SC-89 (g) 양성 대조. 한 tick 에 9건 × 10회(0.5초 간격) → 서버가 위반을 계수하고
+                     예산(10초 8건)이 차면 close 1002 = PROTOCOL_VIOLATION 으로 닫아야 한다.
+                     --count <N> 으로 회수 조정(기본·최소 10). gap 이 평균 속도를 18 Hz 로 낮춰
+                     rate_limit_hz(40)에는 걸리지 않는다 — 두 문턱을 갈라야 위반 경로를 밟는다
   cheat-range-turn   SC-24 (c)(d) 한 실행. 필수: --turn-rate-max-deg-s <data 값> --carry-forward-max-ticks <data 값>
                      --count <N> = 범위 초과 주입 수(1~6, 위반 예산 10초 8건 아래)  [--series-out <FILE.json>]
 

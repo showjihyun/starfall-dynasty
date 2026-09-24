@@ -33,6 +33,12 @@ namespace Starfall.Greybox
         /// test runs never pay for scene construction.</summary>
         public const string AutoBuildVariable = "STARFALL_GREYBOX_AUTOBUILD";
 
+        // F-1 (05_qa_report_r5.md §6.1): HUD row layout is derived from these two constants plus
+        // HudTextWrap.Wrap(), never from a fixed per-line Rect - see HudTextWrap.cs header for
+        // why that is what prevents this bug from recurring as fields are added.
+        public const int HudMaxCharsPerLine = 110;
+        public const float HudRowPixelWidth = 900f;
+
         static GreyboxSession _instance;
         public static GreyboxSession Instance => _instance;
 
@@ -47,6 +53,30 @@ namespace Starfall.Greybox
         uint _localInputSeq = 1;
         readonly Dictionary<Guid, uint> _pendingInputSeqByCommandId = new Dictionary<Guid, uint>();
 
+        // H-3''/H-4' (architect R4 판정 + 보충 판정 2, K-1): carry-forward/dormant prediction
+        // state. _lastSentPayload holds the exact quantized wire ints of the most recent
+        // successful send (I-36: reused verbatim, never resampled from raw input -
+        // ADR-0012 section 2). _ticksSinceLastSend counts consecutive UNSENT predicted ticks;
+        // past TickCatchUp.ProductionCarryForwardMaxTicks it switches to the dormant input
+        // (ADR-0011 section 6.1), same as the server's own fallback.
+        SetShipControlCommand.SetShipControlPayload _lastSentPayload;
+        uint? _lastSentInputSeq;
+        int _ticksSinceLastSend;
+
+        // H-2 (RebaseHold, T-2): how long (real seconds) this session has been holding off a
+        // rebase because the retained history has an un-sent entry the latest snapshot's
+        // ack_input_seq cannot yet resolve. 0 when not holding.
+        double _rebaseHoldSeconds;
+        float _rebaseHoldLastRealTime;
+        long _reconcileForcedAfterHitchTotal;
+
+        // T-7/H-8 observations (catch-up path counters).
+        long _catchupCarryForwardTicksTotal;
+        long _catchupDormantTicksTotal;
+        long _catchupTruncatedTotal;
+
+        readonly SendBurstStats _sendBurstStats = new SendBurstStats();
+
         readonly RemoteShipRegistry _remoteRegistry = new RemoteShipRegistry();
         readonly Dictionary<Guid, GameObject> _remoteViews = new Dictionary<Guid, GameObject>();
 
@@ -60,9 +90,21 @@ namespace Starfall.Greybox
 
         double _lastPositionErrorM;
         double _lastOrientationErrorDeg;
-        long _hardSnapTotal;
+        long _hardSnapTotal; // session-scope (resets with a fresh _controller on reconnect - already true before H-10')
         int _visibleShipCount;
         double _nearestShipDistanceM = double.PositiveInfinity;
+
+        // H-10' (architect K-4): run-scope counterparts, never reset by OnSessionReady. Only
+        // these three exist - "qa가 손으로 더하지 않아도 되도록 셋만". _hardSnapTotalRun
+        // accumulates HardSnapTotal deltas across controller instances (each new controller
+        // restarts its own HardSnapTotal at 0, so the delta since the last read is what must be
+        // added, not the raw value). H-17: max values always carry their own sample count.
+        long _hardSnapTotalRun;
+        long _hardSnapTotalRunLastControllerValue;
+        double _reconcileErrorMMaxRun = double.NaN;
+        int _reconcileErrorMMaxRunN;
+        double _reconcileErrorDegMaxRun = double.NaN;
+        int _reconcileErrorDegMaxRunN;
 
         // SC-56(b): "재조정 직전 위치 오차 p50/p99/최대를 HUD·로그에" - qa2 flagged (2026-09-22,
         // block 6 pre-flight) that only the LAST error was ever kept, so a whole session read as
@@ -180,6 +222,14 @@ namespace Starfall.Greybox
                 // to be visible and distinguishable by silhouette/size - "단순 도형으로 충분").
                 Destroy(go.GetComponent<Collider>()); // markers never collide (design doc note)
             }
+
+            // F-7's focus-independent half. The HUD line above is what SC-59 (b2) asks for, but
+            // it can only be read off a recording whose Game View had focus - the failure mode
+            // that cost four shoots in R4. Marker positions are static, so one line at build time
+            // carries the same information for a log-only evidence trail, measured from the
+            // origin rather than from a ship that does not exist yet.
+            Debug.Log("starfall.greybox: reference_markers " +
+                      MarkerHudLine.Format(_starSystem.ReferenceMarkers, default));
         }
 
         void BuildLocalShipView()
@@ -225,6 +275,31 @@ namespace Starfall.Greybox
             _pendingInputSeqByCommandId.Clear();
             _lastAckInputSeq = null;
 
+            _lastSentPayload = null;
+            _lastSentInputSeq = null;
+            _ticksSinceLastSend = 0;
+            _rebaseHoldSeconds = 0.0;
+
+            // H-9: a rebase queued from the PREVIOUS session/resume must never apply against
+            // the fresh _controller instance the next WORLD_SNAPSHOT creates above.
+            _pendingRebaseTick = null;
+            _pendingRebaseConfirmed = default;
+            _pendingRebaseAckInputSeq = null;
+
+            // H-10' (architect K-4): "정본은 세션 범위다. 모든 재조정 지표를 OnSessionReady에서
+            // 리셋한다." R5's error lists/cached percentiles and the CL-2 counters were added
+            // after this comment block existed and were missed - fixed here. The three _run
+            // counterparts (hardSnapTotalRun, reconcileError{M,Deg}MaxRun) are deliberately NOT
+            // touched - that is the whole point of a run-scoped metric.
+            _reconcilePositionErrorsM.Clear();
+            _reconcileOrientationErrorsDeg.Clear();
+            _reconcilePositionErrorStats = PercentileStats.Empty;
+            _reconcileOrientationErrorStats = PercentileStats.Empty;
+            _reconcileHasErrorTotal = 0;
+            _reconcileReplayedNonZeroInputsTotal = 0;
+            _reconcileBothOmegaNonZeroTotal = 0;
+            _hardSnapTotalRunLastControllerValue = 0;
+
             foreach (GameObject view in _remoteViews.Values) Destroy(view);
             _remoteViews.Clear();
 
@@ -267,12 +342,47 @@ namespace Starfall.Greybox
                       ", max=" + FormatStat(_reconcileOrientationErrorStats.Max) +
                       ", n=" + _reconcileOrientationErrorStats.N + "), " +
                       "reconcile_hard_snap_total=" + _hardSnapTotal);
+
+            // H-10'/H-17 (architect K-4): run-scope (never reset) counterparts, each max with
+            // its own n so "no bigger sample landed" and "stopped measuring" cannot be confused.
+            Debug.Log("starfall.greybox: SC-56 run-scope reconcile stats (whole Editor Play " +
+                      "session, spans every reconnect - NOT the SC-56 judging value, context only) - " +
+                      "reconcile_hard_snap_total_run=" + _hardSnapTotalRun +
+                      ", reconcile_error_m_max_run=" + FormatStat(_reconcileErrorMMaxRun) + " (n=" + _reconcileErrorMMaxRunN + ")" +
+                      ", reconcile_error_deg_max_run=" + FormatStat(_reconcileErrorDegMaxRun) + " (n=" + _reconcileErrorDegMaxRunN + ")");
+
+            // SC-89 (leader-approved 2026-09-23; extended per architect K-7): session worst-case,
+            // not a per-frame trickle - written once at session end the same way SC-56 is, so QA
+            // can grep it after the fact instead of needing a live screenshot at the exact
+            // moment of a burst. Grep tag is fixed: "SC-89 session-end send burst stats".
+            // max_sends_per_frame is the K-7 pairing value: a background PAUSE (one huge
+            // catch-up frame) would still show max_ticks_drained_per_update > 1 on the OLD
+            // (pre-fix) binary, but max_sends_per_frame would ALSO be > 1 there - only the fixed
+            // binary holds it at 1 regardless of how large the drain was.
+            Debug.Log("starfall.greybox: SC-89 session-end send burst stats - " +
+                      "max_ticks_drained_per_update=" + FormatCount(_sendBurstStats.MaxTicksDrainedPerUpdate) +
+                      ", max_sends_per_frame=" + FormatCount(_sendBurstStats.MaxSendsPerFrame) +
+                      ", max_sends_per_trailing_1s=" + FormatCount(_sendBurstStats.MaxSendsInTrailingOneSecond) +
+                      ", catchup_carry_forward_ticks_total=" + _catchupCarryForwardTicksTotal +
+                      ", catchup_dormant_ticks_total=" + _catchupDormantTicksTotal +
+                      ", catchup_truncated_total=" + _catchupTruncatedTotal +
+                      ", reconcile_forced_after_hitch_total=" + _reconcileForcedAfterHitchTotal +
+                      ", prediction_history_overflow_total=" + (_controller?.PredictionHistoryOverflowTotal ?? 0) +
+                      // H-14 (K-2): observation only, NOT a SC-89 pass/fail condition - nonzero
+                      // is a separate potential defect (transport/server receive lag), not a
+                      // protocol-violation symptom.
+                      ", outbound_queue_full_total=" + (_client?.OutboundQueueFullTotal ?? 0));
         }
 
         /// <summary>NaN (the N=0 sentinel, <see cref="PercentileStats.Empty"/>) prints as "n/a",
         /// never as a number - a 0-sample stat must not be readable as a measured 0 (§7a).</summary>
         static string FormatStat(double value) =>
             double.IsNaN(value) ? "n/a" : value.ToString("F4", CultureInfo.InvariantCulture);
+
+        // SC-89: same "unmeasured, not measured-and-zero" discipline as FormatStat/
+        // PercentileStats.Empty above, for the nullable-int SendBurstStats counters.
+        static string FormatCount(int? value) =>
+            value.HasValue ? value.Value.ToString(CultureInfo.InvariantCulture) : "n/a";
 
         /// <summary>R3 decision 5 / client task 1: greybox-level HUD for "connected elsewhere" -
         /// RealtimeClient already stopped reconnecting by the time this fires (close code 4001),
@@ -374,18 +484,90 @@ namespace Starfall.Greybox
                 return;
             }
 
-            Reconciliation.Result result = _controller.Reconcile(confirmed, payload.AckInputSeq, _tuning ?? DefaultTuning());
+            // H-9 (수신측 스냅샷 중복 처리, 리더 메시지 2026-09-23): RealtimeClient.Pump() drains
+            // every queued WORLD_SNAPSHOT synchronously, so more than one can reach this method
+            // in the same frame before GreyboxSession.Update() runs again. Only the batch's
+            // LATEST tick may drive a rebase - applying an older one after a newer one already
+            // landed would rewind CurrentState. Queue it instead of reconciling inline;
+            // ApplyPendingRebase() (called once at the top of Update(), after this frame's
+            // Pump()-driven messages have all already synchronously landed here) does the
+            // actual work exactly once per frame, against whichever snapshot won.
+            // SnapshotRebaseBatch.ShouldReplacePending is the pure "which one wins" decision
+            // (SnapshotRebaseBatch.cs), covered independently by SnapshotRebaseBatchTests.cs.
+            // The interpolation buffer already got EVERY snapshot in this batch, older ones
+            // included, via the unconditional _remoteRegistry.OnSnapshot(...) call above -
+            // deduplication here applies only to the self-ship rebase path.
+            if (SnapshotRebaseBatch.ShouldReplacePending(message.Tick, _pendingRebaseTick))
+            {
+                _pendingRebaseTick = message.Tick;
+                _pendingRebaseConfirmed = confirmed;
+                _pendingRebaseAckInputSeq = payload.AckInputSeq;
+            }
+        }
+
+        long? _pendingRebaseTick;
+        ShipSimState _pendingRebaseConfirmed;
+        uint? _pendingRebaseAckInputSeq;
+
+        /// <summary>H-9: applies at most one rebase/reconcile per frame, against the latest
+        /// WORLD_SNAPSHOT this frame's Pump() drain produced for the controlled ship (see the
+        /// queuing comment in OnWorldSnapshotCore). No-op when nothing is pending - the common
+        /// case of exactly one (or zero) snapshot per frame.</summary>
+        void ApplyPendingRebase()
+        {
+            if (!_pendingRebaseTick.HasValue) return;
+
+            ShipSimState confirmed = _pendingRebaseConfirmed;
+            uint? ackInputSeq = _pendingRebaseAckInputSeq;
+            _pendingRebaseTick = null;
+            _pendingRebaseConfirmed = default;
+            _pendingRebaseAckInputSeq = null;
+
+            // H-2 (RebaseHold, T-2): do not rebase on a snapshot that cannot yet resolve an
+            // un-sent (carry-forward/dormant) entry in the history - architect R4 판정 section
+            // 5. heldSeconds accumulates real time between snapshots while a hold is active,
+            // exactly the way _tickAccumulator accumulates Time.unscaledDeltaTime - reset the
+            // moment we are not holding.
+            float now = Time.unscaledTime;
+            double heldSeconds = _rebaseHoldSeconds > 0.0 ? _rebaseHoldSeconds + (now - _rebaseHoldLastRealTime) : 0.0;
+            RebaseHold.Action holdAction = RebaseHold.Evaluate(_controller.History, ackInputSeq, heldSeconds);
+
+            if (holdAction == RebaseHold.Action.HoldAndKeepPredicting)
+            {
+                _rebaseHoldSeconds = heldSeconds;
+                _rebaseHoldLastRealTime = now;
+                return; // keep predicting - do not touch _controller.CurrentState/history this snapshot
+            }
+
+            if (holdAction == RebaseHold.Action.ForceRebaseDiscardingUnsent)
+            {
+                _controller.DiscardUnsentHistory();
+                _reconcileForcedAfterHitchTotal++;
+            }
+            _rebaseHoldSeconds = 0.0;
+            _rebaseHoldLastRealTime = now;
+
+            Reconciliation.Result result = _controller.Reconcile(confirmed, ackInputSeq, _tuning ?? DefaultTuning());
             if (result.HasError)
             {
                 _lastPositionErrorM = result.PositionErrorM;
                 _lastOrientationErrorDeg = result.OrientationErrorDeg;
                 _reconcileHasErrorTotal++; // CL-2 observation 1: HasError actually measured something
 
-                // SC-56(b): accumulate the distribution, not just the last value.
+                // SC-56(b): accumulate the distribution, not just the last value. Session-scope
+                // (reset in OnSessionReady, H-10').
                 _reconcilePositionErrorsM.Add(result.PositionErrorM);
                 _reconcileOrientationErrorsDeg.Add(result.OrientationErrorDeg);
                 _reconcilePositionErrorStats = ReconcileErrorStats.Compute(_reconcilePositionErrorsM);
                 _reconcileOrientationErrorStats = ReconcileErrorStats.Compute(_reconcileOrientationErrorsDeg);
+
+                // H-10'/H-17 run-scope counterparts (architect K-4): never reset, always carry n.
+                _reconcileErrorMMaxRunN++;
+                if (double.IsNaN(_reconcileErrorMMaxRun) || result.PositionErrorM > _reconcileErrorMMaxRun)
+                    _reconcileErrorMMaxRun = result.PositionErrorM;
+                _reconcileErrorDegMaxRunN++;
+                if (double.IsNaN(_reconcileErrorDegMaxRun) || result.OrientationErrorDeg > _reconcileErrorDegMaxRun)
+                    _reconcileErrorDegMaxRun = result.OrientationErrorDeg;
             }
             // CL-2 observation 2: step 3 replayed at least one unconfirmed input on top of the
             // rebase - distinguishes "rebased AND replayed" from "rebased only, nothing to replay".
@@ -397,6 +579,13 @@ namespace Starfall.Greybox
                 _reconcileBothOmegaNonZeroTotal++;
 
             _hardSnapTotal = _controller.HardSnapTotal;
+
+            // H-10' run-scope hard snap (architect K-4): each new _controller instance restarts
+            // its own HardSnapTotal at 0 (OnSessionReady/first-snapshot path above), so only the
+            // DELTA since the last read carries forward into the run-scope accumulator.
+            if (_hardSnapTotal > _hardSnapTotalRunLastControllerValue)
+                _hardSnapTotalRun += _hardSnapTotal - _hardSnapTotalRunLastControllerValue;
+            _hardSnapTotalRunLastControllerValue = _hardSnapTotal;
         }
 
         static SyncTuningData DefaultTuning() => new SyncTuningData
@@ -412,27 +601,126 @@ namespace Starfall.Greybox
         };
 
         // ------------------------------------------------------------------ per-frame: input, send, render
+        //
+        // H-3''/H-4'/H-5/H-6 (architect R4 판정 + 보충 판정 + 보충 판정 2, T-3): drain judgement
+        // lives entirely in TickCatchUp.Plan (Starfall.Flight, pure) - the loop that used to
+        // drain the accumulator directly in this file is gone (SC-89 (c) greps this file for
+        // that loop's condition and must find zero matches). This method is a thin adapter:
+        // read the plan, execute it.
 
         double _tickAccumulator;
 
         void Update()
         {
+            // H-9: apply at most one rebase/reconcile for whatever WORLD_SNAPSHOT batch this
+            // frame's Pump() (StarfallNetHost.Update(), separate component, execution order vs.
+            // this Update() unconfirmed) produced - see ApplyPendingRebase()'s doc comment.
+            ApplyPendingRebase();
+
             if (_input != null) _input.Sample();
 
             _tickAccumulator += Time.unscaledDeltaTime;
-            while (_tickAccumulator >= _tickDurationSeconds)
+
+            TickCatchUp.Plan plan = TickCatchUp.Compute(
+                _tickAccumulator, _tickDurationSeconds,
+                TickCatchUp.ProductionMaxSendsPerFrame, TickCatchUp.ProductionMaxPredictedTicksPerFrame);
+
+            _tickAccumulator = plan.RemainingAccumulatorSeconds;
+            if (plan.Truncated) _catchupTruncatedTotal++;
+
+            int sendsThisFrame = 0;
+            for (int i = 0; i < plan.TicksToPredict; i++)
             {
-                _tickAccumulator -= _tickDurationSeconds;
-                SendAndPredictOneTick();
+                bool isSendSlot = i >= plan.TicksToPredict - plan.TicksToSend; // rule 2/3: only the LAST TicksToSend ticks are send attempts
+                if (isSendSlot && TrySendCurrentInputForThisTick()) sendsThisFrame++;
+                else PredictCarryForwardOrDormantTick();
             }
+
+            _sendBurstStats.RecordUpdate(plan.TicksToPredict);
+            _sendBurstStats.RecordFrameSendCount(sendsThisFrame);
 
             RenderLocalShip();
             RenderRemoteShips();
+
+            MaybeLogPeriodicStatus();
         }
 
-        void SendAndPredictOneTick()
+        // H-13 (OnGUI 외 주기적 로그): PeriodicStatusLog.cs has the "why" and the proof this
+        // does not depend on window focus. This method is the other half - gate + wall-clock
+        // interval + field wiring, called from Update() (never OnGUI, and unconditionally, not
+        // behind any focus check) so it keeps producing evidence through exactly the background
+        // window OnGUI cannot.
+        const double PeriodicStatusLogIntervalSeconds = 5.0;
+        double _lastPeriodicStatusLogRealTime = double.NegativeInfinity;
+
+        void MaybeLogPeriodicStatus()
         {
-            if (_client == null || !_client.IsReady || _controller == null || _controlledShipClass == null || _input == null) return;
+            float now = Time.unscaledTime;
+            if (now - _lastPeriodicStatusLogRealTime < PeriodicStatusLogIntervalSeconds) return;
+            _lastPeriodicStatusLogRealTime = now;
+
+            double speed = _controller != null ? _controller.CurrentState.Velocity.Length() : 0.0;
+            double originDistance = _controller != null ? _controller.CurrentState.Position.Length() : 0.0;
+
+            var line = new PeriodicStatusLog(
+                tick: _latestSnapshotTick,
+                ackInputSeq: _lastAckInputSeq,
+                speedMps: speed,
+                originDistanceM: originDistance,
+                predictErrorM: _lastPositionErrorM,
+                predictErrorDeg: _lastOrientationErrorDeg,
+                reconcileHardSnapTotal: _hardSnapTotal,
+                sendBurstMaxTicksDrainedPerUpdate: _sendBurstStats.MaxTicksDrainedPerUpdate,
+                sendBurstMaxSendsPerFrame: _sendBurstStats.MaxSendsPerFrame,
+                catchupCarryForwardTicksTotal: _catchupCarryForwardTicksTotal,
+                catchupDormantTicksTotal: _catchupDormantTicksTotal,
+                catchupTruncatedTotal: _catchupTruncatedTotal,
+                reconcileForcedAfterHitchTotal: _reconcileForcedAfterHitchTotal,
+                visibleShips: _visibleShipCount,
+                applicationFocused: Application.isFocused,
+                // F-8: the same quantised integers OnGUI prints and the wire carries - never a
+                // re-derivation, so the log and the HUD can never disagree about what was sent.
+                thrustX: _input != null ? Quantization.QuantizeControlAxis(_input.Thrust.X) : 0,
+                thrustY: _input != null ? Quantization.QuantizeControlAxis(_input.Thrust.Y) : 0,
+                thrustZ: _input != null ? Quantization.QuantizeControlAxis(_input.Thrust.Z) : 0,
+                roll: _input != null ? Quantization.QuantizeControlAxis(_input.Roll) : 0,
+                aimTargetX: _input != null ? Quantization.QuantizeQuaternionComponent(_input.AimTargetWorld.X) : 0,
+                aimTargetY: _input != null ? Quantization.QuantizeQuaternionComponent(_input.AimTargetWorld.Y) : 0,
+                aimTargetZ: _input != null ? Quantization.QuantizeQuaternionComponent(_input.AimTargetWorld.Z) : 0,
+                aimTargetW: _input != null ? Quantization.QuantizeQuaternionComponent(_input.AimTargetWorld.W) : 0,
+                // Current predicted orientation, NOT the aim target - the pair is what makes
+                // auto-level readable (see PeriodicStatusLog's field block).
+                // R16: with no controller these used to print (0,0,0,0) - not a unit quaternion,
+                // not any rotation, and silently parsed as data by a reader (the R5 preflight log
+                // is full of it). Identity is the honest stand-in and is self-evidently "nothing
+                // has been reconciled yet" when paired with tick=-1 on the same line.
+                attitudeX: _controller != null ? Quantization.QuantizeQuaternionComponent(_controller.CurrentState.Orientation.X) : 0,
+                attitudeY: _controller != null ? Quantization.QuantizeQuaternionComponent(_controller.CurrentState.Orientation.Y) : 0,
+                attitudeZ: _controller != null ? Quantization.QuantizeQuaternionComponent(_controller.CurrentState.Orientation.Z) : 0,
+                attitudeW: _controller != null ? Quantization.QuantizeQuaternionComponent(_controller.CurrentState.Orientation.W) : Quantization.QuantizeQuaternionComponent(1.0),
+                boundarySoftCrossed: originDistance > (_starSystem?.SoftBoundaryRadiusM ?? double.PositiveInfinity),
+                flightAssist: _input != null && _input.FlightAssist,
+                // R16: position as a VECTOR. origin_distance_m above is its magnitude and cannot
+                // distinguish "moved along the bow" from "moved along the negated bow" - the R5
+                // session closed SC-56/SC-89 and left exactly that open.
+                positionX: _controller != null ? _controller.CurrentState.Position.X : 0.0,
+                positionY: _controller != null ? _controller.CurrentState.Position.Y : 0.0,
+                positionZ: _controller != null ? _controller.CurrentState.Position.Z : 0.0,
+                // R16: raw device deltas, sampled BEFORE the mouse->aim mapping SC-59 tests.
+                mouseDeltaXTotal: _input != null ? _input.MouseDeltaXTotal : 0.0,
+                mouseDeltaYTotal: _input != null ? _input.MouseDeltaYTotal : 0.0,
+                yawDeg: _input != null ? _input.YawDeg : 0.0,
+                pitchDeg: _input != null ? _input.PitchDeg : 0.0);
+
+            Debug.Log(line.Format());
+        }
+
+        /// <summary>Rule 2/3 (R4 판정): the freshest input, sampled this frame, sent as-is.
+        /// Predicts with it only on success - K-1 (2): "송신을 먼저 시도하고, 성공하면 새
+        /// 입력으로 예측하고, 실패하면 같은 tick을 이월 입력으로 예측한다."</summary>
+        bool TrySendCurrentInputForThisTick()
+        {
+            if (_client == null || !_client.IsReady || _controller == null || _controlledShipClass == null || _input == null) return false;
 
             Guid commandId = UuidV7.NewGuid();
             uint seq = _localInputSeq++;
@@ -443,12 +731,66 @@ namespace Starfall.Greybox
                 DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffZ", CultureInfo.InvariantCulture));
 
             string json = ContractJson.Serialize(command);
-            if (!_client.TrySendJson(json)) return;
+            if (!_client.TrySendJson(json)) return false; // K-1 (2): falls back to carry-forward,
+                                                            // never resent (SET_SHIP_CONTROL is
+                                                            // absolute state - ADR-0011 section 4).
 
+            _sendBurstStats.RecordSend(Time.realtimeSinceStartupAsDouble);
             _pendingInputSeqByCommandId[commandId] = seq;
 
             ShipControlInputD dequantized = SetShipControlBuilder.ToDequantizedInput(command.Payload);
-            _controller.ApplyInput(dequantized);
+            _controller.ApplyInput(dequantized, derivedFromSeq: null);
+
+            _lastSentPayload = command.Payload;
+            _lastSentInputSeq = seq;
+            _ticksSinceLastSend = 0;
+            return true;
+        }
+
+        /// <summary>Rules 4/5 (R4 판정): never sent. Reuses the last actually-sent quantized
+        /// wire input verbatim (I-36 - never resampled) while within
+        /// TickCatchUp.ProductionCarryForwardMaxTicks of the last send; past that, switches to
+        /// the dormant input (ADR-0011 section 6.1) the server itself falls back to. H-15: the
+        /// resulting InputRecord carries DerivedFromSeq so DropRejected can drop it too if its
+        /// source command is later rejected, and RebaseHold can tell it apart from a real
+        /// send.</summary>
+        void PredictCarryForwardOrDormantTick()
+        {
+            if (_controller == null || _controlledShipClass == null) return;
+
+            uint seq = _localInputSeq++;
+            _ticksSinceLastSend++;
+
+            bool useDormant = _lastSentPayload == null || _ticksSinceLastSend > TickCatchUp.ProductionCarryForwardMaxTicks;
+            ShipControlInputD input = useDormant ? BuildDormantInput(seq) : BuildCarryForwardInput(seq);
+
+            // Sentinel 0u: no real source seq exists yet (session's first ticks, before any
+            // send has ever succeeded). Real seqs start at 1 (_localInputSeq), so 0 never
+            // collides with an actual command_id's seq in DropRejected/RebaseHold.
+            uint derivedFromSeq = _lastSentInputSeq ?? 0u;
+            _controller.ApplyInput(input, derivedFromSeq);
+
+            if (useDormant) _catchupDormantTicksTotal++;
+            else _catchupCarryForwardTicksTotal++;
+        }
+
+        ShipControlInputD BuildCarryForwardInput(uint seq) => new ShipControlInputD(
+            seq,
+            _lastSentPayload.ThrustXMilli, _lastSentPayload.ThrustYMilli, _lastSentPayload.ThrustZMilli,
+            _lastSentPayload.RollMilli,
+            _lastSentPayload.AimXMicro, _lastSentPayload.AimYMicro, _lastSentPayload.AimZMicro, _lastSentPayload.AimWMicro,
+            _lastSentPayload.Brake, _lastSentPayload.FlightAssist);
+
+        ShipControlInputD BuildDormantInput(uint seq)
+        {
+            // ADR-0011 section 6.1 dormant input: zero thrust, zero roll, aim held at whatever
+            // attitude prediction has already reached, brake off, assist on. Built the same way
+            // a real command is (quantize then dequantize) so this obeys I-36 exactly like every
+            // other predicted tick, even though it is never sent.
+            Quatd currentAim = _controller.CurrentState.Orientation;
+            SetShipControlCommand synthetic = SetShipControlBuilder.Build(
+                UuidV7.NewGuid(), seq, Vec3d.Zero, 0.0, currentAim, brake: false, flightAssist: true, clientSentAtIso8601OrNull: null);
+            return SetShipControlBuilder.ToDequantizedInput(synthetic.Payload);
         }
 
         void RenderLocalShip()
@@ -544,6 +886,27 @@ namespace Starfall.Greybox
                 "cl2_reconcile_has_error_total=" + _reconcileHasErrorTotal +
                 " cl2_reconcile_replayed_nonzero_total=" + _reconcileReplayedNonZeroInputsTotal +
                 " cl2_reconcile_both_omega_nonzero_total=" + _reconcileBothOmegaNonZeroTotal,
+                // SC-89 (R8/R9 finding, leader-approved 2026-09-23; extended per architect K-7):
+                // measurement only, not a verdict - this session's worst-case catch-up burst so
+                // far. "n/a" (not "0") until at least one Update()/send has actually happened
+                // (§7a discipline). max_sends_per_frame is the K-7 pairing value (see
+                // OnSessionEnded for why it must be read alongside max_ticks_drained_per_update).
+                "send_burst_max_ticks_per_update=" + FormatCount(_sendBurstStats.MaxTicksDrainedPerUpdate) +
+                " send_burst_max_sends_per_frame=" + FormatCount(_sendBurstStats.MaxSendsPerFrame) +
+                " send_burst_max_sends_per_trailing_1s=" + FormatCount(_sendBurstStats.MaxSendsInTrailingOneSecond),
+                // T-7/H-8 catch-up path observations - all four must be countable (M-17 discipline).
+                "catchup_carry_forward_ticks_total=" + _catchupCarryForwardTicksTotal +
+                " catchup_dormant_ticks_total=" + _catchupDormantTicksTotal +
+                " catchup_truncated_total=" + _catchupTruncatedTotal +
+                " reconcile_forced_after_hitch_total=" + _reconcileForcedAfterHitchTotal,
+                // F-7 (qa r5): SC-59 (b2)'s "마커 4개의 ID·거리를 한 줄로". Drawn every frame,
+                // not only on the opening one - a viewer scrubbing to any point in a recording
+                // can then tell which markers the ship is being judged against. The wrap in
+                // BuildHudRows is what keeps this (the longest line on the HUD by far) from
+                // being the next field F-1 silently eats.
+                MarkerHudLine.Format(
+                    _starSystem?.ReferenceMarkers,
+                    _controller != null ? _controller.CurrentState.Position : default),
                 "visible_ships=" + _visibleShipCount,
                 "nearest_ship_m=" + (double.IsInfinity(_nearestShipDistanceM) ? "-" : _nearestShipDistanceM.ToString("F1", CultureInfo.InvariantCulture)),
                 originDistance > softRadius ? "BOUNDARY WARNING (soft crossed)" : "",
@@ -572,9 +935,28 @@ namespace Starfall.Greybox
                     : "",
             };
 
-            GUI.Box(new Rect(8, 8, 420, 20 + lines.Count * 18), "");
-            for (int i = 0; i < lines.Count; i++)
-                GUI.Label(new Rect(16, 12 + i * 18, 400, 18), lines[i]);
+            // F-1 fix: rows (not `lines`) drive both the Box height and each Label's Rect, and
+            // rows always contains 100% of every `lines` entry's characters (HudTextWrap.Wrap's
+            // guarantee) - a line too long for one row becomes two rows instead of a clipped
+            // one, so the panel structurally cannot drop a field again as more are added.
+            var rows = BuildHudRows(lines);
+
+            GUI.Box(new Rect(8, 8, HudRowPixelWidth + 16, 20 + rows.Count * 18), "");
+            for (int i = 0; i < rows.Count; i++)
+                GUI.Label(new Rect(16, 12 + i * 18, HudRowPixelWidth, 18), rows[i]);
+        }
+
+        /// <summary>Pure layout step, split out of OnGUI so it is unit-testable without a
+        /// UnityEngine.GUI context (see HudTextWrap.cs and
+        /// HudTextWrapTests.cs). Public, not internal: the EditMode test assembly is a separate
+        /// asmdef with no InternalsVisibleTo, and HudMaxCharsPerLine above is public for the
+        /// same reason - the two are read together or not at all.</summary>
+        public static List<string> BuildHudRows(List<string> lines)
+        {
+            var rows = new List<string>();
+            foreach (string line in lines)
+                rows.AddRange(HudTextWrap.Wrap(line, HudMaxCharsPerLine));
+            return rows;
         }
 
         // ------------------------------------------------------------------ double (Sim) -> float (Unity) conversion.

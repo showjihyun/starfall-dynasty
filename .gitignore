@@ -96,3 +96,16 @@ desktop.ini
 # (리더가 2026-09-23 추가 — architect 확인 대기. 이 파일의 "volatile output만 무시" 원칙에 따른 것)
 _workspace/**/*.mp4
 _workspace/**/*.mkv
+
+# SC-59 촬영 중 남은 원본 데스크톱 캡처(4K, 5~7MB/장). 판독에 실제로 쓴 crop·grid·contact은
+# 추적한다 — 아래는 그것을 만들기 전의 전체 화면 원본이라 어느 문서도 인용하지 않는다.
+# 디스크에는 그대로 남으며 삭제되지 않는다(절대 원칙 5). 리더가 2026-09-24 사용자 승인으로 추가.
+_workspace/**/evidence/**/hud-check-*.png
+_workspace/**/evidence/**/hud-crop-*.png
+_workspace/**/evidence/**/now*.png
+_workspace/**/evidence/**/verify-*.png
+_workspace/**/evidence/**/wait-*.png
+_workspace/**/evidence/**/final*.png
+
+# Unity 테스트 러너가 레포 루트에 남기는 산출물. 매 실행마다 덮어쓰이는 빌드 결과물이다.
+/test-results.xml

@@ -458,6 +458,59 @@ namespace Starfall.Tests.EditMode
                 "no immediate reconnect before the backoff delay elapses");
         }
 
+        // ------------------------------------------------------------------ PROTOCOL_VIOLATION (close code 1002, SC-89)
+        //
+        // R8/R9 finding (_workspace/p1-01-ship-movement/03_client_impl.md): the server closes
+        // with WS code 1002 when a session's per-tick command cap is exceeded
+        // (server/crates/gateway/src/runtime.rs close_code(), ADR-0011 section 5.2). 1002 was
+        // never in ReconnectPolicy's "stop" bucket (only 4001 is) - the gap this closes is
+        // purely a missing log line: before this, "PROTOCOL_VIOLATION" never appeared anywhere
+        // in client/Logs/Editor.log, so QA had to cross-reference the server log and
+        // domain_events.close_reason by hand to learn a disconnect was this kind.
+
+        [Test]
+        public void Disconnect_WithProtocolViolationCloseCode_LogsAGreppableLine()
+        {
+            ConnectAndOpen();
+
+            _transport.SimulateDisconnect(DisconnectKind.Remote, 1002, "budget exceeded");
+            _client.Pump();
+
+            foreach (string line in _log.Lines) TestContext.WriteLine(line);
+            Assert.That(_log.Contains("starfall.net: PROTOCOL_VIOLATION close_code=1002"), Is.True,
+                "SC-89 needs this client log line and the server's SESSION_CLOSED{ProtocolViolation} " +
+                "DB row to point at each other without a human cross-referencing timestamps");
+        }
+
+        [Test]
+        public void Disconnect_WithProtocolViolationCloseCode_StillReconnects()
+        {
+            // The whole point (unlike 4001/SUPERSEDED): this is diagnostics only, reconnect
+            // behavior must be unchanged.
+            ConnectAndOpen();
+            int connectsBefore = _transport.ConnectCount;
+
+            _transport.SimulateDisconnect(DisconnectKind.Remote, 1002, "budget exceeded");
+            _client.Pump();
+
+            Assert.That(_client.Attempt, Is.EqualTo(1),
+                "1002 must still schedule a reconnect exactly like any other non-4001 code");
+            Assert.That(_transport.ConnectCount, Is.EqualTo(connectsBefore),
+                "no immediate reconnect before the backoff delay elapses - same as every other code");
+        }
+
+        [Test]
+        public void Disconnect_WithSomeOtherCloseCode_DoesNotLogTheProtocolViolationLine()
+        {
+            ConnectAndOpen();
+
+            _transport.SimulateDisconnect(DisconnectKind.Remote, 1000, "peer closed normally");
+            _client.Pump();
+
+            Assert.That(_log.Contains("PROTOCOL_VIOLATION"), Is.False,
+                "the tag must be exclusive to 1002 - a normal close must never read as a violation");
+        }
+
         [Test]
         public void SendPing_WhileNotOpen_ReturnsNullInsteadOfQueueing()
         {

@@ -1,0 +1,77 @@
+{
+  "item": "SC-81 (AC-20f, I-30) 인과 — 타입 + ≠ self + 순서, 동결된 결함 장부",
+  "verdict": "PASS",
+  "rule": "(b) 표 전체 결함 집합 == 동결 장부 7건",
+  "ship_events_checked": 168,
+  "session_events_checked": 4364,
+  "superseded_closes_checked": 2,
+  "defects_found": 7,
+  "defects_by_kind": {
+    "self": 7
+  },
+  "new_defects_not_in_ledger": [],
+  "ledger_rows_missing": [],
+  "defects": [
+    {
+      "event_id": "01a0c46d-412c-75c4-a72e-5eb9b6eda64b",
+      "event_type": "SHIP_DESPAWNED",
+      "tick": 395902,
+      "sequence": 8,
+      "cause_type": "SHIP_DESPAWNED",
+      "defect": "self"
+    },
+    {
+      "event_id": "01a0c46d-412c-75c4-a72e-5ebab4dbe3a7",
+      "event_type": "SHIP_DESPAWNED",
+      "tick": 395902,
+      "sequence": 9,
+      "cause_type": "SHIP_DESPAWNED",
+      "defect": "self"
+    },
+    {
+      "event_id": "01a0c46d-412c-75c4-a72e-5ebbfc8128c6",
+      "event_type": "SHIP_DESPAWNED",
+      "tick": 395902,
+      "sequence": 10,
+      "cause_type": "SHIP_DESPAWNED",
+      "defect": "self"
+    },
+    {
+      "event_id": "01a0c46d-412c-75c4-a72e-5ebc0f2f7da9",
+      "event_type": "SHIP_DESPAWNED",
+      "tick": 395902,
+      "sequence": 11,
+      "cause_type": "SHIP_DESPAWNED",
+      "defect": "self"
+    },
+    {
+      "event_id": "01a0c46d-412c-75c4-a72e-5ebd1f652604",
+      "event_type": "SHIP_DESPAWNED",
+      "tick": 395902,
+      "sequence": 12,
+      "cause_type": "SHIP_DESPAWNED",
+      "defect": "self"
+    },
+    {
+      "event_id": "01a0c46d-412c-75c4-a72e-5ebe4e8056ac",
+      "event_type": "SHIP_DESPAWNED",
+      "tick": 395902,
+      "sequence": 13,
+      "cause_type": "SHIP_DESPAWNED",
+      "defect": "self"
+    },
+    {
+      "event_id": "01a0c48c-6427-744b-9d9a-25dcd98df09f",
+      "event_type": "SHIP_DESPAWNED",
+      "tick": 430030,
+      "sequence": 0,
+      "cause_type": "SHIP_DESPAWNED",
+      "defect": "self"
+    }
+  ],
+  "tick_window": {
+    "from_tick": null,
+    "to_tick": null,
+    "mode": "전수"
+  }
+}

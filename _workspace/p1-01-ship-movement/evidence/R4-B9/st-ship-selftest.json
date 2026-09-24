@@ -1,0 +1,23 @@
+{
+  "item": "SC-86 짝짓기 키 자체 검증 (§0.6)",
+  "verdict": "PASS",
+  "scenario": "함선 1척이 세션 2개를 거친다(재개). 스폰과 디스폰의 correlation 이 다르다",
+  "paired_by_ship_id": {
+    "broken_groups": {},
+    "result": "짝이 맞는다"
+  },
+  "paired_by_correlation_id": {
+    "broken_groups": {
+      "corr-A": {
+        "SHIP_SPAWNED": 1,
+        "SHIP_DESPAWNED": 0
+      },
+      "corr-B": {
+        "SHIP_SPAWNED": 0,
+        "SHIP_DESPAWNED": 1
+      }
+    },
+    "result": "깨진다(기대)"
+  },
+  "meaning": "p0-02 의 correlation 기반 SQL 을 그대로 쓰면 재개 함선에서 '짝 없는 이벤트 2건'이 나온다. 이 스크립트가 ship_id 로 짝짓는 이유이고, 그 선택이 실제로 무언가를 막는다."
+}

@@ -114,6 +114,23 @@ pub enum Behavior {
     /// 보조를 끈 이유: 이월이 끝나 휴면(보조 켬)으로 넘어가는 순간부터 오토레벨이 돌기 시작해
     /// 잔류 구간이 5단계를 반드시 탄다(ADR-0011 §6.1 — 독립 계산이 갈리는 자리).
     ResumeLeg1 { fly: Duration, settle: Duration },
+    /// **SC-89 (g) 양성 대조**: 한 서버 tick 안에 `per_tick` 건을 **사이 간격 없이** 몰아 보내고
+    /// `gap` 만큼 쉬는 것을 `rounds` 회 반복한다.
+    ///
+    /// 왜 이 모양인가 — 두 문턱을 갈라야 하기 때문이다(ADR-0011 §5.2):
+    /// * **tick 당 상한(8)** 은 *한 tick 안의 건수* 를 본다 → 몰아 보내기가 이것을 넘긴다.
+    /// * **`rate_limit_hz`(40)** 는 *평균 속도* 를 본다 → `gap` 이 평균을 낮춰 이쪽은 **건드리지 않는다**.
+    ///
+    /// 평균 속도를 낮추지 않으면 `RATE_LIMITED` 가 먼저 발동해 **위반 경로를 밟기 전에 막힌다** —
+    /// 그러면 이 대조는 "프로토콜 위반이 계수된다"를 증명하지 못하고 다른 것을 증명하게 된다.
+    ///
+    /// 위반 예산은 10초 창에 8건이므로 `rounds >= 8` 이고 `rounds * gap < 10s` 여야 서버가 닫는다.
+    TickBurst {
+        per_tick: u32,
+        rounds: u32,
+        gap: Duration,
+        grace: Duration,
+    },
     /// 보내지 않고 `listen` 동안 받기만 한다(관측자·재개 2구간). `seq1_after` 가 있으면 그 시점에
     /// `input_seq = 1` 명령을 하나 보낸다(AC-3(e2): 재개 후 첫 입력이 ACCEPTED 여야 한다).
     Listen {
@@ -274,6 +291,12 @@ pub async fn run_connection(spec: BotSpec) -> ConnectionOutcome {
             turn_hold,
         } => conn.run_range_turn(frames, lead, turn_hold).await,
         Behavior::ResumeLeg1 { fly, settle } => conn.run_resume_leg1(fly, settle).await,
+        Behavior::TickBurst {
+            per_tick,
+            rounds,
+            gap,
+            grace,
+        } => conn.run_tick_burst(per_tick, rounds, gap, grace).await,
         Behavior::Listen { listen, seq1_after } => conn.run_listen(listen, seq1_after).await,
     }
 
@@ -674,6 +697,34 @@ impl Conn {
         // 마지막 스냅샷·응답이 돌아올 시간을 준다.
         self.pump_for(Duration::from_millis(1500)).await;
         self.close_client_side().await;
+    }
+
+    /// SC-89 (g): 한 tick 에 `per_tick` 건 → `gap` 휴식 → `rounds` 회.
+    ///
+    /// **서버가 먼저 닫기를 기다린다** — 이 대조가 보이려는 것이 *서버의 종료* 이므로
+    /// 클라이언트 쪽에서 닫으면 `close_reason` 이 `CLIENT_CLOSED` 가 되어 아무것도 증명하지 못한다.
+    async fn run_tick_burst(&mut self, per_tick: u32, rounds: u32, gap: Duration, grace: Duration) {
+        let mut seq: u64 = 0;
+        for _round in 0..rounds {
+            if self.closed {
+                break;
+            }
+            // 사이에 await 지점을 두지 않는다(pump 하지 않는다) — 같은 서버 tick 에 얹히는 것이 목적이다.
+            for _ in 0..per_tick {
+                seq += 1;
+                let cmd = SetShipControlCommand::new(Uuid::now_v7(), seq).with_thrust(0, 0, 1000);
+                self.send_control(cmd).await;
+                if self.closed {
+                    break;
+                }
+            }
+            self.pump_for(gap).await;
+        }
+        // 서버가 닫을 시간을 준다. 닫지 않으면 그 사실 자체가 대조의 결과다.
+        self.pump_for(grace).await;
+        if !self.closed {
+            self.close_client_side().await;
+        }
     }
 
     async fn run_cheat_raw(&mut self, frames: Vec<String>, gap: Duration, grace: Duration) {

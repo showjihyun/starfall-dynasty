@@ -1,0 +1,14 @@
+# SC-89 (c) 기준선 — 수정 전 상태 (qa3, 2026-09-23)
+
+게이트가 실제로 빨간불을 켜는지 먼저 확인한다 (계약 §7a: RED 선행).
+
+## T-3: GreyboxSession.Update() 에 누적기 산술이 남아 있는가
+$ grep -n "while (_tickAccumulator" client/Assets/_Project/Scripts/Greybox/GreyboxSession.cs
+423:            while (_tickAccumulator >= _tickDurationSeconds)
+exit=0  → 남아 있다 = SC-89 (c) 현재 RED (기대대로)
+
+## T-1: 순수 함수가 존재하는가
+$ ls client/Assets/_Project/Scripts/Flight/TickCatchUp.cs
+없음 → H-1 미구현 (기대대로)
+
+수정(H-1~H-8) 뒤에는 grep 이 exit 1 이어야 하고 TickCatchUp.cs 가 있어야 한다.

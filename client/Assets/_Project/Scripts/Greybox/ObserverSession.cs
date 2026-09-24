@@ -121,6 +121,7 @@ namespace Starfall.Greybox
             _controlledShipClass = null;
             _localInputSeq = 1;
             _pendingInputSeqByCommandId.Clear();
+            _pendingRebase.Clear();
             Debug.Log("starfall.observer." + ObserverLabel + ": session ready, actor_id=" + identity.ActorId);
         }
 
@@ -166,19 +167,33 @@ namespace Starfall.Greybox
                 if (_controller == null)
                 {
                     // First snapshot of a session: trust it unconditionally (ADR-0012 section 3/7),
-                    // same as GreyboxSession.
+                    // same as GreyboxSession. No batching concern yet - nothing pending to race
+                    // against - so the row for it is written immediately.
                     _controller = new PredictedShipController(_controlledShipClass, CurrentBoundary(), _tickDurationSeconds, confirmed);
+
+                    // Own ship: what THIS observer's screen shows for its own ship right now -
+                    // predicted, not the raw wire value (SC-64/65 measure the two observers'
+                    // SCREENS, not the two observers' raw snapshots - the latter is SC-63's job
+                    // and is intentionally tautological, see two_client_view.py's own comment).
+                    WriteRow(message.Tick, controlledWire.ShipId, controlledWire.Presence, _controller.CurrentState);
                 }
                 else
                 {
-                    _controller.Reconcile(confirmed, payload.AckInputSeq, _data.Tuning ?? DefaultTuning());
+                    // F-2 (05_qa_report_r5.md §4(c)): this used to call Reconcile() inline here,
+                    // the exact defect H-9 fixed in GreyboxSession - RealtimeClient.Pump() can
+                    // drain more than one WORLD_SNAPSHOT for the controlled ship in one Update()
+                    // (this session's own Pump() call in Update(), below), and reconciling each
+                    // one in arrival order lets an older snapshot's Reconcile() run after a newer
+                    // one already landed, rewinding CurrentState - and because WriteRow() below
+                    // fed straight off CurrentState, that rewind used to be etched into the QA
+                    // CSV evidence file itself. Queue it instead; ApplyPendingRebase() (called
+                    // once per Update(), right after Pump()) reconciles and writes exactly once,
+                    // against whichever snapshot in the batch had the highest tick - identical
+                    // selection rule to GreyboxSession's OnWorldSnapshotCore, via the same pure
+                    // SnapshotRebaseBatch.ShouldReplacePending decision (SnapshotRebaseBatchTests.cs).
+                    _pendingRebase.TryQueue(message.Tick, confirmed, payload.AckInputSeq,
+                                            controlledWire.ShipId, controlledWire.Presence);
                 }
-
-                // Own ship: what THIS observer's screen shows for its own ship right now -
-                // predicted, not the raw wire value (SC-64/65 measure the two observers'
-                // SCREENS, not the two observers' raw snapshots - the latter is SC-63's job and
-                // is intentionally tautological, see two_client_view.py's own comment).
-                WriteRow(message.Tick, controlledWire.ShipId, controlledWire.Presence, _controller.CurrentState);
             }
 
             // Every other ship: interpolated at (latest known tick - interpolation delay), the
@@ -195,6 +210,26 @@ namespace Starfall.Greybox
                 if (display.Mode == RemoteShipBuffer.DisplayMode.NoData) continue;
                 WriteRow(message.Tick, pair.Key, display.Presence, display.State);
             }
+        }
+
+        // ------------------------------------------------------------------ F-2 / H-9-style batched rebase (see the queuing comment in OnWorldSnapshot)
+
+        // qa r6 F-2: was five loose fields plus an inline copy of the take-and-clear sequence,
+        // none of it reachable by any test. PendingRebaseSlot is the same state machine as a
+        // testable object - see that file's header.
+        readonly PendingRebaseSlot _pendingRebase = new PendingRebaseSlot();
+
+        /// <summary>Applies at most one rebase/reconcile + CSV row per frame, against the latest
+        /// WORLD_SNAPSHOT this frame's Pump() drain produced for the controlled ship (see the
+        /// queuing comment in OnWorldSnapshot). No-op when nothing is pending - the common case
+        /// of exactly one (or zero) snapshot per frame.</summary>
+        void ApplyPendingRebase()
+        {
+            if (!_pendingRebase.TryTake(out long tick, out ShipSimState confirmed,
+                                        out uint? ackInputSeq, out Guid shipId, out string presence)) return;
+
+            _controller.Reconcile(confirmed, ackInputSeq, _data.Tuning ?? DefaultTuning());
+            WriteRow(tick, shipId, presence, _controller.CurrentState);
         }
 
         void WriteRow(long tick, Guid shipId, string presence, ShipSimState state)
@@ -226,6 +261,14 @@ namespace Starfall.Greybox
         void Update()
         {
             if (_client != null) _client.Pump();
+
+            // F-2: apply at most one rebase/reconcile for whatever WORLD_SNAPSHOT batch the
+            // Pump() call just above produced this frame - see ApplyPendingRebase()'s doc
+            // comment. Must run after Pump() (unlike GreyboxSession, whose Pump() lives on a
+            // separate component/Update()), since this is the call that populates the pending
+            // state for this frame.
+            ApplyPendingRebase();
+
             if (_input != null) _input.Sample();
 
             _tickAccumulator += Time.unscaledDeltaTime;

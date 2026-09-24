@@ -45,6 +45,19 @@ namespace Starfall.Greybox
         public bool Brake { get; private set; }
         public bool FlightAssist => _flightAssist;
 
+        /// <summary>Cumulative raw mouse delta in device pixels since this sampler was created,
+        /// +X right and +Y up as the device reports them - deliberately NOT the yaw/pitch these
+        /// feed, and never reset, so two log lines subtract to give that interval's movement no
+        /// matter how the logger is sampled. See the comment in Sample().</summary>
+        public double MouseDeltaXTotal { get; private set; }
+        public double MouseDeltaYTotal { get; private set; }
+
+        /// <summary>The accumulated look angles the aim target is built from. Logged alongside
+        /// the raw deltas so a reader can see the mapping's INPUT and OUTPUT separately - if the
+        /// two ever disagree in sign, that disagreement is the SC-59 bug.</summary>
+        public double YawDeg => _yawDeg;
+        public double PitchDeg => _pitchDeg;
+
         void Awake()
         {
             // Start aiming along the ship's own spawn-time forward so the first frame does not
@@ -61,6 +74,14 @@ namespace Starfall.Greybox
             if (mouse != null)
             {
                 Vector2 delta = mouse.delta.ReadValue();
+                // R16 (real-server session, 2026-09-24): SC-59 criterion 2 asks whether moving the
+                // mouse RIGHT turns the ship RIGHT. Every field the evidence log carried until now
+                // sat DOWNSTREAM of this line - AimTargetWorld is already the result of the very
+                // mapping under test, so a build with delta.x negated produced an identical log.
+                // These two accumulate the raw device deltas, before any mapping, so a reader can
+                // pair "mouse went right" with "ship turned right" from the log alone.
+                MouseDeltaXTotal += delta.x;
+                MouseDeltaYTotal += delta.y;
                 _yawDeg += delta.x * MouseSensitivityDegPerPixel;
                 _pitchDeg -= delta.y * MouseSensitivityDegPerPixel;
                 if (_pitchDeg > MaxPitchDeg) _pitchDeg = MaxPitchDeg;
