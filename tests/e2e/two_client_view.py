@@ -31,6 +31,11 @@ import db
 COLUMNS = [
     "tick", "observer_actor_id", "ship_id", "presence",
     "px_mm", "py_mm", "pz_mm", "vx_mm_s", "vy_mm_s", "vz_mm_s",
+    # R23: 이 두 열은 ObserverCsv.cs 의 Header 와 **이름·순서·개수가 일치해야 한다**
+    # (ObserverCsv.cs:49-51 이 그 계약이고 불일치를 NotImplementedYet 으로 거부한다).
+    # 같은 헤더의 생산자가 셋이다 — 이 파일, ObserverCsv.cs(client),
+    # tools/bots/src/snapshot.rs(봇 CSV). 봇은 평활화가 없으므로 두 열이 상수 0 이다.
+    "render_offset_mm", "render_offset_deg",
 ]
 
 
@@ -52,6 +57,10 @@ def load(path: str | Path) -> dict[tuple[int, str], dict]:
                 "presence": row["presence"],
                 "p": (int(row["px_mm"]), int(row["py_mm"]), int(row["pz_mm"])),
                 "v": (int(row["vx_mm_s"]), int(row["vy_mm_s"]), int(row["vz_mm_s"])),
+                # R23 (architect R10 후속 §2): SC-64 예산 2 m 중 평활화 오프셋이 최대 16 %
+                # 를 먹는다. 2 m 를 넘었을 때 **평활화 탓인지 두 화면이 실제로 다른 탓인지**
+                # 이 값 없이는 답할 수 없다. 실어만 두고 읽지 않으면 열이 아니라 주석이다.
+                "render_offset_mm": int(row["render_offset_mm"]),
             }
     if not out:
         raise db.EnvironmentProblem(f"{p}: 행이 없다 (0건 대조는 검증이 아니다)")
@@ -155,7 +164,13 @@ def cmd_s3(args: argparse.Namespace) -> int:
         diff = tuple(rb["p"][i] - ra["p"][i] for i in range(3))  # B가 본 것 − A가 본 것
         gap_m = math.dist((0, 0, 0), diff) / 1000.0
         if speed_mps < args.still_speed_mps:
-            still.append({"tick": tick, "gap_m": round(gap_m, 3), "speed_mps": round(speed_mps, 2)})
+            still.append({
+                "tick": tick,
+                "gap_m": round(gap_m, 3),
+                "speed_mps": round(speed_mps, 2),
+                # 두 화면 각각의 오프셋 중 큰 쪽 = gap 에 기여할 수 있는 상한.
+                "render_offset_mm": max(ra["render_offset_mm"], rb["render_offset_mm"]),
+            })
         elif speed_mps >= args.moving_speed_mps:
             # 진행 방향 단위 벡터에 투영 → **부호**가 판정의 핵심
             vlen = math.dist((0, 0, 0), ra["v"])
@@ -173,7 +188,25 @@ def cmd_s3(args: argparse.Namespace) -> int:
     behind = [-m["along_track_m"] for m in moving]  # 뒤쪽이 양수가 되게 부호를 뒤집는다
     behind_mean = sum(behind) / len(behind) if behind else None
 
+    still_offset_max = max((s["render_offset_mm"] for s in still), default=None)
     sc64 = "미검증(표본 없음)" if not still else ("PASS" if still_max <= args.still_tolerance_m else "FAIL")
+
+    # R23: SC-64 초과의 귀속. §7a — 값만 싣고 해석을 사람에게 미루면 "추론으로 판정"하는
+    # 자리가 하나 더 생긴다. 초과분을 평활화가 덮을 수 있는지를 도구가 말한다.
+    if not still or still_max is None:
+        still_attribution = None
+    elif sc64 != "FAIL":
+        still_attribution = "해당 없음 (초과 없음)"
+    else:
+        excess_m = round(still_max - args.still_tolerance_m, 3)
+        offset_m = (still_offset_max or 0) / 1000.0
+        if offset_m >= excess_m:
+            still_attribution = f"평활화로 설명 가능 — 초과분 {excess_m} m <= 관측 최대 오프셋 {offset_m} m"
+        else:
+            still_attribution = (
+                f"평활화로 설명되지 않는다 — 초과분 {excess_m} m > 관측 최대 오프셋 {offset_m} m. "
+                "두 화면이 실제로 다르다"
+            )
     if not moving:
         sc65 = "미검증(표본 없음)"
     else:
@@ -189,6 +222,8 @@ def cmd_s3(args: argparse.Namespace) -> int:
                 "samples": len(still),
                 "max_gap_m": still_max,
                 "tolerance_m": args.still_tolerance_m,
+                "max_render_offset_mm": still_offset_max,
+                "render_offset_attribution": still_attribution,
                 "note": "정지 상태에서는 예측도 보간도 같은 값을 내므로 지연이 오차를 만들지 않는다",
             },
             "SC-65": {
@@ -213,7 +248,8 @@ def cmd_s3(args: argparse.Namespace) -> int:
 
 
 def cmd_selftest(args: argparse.Namespace) -> int:
-    """도구 검증: 1 mm 를 어긋뜨리면 SC-63 이 잡는가, 부호를 뒤집으면 SC-65 가 잡는가."""
+    """도구 검증: 1 mm 를 어긋뜨리면 SC-63 이 잡는가, 부호를 뒤집으면 SC-65 가 잡는가,
+    **헤더가 어긋나면 실제로 거부하는가**(load() 의 NotImplementedYet 양성 대조)."""
     import tempfile
 
     tmp = Path(tempfile.mkdtemp(prefix="starfall-2cv-"))
@@ -226,7 +262,9 @@ def cmd_selftest(args: argparse.Namespace) -> int:
             for i in range(20):
                 tick = 100 + i * 2
                 z = 1_000_000 + i * 7_000 + offset_mm - behind_mm
-                f.write(f"{tick},{actor},{ship},ACTIVE,0,0,{z},0,0,140000\n")
+                # 끝 두 값이 R23 신설 열(render_offset_mm, render_offset_deg)이다. selftest 는
+                # 평활화를 흉내내지 않으므로 0 이다 — 봇 CSV 가 0 인 것과 같은 이유다.
+                f.write(f"{tick},{actor},{ship},ACTIVE,0,0,{z},0,0,140000,0,0\n")
 
     # ① 두 파일이 완전히 같으면 불일치 0
     fa, fb = tmp / "a.csv", tmp / "b.csv"
@@ -247,7 +285,56 @@ def cmd_selftest(args: argparse.Namespace) -> int:
     write(fb4, actor_b, 0, -28_000)
     ahead = _behind_mean(fa, fb4, ship)
 
-    ok = same == 0 and off == 20 and behind is not None and behind > 20 and ahead is not None and ahead < -20
+    # ④ 헤더 불일치 검출기의 **양성 대조**. ObserverCsv.cs:49-51 이 "이름·순서·개수가 COLUMNS 와
+    #    정확히 같아야 하고 불일치는 NotImplementedYet 으로 거부한다"를 계약으로 적고 있다.
+    #    그 계약은 C# 헤더와 이 COLUMNS 를 **함께** 고치게 만드는 유일한 안전장치이므로,
+    #    검출기가 살아 있다는 것 자체를 증거로 남긴다 — "검출기가 죽어서 0건이라 통과"가
+    #    이 슬라이스에서 반복된 형태다(architect R9 §3 (나) 검출기 사망형).
+    #    **COLUMNS 에서 파생시키므로 열이 추가·개명돼도 이 대조는 따라 움직인다.**
+    NL = chr(10)  # 줄바꿈 리터럴
+    header_cases: dict[str, str] = {}
+
+    def _write_with_header(path: Path, cols: list[str]) -> None:
+        with path.open("w", encoding="utf-8", newline="") as f:
+            f.write(",".join(cols) + NL)
+            pad = ",".join(["0"] * (len(cols) - 4))
+            for i in range(20):
+                f.write(f"{100 + i * 2},{actor_a},{ship},ACTIVE,{pad}" + NL)
+
+    renamed = list(COLUMNS)
+    renamed[4] = renamed[4] + "_x"                      # 이름만 다르다
+    reordered = list(COLUMNS)
+    reordered[-1], reordered[-2] = reordered[-2], reordered[-1]   # 순서만 다르다
+    appended = list(COLUMNS) + ["unexpected_extra_col"]  # 개수만 다르다 (= 한쪽만 고친 상태)
+    truncated = list(COLUMNS)[:-1]                       # 개수만 다르다 (반대 방향)
+    for name, cols, want_reject in (
+        ("renamed", renamed, True),
+        ("reordered", reordered, True),
+        ("appended", appended, True),
+        ("truncated", truncated, True),
+        ("exact_match", list(COLUMNS), False),           # 음성 대조 — 이것까지 거부하면 도구가 고장이다
+    ):
+        fp = tmp / f"hdr_{name}.csv"
+        _write_with_header(fp, cols)
+        try:
+            load(fp)
+            header_cases[name] = "accepted"
+        except db.NotImplementedYet:
+            header_cases[name] = "rejected(NotImplementedYet)"
+        except Exception as exc:  # noqa: BLE001 - 어떤 예외였는지 증거에 그대로 남긴다
+            header_cases[name] = f"{type(exc).__name__}"
+    header_guard_ok = (
+        all(header_cases[k] == "rejected(NotImplementedYet)"
+            for k in ("renamed", "reordered", "appended", "truncated"))
+        and header_cases["exact_match"] == "accepted"
+    )
+
+    ok = (
+        same == 0 and off == 20
+        and behind is not None and behind > 20
+        and ahead is not None and ahead < -20
+        and header_guard_ok
+    )
     db.emit(
         {
             "item": "two_client_view 자체 검증 (SC-85 계열)",
@@ -256,9 +343,15 @@ def cmd_selftest(args: argparse.Namespace) -> int:
             "one_mm_offset_mismatches": off,
             "behind_28m_along_track_m": round(behind, 2) if behind is not None else None,
             "ahead_28m_along_track_m": round(ahead, 2) if ahead is not None else None,
+            "columns_count": len(COLUMNS),
+            "columns": list(COLUMNS),
+            "header_guard": header_cases,
+            "header_guard_ok": header_guard_ok,
             "meaning": (
                 "1 mm 를 어긋뜨렸을 때 20건 전부 잡히면 SC-63 이 실제로 정수를 비교하고 있다는 뜻이고, "
-                "뒤/앞 부호가 반대로 나오면 SC-65 의 부호 판정이 동작한다는 뜻이다."
+                "뒤/앞 부호가 반대로 나오면 SC-65 의 부호 판정이 동작한다는 뜻이다. "
+                "header_guard 의 네 변형이 전부 rejected 이고 exact_match 만 accepted 여야 "
+                "C#(ObserverCsv.Header) 한쪽만 고쳤을 때 조용히 지나가지 않는다."
             ),
         },
         args.evidence,

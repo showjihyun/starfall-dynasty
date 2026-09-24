@@ -1714,3 +1714,627 @@ R5 사전 로그(`Editor-preflight-no-auth.log`)가 이 값으로 가득하다.
 이 필드들은 **판정 가능하게 만든 것**이지 판정한 것이 아니다(§7a).
 기준 1·2·3을 실제로 닫으려면 R16 빌드로 세션을 한 번 더 돌려야 한다.
 R5 증거는 R16 이전 빌드이므로 이 필드들을 담고 있지 않다.
+
+## R16 정정 (R9 라운드, qa r8 부록 A) — 마우스 부호는 로그로 닫히지 않는다
+
+절대 원칙 5에 따라 R16 절은 고치지 않고 새 레코드로 남긴다.
+
+R16은 `mouse_dx_total` 추가의 근거로 이렇게 적었다:
+
+> "`ShipInputSampler.cs`의 `delta.x`를 음수로 뒤집은 빌드는 R16 이전 로그와
+>  **완전히 동일한 줄**을 낸다 — 즉 SC-59 기준 2는 로그로 닫힐 수 없었다."
+
+**전반부는 맞고 결론이 틀렸다. R16 이후 로그도 동일하다.**
+
+qa r8이 `delta.x = -delta.x`를 읽는 지점에 주입하고 스위트를 돌린 결과 **246/244/failed=0**.
+이유는 반전이 **두 누산기보다 위에** 앉기 때문이다 — `MouseDeltaXTotal`과 `_yawDeg`가 **함께**
+뒤집히므로 비율은 `+0.12`로 그대로고, 내가 §C에서 쓴 방위각 대조까지 **일관되게 틀린 채로
+일치한다.** 즉 R16이 추가한 쌍은 이 형태를 검출하지 못한다.
+
+부호가 살 수 있는 자리 넷에 대한 qa r8의 정리:
+
+| 자리 | 닫히는가 |
+|------|---------|
+| `YawPitchToQuaternion`의 `halfYaw` 부호 | F-19 단위 테스트로 닫힌다(R17에서 신설) |
+| 적분기의 회전 적용 | 방위각 대조로 닫힌다 |
+| 추력 축 매핑 | R6 세션의 `d·fwd`·`d·up` 투영으로 닫힌다 |
+| **손 → `delta.x` (읽는 지점)** | **어떤 로그로도, 어떤 테스트로도 닫히지 않는다** |
+
+네 번째는 디바이스 입력과 화면 사이에 관측자가 사람뿐이기 때문이다. 계약 §0.10
+("검출기는 SC-59의 육안 관찰 하나뿐이다")은 이제 **인용문이 아니라 측정된 사실**이다 —
+주입해 보고 아무 테스트도 붉어지지 않는 것을 확인한 결과다.
+
+**따라서 R16이 기준 2에 대해 한 기여는 "닫았다"가 아니라 "범위를 좁혔다"이다.**
+`mouse_dx_total`/`yaw_deg` 쌍은 매핑 **내부**의 부호 어긋남을 검출하고,
+매핑 **입구**의 반전은 여전히 사람 눈에 남는다. R16 절의 문장은 그렇게 읽어야 한다.
+
+함께 정정: R16이 "F-1 랩 제거 주입 → 1건 실패"로 적은 것은 **2건 실패**가 맞다
+(qa r8 실행 확인, L-11 해소). 내가 실패 건수를 과소 보고했다.
+
+## R17 — tick 정렬 예측 (D-1~D-4) + F-19 (architect R8 판정, 리더 지시 2026-09-24)
+
+architect R8 판정이 정한 순서(C-1 → C-2/D-4 → C-3/D-1·D-2 → F-19)를 그대로 따랐다.
+설계는 새로 만들지 않았다 — `01_architect_decisions.md` "R8 판정" §A-4/§A-5와
+ADR-0012 §6.4를 그대로 구현했다.
+
+### 작업 1 (C-1) — `reconcile_tick_drift_total` / `_max` 계측
+
+- `Flight/ReconcileTickDrift.cs` (신설): 순수 함수 `Compute(prevAck, prevTick, ack, tick)`.
+  `drift = (ack - prevAck) - (tick - prevTick)`. 둘 중 하나라도 ack가 없으면 `null`
+  (Reconciliation.Result.HasError와 같은 "잴 게 없다" 규율).
+- `GreyboxSession.cs`: `ApplyPendingRebase()`에서 **Reconcile 호출 직전**, RebaseHold를 통과한
+  스냅샷마다(hold 중이면 계산하지 않음) drift를 계산해 `_reconcileTickDriftTotal`(≠0 횟수)과
+  `_reconcileTickDriftMax`(|drift| 최대)를 누적. `OnSessionReady`에서 세션 스코프로 리셋.
+  `OnSessionEnded` 로그, `PeriodicStatusLog`, HUD(OnGUI) 세 곳 모두에 노출
+  (`reconcile_hard_snap_total`과 나란히 — architect 지시: "0/0 함께여야 SC-56이 닫힌다").
+- **완료 조건("수정 전 카운터가 0이 아님을 확인") — 라이브 서버 세션 대신 D-4 하네스로 충족했다.**
+  이번 라운드는 Unity Editor가 닫혀 있어 실서버 세션을 새로 찍을 수 없었다(리더 확인,
+  프로세스 0건). 대신 `TickAlignedReconciliationHarnessTests`의 V-1/V-2가 바로 이 확인이다 —
+  `ReconcileTickDrift.Compute`가 각 벡터에서 실제로 `-1`/`+1`(≠0)을 낸다는 것과, **같은 수정
+  전 코드**(seq 기반 `Reconciliation.Reconcile`)에서 위치 오차가 정확히 `v·dt ≈ 7.0 m`로
+  붉어진다는 것을 **같은 실행**으로 함께 확인했다(§7a: 겨냥한 조건이 실제로 발생했음을
+  드리프트 부호로, 증상 발생을 오차 크기로 각각 단언). 아래 RED 로그 참고.
+
+### 작업 2 (D-4, C-2) — 하네스와 RED 선행 확인
+
+`Tests/EditMode/TickAlignedReconciliationHarnessTests.cs` (신설). 세 벡터, architect 지정 그대로:
+
+| 벡터 | 일정표 | RED (수정 전, 실측) | GREEN (수정 후, 실측) |
+|---|---|---|---|
+| V-0 (1:1) | ack==tick 항상 | errM=0 | errM=0 (불변 — 자명 통과 아님, HasError 단언 포함) |
+| V-1 (이월 1회) | tick=90 이월, ack=89 고정 | **errM=7 (= v·dt, 140 m/s)** | errM=0 |
+| V-2 (덮어쓰기 1회) | tick=89에서 ack가 90으로 점프 | **result.PositionErrorM=7 (스푸리어스)** | result.PositionErrorM=0, finalStateErrM=0 |
+
+**RED 실행 로그(수정 전 `Reconciliation.Reconcile`, seq 기반, `--filter TickAlignedReconciliationHarnessTests`):**
+```
+V-1 (carry-forward, CURRENT/seq-keyed code): speed=140 m/s, errM=7, v*dt=7
+V-2 (supersede, CURRENT/seq-keyed code): speed=140 m/s, result.PositionErrorM=7, v*dt=7
+total="3" passed="3" failed="0"   (세 단언 모두 "결함이 실제로 존재한다"를 검증하는 방향으로 설계했다 — RED가 PASS로 나타난다)
+```
+**GREEN 실행 로그(수정 후, tick 기반):**
+```
+V-1 (carry-forward, POST-FIX/tick-keyed code): speed=140 m/s, errM=0, pre-fix would have been ~7
+V-2 (supersede, POST-FIX/tick-keyed code): speed=140 m/s, result.PositionErrorM=0, finalStateErrM(vs tick90)=0, pre-fix result.PositionErrorM would have been ~7
+```
+140 m/s에서 7.0 m는 무시 밴드(5 mm)의 1400배 — architect 지정 분리 폭을 충족한다.
+
+**정직한 한계(D-5, 파일 헤더에도 적었다):** 이 하네스는 일정표를 내가 정하므로 "실제
+네트워크가 이런 일정표를 만드는가"는 닫지 못한다. 그쪽은 C-1의
+`reconcile_tick_drift_total == 0`이 **실서버 세션**에서 확인될 때만 닫힌다 — 이번 라운드에는
+그 세션을 찍지 못했다. 다음 실서버 재측정(C-5, architect R8 판정)에서 확인해야 한다.
+
+### 작업 3 (C-3, D-1/D-2) — 예측 기준 축을 `input_seq`에서 서버 `tick`으로
+
+- `Flight/InputRecord.cs`: `ServerTick` 필드 추가(`long`, 기본값 0 — 기존 손수 만든 히스토리
+  테스트가 깨지지 않도록). `InputSeq`는 남지만 이제 거부/중복 처리·진단 전용
+  (ADR-0012 §6.4 결정 1).
+- `Flight/PredictionHistory.cs`: `ApplyInput`이 `long serverTick` 파라미터를 받아
+  `InputRecord`에 그대로 싣는다.
+- `Flight/Reconciliation.cs`: `Reconcile`의 서명이 `uint? ackInputSeq` → `long snapshotTick`으로
+  바뀌었다. 1단계는 `history[i].ServerTick == snapshotTick`으로 찾고, 3단계는
+  `ServerTick > snapshotTick`인 항목만 재생하며, 4단계는 그 이하를 버린다. **알고리즘 모양은
+  그대로**(ADR-0012 §3 그대로) — 비교 축만 바뀌었다.
+- `Flight/PredictedShipController.cs`: `CurrentTickIndex`(로컬 tick 인덱스)를 새로 소유한다.
+  `ApplyInput`마다 1 증가하며 새 `InputRecord`에 스탬프한다. `Reconcile(confirmed, snapshotTick,
+  tuning)`은 재조정 뒤 `CurrentTickIndex = max(CurrentTickIndex, snapshotTick)`로 **앞으로만**
+  재고정한다(뒤로 감지 않음 — 재생된 항목은 이미 snapshotTick보다 큰 tick을 갖고 있으므로
+  안전). `Reset`도 `baselineTick` 파라미터를 받는다(기본값 0).
+- `Greybox/GreyboxSession.cs` / `Greybox/ObserverSession.cs`: 컨트롤러 최초 생성 시
+  `message.Tick`을 초기 tick으로 넘기고, `Reconcile` 호출을 `snapshotTick`(스냅샷의
+  envelope tick) 기반으로 바꿨다. `ackInputSeq`는 드리프트 계측·RebaseHold·HUD 진단에는
+  그대로 쓰인다 — 정렬 용도에서만 빠졌다.
+- **계약 변경 없음.** `WORLD_SNAPSHOT`의 `tick`은 이미 envelope에 실려 있었다(ADR-0011).
+- **RebaseHold 존치 여부(C-4)는 architect 소관 — 이번 라운드에서 건드리지 않았다.** 여전히
+  `ackInputSeq` 기준으로 hold를 판단하며, tick 재키잉과 독립적으로 안전하게 동작한다.
+
+기존 테스트 갱신(설계 변경 없이 새 서명에 맞춤): `ReconciliationTests.cs`의 다섯 개
+`PredictionHistory.ApplyInput`/`Reconciliation.Reconcile`/`controller.Reconcile` 호출부.
+`SC-54`(`Reconcile_HistoryWithASkippedInputSeq_...`)는 `ServerTick`이 이제 정렬 축이므로
+"input_seq에 구멍, tick은 연속"으로 의미를 정확히 재서술했다(§0.7 위반 아님 — 임계값이
+아니라 테스트가 표현하는 시나리오의 서술 정정).
+
+### 작업 4 (F-19) — `ShipInputSamplerTests` 신설
+
+- `ShipInputSampler.cs`의 `YawPitchToQuaternion`을 `private` → `public static`으로만 바꿨다
+  (동작 변경 없음 — Unity 런타임 의존 없는 순수 함수라 가시성만 문제였다).
+- `Tests/EditMode/ShipInputSamplerTests.cs` (신설, 3건): qa r8 지정 형태 그대로 —
+  `yaw=+90°`일 때 `atan2(fwd.x, fwd.z)`가 `+90`을 낸다고 단언한다(손 법칙 인용 없음).
+  §7b(1) 짝으로 `yaw=-90°`(대칭)와 `yaw=0°`(기준선) 두 건을 더했다.
+
+**RED 확인(§7a):** `halfYaw = yawDeg * 0.5 * (π/180)` → `halfYaw = -yawDeg * 0.5 * (π/180)`로
+부호만 반전, 표식 `R17 TEMP DEFECT` 주석과 함께 주입.
+```
+--filter ShipInputSamplerTests (주입 후): total="3" passed="1" failed="2"
+```
+실패 2건은 `YawPitchToQuaternion_YawPlus90Degrees_...`와 `..._YawMinus90Degrees_...`
+(부호 대칭인 두 방향 모두 잡힘). `..._YawZero_...`는 통과 그대로(0의 부호 반전은 0이므로
+당연 — §7b(1) 자기 검증). 원복은 백업 파일 복사, 갱신·bless 경로 미사용:
+```
+md5 (원복 후) = f8974afc100e3aa99f127ea02d7d6737  ShipInputSampler.cs  (원본과 일치)
+grep -rn "R17 TEMP DEFECT" client/Assets tools -> 0건
+git status --porcelain (ShipInputSampler.cs) -> 가시성 변경만 남음(diff 확인)
+--filter ShipInputSamplerTests (원복 후): total="3" passed="3" failed="0"
+```
+
+### 최종 스위트
+
+```
+unity test client --mode EditMode (전체)
+259/257/failed=0/skipped=2
+```
+246(R16 기준선) + 7(ReconcileTickDriftTests) + 3(TickAlignedReconciliationHarnessTests) +
+3(ShipInputSamplerTests) = 259. NUnit XML: `_workspace/p1-01-ship-movement/EditMode-R17-final.nunit.xml`.
+
+### 기준선 md5 (R17 종료 시점, 변경분만)
+
+| 파일 | md5 |
+|---|---|
+| `GreyboxSession.cs` | `24db0395c9aa947cc9ed218df469a3c1` |
+| `PeriodicStatusLog.cs` | `556c04eb0e83856781aa76941a5e2323` |
+| `ShipInputSampler.cs` | `f8974afc100e3aa99f127ea02d7d6737` (원복 확인 완료, 위 참고) |
+| `ObserverSession.cs` | `a6c48dc15dff12166d6e5d3afd600827` |
+| `Flight/InputRecord.cs` | `0eeeec053d4c3019fe88355254a865a3` |
+| `Flight/PredictionHistory.cs` | `c8480e35828f8e5480a4f2a711f3c3e3` |
+| `Flight/Reconciliation.cs` | `4e881f6fbfe00d9f2a922da4775af739` |
+| `Flight/PredictedShipController.cs` | `b1e56478807dfc44f56bb8fd1c26a152` |
+| `Flight/ReconcileTickDrift.cs` (신설) | `4616e4ca6dced03809ae38aaa4ead8ab` |
+
+### 남은 것
+
+- **실서버 재측정(C-5, architect R8 판정)**: 140 m/s 유지 30초 이상 + 재접속 1회를 포함한
+  세션에서 `reconcile_hard_snap_total == 0` **그리고** `reconcile_tick_drift_total == 0`을
+  함께 확인해야 SC-56이 실제로 닫힌다. D-4 하네스는 "고쳤다면 맞다"만 보였다 — "실제
+  네트워크가 그 조건을 만드는가"는 여전히 미확인(D-5, 정직한 한계).
+- **RebaseHold 존치 여부(C-4)**: architect 소관, 이번 라운드에서 판단하지 않았다.
+- **SC-59 (a) 롤 방향 문구, 기준 3 "위" 정의**: qa r8 D 판정, 계약 문구 보강 대상(리더/qa 소관).
+
+## R18 — F-20/F-21: 드리프트 사건 로그 + 모순 주석 수정 (리더 지시, qa r9 지적)
+
+R17 구현 자체는 qa r9가 독립 재현으로 PASS 판정했다(V-0/V-1/V-2 = 0/7/7 → 0/0/0, 대조군
+V-0 양쪽 0 확인). SC-56이 네 번째로 안 닫힌 원인은 코드가 아니라 **측정 설계** — 드리프트가
+세션 초반 97 tick(휴면 구간)에서 1회 나고 끝났고 140 m/s 구간엔 0건이어서, "드리프트"와
+"고속"이 겹치는 순간이 로그에 한 번도 없었다(5초 주기 누계로는 이걸 볼 수 없다). 리더 지시대로
+범위를 넓히지 않고 두 작업만 했다.
+
+### 작업 1 — F-21: `reconcile_tick_drift_event` 사건 로그
+
+- `Scripts/Greybox/ReconcileTickDriftEvent.cs` (신설): 순수 struct.
+  `TryCreate(drift, tick, speedMps, hasError, positionErrorM, orientationErrorDeg)`가
+  `drift`가 `null`이거나 `0`이면 **`null`을 반환**(§7b(1): 게이트를 순수 함수 안에 둬서
+  "항상 찍는다"로 퇴화할 수 없게 만들었다 — 호출부의 `if`에만 의존하지 않는다).
+  `Format()`은 `drift=… tick=… speed_mps=… position_error_m=… orientation_error_deg=…`
+  한 줄. `HasError=false`면 오차 두 필드는 `n/a`(§7a — 측정 안 됨과 0을 구분).
+- `GreyboxSession.cs`의 `ApplyPendingRebase()`: 기존 drift 계측(C-1, R17) 직후 계산한
+  `drift` 변수를 그대로 재사용해 `Reconcile` 호출 **후**(속도·오차 필드가 나온 뒤) 이벤트를
+  만들어 `drift != 0`일 때만 `Debug.Log("starfall.greybox: " + ...)`.
+- `ObserverSession.cs`: 같은 경로(리더 지시: "같은 경로가 있으면 동일하게")가 있어서
+  `_driftPrevAck`/`_driftPrevTick`을 새로 추가하고 `ApplyPendingRebase()`에서 동일하게
+  계측·이벤트 로그(`"starfall.observer.<label>: " + ...`). `OnSessionReady`에서 리셋.
+- `Tests/EditMode/ReconcileTickDriftEventTests.cs` (신설, 7건): 음성 대조(drift=0 → null,
+  drift=null → null)를 **먼저** 쓰고, 양성(비-0 → 이벤트 생성, 음수 drift도 잡힘),
+  `Format()` 필드 전수 확인, `HasError` true/false 짝(§7b(1)) 포함.
+
+**RED 확인(§7a):** `TryCreate`의 0/null 가드를 제거(`return new ReconcileTickDriftEvent(drift ?? 0, ...)`),
+표식 `R18 TEMP DEFECT` 주석.
+```
+--filter ReconcileTickDriftEventTests (주입 후): total="7" passed="5" failed="2"
+```
+실패 2건은 정확히 음성 대조 두 건(`TryCreate_DriftIsZero_ReturnsNull`,
+`TryCreate_DriftIsNull_ReturnsNull`). 원복은 백업 파일 복사:
+```
+md5 (원복 후) = 51e2d6417da2b25fafe12bc3b33d03d0  ReconcileTickDriftEvent.cs
+grep -rn "R18 TEMP DEFECT" client/Assets tools -> 0건
+--filter ReconcileTickDriftEventTests (원복 후): total="7" passed="7" failed="0"
+```
+
+### 작업 2 — F-20: 자기 모순 주석 수정
+
+`TickAlignedReconciliationHarnessTests.cs` 헤더의 *"closed only by
+`reconcile_tick_drift_total == 0` in a live session"* 문장을 지웠다. **부호가 반대였다** —
+드리프트는 결함이 아니라 R17이 흡수해야 하는 네트워크 사실이고, `drift == 0`을 요구하면
+결함을 한 번도 겪지 않은 "조용한 세션"이 자명 통과한다(이번 라운드가 정확히 그 함정에
+걸렸다). qa r9가 확정한 조건으로 교체하고, **아직 계약 개정 전(architect F-22 대기)**임을
+명시했다:
+
+```
+(c1) reconcile_hard_snap_total == 0
+(c2) 적용된 스냅샷 중 drift != 0 이면서 그 순간 speed_mps >= 100 인 것이 ≥ 1건
+     (F-21의 reconcile_tick_drift_event가 이 (c2)/(c3)에 필요한 사건 단위 필드를 준다)
+(c3) 그 스냅샷의 position_error_m <= 0.25 m
+```
+
+이 잘못된 주석이 왜 위험한지도 한 줄 남겼다 — 제3자가 이 문장을 근거로 "조용한 세션 =
+SC-56 닫힘"으로 판정할 수 있고, qa r8 F-17과 같은 형태(닫는 조건을 반대로 적은 주석)의
+두 번째 사례다.
+
+### 최종 스위트
+
+```
+unity test client --mode EditMode (전체)
+266/264/failed=0/skipped=2
+```
+259(R17) + 7(ReconcileTickDriftEventTests) = 266. NUnit XML:
+`_workspace/p1-01-ship-movement/EditMode-R18-final.nunit.xml`.
+
+### 기준선 md5 (R18 종료 시점, 변경분만)
+
+| 파일 | md5 |
+|---|---|
+| `GreyboxSession.cs` | `cde15347542ccbe9acda6daae2c1607f` |
+| `ObserverSession.cs` | `e5fff3597dae79e384476ba9debdef61` |
+| `ReconcileTickDriftEvent.cs` (신설) | `51e2d6417da2b25fafe12bc3b33d03d0` (원복 확인 완료, 위 참고) |
+| `TickAlignedReconciliationHarnessTests.cs` | `d7939826a350558e0e7b82790cbc3fb9` |
+
+### 남은 것
+
+- **F-22(architect): (c1)∧(c2)∧(c3) 조건을 계약(SC-56)에 정식 반영**해야 이 조건이
+  "코드 주석의 제안"이 아니라 계약 문구가 된다.
+- **다음 실서버 재측정**: 140 m/s 30초 이상 유지 + 재접속 1회(C-5) 세션에서
+  `reconcile_tick_drift_event` 줄이 실제로 고속 구간과 겹쳐서 나는지 grep으로 확인해야
+  (c2)/(c3)이 처음으로 실행 증거를 얻는다. 이번 라운드는 Editor가 닫혀 있어 라이브 세션을
+  못 찍었다 — 이 작업은 촬영이 필요해 내 권한 밖이다.
+
+## R19 — F-23: 결정론적 히치 주입 키 (리더 지시, 재촬영 선행 조건)
+
+R18에 추가된 세 번째 작업. 순서는 리더 지시대로 F-21(R18에서 완료) → **F-23(이번)** →
+F-20(R18에서 완료, 순서상으론 F-23 뒤지만 이미 끝나 있어 재작업하지 않았다) — F-20 자체는
+F-23과 독립적인 주석 수정이라 순서를 다시 밟을 이유가 없었다.
+
+### 문제
+
+SC-56 (c2)(F-20이 적은 조건)를 실측하려면 **100 ms < 히치 < 500 ms** 구간의 히치가
+필요하다 — `snapshot_interval_ticks=2`(100 ms)보다 짧으면 스냅샷 사이에서 이월이
+상쇄돼 클라가 드리프트를 못 보고(qa r9: 서버 분기 32회, 클라 관측 1회),
+`carry_forward_max_ticks=10`(500 ms) 이상이면 휴면 입력으로 전환돼 감속한다 — 드리프트는
+나지만 임계 5 m에 못 닿는 느린 상태(R17/R18이 반복해서 걸린 함정과 같은 형태). 사람이
+alt-tab으로 이 창을 맞출 방법이 없다.
+
+### 구현
+
+- `Scripts/Greybox/HitchInjection.cs` (신설): `DefaultStallMs = 250`(창의 정중앙, 상수 —
+  주석에 100/500 유도 과정을 적었다) + 순수 `Format(stallMs, tick, speedMps)` →
+  `hitch_injected stall_ms=… tick=… speed_mps=…` 한 줄(모듈 접두사 없음 — 호출부가 붙인다,
+  `ReconcileTickDriftEvent`와 같은 관례).
+- `GreyboxSession.cs`: `MaybeInjectHitch()` 신설, `Update()` 맨 앞에서 호출.
+  - `Keyboard.current.hKey.wasPressedThisFrame`로 엣지 검출 — Input System 자체 디바운스라
+    키 반복으로 연속 정지하지 않는다. W를 누른 채 H를 눌러도 서로 독립된 컨트롤이라 문제없다.
+  - 정지 전 상태(`_controller.CurrentState.Velocity.Length()`, `_controller.CurrentTickIndex`)를
+    **먼저 캡처**한 뒤 `System.Threading.Thread.Sleep(250)`으로 메인 스레드를 정지시키고,
+    깨어난 뒤 `Debug.Log("starfall.greybox: " + HitchInjection.Format(...))`.
+  - **별도 주입 경로를 TickCatchUp에 만들지 않았다** — 메인 스레드가 Update()로 안 돌아오는
+    것 자체가 실제 히치와 같은 메커니즘이므로, 다음 프레임의 `Time.unscaledDeltaTime`이
+    자연스럽게 커져서 TickCatchUp이 실제 히치와 똑같이 처리한다.
+- **출하 경로 안전성**: `GreyboxSession` 자체가 버티컬 슬라이스 진단 하네스이고(이 파일
+  헤더: "grey box, no hand-authored scene"), 이미 키보드를 직접 읽는 파일이다
+  (`ShipInputSampler.cs` 헤더: "diagnostic greybox controller, not rebindable game-facing
+  input"). 이 키도 같은 파일·같은 성격 — 진단 하네스가 실제 게임플레이 입력 체계로
+  교체될 때 반드시 빠져야 한다는 경고를 코드 주석에 남겼다.
+- **정직한 한계**: 주입된 히치는 실제 네트워크·프레임 지연과 원인이 다르다. 이게 닫는 것은
+  "드리프트가 나면 재조정이 버티는가"이지 "실제 운영에서 이런 드리프트가 나는가"가 아니다
+  (`HitchInjection.cs` 헤더에 명시).
+
+### 테스트
+
+`Tests/EditMode/HitchInjectionTests.cs` (신설, 4건): `DefaultStallMs`가 (100,500) 구간
+안인지, `Format()` 필드 전수·필드 교환(alias) 방지·한 줄 보장.
+`MaybeInjectHitch()`(키보드 엣지·Thread.Sleep) 자체는 `ShipInputSampler.Sample()`과
+같은 이유로 EditMode에서 커버 불가 — 파일 헤더에 그 한계를 명시했다.
+
+**RED 확인(§7a):** `Format()`의 `stallMs`/`tick`을 서로 바꿔치기, 표식 `R19 TEMP DEFECT`.
+```
+--filter HitchInjectionTests (주입 후): total="4" passed="2" failed="2"
+```
+실패 2건은 `Format_ContainsAllThreeFields_...`와 `Format_DifferentStallAndTickValues_DoNotAlias`
+(정확히 필드 값을 확인하는 두 건). 원복:
+```
+md5 (원복 후) = 56c5ce7f58a4f4b4b0dd91b39ccf9cd7  HitchInjection.cs
+grep -rn "R19 TEMP DEFECT" client/Assets tools -> 0건
+--filter HitchInjectionTests (원복 후): total="4" passed="4" failed="0"
+```
+
+### 최종 스위트
+
+```
+unity test client --mode EditMode (전체)
+270/268/failed=0/skipped=2   (R18의 266 대비 +4, 전부 HitchInjectionTests)
+```
+NUnit XML: `_workspace/p1-01-ship-movement/EditMode-R19-final.nunit.xml`.
+
+### 기준선 md5 (R19 종료 시점, 변경분만)
+
+| 파일 | md5 |
+|---|---|
+| `GreyboxSession.cs` | `6f77420854b476d151e1c470a88db716` |
+| `HitchInjection.cs` (신설) | `56c5ce7f58a4f4b4b0dd91b39ccf9cd7` (원복 확인 완료, 위 참고) |
+
+### 남은 것
+
+- **다음 실서버 촬영**: 140 m/s 부근에서 H 키를 눌러 결정론적으로 드리프트를 만들고,
+  `hitch_injected`와 `reconcile_tick_drift_event` 두 줄이 같은 세션에서 짝이 맞는지(시간상
+  인접, tick 근접) 확인해야 F-20의 (c2)/(c3)이 처음으로 실행 증거를 얻는다. Editor가 닫혀
+  있어 이번 라운드는 촬영을 못 했다 — 사람 손이 필요하다(Play 버튼).
+- F-22(architect, (c1)∧(c2)∧(c3) 계약 반영)는 여전히 대기 중.
+
+## R20 — F-21 필드 확장: `delta_tick`·`thrust_x/y/z`·`roll` (리더 지시, architect R9 잔차 모델)
+
+리더 메시지가 R19 완료 보고와 교차했다 — F-23은 R19에서 이미 끝나 있었다(위 "R19" 절).
+이번은 architect가 재도출한 잔차 모델을 반영해 F-21 이벤트 로그에 필드를 추가하는
+작업만 했다.
+
+### 배경
+
+architect R9: 잔차는 드리프트 자체가 아니라 **`Δtick`에 비례**하고, 서버가 그 tick에
+**다른 입력**을 적용했을 때만 `abs(Δaccel)·dt²`씩 쌓인다(단일 축 반전 2 tick 누적
+0.263 m, 추력 전면 반전 0.525 m). 계약 (c3)은 `position_error ≤ 0.25 m`이고
+**0.25~5.0 m 구간은 FAIL이 아니라 `미검증`**(architect만 판정)인데, 그 판정에는
+"그 tick에 입력이 실제로 달랐는가"를 봐야 하고 기존 로그엔 그 근거가 없었다.
+
+### 구현
+
+- `Scripts/Greybox/ReconcileTickDriftEvent.cs`: 필드 5개 추가 —
+  `DeltaTick`(그 구간의 `tick - prevTick`, `Drift`(=Δack−Δtick)와 다른 값), `ThrustX/Y/Z`,
+  `Roll`(그 tick에 **활성이던** 양자화 정수 — I-36, F-8과 같은 관례로 wire와 같은 값을
+  그대로 싣는다, 재유도 아님). `TryCreate`/`Format()` 시그니처 확장.
+- `GreyboxSession.cs`: `deltaTickForEvent = snapshotTick - _driftPrevTick`을
+  `_driftPrevTick` 덮어쓰기 **전**에 캡처. thrust/roll은 `_input`이 있으면
+  `Quantization.QuantizeControlAxis(...)`, 없으면 0(F-8과 동일한 폴백).
+- `ObserverSession.cs`: 같은 패턴. `_input`은 `IsInteractive=false`인 관찰자(B, SC-62 "스폰
+  위치 근처에 머문다")에서 null이라 0으로 처리 — 헤더에 왜 0인지 적었다.
+
+### 테스트
+
+`ReconcileTickDriftEventTests.cs`를 필드 전수로 확장(9건): 음성 대조 2건에 새 필드를
+채워 넣고, `delta_tick`/`drift` 교환 방지(§7a 필드-스왑 가드, `HitchInjectionTests`와
+같은 형태), `HasError` true/false 짝, **부호 보존**(추력·롤 반전이 이 로그의 핵심 근거이므로
+`PeriodicStatusLogTests.Format_NegativeThrustAndRoll_KeepTheirSign`과 같은 형태로 추가).
+
+**RED 확인(§7a):** `Format()`에서 `drift`↔`delta_tick`, `thrust_x`↔`roll`을 각각
+바꿔치기(`R20 TEMP DEFECT` 표식).
+```
+--filter ReconcileTickDriftEventTests (주입 후): total="9" passed="6" failed="3"
+```
+실패 3건은 필드값을 직접 확인하는 `Format_ContainsEveryField`,
+`Format_DeltaTickAndDrift_DoNotAlias`, 그리고 부호까지 잡는
+`Format_NegativeThrustAndRoll_KeepTheirSign`. 원복:
+```
+md5 (원복 후) = b5b2ae3b02a49575d7404514ef93f62c  ReconcileTickDriftEvent.cs
+grep -rn "R20 TEMP DEFECT" client/Assets tools -> 0건
+--filter ReconcileTickDriftEventTests (원복 후): total="9" passed="9" failed="0"
+```
+
+### 최종 스위트
+
+```
+unity test client --mode EditMode (전체)
+272/270/failed=0/skipped=2   (R19의 270 대비 +2, 필드-스왑·부호 보존 테스트 신규 2건)
+```
+NUnit XML: `_workspace/p1-01-ship-movement/EditMode-R20-final.nunit.xml`.
+
+### 기준선 md5 (R20 종료 시점, 변경분만)
+
+| 파일 | md5 |
+|---|---|
+| `GreyboxSession.cs` | `440ab45ce57df3329f450af10dc99ae7` |
+| `ObserverSession.cs` | `a1e9e90d706e0fcdc580ddf3f2e5ac19` |
+| `ReconcileTickDriftEvent.cs` | `b5b2ae3b02a49575d7404514ef93f62c` (원복 확인 완료, 위 참고) |
+
+### 남은 것
+
+- 다음 실서버 촬영에서 `reconcile_tick_drift_event`의 `delta_tick`·`thrust_*`·`roll`이
+  실제로 architect의 잔차 모델(0.263 m / 2 tick, 0.525 m 전면 반전)과 들어맞는지 확인해야
+  (c3) 미검증 판정이 처음으로 실행 근거를 얻는다. Editor가 닫혀 있어 이번 라운드는 촬영을
+  못 했다.
+- F-22(architect, (c1)∧(c2)∧(c3) 계약 반영)는 여전히 대기 중.
+
+## R21 — F-27/F-29: 계측 사각 두 건 (team-lead 지시, qa r10 §D.2/§H)
+
+qa r10이 실행으로 확인한 두 사각을 메웠다. architect의 병합 여부 판단(`reconcile_hard_snap_total`에
+합칠지)은 아직 없으므로, 기존 카운터의 의미는 건드리지 않고 전부 별도 카운터/이벤트로 추가했다.
+
+### F-27 — 하드 스냅 카운터가 못 보는 리베이스 점프
+
+`PredictedShipController.Reconcile()`에 `if (result.HasError)` 게이트 **밖**에서 측정하는 세
+필드를 추가했다(`Flight/PredictedShipController.cs`):
+- `LastRebaseJumpM` — 이 reconcile 직전 렌더 위치와 직후 `result.State.Position`의 거리. 무조건 측정.
+- `RebaseJumpMaxM` — 컨트롤러 수명 동안의 러닝 맥스.
+- `RebaseWithoutErrorTotal` — `HasError == false`(비교 대상 없음) 건수. **`HardSnapTotal`과 절대
+  합산하지 않는다** — qa r10 §D.2 item 4: 합치면 SC-56 (c1)이 R8 세션에서 FAIL로 돌아간다.
+
+사건 단위 로그: `Greybox/ReconcileRebaseJumpEvent.cs` (신규, pure struct). `TryCreate`는
+`hasError == true`일 때만 null — qa r10이 확정한 갈림 규칙과 같은 조건. 한 줄에
+`rebase_jump_m`·`snapshot_tick`·`current_tick_index_before`(리더가 요구한 "왜 HasError=false인지
+판정 가능한 값")·`delta_tick`·`speed_mps`를 싣는다. `GreyboxSession.ApplyPendingRebase()`와
+`ObserverSession.ApplyPendingRebase()` 양쪽에 동일하게 연결(리더 지시: Observer도 같은 경로).
+
+기존 `ReconcileTickDriftEvent`에도 `rebase_jump_m` 필드를 추가했다(qa r10 §D.2 item 3) —
+`position_error_m=n/a` 줄이라도 이제 실측값을 함께 싣는다.
+
+HUD·`PeriodicStatusLog` 양쪽에 `reconcile_rebase_jump_max_m`/`reconcile_rebase_without_error_total`을
+`reconcile_hard_snap_total` 옆에 노출. `OnSessionReady`에서 리셋(기존 재조정 지표와 같은 스코프),
+`OnSessionEnded` 로그에도 "F-27 session-end rebase jump stats" 줄 추가.
+
+### F-29 — `drift == 0` 스냅샷의 오차 이상치가 출처 불명
+
+신규 `Greybox/ReconcileErrorThresholdEvent.cs` (pure struct, `ReconcileTickDriftEvent`와 별도
+타입 — drift 유무와 무관한 독립 조건이라 병합하지 않았고, grep 키 자체가 "왜 이 줄이 남았는지"를
+말해준다). `TryCreate`는 `hasError == true`이고 `position_error_m`이 기존 designer 상수
+`reconcile_smooth_threshold_m`(0.25) 또는 `orientation_error_deg`가
+`reconcile_orientation_smooth_threshold_deg`(1.0)를 **초과**(경계값 자체는 미포함, `<=`는 스무스)할
+때만 이벤트를 낸다. 새 튜닝 상수는 만들지 않았다 — `GreyboxSession`/`ObserverSession`이 이미
+`Reconcile()`에 넘기는 `tuningUsed`(`_tuning ?? DefaultTuning()`)의 두 필드를 그대로 재사용.
+두 세션 모두 `Reconcile()` 직후 호출.
+
+### RED 확인(§7a)
+
+네 파일에 동시에 결함을 주입(`R21 TEMP DEFECT` 표식):
+1. `PredictedShipController.cs` — F-27 세 필드의 측정을 다시 `if (result.HasError)` 안으로 이동
+   (F-27이 고치는 원래 버그를 재현).
+2. `ReconcileRebaseJumpEvent.cs` — 게이트 반전(`if (!hasError) return null;`).
+3. `ReconcileErrorThresholdEvent.cs` — 게이트 반전 + 경계 비교를 `<=`→`<`로.
+4. `ReconcileTickDriftEvent.cs` — `Format()`의 `rebase_jump_m`을 `Drift`로 바꿔치기.
+
+```
+--filter "ReconcileRebaseJumpEventTests|ReconcileErrorThresholdEventTests|PredictedShipControllerRebaseJumpTests|ReconcileTickDriftEventTests" (주입 후):
+total="25" passed="10" failed="15"
+```
+실패 15건은 정확히 네 파일 각각이 지키기로 한 성질에 대응한다 — `PredictedShipControllerRebaseJumpTests`
+3건 전부(비교없음 케이스에서 측정이 사라짐), `ReconcileRebaseJumpEventTests`의
+`TryCreate_HasErrorTrue_...`/`TryCreate_HasErrorFalse_...`/`Format_*` 5건(게이트 반전),
+`ReconcileErrorThresholdEventTests`의 `TryCreate_HasErrorFalse_...`/`TryCreate_*OverThreshold_...`/
+`Format_*` 5건(게이트 반전 + 경계), `ReconcileTickDriftEventTests`의 `Format_ContainsEveryField`·
+`Format_RebaseJumpM_PrintsEvenWhenHasErrorFalse` 2건(필드 바꿔치기).
+
+원복 후:
+```
+md5 일치 확인 (주입 전/후 4개 파일 동일) — 아래 "기준선 md5" 표
+grep -rn "R21 TEMP DEFECT" client/Assets client tools -> 0건
+```
+
+### 최종 스위트
+
+```
+unity test client --mode EditMode (전체)
+288/286/failed=0/skipped=2   (R20의 272 대비 +16 — 신규 테스트 파일 3개 + 기존 두 파일에 추가한 케이스)
+```
+Editor는 라운드 시작 전 `tasklist`로 0건 확인 후 실행(팀 규율 준수). NUnit XML:
+`_workspace/p1-01-ship-movement/EditMode-R21-final.nunit.xml`.
+
+### 기준선 md5 (R21 종료 시점, 변경분만)
+
+| 파일 | md5 |
+|---|---|
+| `Flight/PredictedShipController.cs` | `8c1cab5cb794dc8cb4488fe3a4253d64` |
+| `Greybox/GreyboxSession.cs` | `1d651375ae400e05d3f51be655fa3d0e` |
+| `Greybox/ObserverSession.cs` | `51c71574c0228ab2043b5ce875da2b46` |
+| `Greybox/PeriodicStatusLog.cs` | `2ff8f0560287bb285b682a8351f69f89` |
+| `Greybox/ReconcileTickDriftEvent.cs` | `3190e05d8932213847435a0f7fab8cbc` (원복 확인 완료) |
+| `Greybox/ReconcileRebaseJumpEvent.cs` (신규) | `0ec263dade5c74323844b5c26c64b2a2` (원복 확인 완료) |
+| `Greybox/ReconcileErrorThresholdEvent.cs` (신규) | `b5dbe24abe6523b503d44c546c3d7674` (원복 확인 완료) |
+
+### 남은 것
+
+- **architect 결정 대기**: `reconcile_hard_snap_total`에 `RebaseWithoutErrorTotal`을 합칠지
+  (qa r10 §D.2 item 4). 이번 라운드는 두 카운터를 분리된 채로 남겼다 — 합치면 SC-56 (c1)이
+  R8 세션에서 FAIL로 뒤집힌다는 것이 이미 확인된 사실이라, 그 결정 없이는 손대지 않았다.
+- F-32(architect, SC-56 (c3)에 `has_error == false` 고속 드리프트 사건 명시)와
+  F-33(architect, 평활화 부재 판정)도 이 라운드에서 다루지 않았다 — client 소유가 아니다.
+- 다음 실서버 촬영에서 `reconcile_rebase_without_error_event`/`reconcile_error_threshold_event`
+  줄이 실제로 나오는지, 그리고 qa r10이 §D.2에서 측정한 49.00 m/391.56 m 급 점프가 새 계측으로
+  잡히는지 확인이 아직 없다 — 이번 라운드는 코드/단위테스트까지이고 Editor가 닫혀 있어
+  실서버 재촬영은 못 했다.
+
+## R22 — F-27 재설계(architect R10 판정) · F-33 재조정 평활화 · F-31 정리 (team-lead 지시)
+
+architect R10 판정(`01_architect_decisions.md` "## R10 판정")이 R21의 F-27 설계(HasError 기반
+`RebaseWithoutErrorTotal`)를 대체했다. 합치지 않는 결론은 같지만 근거와 계측 모양이 다르다 —
+`HasError == false` 자체가 아니라 **"경과 시간이 점프를 설명하는가"** 가 결함 판정 기준이다.
+
+### F-27 재설계 — `reconcile_unexplained_jump_total` / `reconcile_client_behind_*`
+
+신규 순수 함수 `Flight/ReconcileRebaseJumpBudget.cs`:
+- `BehindTicks(snapshotTick, currentTickIndexBeforeReconcile)` — 클라가 그 스냅샷 tick보다
+  몇 tick 뒤처져 있었는지(음수 없음, 0 이하는 전부 0).
+- `ExplainedM(speedBeforeReconcile, behindTicks, dt)` — 경과 시간이 설명하는 거리.
+  `speed × behindTicks × dt`.
+- `IsUnexplained(rebaseJumpM, explainedM, hardSnapThresholdM)` — `jump > explained + 5.0`
+  (기존 `reconcile_hard_snap_threshold_m` 재사용, 새 상수 0개). `behindTicks == 0`이면
+  `explainedM == 0`이라 하드 스냅과 정확히 같은 문턱으로 수렴한다(architect §1.3).
+
+`Flight/PredictedShipController.cs`에 배선:
+- `LastRebaseJumpM`/`RebaseJumpMaxM`/**`RebaseJumpN`**(SC-56 (b) "max는 항상 n과 함께" 규율)은
+  전과 같이 `if (result.HasError)` **밖**에서 무조건 측정.
+- **`RebaseWithoutErrorTotal` 삭제.** 대신 `LastBehindTicks`/`LastExplainedM`(매 reconcile
+  갱신), **`UnexplainedJumpTotal`**(FAIL 게이트, `== 0`), **`ClientBehindTotal`/
+  `ClientBehindMaxTicks`/`ClientBehindMaxJumpM`**(게이트 없음, 리포트 의무).
+- **`HardSnapTotal++`은 여전히 `if (result.HasError)` 안, 자리를 옮기지 않았다** —
+  architect의 명시적 경계.
+
+이벤트: `ReconcileRebaseJumpEvent.cs`(R21 라운드 1, HasError 게이트)를 삭제하고
+`Greybox/ReconcileClientBehindEvent.cs`로 교체 — 게이트가 `behindTicks > 0`(HasError 무관).
+`unexplained` 플래그를 이벤트 자체에 싣는다(재도출 없이 `ReconcileRebaseJumpBudget.IsUnexplained`
+값 그대로). `ReconcileTickDriftEvent.cs`에는 `behind_ticks` 필드를 추가(`rebase_jump_m` 옆).
+
+`GreyboxSession.cs`·`ObserverSession.cs` 양쪽 `ApplyPendingRebase()`에 동일 배선.
+HUD·`PeriodicStatusLog`·`OnSessionEnded` 로그에 `reconcile_rebase_jump_max_m(+n)`·
+`reconcile_unexplained_jump_total`·`reconcile_client_behind_total/max_ticks/max_jump_m` 노출.
+
+### F-33 — 재조정 평활화 구현 (architect: 결함, 이번 슬라이스에서 구현)
+
+신규 순수 함수 `Flight/RenderSmoothing.cs`:
+- `ComputePositionOffset`/`ComputeOrientationOffset(band, before, after)` — `Smooth`/
+  `SmoothTracked`일 때만 오프셋 계산(`before - after`), `Ignore`/`HardSnap`은 오프셋 0
+  (하드 스냅은 감추지 않는다, ADR-0012 §4).
+- `DecayPositionOffset`/`DecayOrientationOffset(offset, dt, durationMs)` — 지수 감쇠
+  (`exp(-dt/tau)`, orientation은 슬러프). `durationMs <= 0`이면 즉시 0(0으로 나누기 방지).
+  `Quatd`에 슬러프가 없어 이 파일 안에 직접 구현(결정론 핵심이 아닌 표현 계층이라
+  ADR-0012 §4가 명시적으로 허용).
+
+`GreyboxSession.cs`: 재조정 직전 렌더 위치/자세(시뮬 위치 + 기존 오프셋)를 캡처 →
+`Reconcile()` 뒤 `HasError`일 때만 밴드 분류 → `RenderSmoothing.Compute*Offset`으로 오프셋
+갱신. **`HasError == false` 리베이스는 밴드 분류 자체를 안 해서(오차가 없다) 구조적으로
+평활화 대상이 될 수 없다** — F-27의 49 m 점프가 200 ms에 걸쳐 245 m/s(최고속 1.75배)로
+끌려오는 사고를 막는 설계다(architect §2.3). `RenderLocalShip()`이 매 프레임 오프셋을
+감쇠시키고 `시뮬 위치 + 오프셋`을 그린다(시뮬 상태 `_controller.CurrentState`는 절대
+안 건드림). SC-56 (e) 세 요구 — 분류 수·오프셋 비-0 프레임 수·오프셋 최대(+n) —
+전부 세션 종료 로그·HUD에 노출. `ObserverSession`에는 적용하지 않았다(team-lead 지시가
+`RenderLocalShip()`만 언급했고, Observer는 렌더링 대상 GameObject가 없다 — 아래 "남은 것"
+참고).
+
+### F-31 — 홀짝 법칙 기록만 남기고 닫음
+
+`HitchInjection.cs`: "WHY 400 AND NOT 250" 단락에서 홀짝 법칙(짝/홀 10/10 vs 5/10) 서술을
+내리고, 근거를 R8 실세션 8/8 관측 하나로 교체(리더가 준 문구 그대로). `(100, 500)` 창 유도
+단락(파일 상단)은 건드리지 않았다.
+
+`HitchInjectionTests.cs`: `(100, 500)` 하드코딩 리터럴을 `sync-tuning.json`에서 읽어 유도하도록
+변경 — 하한 `(1000/snapshot_hz) × 2`, 상한 `carry_forward_max_ticks × tick_ms`. §7a 짝 단언
+`DerivedBounds_AreBothNonZero`를 먼저 추가(파싱이 죽어 둘 다 0이 되는 경우를 잡는다).
+
+### RED 확인(§7a)
+
+다섯 파일에 동시 결함 주입(`R22 TEMP DEFECT` 표식): `ReconcileRebaseJumpBudget.cs`의
+`IsUnexplained` 부등호 반전 + `BehindTicks` 부호 반전, `PredictedShipController.cs`의
+`ClientBehindTotal` 게이트를 `>= 0`(항상 참)으로, `ReconcileClientBehindEvent.cs` 게이트 반전,
+`RenderSmoothing.cs`의 `ComputePositionOffset` 게이트 반전, `ReconcileTickDriftEvent.cs`
+`Format()`의 `behind_ticks`를 `Drift`로 바꿔치기.
+```
+--filter "ReconcileRebaseJumpBudgetTests|PredictedShipControllerRebaseJumpTests|ReconcileClientBehindEventTests|RenderSmoothingTests|ReconcileTickDriftEventTests" (주입 후):
+total="51" passed="25" failed="26"
+```
+실패 26건이 정확히 다섯 결함 각각이 지키기로 한 성질에 대응(테스트 클래스별 실패 분포 확인,
+무관한 스위트 오염 없음). 원복 후 md5 일치(5파일), `grep -rn "R22 TEMP DEFECT"` 0건 확인.
+
+### 최종 스위트
+
+```
+unity test client --mode EditMode (전체)
+322/320/failed=0/skipped=2   (R21의 288 대비 +34 — 신규 테스트 파일 4개 + 재작성 1개 + 배선 변경)
+```
+Editor는 라운드 시작 전 `tasklist`로 0건 확인 후 실행. NUnit XML:
+`_workspace/p1-01-ship-movement/EditMode-R22-final.nunit.xml`.
+
+### 기준선 md5 (R22 종료 시점, 변경분만)
+
+| 파일 | md5 |
+|---|---|
+| `Flight/PredictedShipController.cs` | `c67d6b9f0370226f88d16eb7eef99c94` |
+| `Flight/ReconcileRebaseJumpBudget.cs` (신규) | `b202d274585af5ff09b80418ce3febbe` |
+| `Flight/RenderSmoothing.cs` (신규) | `cb1d2ebe88b5acdf688d56fda111e97d` |
+| `Greybox/GreyboxSession.cs` | `e1131f4516fa5b92e8d441f0f3ae20cb` |
+| `Greybox/ObserverSession.cs` | `8ee53ad77e57e67baffe57914a6607fa` |
+| `Greybox/PeriodicStatusLog.cs` | `f755681e59b28a4d2ce06284853928f7` |
+| `Greybox/ReconcileTickDriftEvent.cs` | `f6dbe8e8cbd8f553e965ce7179531181` |
+| `Greybox/ReconcileClientBehindEvent.cs` (신규, `ReconcileRebaseJumpEvent.cs` 대체) | `7ecc706fb2466dd5cdc551043b515417` |
+| `Greybox/HitchInjection.cs` | `ee86da300957a7930fa00b222d249ab3` |
+
+### 남은 것
+
+- **F-33을 `ObserverSession`에 적용하지 않았다.** team-lead 지시가 `RenderLocalShip()`(HUD가
+  보는 자기 함선 렌더)만 명시했고, `ObserverSession`은 화면에 그리는 GameObject 없이 CSV
+  (`WriteRow`)에 시뮬 위치를 직접 쓴다 — 그 CSV의 "이 관찰자 화면이 보여주는 값" 주석이
+  평활화 적용 여부에 따라 조금 달라질 수 있는 지점이라 판단을 architect/team-lead에 맡긴다.
+  F-27(behind-ticks 이벤트·카운터)은 Observer에도 동일 적용했다.
+- 다음 실서버 세션에서 SC-56 (c4)·(e)가 요구하는 실측(`reconcile_unexplained_jump_total == 0`,
+  `reconcile_client_behind_*` 리포트, 평활화 세 요구)이 아직 없다 — 이번 라운드는 코드/단위
+  테스트까지이고 Editor가 닫혀 있어 실서버 재촬영은 못 했다.
+- SC-56 (c4)/(e) 계약 문구는 architect가 11차 개정에서 이미 확정했으므로 추가 계약 작업 없음.

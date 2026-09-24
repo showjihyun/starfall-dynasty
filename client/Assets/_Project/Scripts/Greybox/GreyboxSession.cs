@@ -22,6 +22,7 @@ using Starfall.Remote;
 using Starfall.Sim;
 using Unity.Profiling;
 using UnityEngine;
+using UnityEngine.InputSystem;
 
 namespace Starfall.Greybox
 {
@@ -70,6 +71,15 @@ namespace Starfall.Greybox
         float _rebaseHoldLastRealTime;
         long _reconcileForcedAfterHitchTotal;
 
+        // C-1 (R8 판정 D-3, ADR-0012 section 6.4 point 6): reconcile_tick_drift_{total,max}.
+        // Baseline (prevAck/prevTick) is set on every APPLIED snapshot (i.e. one that actually
+        // proceeded to Reconcile, not one RebaseHold held) - see ApplyPendingRebase(). Session
+        // scope, reset in OnSessionReady like every other reconcile metric (H-10').
+        uint? _driftPrevAck;
+        long _driftPrevTick;
+        long _reconcileTickDriftTotal;
+        long _reconcileTickDriftMax;
+
         // T-7/H-8 observations (catch-up path counters).
         long _catchupCarryForwardTicksTotal;
         long _catchupDormantTicksTotal;
@@ -91,6 +101,43 @@ namespace Starfall.Greybox
         double _lastPositionErrorM;
         double _lastOrientationErrorDeg;
         long _hardSnapTotal; // session-scope (resets with a fresh _controller on reconnect - already true before H-10')
+
+        // F-27 (architect R10 판정 §1, 01_architect_decisions.md "## R10 판정"): session-scope
+        // mirrors of PredictedShipController's own fields - see that file's doc comments.
+        // Distinct from _hardSnapTotal above: these count/measure the "explained by elapsed
+        // time" budget HardSnapTotal's HasError gate cannot see, not a band crossing.
+        double _rebaseJumpMaxM;
+        long _rebaseJumpN;
+        long _unexplainedJumpTotal;
+        long _clientBehindTotal;
+        long _clientBehindMaxTicks;
+        double _clientBehindMaxJumpM;
+
+        // F-33 (architect R10 판정 §2): render-only smoothing state for the locally controlled
+        // ship. Never touches ShipSimState/_controller.CurrentState - added on top only when
+        // drawing (RenderLocalShip()). Position/orientation offset default to "no correction
+        // pending" (Vec3d.Zero / Quatd.Identity).
+        Vec3d _renderPositionOffset = Vec3d.Zero;
+        Quatd _renderOrientationOffset = Quatd.Identity;
+        long _smoothedReconcileTotal; // SC-56 (e) item 1: reconciles classified Smooth/SmoothTracked
+        long _renderOffsetNonZeroFrameTotal; // SC-56 (e) item 2
+        double _renderOffsetMaxM; // SC-56 (e) item 3
+        long _renderOffsetMaxN;
+
+        /// <summary>SC-56 (e) item 4 (architect R10 후속 판정 §5.3, 12차 계약): count of frames
+        /// where the offset actually SHRANK due to decay alone - i.e. NOT the frame a reconcile
+        /// just replaced it with a fresh (possibly bigger) value. Without this, an implementation
+        /// that sets the offset once and never calls Decay*Offset passes items 1-3 anyway (the
+        /// offset is nonzero, has a max, came from a classified reconcile) while the screen stays
+        /// glued to the pre-correction position forever - worse than no smoothing at all.</summary>
+        long _renderOffsetDecayFrameTotal;
+
+        /// <summary>Set false at the top of every ApplyPendingRebase() call, true only if it
+        /// actually reached _controller.Reconcile() this frame - lets RenderLocalShip() (which
+        /// runs later in the SAME Update()) tell "the offset changed because of decay" apart from
+        /// "the offset changed because ApplyPendingRebase just replaced it" (R23, above).</summary>
+        bool _reconciledThisFrame;
+
         int _visibleShipCount;
         double _nearestShipDistanceM = double.PositiveInfinity;
 
@@ -280,6 +327,13 @@ namespace Starfall.Greybox
             _ticksSinceLastSend = 0;
             _rebaseHoldSeconds = 0.0;
 
+            // C-1: a new session has no baseline to compare against - the next applied snapshot
+            // is this session's first, same as Reconciliation.Result.HasError's first-snapshot rule.
+            _driftPrevAck = null;
+            _driftPrevTick = 0;
+            _reconcileTickDriftTotal = 0;
+            _reconcileTickDriftMax = 0;
+
             // H-9: a rebase queued from the PREVIOUS session/resume must never apply against
             // the fresh _controller instance the next WORLD_SNAPSHOT creates above.
             _pendingRebaseTick = null;
@@ -299,6 +353,25 @@ namespace Starfall.Greybox
             _reconcileReplayedNonZeroInputsTotal = 0;
             _reconcileBothOmegaNonZeroTotal = 0;
             _hardSnapTotalRunLastControllerValue = 0;
+            // F-27 (architect R10 판정 §1): session-scope, same reset rule as every other
+            // reconcile metric above - the fresh _controller this session's first snapshot
+            // creates starts its own fields at 0 too.
+            _rebaseJumpMaxM = 0.0;
+            _rebaseJumpN = 0;
+            _unexplainedJumpTotal = 0;
+            _clientBehindTotal = 0;
+            _clientBehindMaxTicks = 0;
+            _clientBehindMaxJumpM = 0.0;
+
+            // F-33 (architect R10 판정 §2): render smoothing state is per-session too - a fresh
+            // connect/reconnect has nothing pending to smooth.
+            _renderPositionOffset = Vec3d.Zero;
+            _renderOrientationOffset = Quatd.Identity;
+            _smoothedReconcileTotal = 0;
+            _renderOffsetNonZeroFrameTotal = 0;
+            _renderOffsetMaxM = 0.0;
+            _renderOffsetMaxN = 0;
+            _renderOffsetDecayFrameTotal = 0;
 
             foreach (GameObject view in _remoteViews.Values) Destroy(view);
             _remoteViews.Clear();
@@ -343,6 +416,33 @@ namespace Starfall.Greybox
                       ", n=" + _reconcileOrientationErrorStats.N + "), " +
                       "reconcile_hard_snap_total=" + _hardSnapTotal);
 
+            // F-27 (architect R10 판정 §1.4/§1.7 - SC-56 (c4)): read alongside
+            // reconcile_hard_snap_total above - a nonzero reconcile_rebase_jump_max_m together
+            // with reconcile_hard_snap_total == 0 is exactly the gap qa r10 found (49.00 m /
+            // 391.56 m jumps hard_snap never counted). reconcile_unexplained_jump_total is the
+            // FAIL gate (must be 0); the three client_behind_* fields carry NO gate (Editor
+            // domain reloads/GC/focus loss make being behind common) but reporting them is
+            // mandatory either way.
+            Debug.Log("starfall.greybox: SC-56 (c4) session-end rebase jump budget - " +
+                      "reconcile_rebase_jump_max_m=" + _rebaseJumpMaxM.ToString("F4", CultureInfo.InvariantCulture) +
+                      " (n=" + _rebaseJumpN + "), " +
+                      "reconcile_unexplained_jump_total=" + _unexplainedJumpTotal + ", " +
+                      "reconcile_client_behind_total=" + _clientBehindTotal + ", " +
+                      "reconcile_client_behind_max_ticks=" + _clientBehindMaxTicks + ", " +
+                      "reconcile_client_behind_max_jump_m=" + _clientBehindMaxJumpM.ToString("F4", CultureInfo.InvariantCulture));
+
+            // F-33 (architect R10 판정 §2.4 - SC-56 (e)): all four required together - ① alone
+            // passes "classified but nothing moved", ② alone passes "decayed to 0 instantly",
+            // neither answers "how big did it get" without ③, and ①②③ together still pass an
+            // implementation that sets the offset once and never decays it (④, 12차 신설,
+            // architect R10 후속 판정 §5.3).
+            Debug.Log("starfall.greybox: SC-56 (e) session-end render smoothing stats - " +
+                      "render_smooth_band_total=" + _smoothedReconcileTotal + ", " +
+                      "render_offset_nonzero_frames_total=" + _renderOffsetNonZeroFrameTotal + ", " +
+                      "render_offset_max_m=" + _renderOffsetMaxM.ToString("F4", CultureInfo.InvariantCulture) +
+                      " (n=" + _renderOffsetMaxN + "), " +
+                      "render_offset_decay_frames_total=" + _renderOffsetDecayFrameTotal);
+
             // H-10'/H-17 (architect K-4): run-scope (never reset) counterparts, each max with
             // its own n so "no bigger sample landed" and "stopped measuring" cannot be confused.
             Debug.Log("starfall.greybox: SC-56 run-scope reconcile stats (whole Editor Play " +
@@ -367,6 +467,8 @@ namespace Starfall.Greybox
                       ", catchup_dormant_ticks_total=" + _catchupDormantTicksTotal +
                       ", catchup_truncated_total=" + _catchupTruncatedTotal +
                       ", reconcile_forced_after_hitch_total=" + _reconcileForcedAfterHitchTotal +
+                      ", reconcile_tick_drift_total=" + _reconcileTickDriftTotal +
+                      ", reconcile_tick_drift_max=" + _reconcileTickDriftMax +
                       ", prediction_history_overflow_total=" + (_controller?.PredictionHistoryOverflowTotal ?? 0) +
                       // H-14 (K-2): observation only, NOT a SC-89 pass/fail condition - nonzero
                       // is a separate potential defect (transport/server receive lag), not a
@@ -479,7 +581,10 @@ namespace Starfall.Greybox
             {
                 // First snapshot of a session (fresh connect or resume): trust it unconditionally,
                 // nothing to reconcile against yet (ADR-0012 section 3 / section 7).
-                _controller = new PredictedShipController(_controlledShipClass, CurrentBoundary(), _tickDurationSeconds, confirmed);
+                // D-1 (ADR-0012 section 6.4 point 3): seed the local tick index from this first
+                // snapshot's own tick - the baseline every subsequent ApplyInput/Reconcile call
+                // counts from.
+                _controller = new PredictedShipController(_controlledShipClass, CurrentBoundary(), _tickDurationSeconds, confirmed, message.Tick);
                 if (_localShipView != null) _localShipView.SetActive(true);
                 return;
             }
@@ -515,8 +620,14 @@ namespace Starfall.Greybox
         /// case of exactly one (or zero) snapshot per frame.</summary>
         void ApplyPendingRebase()
         {
+            // R23 (architect R10 후속 판정 §5.3 item 4): reset every frame BEFORE any early
+            // return, so RenderLocalShip() can tell "no reconcile happened this frame" apart
+            // from a stale flag left over from an earlier frame.
+            _reconciledThisFrame = false;
+
             if (!_pendingRebaseTick.HasValue) return;
 
+            long snapshotTick = _pendingRebaseTick.Value;
             ShipSimState confirmed = _pendingRebaseConfirmed;
             uint? ackInputSeq = _pendingRebaseAckInputSeq;
             _pendingRebaseTick = null;
@@ -547,7 +658,84 @@ namespace Starfall.Greybox
             _rebaseHoldSeconds = 0.0;
             _rebaseHoldLastRealTime = now;
 
-            Reconciliation.Result result = _controller.Reconcile(confirmed, ackInputSeq, _tuning ?? DefaultTuning());
+            // C-1 (R8 판정 D-3, ADR-0012 section 6.4 point 6): measure drift on every snapshot
+            // that reaches this point (i.e. actually applied, not held) - BEFORE Reconcile, so a
+            // reconciliation bug cannot mask the measurement of the condition it is supposed to
+            // fix. Starfall.Flight.ReconcileTickDrift is pure; this is the one call site.
+            long? drift = ReconcileTickDrift.Compute(_driftPrevAck, _driftPrevTick, ackInputSeq, snapshotTick);
+            // R19 (architect R9 residual model): deltaTick alone, captured before _driftPrevTick
+            // is overwritten below - the denominator the residual's "abs(delta_accel)*dt^2 per
+            // tick" shape is measured against (distinct from Drift = deltaAck - deltaTick).
+            long deltaTickForEvent = snapshotTick - _driftPrevTick;
+            if (drift.HasValue)
+            {
+                if (drift.Value != 0)
+                {
+                    _reconcileTickDriftTotal++;
+                    long absDrift = Math.Abs(drift.Value);
+                    if (absDrift > _reconcileTickDriftMax) _reconcileTickDriftMax = absDrift;
+                }
+            }
+            _driftPrevAck = ackInputSeq;
+            _driftPrevTick = snapshotTick;
+
+            // F-33 (architect R10 판정 §2): what was on screen for the local ship just before
+            // this correction - sim position/orientation BEFORE Reconcile() overwrites them, plus
+            // whatever render offset was still decaying from the last one. Captured here (not
+            // read off _controller.CurrentState after Reconcile()) because Reconcile() below
+            // overwrites CurrentState with the rebased result.
+            Vec3d renderPositionBeforeCorrection = _controller.CurrentState.Position + _renderPositionOffset;
+            Quatd renderOrientationBeforeCorrection = _renderOrientationOffset * _controller.CurrentState.Orientation;
+
+            // D-1 (ADR-0012 section 6.4 point 2): keyed by snapshotTick now, not ackInputSeq -
+            // ackInputSeq is still read above (drift measurement, RebaseHold) but is no longer
+            // reconciliation's alignment key (R8 판정 §A-2).
+            SyncTuningData tuningUsed = _tuning ?? DefaultTuning();
+            Reconciliation.Result result = _controller.Reconcile(confirmed, snapshotTick, tuningUsed);
+            _reconciledThisFrame = true; // R23: a real reconcile happened this Update() - see the top of this method
+
+            // F-21 (team-lead R18, qa r9): the periodic total answers "did drift happen this
+            // session"; it cannot answer "when, and at what speed" - which is exactly what stopped
+            // SC-56 from closing in R17's re-measurement (the drift and the 140 m/s window never
+            // overlapped in the log, and nobody could see that without reading every raw line by
+            // hand). One line, only when drift != 0, with the speed/error that were true THEN.
+            // R19 (architect R9): thrust/roll active at this tick - same quantised ints the wire
+            // carries (I-36, F-8's own precedent), never a re-derivation from raw float input.
+            // R21 (architect R10 판정 §1.4 table row 4): rebase_jump_m/behind_ticks ride along on
+            // this line too, always real numbers (never n/a) - see ReconcileTickDriftEvent.cs's
+            // R21 header addition.
+            ReconcileTickDriftEvent? driftEvent = ReconcileTickDriftEvent.TryCreate(
+                drift, deltaTickForEvent, snapshotTick, result.State.Velocity.Length(), result.HasError,
+                result.PositionErrorM, result.OrientationErrorDeg,
+                thrustX: _input != null ? Quantization.QuantizeControlAxis(_input.Thrust.X) : 0,
+                thrustY: _input != null ? Quantization.QuantizeControlAxis(_input.Thrust.Y) : 0,
+                thrustZ: _input != null ? Quantization.QuantizeControlAxis(_input.Thrust.Z) : 0,
+                roll: _input != null ? Quantization.QuantizeControlAxis(_input.Roll) : 0,
+                rebaseJumpM: _controller.LastRebaseJumpM, behindTicks: _controller.LastBehindTicks);
+            if (driftEvent.HasValue) Debug.Log("starfall.greybox: " + driftEvent.Value.Format());
+
+            // SC-56 (c4) (architect R10 판정 §1.4): one line whenever THIS reconcile was behind
+            // the snapshot's tick (Flight.ReconcileRebaseJumpBudget.BehindTicks > 0) - the exact
+            // case that produced 49.00 m/391.56 m jumps in the R8 session with hard_snap staying
+            // 0 throughout (see that event's header). Gated on behind_ticks, not HasError -
+            // architect's model, not the R21-round-1 design this supersedes.
+            bool unexplainedThisReconcile = ReconcileRebaseJumpBudget.IsUnexplained(
+                _controller.LastRebaseJumpM, _controller.LastExplainedM, tuningUsed.ReconcileHardSnapThresholdM);
+            ReconcileClientBehindEvent? clientBehindEvent = ReconcileClientBehindEvent.TryCreate(
+                _controller.LastBehindTicks, _controller.LastRebaseJumpM, snapshotTick, deltaTickForEvent,
+                result.State.Velocity.Length(), _controller.LastExplainedM, unexplainedThisReconcile);
+            if (clientBehindEvent.HasValue) Debug.Log("starfall.greybox: " + clientBehindEvent.Value.Format());
+
+            // F-29 (qa r10 §H, team-lead R21): fills the OTHER gap - a drift==0 snapshot whose
+            // measured error still crossed the smooth threshold had no line naming it (qa r10's
+            // 0.3151 m max position_error_m had no locatable source). Reuses the same designer
+            // constants Reconcile()/RenderOffset already compare against - no new tunable.
+            ReconcileErrorThresholdEvent? errorThresholdEvent = ReconcileErrorThresholdEvent.TryCreate(
+                result.HasError, snapshotTick, result.State.Velocity.Length(),
+                result.PositionErrorM, result.OrientationErrorDeg,
+                tuningUsed.ReconcileSmoothThresholdM, tuningUsed.ReconcileOrientationSmoothThresholdDeg);
+            if (errorThresholdEvent.HasValue) Debug.Log("starfall.greybox: " + errorThresholdEvent.Value.Format());
+
             if (result.HasError)
             {
                 _lastPositionErrorM = result.PositionErrorM;
@@ -586,12 +774,40 @@ namespace Starfall.Greybox
             if (_hardSnapTotal > _hardSnapTotalRunLastControllerValue)
                 _hardSnapTotalRun += _hardSnapTotal - _hardSnapTotalRunLastControllerValue;
             _hardSnapTotalRunLastControllerValue = _hardSnapTotal;
+
+            // F-27 (architect R10 판정 §1): session-scope mirrors of the controller's own
+            // fields, read every reconcile the same way _hardSnapTotal is above - HUD/periodic
+            // log/OnSessionEnded read these fields, not the controller directly, matching every
+            // other counter in this class.
+            _rebaseJumpMaxM = _controller.RebaseJumpMaxM;
+            _rebaseJumpN = _controller.RebaseJumpN;
+            _unexplainedJumpTotal = _controller.UnexplainedJumpTotal;
+            _clientBehindTotal = _controller.ClientBehindTotal;
+            _clientBehindMaxTicks = _controller.ClientBehindMaxTicks;
+            _clientBehindMaxJumpM = _controller.ClientBehindMaxJumpM;
+
+            // F-33 (architect R10 판정 §2.2): classify AFTER Reconcile() (needs result.PositionErrorM/
+            // OrientationErrorDeg) but only when HasError - a comparison-less reconcile has no
+            // error to classify, so it is architecturally impossible for it to land in a smoothed
+            // band (§2.3: this is exactly what keeps F-27 jumps from ever being smoothed).
+            ReconcileBand positionBand = ReconcileBand.HardSnap; // sentinel "not classified" - IsSmoothed() is false for it, same as a real HardSnap
+            ReconcileBand orientationBand = ReconcileBand.HardSnap;
+            if (result.HasError)
+            {
+                positionBand = RenderOffset.ClassifyPosition(result.PositionErrorM, tuningUsed);
+                orientationBand = RenderOffset.ClassifyOrientation(result.OrientationErrorDeg, tuningUsed);
+                if (RenderOffset.IsSmoothed(positionBand) || RenderOffset.IsSmoothed(orientationBand))
+                    _smoothedReconcileTotal++;
+            }
+            _renderPositionOffset = RenderSmoothing.ComputePositionOffset(positionBand, renderPositionBeforeCorrection, result.State.Position);
+            _renderOrientationOffset = RenderSmoothing.ComputeOrientationOffset(orientationBand, renderOrientationBeforeCorrection, result.State.Orientation);
         }
 
         static SyncTuningData DefaultTuning() => new SyncTuningData
         {
             ReconcileIgnoreThresholdM = 0.005,
             ReconcileSmoothThresholdM = 0.25,
+            ReconcileSmoothDurationMs = 200,
             ReconcileHardSnapThresholdM = 5.0,
             ReconcileOrientationIgnoreThresholdDeg = 0.02,
             ReconcileOrientationSmoothThresholdDeg = 1.0,
@@ -610,8 +826,39 @@ namespace Starfall.Greybox
 
         double _tickAccumulator;
 
+        /// <summary>F-23: deterministic, on-demand main-thread stall for SC-56 (c2) evidence
+        /// collection - see HitchInjection.cs's header for the (100ms, 500ms) window derivation
+        /// and why this diagnostic-only key is safe. H key, edge-triggered
+        /// (Keyboard.wasPressedThisFrame - the Input System's own debounce, not hand-rolled: one
+        /// press stalls exactly once, regardless of how long H is held, and is independent of
+        /// every other key including W/thrust).</summary>
+        void MaybeInjectHitch()
+        {
+            Keyboard keyboard = Keyboard.current;
+            if (keyboard == null || !keyboard.hKey.wasPressedThisFrame) return;
+
+            // Captured BEFORE the stall - what the ship was doing going INTO the injection, the
+            // state a judge correlating this against F-21's reconcile_tick_drift_event lines
+            // needs (HitchInjection.cs's Format() doc comment).
+            double speedMps = _controller != null ? _controller.CurrentState.Velocity.Length() : 0.0;
+            long tick = _controller != null ? _controller.CurrentTickIndex : -1;
+
+            // The mechanism itself: a real hitch (Editor GC pause, domain reload, shader stall)
+            // is exactly this - the main thread not returning to Update() for a while
+            // (TickCatchUp.cs's own header). This makes it deterministic and on-demand instead
+            // of accidental; the NEXT frame's Time.unscaledDeltaTime picks it up exactly as it
+            // would a real one - no separate injection path into TickCatchUp is needed.
+            System.Threading.Thread.Sleep(HitchInjection.DefaultStallMs);
+
+            Debug.Log("starfall.greybox: " + HitchInjection.Format(HitchInjection.DefaultStallMs, tick, speedMps));
+        }
+
         void Update()
         {
+            // F-23 (team-lead R18/R19, "재촬영 선행 조건"): captures pre-stall tick/speed and
+            // logs before this frame does anything else - see MaybeInjectHitch()/HitchInjection.cs.
+            MaybeInjectHitch();
+
             // H-9: apply at most one rebase/reconcile for whatever WORLD_SNAPSHOT batch this
             // frame's Pump() (StarfallNetHost.Update(), separate component, execution order vs.
             // this Update() unconfirmed) produced - see ApplyPendingRebase()'s doc comment.
@@ -670,12 +917,25 @@ namespace Starfall.Greybox
                 predictErrorM: _lastPositionErrorM,
                 predictErrorDeg: _lastOrientationErrorDeg,
                 reconcileHardSnapTotal: _hardSnapTotal,
+                reconcileRebaseJumpMaxM: _rebaseJumpMaxM,
+                reconcileRebaseJumpN: _rebaseJumpN,
+                reconcileUnexplainedJumpTotal: _unexplainedJumpTotal,
+                reconcileClientBehindTotal: _clientBehindTotal,
+                reconcileClientBehindMaxTicks: _clientBehindMaxTicks,
+                reconcileClientBehindMaxJumpM: _clientBehindMaxJumpM,
+                reconcileSmoothedReconcileTotal: _smoothedReconcileTotal,
+                reconcileRenderOffsetNonZeroFrameTotal: _renderOffsetNonZeroFrameTotal,
+                reconcileRenderOffsetMaxM: _renderOffsetMaxM,
+                reconcileRenderOffsetMaxN: _renderOffsetMaxN,
+                reconcileRenderOffsetDecayFrameTotal: _renderOffsetDecayFrameTotal,
                 sendBurstMaxTicksDrainedPerUpdate: _sendBurstStats.MaxTicksDrainedPerUpdate,
                 sendBurstMaxSendsPerFrame: _sendBurstStats.MaxSendsPerFrame,
                 catchupCarryForwardTicksTotal: _catchupCarryForwardTicksTotal,
                 catchupDormantTicksTotal: _catchupDormantTicksTotal,
                 catchupTruncatedTotal: _catchupTruncatedTotal,
                 reconcileForcedAfterHitchTotal: _reconcileForcedAfterHitchTotal,
+                reconcileTickDriftTotal: _reconcileTickDriftTotal,
+                reconcileTickDriftMax: _reconcileTickDriftMax,
                 visibleShips: _visibleShipCount,
                 applicationFocused: Application.isFocused,
                 // F-8: the same quantised integers OnGUI prints and the wire carries - never a
@@ -796,8 +1056,35 @@ namespace Starfall.Greybox
         void RenderLocalShip()
         {
             if (_controller == null || _localShipView == null || !_localShipView.activeSelf) return;
+
+            // F-33 (architect R10 판정 §2.2): decay every frame this ship is actually drawn,
+            // wall-clock time (Time.unscaledDeltaTime - same reasoning as every other per-frame
+            // accumulation in this file, TickCatchUp included: a hitch's real duration must
+            // count, not an assumed fixed frame time). Inline 200.0 fallback (not
+            // DefaultTuning(), which would allocate a new SyncTuningData every frame) - matches
+            // sync-tuning.json's own reconcile_smooth_duration_ms default.
+            double durationMs = _tuning?.ReconcileSmoothDurationMs ?? 200.0;
+            double dt = Time.unscaledDeltaTime;
+            double offsetBeforeDecayM = _renderPositionOffset.Length(); // R23 (e) item 4: baseline for "did decay actually shrink it"
+            _renderPositionOffset = RenderSmoothing.DecayPositionOffset(_renderPositionOffset, dt, durationMs);
+            _renderOrientationOffset = RenderSmoothing.DecayOrientationOffset(_renderOrientationOffset, dt, durationMs);
+
             ShipSimState state = _controller.CurrentState;
-            _localShipView.transform.SetPositionAndRotation(ToUnity(state.Position), ToUnity(state.Orientation));
+            Vec3d renderPosition = state.Position + _renderPositionOffset;
+            Quatd renderOrientation = _renderOrientationOffset * state.Orientation;
+            _localShipView.transform.SetPositionAndRotation(ToUnity(renderPosition), ToUnity(renderOrientation));
+
+            // SC-56 (e) items 2/3 (architect R10 판정 §2.4): sampled every drawn frame, not just
+            // at reconcile time - a jump computed at reconcile time but never actually rendered
+            // nonzero would be an F-27-shaped gap all over again.
+            double offsetM = _renderPositionOffset.Length();
+            _renderOffsetMaxN++;
+            if (offsetM > _renderOffsetMaxM) _renderOffsetMaxM = offsetM;
+            // SC-56 (e) item 4 (architect R10 후속 판정 §5.3): only counts a frame where decay
+            // alone shrank the offset AND no reconcile just replaced it this same frame - see
+            // _renderOffsetDecayFrameTotal's doc comment for why the exclusion matters.
+            if (!_reconciledThisFrame && offsetM < offsetBeforeDecayM) _renderOffsetDecayFrameTotal++;
+            if (offsetM > 0.0) _renderOffsetNonZeroFrameTotal++;
         }
 
         void RenderRemoteShips()
@@ -868,6 +1155,20 @@ namespace Starfall.Greybox
                 "predict_error_m=" + _lastPositionErrorM.ToString("F4", CultureInfo.InvariantCulture),
                 "predict_error_deg=" + _lastOrientationErrorDeg.ToString("F4", CultureInfo.InvariantCulture),
                 "reconcile_hard_snap_total=" + _hardSnapTotal,
+                // F-27 (architect R10 판정 §1.4/§1.7 - SC-56 (c4)): read alongside
+                // reconcile_hard_snap_total above - see the OnSessionEnded log line for why.
+                "reconcile_rebase_jump_max_m=" + _rebaseJumpMaxM.ToString("F4", CultureInfo.InvariantCulture) +
+                " (n=" + _rebaseJumpN + ")" +
+                " reconcile_unexplained_jump_total=" + _unexplainedJumpTotal +
+                " reconcile_client_behind_total=" + _clientBehindTotal +
+                " reconcile_client_behind_max_ticks=" + _clientBehindMaxTicks +
+                " reconcile_client_behind_max_jump_m=" + _clientBehindMaxJumpM.ToString("F4", CultureInfo.InvariantCulture),
+                // F-33 (architect R10 판정 §2.4 - SC-56 (e))
+                "render_smooth_band_total=" + _smoothedReconcileTotal +
+                " render_offset_nonzero_frames_total=" + _renderOffsetNonZeroFrameTotal +
+                " render_offset_max_m=" + _renderOffsetMaxM.ToString("F4", CultureInfo.InvariantCulture) +
+                " (n=" + _renderOffsetMaxN + ")" +
+                " render_offset_decay_frames_total=" + _renderOffsetDecayFrameTotal,
                 // SC-56(b): p50/p99/max over the whole session so far, not just the last value
                 // above - cached PercentileStats, recomputed at reconcile rate (see the
                 // HasError branch in OnWorldSnapshotCore), never here in OnGUI.
@@ -899,6 +1200,11 @@ namespace Starfall.Greybox
                 " catchup_dormant_ticks_total=" + _catchupDormantTicksTotal +
                 " catchup_truncated_total=" + _catchupTruncatedTotal +
                 " reconcile_forced_after_hitch_total=" + _reconcileForcedAfterHitchTotal,
+                // C-1 (R8 판정 D-3): must be read alongside reconcile_hard_snap_total above -
+                // 0/0 together is what closes SC-56, not hard_snap alone (ADR-0012 section 6.4
+                // point 6 / R8 판정 관측 3).
+                "reconcile_tick_drift_total=" + _reconcileTickDriftTotal +
+                " reconcile_tick_drift_max=" + _reconcileTickDriftMax,
                 // F-7 (qa r5): SC-59 (b2)'s "마커 4개의 ID·거리를 한 줄로". Drawn every frame,
                 // not only on the opening one - a viewer scrubbing to any point in a recording
                 // can then tell which markers the ship is being judged against. The wrap in

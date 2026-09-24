@@ -118,7 +118,13 @@ namespace Starfall.Greybox
             Brake = brake;
         }
 
-        static Quatd YawPitchToQuaternion(double yawDeg, double pitchDeg)
+        /// <summary>F-19 (qa r8 A2.3, §0.12 결함 주입 시험 영검출 2건 중 1건): public, not
+        /// private, specifically so an EditMode test can call it directly without a MonoBehaviour
+        /// or a live Mouse device (ShipInputSamplerTests.cs) - a `halfYaw` sign flip here was
+        /// injected and the 246-test suite (at the time) did not catch it, because nothing called
+        /// this function outside Sample()'s full input pipeline. Still a pure function of its two
+        /// arguments; visibility is the only change.</summary>
+        public static Quatd YawPitchToQuaternion(double yawDeg, double pitchDeg)
         {
             // Yaw about world +Y, then pitch about the yawed local +X - standard look-rotation
             // composition. Uses Math.Sin/Cos deliberately: this builds an INTENT to send, not a

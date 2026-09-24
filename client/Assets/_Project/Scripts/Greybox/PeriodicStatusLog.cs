@@ -69,12 +69,60 @@ namespace Starfall.Greybox
         public readonly double PredictErrorM;
         public readonly double PredictErrorDeg;
         public readonly long ReconcileHardSnapTotal;
+
+        /// <summary>F-27 (architect R10 판정 §1, 01_architect_decisions.md "## R10 판정"):
+        /// running max of the render-position jump a reconcile has produced this session (+ N,
+        /// the sample count - SC-56 (b)'s "max always with n" discipline), measured regardless
+        /// of whether step 1 had a comparison to report - read alongside ReconcileHardSnapTotal
+        /// above (hard_snap can stay 0 while this is 49-391 m).</summary>
+        public readonly double ReconcileRebaseJumpMaxM;
+        public readonly long ReconcileRebaseJumpN;
+
+        /// <summary>SC-56 (c4) FAIL gate (must be 0): count of reconciles where the jump exceeded
+        /// what elapsed time (behind_ticks x speed x dt) plus the existing hard-snap slack could
+        /// account for (Flight.ReconcileRebaseJumpBudget.IsUnexplained). Never add this to
+        /// ReconcileHardSnapTotal - the two answer different questions (architect R10 §1.1).</summary>
+        public readonly long ReconcileUnexplainedJumpTotal;
+
+        /// <summary>SC-56 (c4) reporting fields - NO == 0 gate (Editor domain reloads/GC/focus
+        /// loss make being behind common regardless of product code), but reporting them is
+        /// mandatory. Count of reconciles where the client was behind the snapshot's tick, the
+        /// largest such gap, and the largest jump seen AT one of those behind-reconciles
+        /// specifically.</summary>
+        public readonly long ReconcileClientBehindTotal;
+        public readonly long ReconcileClientBehindMaxTicks;
+        public readonly double ReconcileClientBehindMaxJumpM;
+
+        /// <summary>SC-56 (e) (architect R10 판정 §2.4, 후속 판정 §5.3): reconciliation
+        /// smoothing's four required-together fields - reconciles classified Smooth/
+        /// SmoothTracked, frames where the render offset was actually nonzero, the offset's
+        /// largest magnitude (+ N), and frames where decay alone (not a fresh reconcile) shrank
+        /// it. Any one of the four alone can pass vacuously (classified-but-nothing-moved,
+        /// decayed-to-zero-instantly, offset-set-once-and-never-decayed) - all four together is
+        /// the evidence requirement.</summary>
+        public readonly long ReconcileSmoothedReconcileTotal;
+        public readonly long ReconcileRenderOffsetNonZeroFrameTotal;
+        public readonly double ReconcileRenderOffsetMaxM;
+        public readonly long ReconcileRenderOffsetMaxN;
+        public readonly long ReconcileRenderOffsetDecayFrameTotal;
+
         public readonly int? SendBurstMaxTicksDrainedPerUpdate;
         public readonly int? SendBurstMaxSendsPerFrame;
         public readonly long CatchupCarryForwardTicksTotal;
         public readonly long CatchupDormantTicksTotal;
         public readonly long CatchupTruncatedTotal;
         public readonly long ReconcileForcedAfterHitchTotal;
+
+        // C-1 (R8 판정 D-3 / ADR-0012 section 6.4 point 6, Starfall.Flight.ReconcileTickDrift).
+        // ReconcileTickDriftTotal counts snapshots where (Δack_input_seq != Δtick) - the
+        // precondition Reconciliation.Reconcile used to assume and R8 판정 showed is false three
+        // ways (server carry-forward, server supersede, client truncate). ReconcileTickDriftMax
+        // is the largest |drift| seen this session. Normal value for both: 0. Non-zero here with
+        // reconcile_hard_snap_total == 0 means the fix held under a condition that actually
+        // occurred - zero-and-zero together, not hard_snap alone, is what closes SC-56 (architect
+        // R8 판정 §A-4/§C: "이 카운터 없이는 ... 구분되지 않는다").
+        public readonly long ReconcileTickDriftTotal;
+        public readonly long ReconcileTickDriftMax;
         public readonly int VisibleShips;
         /// <summary>Recorded, never branched on - see this file's header. Lets a reader confirm
         /// after the fact that a run of these lines really did span an unfocused window.</summary>
@@ -179,12 +227,25 @@ namespace Starfall.Greybox
             double predictErrorM,
             double predictErrorDeg,
             long reconcileHardSnapTotal,
+            double reconcileRebaseJumpMaxM,
+            long reconcileRebaseJumpN,
+            long reconcileUnexplainedJumpTotal,
+            long reconcileClientBehindTotal,
+            long reconcileClientBehindMaxTicks,
+            double reconcileClientBehindMaxJumpM,
+            long reconcileSmoothedReconcileTotal,
+            long reconcileRenderOffsetNonZeroFrameTotal,
+            double reconcileRenderOffsetMaxM,
+            long reconcileRenderOffsetMaxN,
+            long reconcileRenderOffsetDecayFrameTotal,
             int? sendBurstMaxTicksDrainedPerUpdate,
             int? sendBurstMaxSendsPerFrame,
             long catchupCarryForwardTicksTotal,
             long catchupDormantTicksTotal,
             long catchupTruncatedTotal,
             long reconcileForcedAfterHitchTotal,
+            long reconcileTickDriftTotal,
+            long reconcileTickDriftMax,
             int visibleShips,
             bool applicationFocused,
             long thrustX,
@@ -238,12 +299,25 @@ namespace Starfall.Greybox
             PredictErrorM = predictErrorM;
             PredictErrorDeg = predictErrorDeg;
             ReconcileHardSnapTotal = reconcileHardSnapTotal;
+            ReconcileRebaseJumpMaxM = reconcileRebaseJumpMaxM;
+            ReconcileRebaseJumpN = reconcileRebaseJumpN;
+            ReconcileUnexplainedJumpTotal = reconcileUnexplainedJumpTotal;
+            ReconcileClientBehindTotal = reconcileClientBehindTotal;
+            ReconcileClientBehindMaxTicks = reconcileClientBehindMaxTicks;
+            ReconcileClientBehindMaxJumpM = reconcileClientBehindMaxJumpM;
+            ReconcileSmoothedReconcileTotal = reconcileSmoothedReconcileTotal;
+            ReconcileRenderOffsetNonZeroFrameTotal = reconcileRenderOffsetNonZeroFrameTotal;
+            ReconcileRenderOffsetMaxM = reconcileRenderOffsetMaxM;
+            ReconcileRenderOffsetMaxN = reconcileRenderOffsetMaxN;
+            ReconcileRenderOffsetDecayFrameTotal = reconcileRenderOffsetDecayFrameTotal;
             SendBurstMaxTicksDrainedPerUpdate = sendBurstMaxTicksDrainedPerUpdate;
             SendBurstMaxSendsPerFrame = sendBurstMaxSendsPerFrame;
             CatchupCarryForwardTicksTotal = catchupCarryForwardTicksTotal;
             CatchupDormantTicksTotal = catchupDormantTicksTotal;
             CatchupTruncatedTotal = catchupTruncatedTotal;
             ReconcileForcedAfterHitchTotal = reconcileForcedAfterHitchTotal;
+            ReconcileTickDriftTotal = reconcileTickDriftTotal;
+            ReconcileTickDriftMax = reconcileTickDriftMax;
             VisibleShips = visibleShips;
             ApplicationFocused = applicationFocused;
         }
@@ -260,12 +334,25 @@ namespace Starfall.Greybox
                    " predict_error_m=" + PredictErrorM.ToString("F4", CultureInfo.InvariantCulture) +
                    " predict_error_deg=" + PredictErrorDeg.ToString("F4", CultureInfo.InvariantCulture) +
                    " reconcile_hard_snap_total=" + ReconcileHardSnapTotal.ToString(CultureInfo.InvariantCulture) +
+                   " reconcile_rebase_jump_max_m=" + ReconcileRebaseJumpMaxM.ToString("F4", CultureInfo.InvariantCulture) +
+                   " reconcile_rebase_jump_n=" + ReconcileRebaseJumpN.ToString(CultureInfo.InvariantCulture) +
+                   " reconcile_unexplained_jump_total=" + ReconcileUnexplainedJumpTotal.ToString(CultureInfo.InvariantCulture) +
+                   " reconcile_client_behind_total=" + ReconcileClientBehindTotal.ToString(CultureInfo.InvariantCulture) +
+                   " reconcile_client_behind_max_ticks=" + ReconcileClientBehindMaxTicks.ToString(CultureInfo.InvariantCulture) +
+                   " reconcile_client_behind_max_jump_m=" + ReconcileClientBehindMaxJumpM.ToString("F4", CultureInfo.InvariantCulture) +
+                   " render_smooth_band_total=" + ReconcileSmoothedReconcileTotal.ToString(CultureInfo.InvariantCulture) +
+                   " render_offset_nonzero_frames_total=" + ReconcileRenderOffsetNonZeroFrameTotal.ToString(CultureInfo.InvariantCulture) +
+                   " render_offset_max_m=" + ReconcileRenderOffsetMaxM.ToString("F4", CultureInfo.InvariantCulture) +
+                   " render_offset_max_n=" + ReconcileRenderOffsetMaxN.ToString(CultureInfo.InvariantCulture) +
+                   " render_offset_decay_frames_total=" + ReconcileRenderOffsetDecayFrameTotal.ToString(CultureInfo.InvariantCulture) +
                    " send_burst_max_ticks_per_update=" + FormatCount(SendBurstMaxTicksDrainedPerUpdate) +
                    " send_burst_max_sends_per_frame=" + FormatCount(SendBurstMaxSendsPerFrame) +
                    " catchup_carry_forward_ticks_total=" + CatchupCarryForwardTicksTotal.ToString(CultureInfo.InvariantCulture) +
                    " catchup_dormant_ticks_total=" + CatchupDormantTicksTotal.ToString(CultureInfo.InvariantCulture) +
                    " catchup_truncated_total=" + CatchupTruncatedTotal.ToString(CultureInfo.InvariantCulture) +
                    " reconcile_forced_after_hitch_total=" + ReconcileForcedAfterHitchTotal.ToString(CultureInfo.InvariantCulture) +
+                   " reconcile_tick_drift_total=" + ReconcileTickDriftTotal.ToString(CultureInfo.InvariantCulture) +
+                   " reconcile_tick_drift_max=" + ReconcileTickDriftMax.ToString(CultureInfo.InvariantCulture) +
                    " visible_ships=" + VisibleShips.ToString(CultureInfo.InvariantCulture) +
                    " application_focused=" + (ApplicationFocused ? "true" : "false") +
                    // F-8: axis convention is +X right / +Y up / +Z forward (see the field block

@@ -18,13 +18,13 @@ namespace Starfall.Tests.EditMode
             originDistanceM: 1000.25,
             predictErrorM: 0.0012,
             predictErrorDeg: 0.0034,
-            reconcileHardSnapTotal: 2,
+            reconcileHardSnapTotal: 2, reconcileRebaseJumpMaxM: 49.5, reconcileRebaseJumpN: 8, reconcileUnexplainedJumpTotal: 3, reconcileClientBehindTotal: 6, reconcileClientBehindMaxTicks: 9, reconcileClientBehindMaxJumpM: 60.25, reconcileSmoothedReconcileTotal: 4, reconcileRenderOffsetNonZeroFrameTotal: 15, reconcileRenderOffsetMaxM: 0.31, reconcileRenderOffsetMaxN: 20, reconcileRenderOffsetDecayFrameTotal: 7,
             sendBurstMaxTicksDrainedPerUpdate: 9,
             sendBurstMaxSendsPerFrame: 1,
             catchupCarryForwardTicksTotal: 8,
             catchupDormantTicksTotal: 3,
             catchupTruncatedTotal: 0,
-            reconcileForcedAfterHitchTotal: 1,
+            reconcileForcedAfterHitchTotal: 1, reconcileTickDriftTotal: 4, reconcileTickDriftMax: 7,
             visibleShips: 2,
             applicationFocused: applicationFocused,
             // F-8 fields. Every value distinct and non-zero so a Format() that drops one, or
@@ -77,12 +77,25 @@ namespace Starfall.Tests.EditMode
             Assert.That(line, Does.Contain("predict_error_m=0.0012"));
             Assert.That(line, Does.Contain("predict_error_deg=0.0034"));
             Assert.That(line, Does.Contain("reconcile_hard_snap_total=2"));
+            Assert.That(line, Does.Contain("reconcile_rebase_jump_max_m=49.5000"));
+            Assert.That(line, Does.Contain("reconcile_rebase_jump_n=8"));
+            Assert.That(line, Does.Contain("reconcile_unexplained_jump_total=3"));
+            Assert.That(line, Does.Contain("reconcile_client_behind_total=6"));
+            Assert.That(line, Does.Contain("reconcile_client_behind_max_ticks=9"));
+            Assert.That(line, Does.Contain("reconcile_client_behind_max_jump_m=60.2500"));
+            Assert.That(line, Does.Contain("render_smooth_band_total=4"));
+            Assert.That(line, Does.Contain("render_offset_nonzero_frames_total=15"));
+            Assert.That(line, Does.Contain("render_offset_max_m=0.3100"));
+            Assert.That(line, Does.Contain("render_offset_max_n=20"));
+            Assert.That(line, Does.Contain("render_offset_decay_frames_total=7"));
             Assert.That(line, Does.Contain("send_burst_max_ticks_per_update=9"));
             Assert.That(line, Does.Contain("send_burst_max_sends_per_frame=1"));
             Assert.That(line, Does.Contain("catchup_carry_forward_ticks_total=8"));
             Assert.That(line, Does.Contain("catchup_dormant_ticks_total=3"));
             Assert.That(line, Does.Contain("catchup_truncated_total=0"));
             Assert.That(line, Does.Contain("reconcile_forced_after_hitch_total=1"));
+            Assert.That(line, Does.Contain("reconcile_tick_drift_total=4"));
+            Assert.That(line, Does.Contain("reconcile_tick_drift_max=7"));
             Assert.That(line, Does.Contain("visible_ships=2"));
         }
 
@@ -91,10 +104,10 @@ namespace Starfall.Tests.EditMode
         {
             var line = new PeriodicStatusLog(
                 tick: -1, ackInputSeq: null, speedMps: 0, originDistanceM: 0,
-                predictErrorM: 0, predictErrorDeg: 0, reconcileHardSnapTotal: 0,
+                predictErrorM: 0, predictErrorDeg: 0, reconcileHardSnapTotal: 0, reconcileRebaseJumpMaxM: 0.0, reconcileRebaseJumpN: 0, reconcileUnexplainedJumpTotal: 0, reconcileClientBehindTotal: 0, reconcileClientBehindMaxTicks: 0, reconcileClientBehindMaxJumpM: 0.0, reconcileSmoothedReconcileTotal: 0, reconcileRenderOffsetNonZeroFrameTotal: 0, reconcileRenderOffsetMaxM: 0.0, reconcileRenderOffsetMaxN: 0, reconcileRenderOffsetDecayFrameTotal: 0,
                 sendBurstMaxTicksDrainedPerUpdate: null, sendBurstMaxSendsPerFrame: null,
                 catchupCarryForwardTicksTotal: 0, catchupDormantTicksTotal: 0,
-                catchupTruncatedTotal: 0, reconcileForcedAfterHitchTotal: 0,
+                catchupTruncatedTotal: 0, reconcileForcedAfterHitchTotal: 0, reconcileTickDriftTotal: 0, reconcileTickDriftMax: 0,
                 visibleShips: 0, applicationFocused: false,
                 thrustX: 0, thrustY: 0, thrustZ: 0, roll: 0,
                 aimTargetX: 0, aimTargetY: 0, aimTargetZ: 0, aimTargetW: 0,
@@ -113,10 +126,10 @@ namespace Starfall.Tests.EditMode
             // measured 0 - same discipline as GreyboxSession.FormatCount/FormatStat.
             var line = new PeriodicStatusLog(
                 tick: 0, ackInputSeq: null, speedMps: 0, originDistanceM: 0,
-                predictErrorM: 0, predictErrorDeg: 0, reconcileHardSnapTotal: 0,
+                predictErrorM: 0, predictErrorDeg: 0, reconcileHardSnapTotal: 0, reconcileRebaseJumpMaxM: 0.0, reconcileRebaseJumpN: 0, reconcileUnexplainedJumpTotal: 0, reconcileClientBehindTotal: 0, reconcileClientBehindMaxTicks: 0, reconcileClientBehindMaxJumpM: 0.0, reconcileSmoothedReconcileTotal: 0, reconcileRenderOffsetNonZeroFrameTotal: 0, reconcileRenderOffsetMaxM: 0.0, reconcileRenderOffsetMaxN: 0, reconcileRenderOffsetDecayFrameTotal: 0,
                 sendBurstMaxTicksDrainedPerUpdate: null, sendBurstMaxSendsPerFrame: null,
                 catchupCarryForwardTicksTotal: 0, catchupDormantTicksTotal: 0,
-                catchupTruncatedTotal: 0, reconcileForcedAfterHitchTotal: 0,
+                catchupTruncatedTotal: 0, reconcileForcedAfterHitchTotal: 0, reconcileTickDriftTotal: 0, reconcileTickDriftMax: 0,
                 visibleShips: 0, applicationFocused: false,
                 thrustX: 0, thrustY: 0, thrustZ: 0, roll: 0,
                 aimTargetX: 0, aimTargetY: 0, aimTargetZ: 0, aimTargetW: 0,
@@ -180,10 +193,10 @@ namespace Starfall.Tests.EditMode
             // produced by a Format() that hard-coded "true". This is the other half.
             var notCrossed = new PeriodicStatusLog(
                 tick: 0, ackInputSeq: null, speedMps: 0, originDistanceM: 0,
-                predictErrorM: 0, predictErrorDeg: 0, reconcileHardSnapTotal: 0,
+                predictErrorM: 0, predictErrorDeg: 0, reconcileHardSnapTotal: 0, reconcileRebaseJumpMaxM: 0.0, reconcileRebaseJumpN: 0, reconcileUnexplainedJumpTotal: 0, reconcileClientBehindTotal: 0, reconcileClientBehindMaxTicks: 0, reconcileClientBehindMaxJumpM: 0.0, reconcileSmoothedReconcileTotal: 0, reconcileRenderOffsetNonZeroFrameTotal: 0, reconcileRenderOffsetMaxM: 0.0, reconcileRenderOffsetMaxN: 0, reconcileRenderOffsetDecayFrameTotal: 0,
                 sendBurstMaxTicksDrainedPerUpdate: null, sendBurstMaxSendsPerFrame: null,
                 catchupCarryForwardTicksTotal: 0, catchupDormantTicksTotal: 0,
-                catchupTruncatedTotal: 0, reconcileForcedAfterHitchTotal: 0,
+                catchupTruncatedTotal: 0, reconcileForcedAfterHitchTotal: 0, reconcileTickDriftTotal: 0, reconcileTickDriftMax: 0,
                 visibleShips: 0, applicationFocused: false,
                 thrustX: 0, thrustY: 0, thrustZ: 0, roll: 0,
                 aimTargetX: 0, aimTargetY: 0, aimTargetZ: 0, aimTargetW: 0,
@@ -203,10 +216,10 @@ namespace Starfall.Tests.EditMode
             // one thing the field is for.
             var reversed = new PeriodicStatusLog(
                 tick: 0, ackInputSeq: null, speedMps: 0, originDistanceM: 0,
-                predictErrorM: 0, predictErrorDeg: 0, reconcileHardSnapTotal: 0,
+                predictErrorM: 0, predictErrorDeg: 0, reconcileHardSnapTotal: 0, reconcileRebaseJumpMaxM: 0.0, reconcileRebaseJumpN: 0, reconcileUnexplainedJumpTotal: 0, reconcileClientBehindTotal: 0, reconcileClientBehindMaxTicks: 0, reconcileClientBehindMaxJumpM: 0.0, reconcileSmoothedReconcileTotal: 0, reconcileRenderOffsetNonZeroFrameTotal: 0, reconcileRenderOffsetMaxM: 0.0, reconcileRenderOffsetMaxN: 0, reconcileRenderOffsetDecayFrameTotal: 0,
                 sendBurstMaxTicksDrainedPerUpdate: null, sendBurstMaxSendsPerFrame: null,
                 catchupCarryForwardTicksTotal: 0, catchupDormantTicksTotal: 0,
-                catchupTruncatedTotal: 0, reconcileForcedAfterHitchTotal: 0,
+                catchupTruncatedTotal: 0, reconcileForcedAfterHitchTotal: 0, reconcileTickDriftTotal: 0, reconcileTickDriftMax: 0,
                 visibleShips: 0, applicationFocused: false,
                 thrustX: -111, thrustY: -222, thrustZ: -1000, roll: -1000,
                 aimTargetX: 0, aimTargetY: 0, aimTargetZ: 0, aimTargetW: 0,
@@ -235,10 +248,10 @@ namespace Starfall.Tests.EditMode
 
             var assistOn = new PeriodicStatusLog(
                 tick: 0, ackInputSeq: null, speedMps: 0, originDistanceM: 0,
-                predictErrorM: 0, predictErrorDeg: 0, reconcileHardSnapTotal: 0,
+                predictErrorM: 0, predictErrorDeg: 0, reconcileHardSnapTotal: 0, reconcileRebaseJumpMaxM: 0.0, reconcileRebaseJumpN: 0, reconcileUnexplainedJumpTotal: 0, reconcileClientBehindTotal: 0, reconcileClientBehindMaxTicks: 0, reconcileClientBehindMaxJumpM: 0.0, reconcileSmoothedReconcileTotal: 0, reconcileRenderOffsetNonZeroFrameTotal: 0, reconcileRenderOffsetMaxM: 0.0, reconcileRenderOffsetMaxN: 0, reconcileRenderOffsetDecayFrameTotal: 0,
                 sendBurstMaxTicksDrainedPerUpdate: null, sendBurstMaxSendsPerFrame: null,
                 catchupCarryForwardTicksTotal: 0, catchupDormantTicksTotal: 0,
-                catchupTruncatedTotal: 0, reconcileForcedAfterHitchTotal: 0,
+                catchupTruncatedTotal: 0, reconcileForcedAfterHitchTotal: 0, reconcileTickDriftTotal: 0, reconcileTickDriftMax: 0,
                 visibleShips: 0, applicationFocused: false,
                 thrustX: 0, thrustY: 0, thrustZ: 0, roll: 0,
                 aimTargetX: 0, aimTargetY: 0, aimTargetZ: 0, aimTargetW: 0,
@@ -252,10 +265,10 @@ namespace Starfall.Tests.EditMode
 
             var assistOff = new PeriodicStatusLog(
                 tick: 0, ackInputSeq: null, speedMps: 0, originDistanceM: 0,
-                predictErrorM: 0, predictErrorDeg: 0, reconcileHardSnapTotal: 0,
+                predictErrorM: 0, predictErrorDeg: 0, reconcileHardSnapTotal: 0, reconcileRebaseJumpMaxM: 0.0, reconcileRebaseJumpN: 0, reconcileUnexplainedJumpTotal: 0, reconcileClientBehindTotal: 0, reconcileClientBehindMaxTicks: 0, reconcileClientBehindMaxJumpM: 0.0, reconcileSmoothedReconcileTotal: 0, reconcileRenderOffsetNonZeroFrameTotal: 0, reconcileRenderOffsetMaxM: 0.0, reconcileRenderOffsetMaxN: 0, reconcileRenderOffsetDecayFrameTotal: 0,
                 sendBurstMaxTicksDrainedPerUpdate: null, sendBurstMaxSendsPerFrame: null,
                 catchupCarryForwardTicksTotal: 0, catchupDormantTicksTotal: 0,
-                catchupTruncatedTotal: 0, reconcileForcedAfterHitchTotal: 0,
+                catchupTruncatedTotal: 0, reconcileForcedAfterHitchTotal: 0, reconcileTickDriftTotal: 0, reconcileTickDriftMax: 0,
                 visibleShips: 0, applicationFocused: false,
                 thrustX: 0, thrustY: 0, thrustZ: 0, roll: 0,
                 aimTargetX: 0, aimTargetY: 0, aimTargetZ: 0, aimTargetW: 0,
@@ -303,10 +316,10 @@ namespace Starfall.Tests.EditMode
             // the exact defect SC-59 exists to catch.
             var mirrored = new PeriodicStatusLog(
                 tick: 0, ackInputSeq: null, speedMps: 0, originDistanceM: 0,
-                predictErrorM: 0, predictErrorDeg: 0, reconcileHardSnapTotal: 0,
+                predictErrorM: 0, predictErrorDeg: 0, reconcileHardSnapTotal: 0, reconcileRebaseJumpMaxM: 0.0, reconcileRebaseJumpN: 0, reconcileUnexplainedJumpTotal: 0, reconcileClientBehindTotal: 0, reconcileClientBehindMaxTicks: 0, reconcileClientBehindMaxJumpM: 0.0, reconcileSmoothedReconcileTotal: 0, reconcileRenderOffsetNonZeroFrameTotal: 0, reconcileRenderOffsetMaxM: 0.0, reconcileRenderOffsetMaxN: 0, reconcileRenderOffsetDecayFrameTotal: 0,
                 sendBurstMaxTicksDrainedPerUpdate: null, sendBurstMaxSendsPerFrame: null,
                 catchupCarryForwardTicksTotal: 0, catchupDormantTicksTotal: 0,
-                catchupTruncatedTotal: 0, reconcileForcedAfterHitchTotal: 0,
+                catchupTruncatedTotal: 0, reconcileForcedAfterHitchTotal: 0, reconcileTickDriftTotal: 0, reconcileTickDriftMax: 0,
                 visibleShips: 0, applicationFocused: false,
                 thrustX: 0, thrustY: 0, thrustZ: 0, roll: 0,
                 aimTargetX: 0, aimTargetY: 0, aimTargetZ: 0, aimTargetW: 0,

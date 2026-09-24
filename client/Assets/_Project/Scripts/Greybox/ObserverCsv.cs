@@ -29,10 +29,25 @@ namespace Starfall.Greybox
         public readonly long VelocityYMmS;
         public readonly long VelocityZMmS;
 
+        /// <summary>R23 (architect R10 후속 판정 §1/§4, 01_architect_decisions.md "## R10 후속
+        /// 판정 (R22 이후)"): the F-33 render smoothing offset baked into THIS row's position (0
+        /// for every other-ship row - those are already pure presentation/interpolation values
+        /// with no offset of their own to report). Carried as a SEPARATE column, not just folded
+        /// into px/py/pz, so a judge reading a near-threshold SC-64/65 difference can tell
+        /// "smoothing accounts for this much of it" from "the states actually differ" without
+        /// re-deriving it from the session log.</summary>
+        public readonly long RenderOffsetMm;
+
+        /// <summary>Same reasoning as RenderOffsetMm, for the orientation offset's magnitude in
+        /// degrees. Not quantised to the wire's milli-scale (no _m/_mm suffix) - this is a
+        /// diagnostic-only column, never round-tripped as a command/state field.</summary>
+        public readonly double RenderOffsetDeg;
+
         public ObserverCsvRow(
             long tick, Guid observerActorId, Guid shipId, string presence,
             long positionXMm, long positionYMm, long positionZMm,
-            long velocityXMmS, long velocityYMmS, long velocityZMmS)
+            long velocityXMmS, long velocityYMmS, long velocityZMmS,
+            long renderOffsetMm = 0, double renderOffsetDeg = 0.0)
         {
             Tick = tick;
             ObserverActorId = observerActorId;
@@ -44,13 +59,20 @@ namespace Starfall.Greybox
             VelocityXMmS = velocityXMmS;
             VelocityYMmS = velocityYMmS;
             VelocityZMmS = velocityZMmS;
+            RenderOffsetMm = renderOffsetMm;
+            RenderOffsetDeg = renderOffsetDeg;
         }
 
         /// <summary>Must match tests/e2e/two_client_view.py's COLUMNS exactly (name, order,
         /// count) - that script rejects a header mismatch as "NotImplementedYet" rather than
-        /// silently accepting a different shape.</summary>
+        /// silently accepting a different shape. R23: two columns ADDED AT THE END
+        /// (render_offset_mm, render_offset_deg) - the original ten are untouched, per
+        /// architect's explicit instruction not to reorder/rename existing columns. qa is making
+        /// the SAME two-column addition to two_client_view.py's COLUMNS in the same round -
+        /// block 7 (SC-63/64/65) must not run until both sides have landed (architect R10 후속
+        /// §5.5).</summary>
         public const string Header =
-            "tick,observer_actor_id,ship_id,presence,px_mm,py_mm,pz_mm,vx_mm_s,vy_mm_s,vz_mm_s";
+            "tick,observer_actor_id,ship_id,presence,px_mm,py_mm,pz_mm,vx_mm_s,vy_mm_s,vz_mm_s,render_offset_mm,render_offset_deg";
 
         public string ToCsvLine()
         {
@@ -64,7 +86,9 @@ namespace Starfall.Greybox
                 PositionZMm.ToString(CultureInfo.InvariantCulture),
                 VelocityXMmS.ToString(CultureInfo.InvariantCulture),
                 VelocityYMmS.ToString(CultureInfo.InvariantCulture),
-                VelocityZMmS.ToString(CultureInfo.InvariantCulture));
+                VelocityZMmS.ToString(CultureInfo.InvariantCulture),
+                RenderOffsetMm.ToString(CultureInfo.InvariantCulture),
+                RenderOffsetDeg.ToString("F4", CultureInfo.InvariantCulture));
         }
     }
 

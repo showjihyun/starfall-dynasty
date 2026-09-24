@@ -13,6 +13,11 @@ namespace Starfall.Flight
         /// <summary>Advances <paramref name="currentState"/> by exactly one tick with
         /// <paramref name="input"/> (ADR-0012 section 6: one input sent = one tick predicted,
         /// never tied to render frame rate) and appends the result to a NEW list.</summary>
+        /// <param name="serverTick">D-1 (R8 판정, ADR-0012 section 6.4 point 1): the server tick
+        /// number this newly-predicted entry believes it corresponds to - the caller's local
+        /// tick index (PredictedShipController.CurrentTickIndex), already advanced by one before
+        /// this call. This, not <paramref name="input"/>.InputSeq, is what
+        /// Reconciliation.Reconcile keys its alignment on.</param>
         /// <param name="derivedFromSeq">H-15: null when <paramref name="input"/>.InputSeq was
         /// actually sent this tick. Set to the source command's seq when this tick is a
         /// carry-forward/dormant prediction that was never sent (TickCatchUp rules 4/5).</param>
@@ -23,13 +28,14 @@ namespace Starfall.Flight
             ShipClassStats ship,
             ShipIntegrator.Boundary boundary,
             double dt,
+            long serverTick,
             uint? derivedFromSeq = null)
         {
             ShipSimState next = ShipIntegrator.Step(currentState, input, ship, boundary, dt).State;
 
             var newHistory = new List<InputRecord>(history.Count + 1);
             newHistory.AddRange(history);
-            newHistory.Add(new InputRecord(input.InputSeq, input, next, derivedFromSeq));
+            newHistory.Add(new InputRecord(input.InputSeq, input, next, serverTick, derivedFromSeq));
 
             return (next, newHistory);
         }

@@ -111,7 +111,6 @@ namespace Starfall.Tests.EditMode
             var controller = new PredictedShipController(ship, WideOpenBoundary, Dt, ShipSimState.Zero);
 
             const int SnapshotIntervalTicks = 2; // matches sync-tuning's snapshot_interval_ticks = tick_hz/snapshot_hz = 20/10
-            uint? ackInputSeq = null;
             int reconciliationsChecked = 0;
             double maxPositionErrorM = 0.0;
             double maxOrientationErrorDeg = 0.0;
@@ -127,12 +126,13 @@ namespace Starfall.Tests.EditMode
 
                 if (tick % SnapshotIntervalTicks != 0) continue;
 
-                // A snapshot "arrives": ground truth round-tripped through wire quantisation,
-                // ack_input_seq = the tick just applied (server applied exactly one input/tick).
+                // A snapshot "arrives": ground truth round-tripped through wire quantisation.
+                // D-1 (R8 판정): Reconcile keys off the tick itself now, not ack_input_seq - this
+                // replay is still the 1:1 case (server applied exactly one input/tick), so tick
+                // and the old ack_input_seq value are numerically identical here.
                 ShipSimState confirmed = ShipStateWire.ToSimState(ToWireShipState(groundTruth));
-                ackInputSeq = tick;
 
-                Reconciliation.Result result = controller.Reconcile(confirmed, ackInputSeq, tuning);
+                Reconciliation.Result result = controller.Reconcile(confirmed, tick, tuning);
                 if (!result.HasError) continue; // first snapshot after connect has nothing to compare yet
 
                 reconciliationsChecked++;
@@ -421,7 +421,7 @@ namespace Starfall.Tests.EditMode
             ShipSimState predicted = ShipSimState.Zero;
             for (uint seq = 1; seq <= 10; seq++)
             {
-                (predicted, history) = PredictionHistory.ApplyInput(history, predicted, ForwardThrust(seq), ship, WideOpenBoundary, Dt);
+                (predicted, history) = PredictionHistory.ApplyInput(history, predicted, ForwardThrust(seq), ship, WideOpenBoundary, Dt, seq);
             }
 
             ShipSimState confirmed = ShipStateWire.ToSimState(ToWireShipState(ShipIntegrator.Step(
@@ -455,7 +455,7 @@ namespace Starfall.Tests.EditMode
             var history = new List<InputRecord>();
             ShipSimState predicted = ShipSimState.Zero;
             for (uint seq = 1; seq <= 5; seq++)
-                (predicted, history) = PredictionHistory.ApplyInput(history, predicted, TurningInput(seq), ship, WideOpenBoundary, Dt);
+                (predicted, history) = PredictionHistory.ApplyInput(history, predicted, TurningInput(seq), ship, WideOpenBoundary, Dt, seq);
 
             ShipSimState confirmed = ShipIntegrator.Step(ShipSimState.Zero, TurningInput(1), ship, WideOpenBoundary, Dt).State;
 
@@ -478,31 +478,37 @@ namespace Starfall.Tests.EditMode
         [Test]
         public void Reconcile_HistoryWithASkippedInputSeq_StillConvergesToServerState()
         {
-            // Local history has 1, 2, 4, 5 (3 is missing - dropped locally as if REJECTED, or
-            // simply never retained). Ground truth is built from the SAME four inputs applied
-            // in order (skipping 3 entirely, since it never reached the server either in this
-            // scenario) - reconciliation must still converge, because it never assumes
-            // contiguous input_seq, only ascending order among what IS retained.
+            // Local history has input_seq 1, 2, 4, 5 (3 is missing - dropped locally as if
+            // REJECTED, or simply skipped by whatever assigned these seq numbers). D-1 (R8 판정):
+            // ServerTick, NOT input_seq, is Reconcile's alignment key now, and ServerTick is
+            // ALWAYS contiguous per local tick predicted (ADR-0012 section 6.2's "1 input = 1
+            // tick" invariant survives the rekey unchanged) - so the four entries below are
+            // stamped ServerTick 1,2,3,4 even though their (diagnostic-only) InputSeq labels
+            // are 1,2,4,5. Ground truth is the matching plain 4-tick integration. Reconciliation
+            // must still converge - it never assumed contiguous input_seq, only ascending
+            // ServerTick among what IS retained (unaffected by input_seq gaps).
             ShipClassStats ship = LoadScoutFixture();
             uint[] seqsSent = { 1, 2, 4, 5 };
 
             ShipSimState groundTruth = ShipSimState.Zero;
             var history = new List<InputRecord>();
             ShipSimState predicted = ShipSimState.Zero;
+            long tick = 0;
             foreach (uint seq in seqsSent)
             {
+                tick++;
                 ShipControlInputD input = TurningInput(seq);
                 groundTruth = ShipIntegrator.Step(groundTruth, input, ship, WideOpenBoundary, Dt).State;
-                (predicted, history) = PredictionHistory.ApplyInput(history, predicted, input, ship, WideOpenBoundary, Dt);
+                (predicted, history) = PredictionHistory.ApplyInput(history, predicted, input, ship, WideOpenBoundary, Dt, tick);
             }
 
             ShipSimState confirmed = ShipStateWire.ToSimState(ToWireShipState(groundTruth));
-            Reconciliation.Result result = Reconciliation.Reconcile(history, confirmed, 5, ship, WideOpenBoundary, Dt);
+            Reconciliation.Result result = Reconciliation.Reconcile(history, confirmed, tick, ship, WideOpenBoundary, Dt);
 
             TestContext.WriteLine("skipped-seq reconcile: posErr=" + result.PositionErrorM + " retained=" + result.RetainedHistory.Count);
             Assert.That(result.HasError, Is.True);
             Assert.That(result.PositionErrorM, Is.LessThanOrEqualTo(0.005), "must converge to (quantisation-noise-level of) the server state despite the gap at seq=3");
-            Assert.That(result.RetainedHistory.Count, Is.EqualTo(0), "all four retained inputs were <= ack_input_seq=5 and must be dropped");
+            Assert.That(result.RetainedHistory.Count, Is.EqualTo(0), "all four retained inputs were <= snapshotTick and must be dropped");
         }
 
         // ------------------------------------------------------------------ SC-55: two angular velocity fields, not a sum

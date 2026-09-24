@@ -344,14 +344,25 @@ async fn csv_preserves_the_exact_quantised_integers() {
     assert!(!rows.is_empty(), "CSV 행이 비었다");
     assert_eq!(
         SNAPSHOT_CSV_HEADER,
-        "tick,observer_actor_id,ship_id,presence,px_mm,py_mm,pz_mm,vx_mm_s,vy_mm_s,vz_mm_s",
+        "tick,observer_actor_id,ship_id,presence,px_mm,py_mm,pz_mm,vx_mm_s,vy_mm_s,vz_mm_s,render_offset_mm,render_offset_deg",
         "헤더가 client 와 어긋나면 조인이 0행이 된다"
     );
     for row in rows {
         let f: Vec<&str> = row.split(',').collect();
-        assert_eq!(f.len(), 10, "컬럼 수: {row}");
+        assert_eq!(f.len(), 12, "컬럼 수: {row}");
+        // R23: 뒤 두 열은 render_offset_mm / render_offset_deg 다. 봇은 평활화가 없으므로
+        // 상수 0 이고, **그 0 이 실제로 0 인지**를 여기서 고정한다 — 열만 늘려 놓고
+        // 아무 값이나 흘려보내면 client 와 같은 헤더라는 계약이 형식만 남는다.
+        assert_eq!(
+            f[10], "0",
+            "봇은 평활화가 없으므로 render_offset_mm 이 0 이어야 한다: {row}"
+        );
+        assert_eq!(
+            f[11], "0",
+            "봇은 평활화가 없으므로 render_offset_deg 가 0 이어야 한다: {row}"
+        );
         // 정수 컬럼이 실수 표기로 새지 않는다.
-        for col in &f[4..10] {
+        for col in &f[4..12] {
             assert!(
                 !col.contains('.') && !col.contains('e'),
                 "양자화 정수가 실수로 기록됐다: {row}"

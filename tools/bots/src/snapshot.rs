@@ -21,9 +21,18 @@ use crate::wire::{ShipState, WorldSnapshotMessage};
 
 /// CSV 한 줄. **client 와 표기까지 같다**(계약 §3.1, `02_client_ack.md` §⑨).
 ///
-/// `tick,observer_actor_id,ship_id,presence,px_mm,py_mm,pz_mm,vx_mm_s,vy_mm_s,vz_mm_s`
-pub const SNAPSHOT_CSV_HEADER: &str =
-    "tick,observer_actor_id,ship_id,presence,px_mm,py_mm,pz_mm,vx_mm_s,vy_mm_s,vz_mm_s";
+/// `tick,observer_actor_id,ship_id,presence,px_mm,py_mm,pz_mm,vx_mm_s,vy_mm_s,vz_mm_s,render_offset_mm,render_offset_deg`
+///
+/// **R23**: 뒤의 두 열은 client 가 R22 에서 도입한 재조정 평활화(F-33)의 렌더 오프셋이다.
+/// 같은 헤더의 생산자가 **셋**이다 — 이 파일, `ObserverCsv.cs`(client),
+/// `tests/e2e/two_client_view.py`(qa). `ObserverCsv.cs:49-51` 이 이름·순서·개수 일치를
+/// 계약으로 걸고 불일치를 `NotImplementedYet` 으로 거부하므로, 둘만 고치면
+/// **봇을 B 로 쓰는 경로(계약 §0.11·SC-64)가 조용히 죽는다.**
+///
+/// 봇은 예측도 평활화도 하지 않으므로 두 값은 **언제나 0 이고, 그것이 옳다** —
+/// "봇이라서 0" 이지 "평활화가 죽어서 0" 이 아니다. 두 경우를 값으로는 구분할 수 없으니
+/// 그 구분은 이 주석과 `two_client_view.py` 의 리포트가 진다.
+pub const SNAPSHOT_CSV_HEADER: &str = "tick,observer_actor_id,ship_id,presence,px_mm,py_mm,pz_mm,vx_mm_s,vy_mm_s,vz_mm_s,render_offset_mm,render_offset_deg";
 
 #[derive(Debug, Clone, Serialize)]
 pub struct ShipSample {
@@ -196,7 +205,9 @@ impl SnapshotLedger {
                 self.sum.lingering_seen = true;
             }
             self.rows.push(format!(
-                "{tick},{obs},{sid},{pres},{px},{py},{pz},{vx},{vy},{vz}",
+                // 끝의 `,0,0` 이 render_offset_mm / render_offset_deg 다 — 봇은 평활화가
+                // 없으므로 상수다(위 SNAPSHOT_CSV_HEADER 주석 참조).
+                "{tick},{obs},{sid},{pres},{px},{py},{pz},{vx},{vy},{vz},0,0",
                 tick = m.tick,
                 obs = self
                     .observer_actor_id

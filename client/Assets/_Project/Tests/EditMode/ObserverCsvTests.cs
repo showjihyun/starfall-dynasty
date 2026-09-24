@@ -20,9 +20,11 @@ namespace Starfall.Tests.EditMode
     public sealed class ObserverCsvTests
     {
         /// <summary>Literal copy of tests/e2e/two_client_view.py's COLUMNS, joined the way that
-        /// script's csv.DictReader compares fieldnames (order-sensitive).</summary>
+        /// script's csv.DictReader compares fieldnames (order-sensitive). R23 (architect R10
+        /// 후속 판정 §1/§4): two columns added at the end (render_offset_mm, render_offset_deg) -
+        /// qa is making the identical addition to the .py side in the same round.</summary>
         const string QaExpectedHeader =
-            "tick,observer_actor_id,ship_id,presence,px_mm,py_mm,pz_mm,vx_mm_s,vy_mm_s,vz_mm_s";
+            "tick,observer_actor_id,ship_id,presence,px_mm,py_mm,pz_mm,vx_mm_s,vy_mm_s,vz_mm_s,render_offset_mm,render_offset_deg";
 
         [Test]
         public void Header_MatchesQaScriptColumnsExactly()
@@ -31,19 +33,20 @@ namespace Starfall.Tests.EditMode
         }
 
         [Test]
-        public void ToCsvLine_TenFieldsInContractOrder()
+        public void ToCsvLine_TwelveFieldsInContractOrder()
         {
             var shipId = Guid.Parse("01a0c000-0000-7000-8000-00000000000a");
             var observer = Guid.Parse("bbbb0000-0000-7000-8000-000000000002");
             var row = new ObserverCsvRow(
                 tick: 128, observerActorId: observer, shipId: shipId, presence: "ACTIVE",
                 positionXMm: 1_000, positionYMm: -2_000, positionZMm: 3_000,
-                velocityXMmS: 4_000, velocityYMmS: -5_000, velocityZMmS: 6_000);
+                velocityXMmS: 4_000, velocityYMmS: -5_000, velocityZMmS: 6_000,
+                renderOffsetMm: 315, renderOffsetDeg: 3.2981);
 
             string line = row.ToCsvLine();
             string[] fields = line.Split(',');
 
-            Assert.That(fields.Length, Is.EqualTo(10));
+            Assert.That(fields.Length, Is.EqualTo(12));
             Assert.That(fields[0], Is.EqualTo("128"));
             Assert.That(fields[1], Is.EqualTo(observer.ToString()));
             Assert.That(fields[2], Is.EqualTo(shipId.ToString()));
@@ -54,6 +57,26 @@ namespace Starfall.Tests.EditMode
             Assert.That(fields[7], Is.EqualTo("4000"));
             Assert.That(fields[8], Is.EqualTo("-5000"));
             Assert.That(fields[9], Is.EqualTo("6000"));
+            Assert.That(fields[10], Is.EqualTo("315"));
+            Assert.That(fields[11], Is.EqualTo("3.2981"));
+        }
+
+        [Test]
+        public void ToCsvLine_DefaultRenderOffset_IsZero_NotOmitted()
+        {
+            // R23: a row for another ship's presence (or the pre-F-33 call shape) must still
+            // print two trailing fields, not drop them - a Format() that omitted zero-valued
+            // trailing columns would break the fixed-column-count contract two_client_view.py
+            // depends on.
+            var row = new ObserverCsvRow(
+                tick: 1, observerActorId: Guid.NewGuid(), shipId: Guid.NewGuid(), presence: "ACTIVE",
+                positionXMm: 0, positionYMm: 0, positionZMm: 0,
+                velocityXMmS: 0, velocityYMmS: 0, velocityZMmS: 0);
+
+            string[] fields = row.ToCsvLine().Split(',');
+            Assert.That(fields.Length, Is.EqualTo(12));
+            Assert.That(fields[10], Is.EqualTo("0"));
+            Assert.That(fields[11], Is.EqualTo("0.0000"));
         }
 
         [Test]

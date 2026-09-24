@@ -1,0 +1,51 @@
+{
+  "item": "SC-64/65 (designer S-3) 두 화면 비교",
+  "SC-64_verdict": "미검증(표본 없음)",
+  "SC-65_verdict": "PASS",
+  "SC-64": {
+    "samples": 0,
+    "max_gap_m": null,
+    "tolerance_m": 2.0,
+    "note": "정지 상태에서는 예측도 보간도 같은 값을 내므로 지연이 오차를 만들지 않는다"
+  },
+  "SC-65": {
+    "samples": 20,
+    "behind_mean_m": 28.0,
+    "expected_m": "28.0 ± 12.0 (뒤쪽이 양수)",
+    "sign": "뒤쪽(기대)",
+    "samples_head": [
+      {
+        "tick": 100,
+        "along_track_m": -28.0,
+        "gap_m": 28.0,
+        "speed_mps": 140.0
+      },
+      {
+        "tick": 102,
+        "along_track_m": -28.0,
+        "gap_m": 28.0,
+        "speed_mps": 140.0
+      },
+      {
+        "tick": 104,
+        "along_track_m": -28.0,
+        "gap_m": 28.0,
+        "speed_mps": 140.0
+      },
+      {
+        "tick": 106,
+        "along_track_m": -28.0,
+        "gap_m": 28.0,
+        "speed_mps": 140.0
+      },
+      {
+        "tick": 108,
+        "along_track_m": -28.0,
+        "gap_m": 28.0,
+        "speed_mps": 140.0
+      }
+    ],
+    "warning": "관측자 B 가 봇이면 이 수치는 무의미하다 — 봇은 보간이 없어 부호가 뒤집힌다(계약 §0.11). B 는 보간 파이프라인이어야 한다."
+  }
+}
+s3 exit=0

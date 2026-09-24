@@ -15,6 +15,16 @@ namespace Starfall.Flight
         /// on every reconciliation (Reconciliation.Reconcile), never stale.</summary>
         public readonly ShipSimState StateAfter;
 
+        /// <summary>D-1 (R8 판정, ADR-0012 section 6.4 point 1): the server tick number this
+        /// entry BELIEVES it corresponds to - the client's own local tick index at the moment
+        /// this input was predicted (PredictedShipController.CurrentTickIndex), re-pinned to
+        /// snapshot.tick on every reconciliation. THIS is Reconciliation.Reconcile's alignment
+        /// key now, not InputSeq/ack_input_seq (R8 판정 §A-2: "ack_input_seq는 시뮬레이션 양이
+        /// 아니라 네트워크·스케줄링 양"). InputSeq survives unchanged but is diagnostic/dedup-only
+        /// from here on (ADR-0011 section 4's original role) - COMMAND_RESULT{REJECTED} and
+        /// RebaseHold still key off it, both are seq-level bookkeeping, not tick alignment.</summary>
+        public readonly long ServerTick;
+
         /// <summary>H-15 (architect R4 보충 판정 §D / K-1): null when this entry's own
         /// <see cref="InputSeq"/> was actually sent to the server. Set to the source command's
         /// input_seq when this tick was NOT sent and instead predicted with a carried-forward
@@ -23,11 +33,12 @@ namespace Starfall.Flight
         /// own entry.</summary>
         public readonly uint? DerivedFromSeq;
 
-        public InputRecord(uint inputSeq, ShipControlInputD input, ShipSimState stateAfter, uint? derivedFromSeq = null)
+        public InputRecord(uint inputSeq, ShipControlInputD input, ShipSimState stateAfter, long serverTick = 0, uint? derivedFromSeq = null)
         {
             InputSeq = inputSeq;
             Input = input;
             StateAfter = stateAfter;
+            ServerTick = serverTick;
             DerivedFromSeq = derivedFromSeq;
         }
 
