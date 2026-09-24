@@ -68,6 +68,7 @@ EXIT_UNNAMED_ONLY = 3
 # 기본 실행이 제외를 적을 때 같이 찍는 수. **이 수가 출력에 있어야 만기가 지났는지·
 # 늘었는지가 그 자리에서 읽힌다**(architect R23). `--include-rust` 실행으로 갱신한다.
 RUST_KNOWN_MISMATCHES = 11
+RUST_KNOWN_LIST = "SC-14·19·20·21·24·25·26·61·62·67"
 # 분모를 셀 때 **판정 수단이 지명됐는가**를 본다. `.py` 만 세면 이 레포 항목의 절반 이상이
 # "미지명"으로 나오는데, 그것들은 지명이 없는 게 아니라 **수단이 파이썬이 아닌 것**이다
 # (server 게이트는 `cargo test`, client 는 `unity test`·EditMode, 기록 무결성은 SQL).
@@ -383,21 +384,13 @@ def main() -> int:
     if not args.include_rust and not args.tools_dir:
         print(f"**제외**: Rust 도구(`tools/bots/src`)는 이 실행에서 검사하지 않았다 — "
               f"알려진 라벨 불일치 **{RUST_KNOWN_MISMATCHES}건**, "
-              f"계약 §7b 규칙 8 만기(블록 8 실행 전). `--include-rust` 로 본다.")
+              f"계약 §7b 규칙 8 만기(블록 8 실행 전). "
+              f"번호: {RUST_KNOWN_LIST}. `--include-rust` 로 본다.")
     # **검사하지 않은 것을 적는다** (architect R23). `--include-rust` 기본 꺼짐의 근거는
     # "켜면 상시 exit 1 이 되어 새 파이썬 위반을 가린다" 였는데, **F-1 의 해법은 끄는 것이
     # 아니라 가르는 것**이었다(exit 1 / exit 3). 끄기만 하면 가려지는 정도가 아니라
     # **사라진다** — 기본 출력에 Rust 가 한 글자도 없으면 `85/90` 을 읽는 사람은 그게 전부라고
     # 읽는다. 이 검사 자신이 §3.2 빈 표에서 진단한 상태다.
-    #
-    # 그래서 **검사는 계속 끄되 제외를 명시한다.** `도구 없음(사람 관찰)` 이 빈칸과 다른 것과
-    # 같은 이치다 — 비어 있음을 **명시적으로** 비게 만든다. exit 코드는 3 그대로.
-    if not args.include_rust:
-        print(
-            "제외: Rust 도구(`tools/bots/src`)는 검사하지 않았다 — "
-            "알려진 라벨 불일치 11건(SC-14·19·20·21·24·25·26·61·62·67), "
-            "만기 블록 8 실행 전. `--include-rust` 로 확인할 수 있다."
-        )
     if unmarked:
         print()
         print(f"!! 위반 — 도구 지명도 `{NO_TOOL_MARK}` 명시도 없는 항목 {len(unmarked)}건:")
