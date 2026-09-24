@@ -84,6 +84,10 @@ MEANS = (
 )
 # verdict 를 내는 라벨. `"item": "..."` 와 `item = f"..."` 두 형태를 본다.
 ITEM_LABEL = re.compile(r'"item"\s*:\s*(?:f?")([^"]*)"|^\s*item\s*=\s*f?"([^"]*)"', re.M)
+# **Rust 도구도 SC 라벨을 출력한다** — `tools/bots/src/scenario.rs` 의 probe 설명 문자열이
+# 그것이다. 파이썬만 훑으면 그 라벨은 영원히 안 보이고, **안 보이는 것은 검사가 없는 것과
+# 같다**(규칙 7 주석의 분모 논리). 주석(`//`)은 제외한다 — 주석은 verdict 를 인쇄하지 않는다.
+RUST_LABEL = re.compile(r'^\s*(?!//)[^\n]*?=>\s*"([^"]*SC-\d[^"]*)"', re.M)
 
 
 def expand(text: str) -> set[int]:
@@ -194,8 +198,12 @@ def check(contract_text: str, tools: dict[str, str]) -> list[tuple[str, int]]:
     bad: list[tuple[str, int]] = []
     for name, source in sorted(tools.items()):
         used: set[int] = set()
-        for a, b in ITEM_LABEL.findall(source):
-            used |= expand(a or b)
+        if name.endswith(".rs"):
+            for lbl in RUST_LABEL.findall(source):
+                used |= expand(lbl)
+        else:
+            for a, b in ITEM_LABEL.findall(source):
+                used |= expand(a or b)
         for n in sorted(used - allowed.get(name, set())):
             bad.append((name, n))
     return bad
@@ -325,7 +333,10 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--contract")
-    ap.add_argument("--tools-dir", default="tests/e2e")
+    ap.add_argument("--tools-dir", action="append", default=None,
+                    help="여러 번 줄 수 있다. 기본값: tests/e2e 와 tools/bots/src")
+    ap.add_argument("--include-rust", action="store_true",
+                    help="tools/bots/src 의 Rust 라벨도 훑는다(규칙 8 만기 항목, 기본 꺼짐)")
     ap.add_argument("--selftest", action="store_true")
     args = ap.parse_args()
 
@@ -337,12 +348,20 @@ def main() -> int:
         return 2
 
     contract_text = Path(args.contract).read_text(encoding="utf-8")
-    tools_dir = Path(args.tools_dir)
-    tools = {
-        p.name: p.read_text(encoding="utf-8")
-        for p in sorted(tools_dir.glob("*.py"))
-        if p.name != Path(__file__).name
-    }
+    # **Rust 훑기는 아직 기본값이 아니다 (규칙 8 만기 항목).** `scenario.rs` 의 probe 설명
+    # 문자열이 **p0-02 번호 11개**를 쓰고 있어, 지금 기본으로 켜면 게이트가 **상시 exit 1** 이
+    # 되고 **새로 생기는 파이썬 위반을 가린다** — F-1 이 막으려던 바로 그 형태다. 라벨을 고치고
+    # §3.1(봇 하네스)의 지명을 게이트가 읽게 만든 뒤 기본값으로 올린다.
+    dirs = args.tools_dir or ["tests/e2e"]
+    if args.include_rust and not args.tools_dir:
+        dirs = dirs + ["tools/bots/src"]
+    tools: dict[str, str] = {}
+    for d in dirs:
+        base = Path(d)
+        for f in sorted(list(base.glob("*.py")) + list(base.glob("*.rs"))):
+            if f.name == Path(__file__).name:
+                continue
+            tools[f.name] = f.read_text(encoding="utf-8")
     bad = check(contract_text, tools)
 
     allowed = contract_allowed(contract_text)
