@@ -68,7 +68,12 @@ EXIT_UNNAMED_ONLY = 3
 # 기본 실행이 제외를 적을 때 같이 찍는 수. **이 수가 출력에 있어야 만기가 지났는지·
 # 늘었는지가 그 자리에서 읽힌다**(architect R23). `--include-rust` 실행으로 갱신한다.
 RUST_KNOWN_MISMATCHES = 11
-RUST_KNOWN_LIST = "SC-14·19·20·21·24·25·26·61·62·67"
+RUST_KNOWN_LIST = "SC-14·19·20·21·24·25·26·67"
+# **규칙 7 의 대상은 verdict 라벨이다** (architect R23). 로그가 관련 항목을 *가리키는*
+# 표식은 금지가 아니라 표시의 문제다 — 이것을 위반으로 잡으면 게이트가 "로그에서 SC
+# 번호를 전부 빼라"는 압력을 만들고, 그러면 라벨 불일치와 함께 **증거에서 항목으로
+# 가는 길도 사라진다**. 고치는 것이 재는 것을 망가뜨리는 형태다.
+OBSERVATION_MARKS = ("관측용", "참고", "참조")
 # 분모를 셀 때 **판정 수단이 지명됐는가**를 본다. `.py` 만 세면 이 레포 항목의 절반 이상이
 # "미지명"으로 나오는데, 그것들은 지명이 없는 게 아니라 **수단이 파이썬이 아닌 것**이다
 # (server 게이트는 `cargo test`, client 는 `unity test`·EditMode, 기록 무결성은 SQL).
@@ -204,6 +209,8 @@ def check(contract_text: str, tools: dict[str, str]) -> list[tuple[str, int]]:
         used: set[int] = set()
         if name.endswith(".rs"):
             for lbl in RUST_LABEL.findall(source):
+                if any(mark in lbl for mark in OBSERVATION_MARKS):
+                    continue          # verdict 가 아님이 문자열 안에 있다
                 used |= expand(lbl)
         else:
             for a, b in ITEM_LABEL.findall(source):
@@ -262,6 +269,16 @@ def selftest() -> int:
             "SC 번호가 없는 라벨은 아무것도 주장하지 않는다",
             {"poll_until.py": '"item": "계약 외 검사 — 대기 헬퍼"'},
             [],
+        ),
+        (
+            "관측 표식은 위반이 아니다 — `관측용` 이 문자열 안에 있다 (architect R23)",
+            {"scenario.rs": '    Self::Fly => "SC-70 관측용: 스냅샷 주기 전송",'},
+            [],
+        ),
+        (
+            "같은 파일의 **verdict 라벨**은 잡는다 — 표식이 없으면 주장이다",
+            {"scenario.rs": '    Self::Binary => "SC-70 (AC-8b): 바이너리 프레임도 같은 예산",'},
+            [("scenario.rs", 70)],
         ),
     ]
     # -- E-3 (architect R19): **E-2 의 방어 자신에 규칙 6 을 돌린다.**
