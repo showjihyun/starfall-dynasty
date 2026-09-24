@@ -83,7 +83,7 @@ def run(args: argparse.Namespace) -> int:
         and not unknown_reasons
     )
     result = {
-        "item": "SC-57/58 (AC-16a·b) 세션 쌍 대조",
+        "item": "SC-77 (AC-20b) 세션 쌍 대조 — correlation 기준",
         "verdict": "PASS" if ok else "FAIL",
         "correlations_checked": len(corr),
         "expected": expect,

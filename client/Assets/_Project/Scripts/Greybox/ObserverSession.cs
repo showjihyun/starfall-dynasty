@@ -219,12 +219,37 @@ namespace Starfall.Greybox
                     _controller = new PredictedShipController(_controlledShipClass, CurrentBoundary(), _tickDurationSeconds, confirmed, message.Tick);
 
                     // Own ship: what THIS observer's screen shows for its own ship right now -
-                    // predicted, not the raw wire value (SC-64/65 measure the two observers'
-                    // SCREENS, not the two observers' raw snapshots - the latter is SC-63's job
-                    // and is intentionally tautological, see two_client_view.py's own comment).
-                    // R23: no render offset yet (_renderPositionOffset starts at Vec3d.Zero,
-                    // OnSessionReady/Init) - the first snapshot is trusted unconditionally, there
-                    // is nothing to smooth on top of.
+                    // the predicted state plus the render smoothing offset (RenderSmoothing, F-33),
+                    // not the raw wire value. SC-64/65 measure the two observers' SCREENS, and the
+                    // remote rows below are already pure presentation values (interpolated at tick
+                    // - interp delay), so the own-ship row must be at the same layer or the two
+                    // columns are not comparable (architect R10 후속 판정 §1). The offset is at its
+                    // peak here - this row is written at the reconcile instant, where the screen
+                    // still shows the pre-correction position by design - so this CSV samples the
+                    // worst case of the smoothing curve, not the typical one. If you remove the
+                    // offset from this row, SC-64/65 stop measuring screens and start measuring an
+                    // unnamed sim-vs-screen quantity.
+                    //
+                    // This file has NO raw-wire layer at all - every row here is either
+                    // prediction+offset (own ship) or interpolation (remote ships). SC-63 is
+                    // therefore NOT judged from this file; it is judged from two BOT snapshot CSVs,
+                    // which carry raw wire values and constant-zero offset columns (contract 13차
+                    // 개정, block 10). Do not point SC-63 at this output: feeding it these two
+                    // files produces a guaranteed mismatch on every moving tick, and that mismatch
+                    // IS the quantity SC-65 requires to be 28 +/- 12 m - the two items contradict
+                    // each other on this data source (qa r11 §1, measured 20/20).
+                    //
+                    // Why this mattered: this comment was wrong for most of the slice (it named
+                    // SC-63 as this file's job and called the result "intentionally tautological"
+                    // when it was actually a contradiction with SC-65) - the third time in this
+                    // slice a stale comment, not the code, produced a misreading (harness comment
+                    // sign convention, axis convention twice, and this).
+                    //
+                    // R23: no render offset yet on THIS row specifically (_renderPositionOffset
+                    // starts at Vec3d.Zero, OnSessionReady/Init) - the first snapshot is trusted
+                    // unconditionally, there is nothing to smooth on top of yet. The "peak of the
+                    // curve" framing above describes the reconcile-path row (below, in
+                    // ApplyPendingRebase()); this first-snapshot row is the zero-offset special case.
                     WriteRow(message.Tick, controlledWire.ShipId, controlledWire.Presence,
                         position: _controller.CurrentState.Position, velocity: _controller.CurrentState.Velocity);
                 }

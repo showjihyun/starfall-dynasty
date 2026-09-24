@@ -2338,3 +2338,39 @@ Editor는 라운드 시작 전 `tasklist`로 0건 확인 후 실행. NUnit XML:
   `reconcile_client_behind_*` 리포트, 평활화 세 요구)이 아직 없다 — 이번 라운드는 코드/단위
   테스트까지이고 Editor가 닫혀 있어 실서버 재촬영은 못 했다.
 - SC-56 (c4)/(e) 계약 문구는 architect가 11차 개정에서 이미 확정했으므로 추가 계약 작업 없음.
+
+---
+
+### R24 — `ObserverSession.cs:179` 근방 주석 교체 (architect R13 §4)
+
+architect가 qa r11에서 확인한 사실을 근거로 지시: 같은 위치의 기존 주석 두 절이 틀렸다
+("the latter is SC-63's job" — SC-63은 이 파일에서 판정되지 않는다, "intentionally
+tautological" — 항진명제가 아니라 SC-65와 모순이었다). 실제 위치는 첫 스냅샷 처리 분기
+(`OnWorldSnapshot`, 옛 `:179` → 현재 `:221` 부근, R22/R23 삽입으로 줄 번호가 밀렸다)의
+"Own ship" 주석이었다 — grep으로 `SC-63|tautological` 매치해 확인.
+
+`01_architect_decisions.md`의 `## R11 후속 판정 (R13)` §4가 준 교체 문구(전문)를 그대로
+반영했다. R10 §3의 전체 문구(평활화 오프셋·재조정 순간의 "곡선 꼭대기" 표집이라는 설명)를
+가져오고 마지막 문장만 R13이 지시한 새 문단("This file has NO raw-wire layer at all …
+SC-63 is therefore NOT judged from this file … qa r11 §1, measured 20/20")으로 교체했다.
+기존에 이 호출부에 있던 "R23: no render offset yet" 메모(이 첫 스냅샷 행에는 실제로 오프셋이
+0이라는, 새 문단과는 별개로 여전히 맞는 사실)는 지우지 않고 새 문단 뒤에 남겨, 일반
+설명(오프셋 꼭대기 표집)과 이 특정 행(첫 스냅샷, 오프셋 0)의 예외를 구분해 뒀다.
+
+주석이 왜 위험했는지 한 줄도 같이 남겼다 — 이 슬라이스에서 **주석이 오독을 만든 사례가
+이번으로 셋째**다(하네스 주석 부호, 축 규약 두 번, 그리고 이것).
+
+`ObserverCsv.cs`의 `Header`(12열)는 architect가 이미 맞다고 확인한 대로 손대지 않았다.
+그 외 제품 코드 변경 없음.
+
+```
+unity test client --mode EditMode
+323/321/failed=0/skipped=2   (R22 종료 시점과 동일 — 주석만 바꿨으므로 변동 없음이 정상)
+```
+Editor는 시작 전 `tasklist`로 0건 확인. 결과: `test-results.xml`(레포 루트, id=2,
+start 2026-09-24 14:11:35Z, duration 1.18s).
+
+md5 (변경분): `Greybox/ObserverSession.cs` → `1cb501dea06ee7251462fc95c32c6290`
+(R22 종료 시점 `8ee53ad77e57e67baffe57914a6607fa`에서 변경 — 주석 전용 diff).
+
+커밋하지 않았다.

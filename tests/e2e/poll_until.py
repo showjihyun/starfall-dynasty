@@ -71,7 +71,7 @@ def run_rows(args: argparse.Namespace) -> int:
     verdict = "PASS" if reached and elapsed <= args.deadline else "FAIL"
     db.emit(
         {
-            "item": "SC-62 (AC-17b) 마지막 봇 종료 → 모든 행 가시까지",
+            "item": "계약 외 검사 — 마지막 봇 종료 후 모든 행 가시까지 (대기 헬퍼)",
             "verdict": verdict,
             "measured_how": "호스트에서 count(*) 폴링 (recorded_at 과 호스트 시계를 비교하지 않는다)",
             "correlations_checked": len(corr),
@@ -99,13 +99,13 @@ def run_backlog(args: argparse.Namespace) -> int:
         reached, elapsed, trail = poll(
             measure, lambda v: v > args.above, args.timeout, args.interval
         )
-        item = f"SC-66 (AC-19a) persist_backlog > {args.above} 도달 대기"
+        item = f"계약 외 검사 — persist_backlog > {args.above} 도달 대기 (대기 헬퍼)"
     else:
         reached, elapsed, trail = poll(
             measure, lambda v: v <= args.target, args.timeout, args.interval
         )
         item = (
-            f"SC-68 (AC-19c) persist_backlog <= {args.target} 복귀 "
+            f"계약 외 검사 — persist_backlog <= {args.target} 복귀 "
             "(정상 대역 0~20 — 20 tick 주기 커밋이라 0 이 아닌 것이 이상이 아니다, server §5)"
         )
 
