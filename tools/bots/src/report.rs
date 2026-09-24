@@ -78,6 +78,9 @@ pub struct RunReport {
     pub seed: u64,
     pub duration_secs: u64,
     pub interval_ms: u64,
+    /// **봇별 조작 송신 주기(Hz).** SC-25 의 판정이 "전송률 때문"이라고 말하려면 **무엇을
+    /// 보냈는지가 증거에 있어야 한다** — 이 값이 없으면 두 거리의 차이를 전송률에 귀속할 수 없다.
+    pub send_hz: Vec<f64>,
     pub clock_base_unix_ms: u64,
     pub finished_unix_ms: u64,
     pub connect_ms: stats::Summary,
@@ -101,6 +104,7 @@ pub struct RunMeta<'a> {
     pub seed: u64,
     pub duration_secs: u64,
     pub interval_ms: u64,
+    pub send_hz: &'a [f64],
     pub clock: Clock,
 }
 
@@ -112,6 +116,7 @@ pub fn build(meta: RunMeta<'_>, outcomes: &[ConnectionOutcome]) -> RunReport {
         seed,
         duration_secs,
         interval_ms,
+        send_hz,
         clock,
     } = meta;
     let per_bot: Vec<LedgerSummary> = outcomes.iter().map(|o| o.ledger.finish()).collect();
@@ -177,6 +182,7 @@ pub fn build(meta: RunMeta<'_>, outcomes: &[ConnectionOutcome]) -> RunReport {
         seed,
         duration_secs,
         interval_ms,
+        send_hz: send_hz.to_vec(),
         clock_base_unix_ms: clock.wall_base_unix_ms,
         finished_unix_ms: clock.wall_ms_at(clock.us()),
         connect_ms: stats::summarize(outcomes.iter().map(|o| o.connect_ms).collect()),

@@ -36,6 +36,9 @@ run 옵션 (기본값):
   --cycles <N>         5           B 단계: 접속→ping→종료 반복 횟수
   --pings <N>          3           B 단계: 한 접속당 ping 수
   --burst <N>          2000        C 단계: 폭주 봇이 보낼 명령 수
+  --send-hz <A[,B,…]>  20          e 단계: **봇별** SET_SHIP_CONTROL 송신 주기(Hz). 목록이 짧으면
+                                   마지막 값이 나머지 봇에 적용된다. SC-25 는 `--send-hz 20,200
+                                   --bots 2` 로 **한 실행 안에서** 두 속도를 낸다 (계약 §3.1)
   --out <DIR>          (필수) sessions.json / commands.csv / summary.json / correlations.txt
   --live-corr <FILE>   SESSION_READY 수신 즉시 correlation 을 덧붙일 파일 (SC-61: 실행 중 조회용)
 
@@ -89,6 +92,12 @@ async fn main() -> ExitCode {
 
 struct Args {
     map: std::collections::BTreeMap<String, String>,
+    /// 실제로 **읽힌** 키. 안 읽힌 키가 남으면 거부한다.
+    ///
+    /// 옛 파서는 모르는 키를 조용히 담고 아무도 읽지 않았다 — 그래서 `--send-hz 20` 을
+    /// 적어 넣고 돌려도 **아무 일 없이 기본값으로 돌고 초록이 났다.** "인자를 줬다"와
+    /// "인자가 먹었다"를 구분하지 못하는 파서는 오타를 통과시킨다(리더 판정 R24).
+    used: std::cell::RefCell<std::collections::BTreeSet<String>>,
 }
 
 impl Args {
@@ -106,17 +115,48 @@ impl Args {
             map.insert(key.trim_start_matches("--").to_owned(), val.clone());
             i += 2;
         }
-        Ok(Self { map })
+        Ok(Self {
+            map,
+            used: std::cell::RefCell::new(std::collections::BTreeSet::new()),
+        })
     }
 
     fn str_or(&self, key: &str, default: &str) -> String {
+        self.used.borrow_mut().insert(key.to_owned());
         self.map
             .get(key)
             .cloned()
             .unwrap_or_else(|| default.to_owned())
     }
 
+    /// 읽히지 않은 키가 있으면 **거부한다.** 조용히 무시하면 오타가 기본값으로 돈다.
+    fn reject_unused(&self) -> Result<(), String> {
+        let used = self.used.borrow();
+        let unread: Vec<&str> = self
+            .map
+            .keys()
+            .filter(|k| !used.contains(*k))
+            .map(|k| k.as_str())
+            .collect();
+        if unread.is_empty() {
+            return Ok(());
+        }
+        Err(format!(
+            "모르는 옵션: {}. (읽힌 옵션: {})",
+            unread
+                .iter()
+                .map(|k| format!("--{k}"))
+                .collect::<Vec<_>>()
+                .join(" "),
+            used.iter()
+                .map(|k| format!("--{k}"))
+                .collect::<Vec<_>>()
+                .join(" ")
+        ))
+    }
+
     fn req(&self, key: &str) -> Result<String, String> {
+        self.used.borrow_mut().insert(key.to_owned());
         self.map
             .get(key)
             .cloned()
@@ -124,6 +164,7 @@ impl Args {
     }
 
     fn num_or<T: std::str::FromStr>(&self, key: &str, default: T) -> Result<T, String> {
+        self.used.borrow_mut().insert(key.to_owned());
         match self.map.get(key) {
             None => Ok(default),
             Some(v) => v
@@ -131,6 +172,32 @@ impl Args {
                 .map_err(|_| format!("--{key} 값이 숫자가 아니다: {v}")),
         }
     }
+}
+
+/// `--send-hz 20` 또는 `--send-hz 20,200` — **봇별** 조작 송신 주기.
+///
+/// 계약 §3.1 이 이름을 정했고 SC-25 가 `20 Hz 대 200 Hz` 를 요구한다. **한 실행 안에서**
+/// 두 값을 내야 두 봇이 같은 서버 상태·같은 tick 창에 있고, 거리 차이를 **전송률 하나로**
+/// 귀속할 수 있다.
+fn parse_send_hz(raw: &str) -> Result<Vec<f64>, String> {
+    let mut out = Vec::new();
+    for part in raw.split(',') {
+        let s = part.trim();
+        if s.is_empty() {
+            continue;
+        }
+        let hz: f64 = s
+            .parse()
+            .map_err(|_| format!("--send-hz 값이 숫자가 아니다: {s}"))?;
+        if !(hz > 0.0 && hz.is_finite()) {
+            return Err(format!("--send-hz 는 0 보다 커야 한다: {s}"));
+        }
+        out.push(hz);
+    }
+    if out.is_empty() {
+        return Err("--send-hz 에 값이 없다".to_owned());
+    }
+    Ok(out)
 }
 
 async fn cmd_run(raw: &[String]) -> ExitCode {
@@ -190,18 +257,33 @@ async fn cmd_run(raw: &[String]) -> ExitCode {
             Ok(v) => v,
             Err(e) => return usage_error(&e),
         },
+        send_hz: match parse_send_hz(&args.str_or("send-hz", "20")) {
+            Ok(v) => v,
+            Err(e) => return usage_error(&e),
+        },
         out,
-        live_corr: args.map.get("live-corr").map(PathBuf::from),
+        live_corr: {
+            // `map` 을 직접 읽으면 `used` 에 안 들어가 `reject_unused` 가 오탐한다.
+            args.used.borrow_mut().insert("live-corr".to_owned());
+            args.map.get("live-corr").map(PathBuf::from)
+        },
     };
 
+    // **모르는 옵션은 여기서 거부한다.** 조용히 무시하면 `--send-hz` 오타가 기본값으로 돌고
+    // 초록이 난다 — "인자를 줬다"와 "인자가 먹었다"가 구분되지 않는다(리더 판정 R24).
+    if let Err(e) = args.reject_unused() {
+        return usage_error(&e);
+    }
+
     eprintln!(
-        "[bots] stage={} url={} bots={} seed={} duration={}s interval={}ms",
+        "[bots] stage={} url={} bots={} seed={} duration={}s interval={}ms send_hz={:?}",
         cfg.stage.as_str(),
         cfg.url,
         cfg.bots,
         cfg.seed,
         cfg.duration.as_secs(),
-        cfg.interval.as_millis()
+        cfg.interval.as_millis(),
+        cfg.send_hz
     );
 
     let (clock, outcomes) = scenario::run(&cfg).await;
@@ -218,6 +300,7 @@ async fn cmd_run(raw: &[String]) -> ExitCode {
             seed: cfg.seed,
             duration_secs: cfg.duration.as_secs(),
             interval_ms: cfg.interval.as_millis() as u64,
+            send_hz: &cfg.send_hz,
             clock,
         },
         &outcomes,

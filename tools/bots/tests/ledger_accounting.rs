@@ -587,6 +587,7 @@ fn a_report_with_ready_sessions_but_nothing_accepted_is_not_all_ok() {
             seed: 1,
             duration_secs: 1,
             interval_ms: 50,
+            send_hz: &[20.0],
             clock: Clock::start(),
         },
         &outcomes,

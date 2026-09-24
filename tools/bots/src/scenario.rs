@@ -27,6 +27,17 @@ pub enum Stage {
     Fly,
 }
 
+/// 봇 `i` 의 조작 송신 주기. 목록이 짧으면 마지막 값을 쓴다.
+/// `0` 이하가 들어오면 `main` 이 이미 거부하므로 여기서는 방어만 한다.
+pub fn send_interval(send_hz: &[f64], i: usize) -> Duration {
+    let hz = send_hz
+        .get(i)
+        .or_else(|| send_hz.last())
+        .copied()
+        .unwrap_or(20.0);
+    Duration::from_secs_f64(1.0 / if hz > 0.0 { hz } else { 20.0 })
+}
+
 impl Stage {
     pub fn parse(s: &str) -> Option<Self> {
         match s.to_ascii_lowercase().as_str() {
@@ -63,6 +74,16 @@ pub struct RunConfig {
     pub cycles: u32,
     pub pings: u32,
     pub burst: u32,
+    /// **봇별 `SET_SHIP_CONTROL` 송신 주기(Hz)** — 계약 §3.1 의 `--send-hz`, 기본 20.
+    ///
+    /// **한 실행 안에서 봇마다 다른 값을 줄 수 있어야 한다**(SC-25: 20 Hz 대 200 Hz).
+    /// 실행을 둘로 나누면 서버 부하·tick 구간·`summary.json` 이 갈려, **거리 차이가 났을 때
+    /// "전송률 때문"인지 "실행이 달라서"인지 구분할 근거가 사라진다** — SC-25 가 재려는 것은
+    /// 속도 핵 방어이므로 두 봇은 같은 조건에 있어야 한다(리더 판정 R24).
+    ///
+    /// 봇 수보다 짧으면 **마지막 값이 나머지 봇에 적용된다**(`[20, 200]` + `--bots 2` 가 표준
+    /// 사용법이고, `[20]` + `--bots 30` 이면 전원 20 Hz 다).
+    pub send_hz: Vec<f64>,
     pub out: PathBuf,
     /// SC-61 용: SESSION_READY 를 받는 즉시 correlation 을 여기에 덧붙인다.
     /// 실행이 끝난 뒤 쓰는 `correlations.txt` 로는 "실행 중" 조회를 할 수 없다.
@@ -133,7 +154,9 @@ pub async fn run(cfg: &RunConfig) -> (Clock, Vec<ConnectionOutcome>) {
                 grace: Duration::from_millis(1500),
             },
             Stage::Fly => Behavior::Fly {
-                interval: cfg.interval,
+                // **`cfg.interval` 이 아니다** — 그것은 ping 주기이고 기본값이 500 ms(2 Hz) 라
+                // 조작 송신에 쓰면 계약이 말하는 20 Hz 와 무관한 수를 재게 된다.
+                interval: send_interval(&cfg.send_hz, i),
                 duration: cfg.duration,
                 // 전방(로컬 +Z) 최대 추력. ADR-0009 §1의 축 규약.
                 thrust: (0, 0, 1000),
