@@ -59,7 +59,12 @@ pub enum DataError {
     Schema {
         /// 파일.
         file: PathBuf,
-        /// serde 오류 메시지(필드·기대값·실제값이 문장에 들어 있다).
+        /// `<JSON 경로>: <serde 오류 메시지>` 형태(`serde_path_to_error` 가 경로를 낸다,
+        /// S-R25). 예: `play_area.hard_boundary_radius_m: de_boundary_radius_m 는
+        /// [0 .. 20000 범위를 벗어난다 (받음: 20000.1)`. 경로가 공유 `deserialize_with`
+        /// 함수 이름과 달리 **필드를 특정한다** — `soft_boundary_radius_m` 과
+        /// `hard_boundary_radius_m` 처럼 같은 검증자를 쓰는 필드도 서로 다른 경로로
+        /// 구분된다. 메시지 뒷부분(함수 이름 포함)은 여전히 serde 가 만든 문자열 그대로다.
         error: String,
     },
     /// 유도값(필드 간) 검산 위반.
@@ -175,14 +180,26 @@ fn json_files(dir: &Path) -> Result<Vec<PathBuf>, DataError> {
     Ok(files)
 }
 
+/// `serde_json::from_str` 대신 `serde_path_to_error` 로 감싼 역직렬화기를 쓴다(S-R25).
+///
+/// 이유: `starfall_contracts::data` 의 `deserialize_with` 함수 10개가 필드 여러 개에서
+/// 공유된다(`de_boundary_radius_m` 이 `soft_boundary_radius_m`/`hard_boundary_radius_m`/
+/// `visual_radius_m` 세 필드 모두에 쓰인다). 그 함수의 에러 메시지는 `stringify!($fn_name)`
+/// 만 담아 **어느 필드가 위반했는지 말하지 못한다**. `serde_path_to_error::deserialize` 는
+/// 값이 아니라 **역직렬화 트리의 위치**를 추적하므로, 검증자가 공유돼도 JSON 경로
+/// (`play_area.hard_boundary_radius_m`)는 항상 1:1 이다.
 fn read_and_parse<T: serde::de::DeserializeOwned>(file: &Path) -> Result<T, DataError> {
     let raw = fs::read_to_string(file).map_err(|source| DataError::ReadFile {
         file: file.to_path_buf(),
         source,
     })?;
-    serde_json::from_str(&raw).map_err(|error| DataError::Schema {
-        file: file.to_path_buf(),
-        error: error.to_string(),
+    let deserializer = &mut serde_json::Deserializer::from_str(&raw);
+    serde_path_to_error::deserialize(deserializer).map_err(|error| {
+        let path = error.path().to_string();
+        DataError::Schema {
+            file: file.to_path_buf(),
+            error: format!("{path}: {}", error.into_inner()),
+        }
     })
 }
 
@@ -463,6 +480,40 @@ mod tests {
 
         let error = load(&dir.root, 20).unwrap_err();
         assert!(matches!(error, DataError::Schema { .. }), "{error}");
+        assert!(
+            error
+                .to_string()
+                .contains("play_area.hard_boundary_radius_m"),
+            "S-R25 — 셋이 공유하는 de_boundary_radius_m 이 아니라 JSON 경로로 필드가 특정돼야 한다: {error}"
+        );
+    }
+
+    /// S-R25 음성 대조 — `soft_boundary_radius_m` 도 `de_boundary_radius_m` 을 공유하는
+    /// 같은 파일의 옆 줄(`cradle.json:16` vs `:17`)이다. 위 [`rejects_hard_radius_above_ceiling`]
+    /// 과 이 테스트의 오류 메시지가 **서로 다른 필드**를 지칭해야 구제가 실제로 된 것이다 —
+    /// 둘 다 `de_boundary_radius_m` 만 찍으면 공유 검증자 결함이 그대로 남은 것이다.
+    #[test]
+    fn rejects_soft_radius_above_ceiling_and_names_a_different_field_than_hard() {
+        let dir = TempDataDir::new("soft-radius");
+        seed_valid(&dir);
+        let mut system = valid_star_system_json();
+        system = system.replace(
+            "\"soft_boundary_radius_m\": 10000.0",
+            "\"soft_boundary_radius_m\": 20000.1",
+        );
+        dir.write("world/systems/cradle.json", &system);
+
+        let error = load(&dir.root, 20).unwrap_err();
+        assert!(matches!(error, DataError::Schema { .. }), "{error}");
+        let message = error.to_string();
+        assert!(
+            message.contains("play_area.soft_boundary_radius_m"),
+            "S-R25 — JSON 경로로 soft 필드가 특정돼야 한다: {message}"
+        );
+        assert!(
+            !message.contains("play_area.hard_boundary_radius_m"),
+            "S-R25 음성 대조 실패 — soft 위반 로그가 hard 필드를 지칭한다: {message}"
+        );
     }
 
     #[test]
@@ -548,6 +599,55 @@ mod tests {
             DataError::Derived { field, .. } => assert!(field.starts_with("spawn.points_m[")),
             other => panic!("기대와 다른 오류: {other}"),
         }
+    }
+
+    /// S-R25 음성 대조 ②(§7a) — `de_accel_mps2` 는 `ShipClassMovement` 필드 6개
+    /// (`main_thrust_mps2`/`reverse_thrust_mps2`/`lateral_thrust_mps2`/`brake_decel_mps2`/
+    /// `assist_linear_decel_mps2`/`assist_lateral_decel_mps2`)와 다른 구조체 필드 1개까지
+    /// 도합 7곳이 공유하는, 이 파일에서 가장 많이 공유되는 검증자다. 그중 둘을 각각
+    /// 위반시켜 로그가 서로 다른 필드를 지칭하는지 본다 — 하나만 보면 "우연히 맞았다"를
+    /// 배제할 수 없다.
+    #[test]
+    fn rejects_two_different_de_accel_mps2_fields_and_names_each_one() {
+        let dir = TempDataDir::new("accel-mps2-main");
+        dir.write("world/systems/cradle.json", &valid_star_system_json());
+        dir.write("movement/sync-tuning.json", valid_sync_tuning());
+        let bad_main = valid_ship_class().replace(
+            "\"main_thrust_mps2\": 35.0",
+            "\"main_thrust_mps2\": 1000000.1",
+        );
+        dir.write("ships/scout-s01.json", &bad_main);
+        let error_main = load(&dir.root, 20).unwrap_err();
+        let message_main = error_main.to_string();
+        assert!(
+            message_main.contains("movement.main_thrust_mps2"),
+            "{message_main}"
+        );
+
+        let dir2 = TempDataDir::new("accel-mps2-brake");
+        dir2.write("world/systems/cradle.json", &valid_star_system_json());
+        dir2.write("movement/sync-tuning.json", valid_sync_tuning());
+        let bad_brake = valid_ship_class().replace(
+            "\"brake_decel_mps2\": 50.0",
+            "\"brake_decel_mps2\": 1000000.1",
+        );
+        dir2.write("ships/scout-s01.json", &bad_brake);
+        let error_brake = load(&dir2.root, 20).unwrap_err();
+        let message_brake = error_brake.to_string();
+        assert!(
+            message_brake.contains("movement.brake_decel_mps2"),
+            "{message_brake}"
+        );
+
+        assert_ne!(
+            message_main, message_brake,
+            "S-R25 음성 대조 실패 — 서로 다른 필드를 위반했는데 로그가 같다"
+        );
+        assert!(
+            !message_main.contains("brake_decel_mps2")
+                && !message_brake.contains("main_thrust_mps2"),
+            "S-R25 음성 대조 실패 — 로그가 위반하지 않은 필드를 지칭한다: main={message_main} brake={message_brake}"
+        );
     }
 
     #[test]

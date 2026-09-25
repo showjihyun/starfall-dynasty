@@ -1,0 +1,37 @@
+{
+  "item": "SC-07 / AC-21(d) — data/ 실제 파일의 계약 스키마 검증",
+  "verdict": "FAIL",
+  "files_checked": 0,
+  "fields_checked": 0,
+  "errors_total": 3,
+  "rows": [
+    {
+      "glob": "data/ships/*.json",
+      "schema": "contracts/data/ship-class.schema.json",
+      "files": 0,
+      "errors": 1,
+      "detail": [
+        "대상 파일이 하나도 없다"
+      ]
+    },
+    {
+      "glob": "data/world/systems/*.json",
+      "schema": "contracts/data/star-system.schema.json",
+      "files": 0,
+      "errors": 1,
+      "detail": [
+        "대상 파일이 하나도 없다"
+      ]
+    },
+    {
+      "glob": "data/movement/sync-tuning.json",
+      "schema": "contracts/data/sync-tuning.schema.json",
+      "files": 0,
+      "errors": 1,
+      "detail": [
+        "대상 파일이 하나도 없다"
+      ]
+    }
+  ],
+  "note": "architect 실측 2026-09-19 은 sync-tuning.json 6건 실패였다(D-1 로 해소). 여기서 0 이면 회귀 없음."
+}

@@ -1,0 +1,19 @@
+# SC-57 — 잔류 만료 디스폰 (실행 2026-09-25, 범위 tick 1576721..1595272)
+## 범위 내 이벤트 종류
+SESSION_CLOSED | 40
+SESSION_OPENED | 40
+SHIP_DESPAWNED | 40
+SHIP_SPAWNED | 40
+## 사유별 (범위 내)
+LINGER_EXPIRED | 40 | 40 | 1579262 | 1592035
+## 사유별 (무범위 — 대조. 이 값으로 판정하지 않는다)
+LINGER_EXPIRED | 86 | 352051 | 1592035
+SERVER_SHUTDOWN | 54 | 364788 | 1045930
+## 체인 판정 (sessions_closed|closed_normally|ships_spawned|linger_expired|server_shutdown|normal_close_with_despawn|normal_close_without_despawn|despawn_matches_spawn|distinct_ships)
+40 | 40 | 40 | 40 | 0 | 40 | 0 | 40 | 40
+## 잔류 창 간격 (pairs|min_gap|max_gap|gap>=600|close_reasons)
+##   ⚠ architect R24 로 경계가 **등호**로 못 박혔다 — 등호 판정과 601 음성 대조는
+##     같은 디렉터리의 sc57-boundary-equality.txt 에 있다
+40 | 600 | 600 | 40 | CLIENT_CLOSED
+## 음성 대조 — 이벤트 없는 범위 (sessions_closed|linger_expired|any_events)
+0 | 0 | 0

@@ -1,0 +1,22 @@
+=== 규칙 9 이행 ===
+git rev-parse HEAD:
+443ab3c129aaa395691c32029fc981f8eaa53107
+
+git status --porcelain (줄 수 / 앞 12줄):
+18
+ M _workspace/p1-01-ship-movement/01_architect_decisions.md
+ M _workspace/p1-01-ship-movement/02_sprint_contract.md
+ M _workspace/p1-01-ship-movement/evidence/R14-separation-and-block10/07-source-gate.txt
+ M _workspace/p1-01-ship-movement/evidence/R14-separation-and-block10/10-source-gate-rust.txt
+ M client/ProjectSettings/ProjectSettings.asset
+ M docs/adr/0011-state-sync-snapshot-and-input-queue.md
+ M server/Cargo.lock
+ M server/Cargo.toml
+ M server/bins/game-server/Cargo.toml
+ M server/bins/game-server/src/data.rs
+ M server/crates/gateway/tests/ws_integration.rs
+ M tests/e2e/check_item_sources.py
+
+=== runInBackground ===
+-  runInBackground: 1
++  runInBackground: 0

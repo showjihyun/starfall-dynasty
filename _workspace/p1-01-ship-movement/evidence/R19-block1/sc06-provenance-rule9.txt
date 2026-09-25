@@ -1,0 +1,22 @@
+{
+  "rule": "계약 §7b 규칙 9 이행 — 바이너리로 판정하는 항목은 HEAD 와 트리 청결 여부를 함께 남긴다",
+  "head": "443ab3c129aaa395691c32029fc981f8eaa53107",
+  "head_subject": "feat: 블록 8 다섯 항목 PASS — 그리고 판정 도구 다섯 군데가 조용히 통과시키고 있었다",
+  "worktree_clean": false,
+  "status_porcelain": [
+    " M _workspace/p1-01-ship-movement/01_architect_decisions.md",
+    " M _workspace/p1-01-ship-movement/02_sprint_contract.md",
+    " M docs/adr/0011-state-sync-snapshot-and-input-queue.md",
+    " M server/Cargo.lock",
+    " M server/Cargo.toml",
+    " M server/bins/game-server/Cargo.toml",
+    " M server/bins/game-server/src/data.rs",
+    " M server/crates/gateway/tests/ws_integration.rs",
+    " M tests/e2e/server_boot.py",
+    " M tests/e2e/validate_data_files.py",
+    "?? _workspace/p1-01-ship-movement/15_block1_procedure.md",
+    "?? _workspace/p1-01-ship-movement/evidence/R19-block1/"
+  ],
+  "server_binary_sha256_16": "339baec449d3177d",
+  "caveat": "기록은 증명이 아니라 반증 가능성이다 — 이 바이너리가 이 트리에서 나왔다는 증명은 아니다(규칙 9 (나))"
+}

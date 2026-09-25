@@ -1,0 +1,38 @@
+{
+  "item": "SC-07 / AC-21(d) — data/ 실제 파일의 계약 스키마 검증",
+  "verdict": "FAIL",
+  "files_checked": 3,
+  "fields_checked": 117,
+  "errors_total": 4,
+  "rows": [
+    {
+      "file": "data/ships/scout-s01.json",
+      "schema": "contracts/data/ship-class.schema.json",
+      "fields_checked": 44,
+      "errors": 1,
+      "detail": [
+        "/movement/main_thrust_mps2: 'fast' is not of type 'number'"
+      ]
+    },
+    {
+      "file": "data/world/systems/cradle.json",
+      "schema": "contracts/data/star-system.schema.json",
+      "fields_checked": 58,
+      "errors": 1,
+      "detail": [
+        "/play_area/hard_boundary_radius_m: 20000.1 is greater than the maximum of 20000"
+      ]
+    },
+    {
+      "file": "data/movement/sync-tuning.json",
+      "schema": "contracts/data/sync-tuning.schema.json",
+      "fields_checked": 15,
+      "errors": 2,
+      "detail": [
+        "/: 'prediction' is a required property",
+        "/: Additional properties are not allowed ('bogus_field_qa' was unexpected)"
+      ]
+    }
+  ],
+  "note": "architect 실측 2026-09-19 은 sync-tuning.json 6건 실패였다(D-1 로 해소). 여기서 0 이면 회귀 없음."
+}

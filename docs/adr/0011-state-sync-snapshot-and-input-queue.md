@@ -194,7 +194,7 @@ MAX_COMMANDS_PER_SESSION_PER_TICK × MAX_RESPONSES_PER_COMMAND + SNAPSHOT_HEADRO
 | 연결 끊김 ~ `carry_forward_max_ticks` | 마지막 입력 이월. 계속 추진한다 |
 | 그 후 | 추력 0. 관성으로 미끄러지며 보조 감쇠로 감속 |
 | ~ `linger_seconds` | `presence: LINGERING`으로 **스냅샷에 계속 포함**. 다른 플레이어에게 보인다 |
-| `linger_seconds` 경과 | 디스폰. `SHIP_DESPAWNED{LINGER_EXPIRED}` |
+| `linger_seconds` 경과 | 디스폰. `SHIP_DESPAWNED{LINGER_EXPIRED}`. **경계는 포함이다**: 스윕이 매 tick 돌고 조건이 `경과 tick >= linger_ticks` 이므로 **디스폰 tick − `SESSION_CLOSED` tick == `linger_ticks`** 가 정확히 성립한다(2026-09-25 R24 — 이 방향이 적히지 않아 검사가 `>` 로 쓰였고 정상 동작 40건이 전부 실패로 인쇄됐다) |
 | `reconnect_resume_window_seconds` 안에 같은 `actor_id`가 재접속 | **같은 함선, 그 자리에서 재개.** 위치·속도·자세·각속도 유지. `SHIP_SPAWNED`를 새로 발행하지 않는다 |
 
 설계상 따라오는 것들:

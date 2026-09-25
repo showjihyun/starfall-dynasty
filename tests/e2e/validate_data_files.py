@@ -49,6 +49,20 @@ def build_registry(contracts: Path):
     return registry
 
 
+def count_fields(doc) -> int:
+    """문서 안의 **필드(키) 개수**를 재귀로 센다.
+
+    왜 세는가: `files_checked: 3 · errors_total: 0` 만으로는 검증기가 **파일을 열고 안을
+    걸었는지**를 구별할 수 없다(§7a — "0 파일 검증 → 오류 0" 은 통과가 아니다).
+    필드 수는 검증기가 실제로 훑은 분량의 하한이다.
+    """
+    if isinstance(doc, dict):
+        return len(doc) + sum(count_fields(v) for v in doc.values())
+    if isinstance(doc, list):
+        return sum(count_fields(v) for v in doc)
+    return 0
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description="SC-07 data/ 3파일 스키마 검증")
     ap.add_argument("--root", default=".")
@@ -68,7 +82,7 @@ def main() -> int:
         return 3
 
     registry = build_registry(contracts)
-    rows, errors_total, files_checked = [], 0, 0
+    rows, errors_total, files_checked, fields_total = [], 0, 0, 0
 
     for glob, schema_rel in TARGETS:
         schema_path = contracts.parent / schema_rel
@@ -83,11 +97,14 @@ def main() -> int:
         for f in matched:
             files_checked += 1
             doc = json.loads(f.read_text(encoding="utf-8"))
+            fields = count_fields(doc)
+            fields_total += fields
             errs = sorted(validator.iter_errors(doc), key=lambda e: list(e.absolute_path))
             errors_total += len(errs)
             rows.append({
                 "file": f.relative_to(root).as_posix(),
                 "schema": schema_rel,
+                "fields_checked": fields,
                 "errors": len(errs),
                 "detail": [f"/{'/'.join(str(p) for p in e.absolute_path)}: {e.message}" for e in errs],
             })
@@ -96,6 +113,7 @@ def main() -> int:
         "item": "SC-07 / AC-21(d) — data/ 실제 파일의 계약 스키마 검증",
         "verdict": "PASS" if errors_total == 0 else "FAIL",
         "files_checked": files_checked,
+        "fields_checked": fields_total,
         "errors_total": errors_total,
         "rows": rows,
         "note": "architect 실측 2026-09-19 은 sync-tuning.json 6건 실패였다(D-1 로 해소). 여기서 0 이면 회귀 없음.",

@@ -210,6 +210,22 @@ impl TestServer {
             })
             .collect()
     }
+
+    /// `SHIP_SPAWNED` 만 본다(`ship_id` 문자열) — 넘겨받기(takeover)가 함선을 복제하지
+    /// 않는지 검증하는 전용 접근자. `events()`(p0-02 자산)는 이 바디를 버리므로 건드리지
+    /// 않는다 — 새로 추가한다(팀 리더 요청, R4 S-6 §7a 짝 검증).
+    fn ship_spawned_ids(&self) -> Vec<String> {
+        self.batches
+            .lock()
+            .unwrap()
+            .iter()
+            .flat_map(|batch| batch.events.iter())
+            .filter_map(|event| match &event.body {
+                DomainEventBody::ShipSpawned(payload) => Some(payload.ship_id.to_string()),
+                _ => None,
+            })
+            .collect()
+    }
 }
 
 impl Drop for TestServer {
@@ -1489,4 +1505,58 @@ async fn r4_s6_first_connection_is_closed_with_4001_when_superseded() {
         "첫 세션의 close_reason 이 SUPERSEDED 여야 한다 — 관측된 사유: {closed:?}"
     );
     println!("[R4 S-6] 첫 연결 close 4001, close_reason SUPERSEDED 확인");
+}
+
+/// R4 S-6 §7a 짝 — 위 테스트가 재는 것은 `ping_command` 가 `ACCEPTED` 되는 것뿐이었다.
+/// ping 은 함선을 건드리지 않으므로 그 단언은 둘째 세션이 함선을 **새로** 스폰하는
+/// 빌드에서도 똑같이 통과한다(팀 리더 지적). 이 테스트는 겨냥한 조건 — "함선이 둘이
+/// 아니라 하나이고, 둘째 세션이 그 같은 함선을 넘겨받는다" — 을 직접 단언한다.
+///
+/// `TestServer::events()` 는 `SHIP_*` 를 버리므로(p0-02 자산, 주석 참고) 쓰지 않는다 —
+/// [`TestServer::ship_spawned_ids`] 를 새로 쓴다.
+///
+/// **디버그 빌드에서 이 테스트가 빨개지는 걸 봤다고 이 단언이 하중을 받는다고 믿지 마라.**
+/// `Simulation::debug_assert_i29`(`crates/sim/src/simulation.rs`)는
+/// `#[cfg(debug_assertions)]` 라 `cargo test`(디버그)에서는 I-29 불변식 위반을 tick
+/// 스레드가 먼저 panic 으로 잡는다 — 그러면 이 함수의 `assert_eq!(spawned.len(), 1, …)`
+/// 는 평가되기도 전에 프로세스가 죽는다. **릴리스 빌드에는 그 그물이 없다** — 복제를
+/// 잡을 것은 이 단언뿐이다. 실제로 `cargo test -p starfall-gateway --release`로 넘겨받기
+/// 분기를 무력화해 확인했다: FAIL 이 panic 이 아니라 이 단언의 메시지였다
+/// (`SHIP_SPAWNED` 2건, `left: 2 right: 1`) — 그 실행 결과가 이 단언이 릴리스에서
+/// 실제로 하중을 받는다는 증거다(qa 요청, 2026-09-25).
+#[tokio::test]
+async fn r4_s6_second_connection_takes_over_the_ship_not_a_second_one() {
+    let mut server = TestServer::start(true).await;
+    let token = server.token(SUBJECT);
+
+    let mut first = connect(&server, Some(&token)).await.unwrap();
+    assert_eq!(next_json(&mut first).await["message_type"], "SESSION_READY");
+
+    // 같은 actor 로 두 번째 연결 — 넘겨받기를 유발한다.
+    let mut second = connect(&server, Some(&token)).await.unwrap();
+    assert_eq!(
+        next_json(&mut second).await["message_type"],
+        "SESSION_READY"
+    );
+
+    let code = read_until_close(&mut first).await;
+    assert_eq!(code, Some(4001), "ADR-0005 §2: SUPERSEDED = 4001");
+
+    server.shutdown_and_join().await;
+
+    let spawned = server.ship_spawned_ids();
+    // 음성 대조(§7a): 스폰이 최소 1건은 관측돼야 한다 — 0건이면 이 단언은 아무것도
+    // 재지 않는 `0 == 0` 통과다.
+    assert!(
+        !spawned.is_empty(),
+        "SHIP_SPAWNED 가 한 건도 없다 — 이 테스트는 아무것도 재지 못한다"
+    );
+    assert_eq!(
+        spawned.len(),
+        1,
+        "같은 actor 의 두 번째 접속이 함선을 하나 더 스폰했다(복제) — 관측된 SHIP_SPAWNED: {spawned:?}"
+    );
+    println!(
+        "[R4 S-6 §7a] SHIP_SPAWNED 정확히 1건, ship_id={spawned:?} — 넘겨받기 확인(복제 아님)"
+    );
 }

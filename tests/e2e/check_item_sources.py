@@ -67,8 +67,34 @@ EXIT_SOURCE_VIOLATION = 1
 EXIT_UNNAMED_ONLY = 3
 # 기본 실행이 제외를 적을 때 같이 찍는 수. **이 수가 출력에 있어야 만기가 지났는지·
 # 늘었는지가 그 자리에서 읽힌다**(architect R23). `--include-rust` 실행으로 갱신한다.
-RUST_KNOWN_MISMATCHES = 8
-RUST_KNOWN_LIST = "SC-14·19·20·21·24·25·26·67"
+RUST_DIRS = ("tools/bots/src",)
+
+
+def rust_label_coverage(dirs=RUST_DIRS):
+    """(주석 아닌 `SC-` 줄 수, `RUST_LABEL` 이 실제로 보는 줄 수).
+
+    **수를 손으로 적지 않는다.** 이 자리에 `RUST_KNOWN_MISMATCHES = 8` 을 박아 뒀었는데
+    그 8건이 `참고:` 로 강등되면서 **수가 낡았고, 낡은 수는 거짓을 인쇄한다.** 더 나쁜 것은
+    그것을 0 으로 고치는 것이다 — *"불일치 0건"* 은 **검출되는 것만 센 값**이고,
+    **검출되지 않는 것까지 세야 참이다**(리더 판정 R25).
+
+    분모(전체 줄)와 분자(보는 줄)를 같이 내는 이유: 둘이 벌어져 있으면 `--include-rust` 의
+    **exit 0 은 "라벨이 옳다"가 아니라 "정규식이 보는 줄에 없다"** 라는 뜻이다.
+    """
+    total = 0
+    seen = 0
+    for d in dirs:
+        base = Path(d)
+        if not base.is_dir():
+            continue
+        for f in sorted(base.glob("*.rs")):
+            src = f.read_text(encoding="utf-8")
+            total += sum(
+                1 for line in src.splitlines()
+                if "SC-" in line and not line.lstrip().startswith("//")
+            )
+            seen += len(RUST_LABEL.findall(src))
+    return total, seen
 # **규칙 7 의 대상은 verdict 라벨이다** (architect R23). 로그가 관련 항목을 *가리키는*
 # 표식은 금지가 아니라 표시의 문제다 — 이것을 위반으로 잡으면 게이트가 "로그에서 SC
 # 번호를 전부 빼라"는 압력을 만들고, 그러면 라벨 불일치와 함께 **증거에서 항목으로
@@ -407,11 +433,18 @@ def main() -> int:
     # qa r13: 여기도 `and not args.tools_dir` 가 붙어 있었다 — `--tools-dir` 를 주면
     # **제외 안내가 사라져** 그 실행의 출력만 보는 사람은 Rust 가 범위에 있었다고 읽는다.
     # 끄는 것과 가리는 것은 다르다(이 파일이 §3.2 빈 표에서 스스로 진단한 상태다).
-    if not args.include_rust:
-        print(f"**제외**: Rust 도구(`tools/bots/src`)는 이 실행에서 검사하지 않았다 — "
-              f"알려진 라벨 불일치 **{RUST_KNOWN_MISMATCHES}건**, "
-              f"계약 §7b 규칙 8 만기(블록 8 실행 전). "
-              f"번호: {RUST_KNOWN_LIST}. `--include-rust` 로 본다.")
+    if not args.tools_dir:
+        total, seen = rust_label_coverage()
+        where = "이 실행에서 검사하지 않았다" if not args.include_rust else "검사했다"
+        print(f"**Rust 도구(`tools/bots/src`)**: {where} — "
+              f"이 게이트가 **볼 수 있는 줄이 {seen} / {total}** 이다.")
+        if seen < total:
+            print(f"   ⚠ `--include-rust` 의 exit 0 은 **'라벨이 옳다'는 뜻이 아니다** — "
+                  f"RUST_LABEL 이 한 줄짜리 화살표 라벨만 잡아 **{total - seen}줄을 못 본다.** "
+                  f"그리고 PY_NAME 이 `.py` 만 잡아 **`.rs` 는 옳은 라벨이어도 지명될 수 없다** "
+                  f"— 계약이 봇 도구를 산문으로 부르므로 `scenario.rs` 라는 문자열이 방법 칸에 없다. "
+                  f"**정규식 문제가 아니라 게이트 설계 문제이고, 설계는 architect 소유다.** "
+                  f"계약 §7b 규칙 8 만기(블록 8 실행 전) — **아직 안 끝났다.**")
     # **검사하지 않은 것을 적는다** (architect R23). `--include-rust` 기본 꺼짐의 근거는
     # "켜면 상시 exit 1 이 되어 새 파이썬 위반을 가린다" 였는데, **F-1 의 해법은 끄는 것이
     # 아니라 가르는 것**이었다(exit 1 / exit 3). 끄기만 하면 가려지는 정도가 아니라
