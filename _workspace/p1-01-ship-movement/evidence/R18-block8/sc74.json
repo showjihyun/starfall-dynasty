@@ -1,0 +1,53 @@
+{
+  "item": "SC-74 (AC-18 f) DB 중단 구간의 스냅샷 지속 — 블록 8 D 단계",
+  "SC-74_verdict": "PASS",
+  "producer": {
+    "out_dir": "_workspace\\p1-01-ship-movement\\evidence\\R18-block8\\stage-d",
+    "snapshots_csv": "_workspace\\p1-01-ship-movement\\evidence\\R18-block8\\stage-d\\snapshots.csv",
+    "summary_json": "_workspace\\p1-01-ship-movement\\evidence\\R18-block8\\stage-d\\summary.json",
+    "stage": "d-durability",
+    "url": "ws://127.0.0.1:8080/ws",
+    "bots": 4,
+    "seed": 42,
+    "duration_secs": 90,
+    "send_hz": [
+      20.0
+    ]
+  },
+  "stats_before": "_workspace/p1-01-ship-movement/evidence/R18-block8/stats-before.json",
+  "stats_after": "_workspace/p1-01-ship-movement/evidence/R18-block8/stats-after.json",
+  "SC-74": {
+    "outage_tick_window": {
+      "from_stats_before_tick": 1589921,
+      "to_stats_after_tick": 1590558
+    },
+    "outage_actually_happened": {
+      "persist_backlog_before": 1,
+      "persist_backlog_after": 18,
+      "domain_events_persist_failed_before": 0,
+      "domain_events_persist_failed_after": 0,
+      "last_committed_tick_before": 1589920,
+      "last_committed_tick_after": 1590540,
+      "why": "DB 가 멈췄으면 영속화가 밀린다 — `persist_backlog` 가 늘거나 `domain_events_persist_failed_total` 이 는다. 둘 다 그대로면 **postgres 가 실제로 멈추지 않은 것**이고, 그때 '스냅샷이 흘렀다' 는 항진명제다.",
+      "asserted": true
+    },
+    "snapshots_in_window_per_observer": {
+      "01a0b1c2-b010-7000-8000-000000000000": 319,
+      "01a0b1c2-b010-7000-8000-000000000001": 319,
+      "01a0b1c2-b010-7000-8000-000000000002": 319,
+      "01a0b1c2-b010-7000-8000-000000000003": 319
+    },
+    "observers_with_zero_in_window": [],
+    "bots_with_errors": [],
+    "server_initiated_closes": 0,
+    "server_initiated_closes_evidence": {
+      "source": "_workspace\\p1-01-ship-movement\\evidence\\R18-block8\\stage-d\\sessions.json",
+      "sessions": 4,
+      "close_initiators": {
+        "client": 4
+      },
+      "server_initiated": []
+    },
+    "note": "판정 둘: 중단 창 안에서 **모든 봇이** 스냅샷을 1건 이상 받았는가, 그리고 끊긴 연결이 0 인가. 끊긴 연결 수는 `sessions.json` 의 세션별 `close_initiator` 에서 읽는다 — `summary.json` 에는 그 수가 **없다**(봇이 stdout 에만 찍는다)."
+  }
+}

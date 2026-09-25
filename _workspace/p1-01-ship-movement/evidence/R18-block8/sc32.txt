@@ -1,0 +1,32 @@
+{
+  "item": "SC-32 (AC-7 e) 잔류 presence 와 디스폰 후 소멸 — 블록 8 (resume 관측자 경로)",
+  "SC-32_verdict": "PASS",
+  "producer": {
+    "resume_json": "_workspace/p1-01-ship-movement/evidence/R18-block8/resume-despawn.json",
+    "label": "bot-007",
+    "observer": "bot-008",
+    "gap_s": 35.0,
+    "listen_s": 45.0,
+    "data_file": "C:\\WorkSpace\\SpaceHistoric\\data\\world\\systems\\cradle.json"
+  },
+  "SC-32": {
+    "gap_s": 35.0,
+    "linger_seconds": 30,
+    "observer_first_tick": 1587044,
+    "observer_last_tick": 1588774,
+    "subject_ship_rows": 336,
+    "note": "`observer_rows` 는 **leg1 함선만** 걸러 담긴다(`main.rs:621`). 따라서 이 판정은 그 한 척의 presence 궤적이고, 관측자가 계속 보고 있었다는 것은 `observer_last_tick` 으로 단언한다.",
+    "presence_values_seen": {
+      "ACTIVE": 36,
+      "LINGERING": 300
+    },
+    "unexpected_presence_values": [],
+    "ship_first_tick": 1587060,
+    "ship_last_tick": 1587730,
+    "expected_snapshot_interval_ticks": 2,
+    "reappearances_after_absence": 0,
+    "reappearance_head": [],
+    "observer_outlived_ship": true,
+    "observer_ticks_after_ship_vanished": 1044
+  }
+}

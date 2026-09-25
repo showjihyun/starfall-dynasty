@@ -1,0 +1,21 @@
+[
+  {
+    "bot": "bot-000",
+    "session_id": "01a0d837-d0c1-7436-9683-4f57f8056aac",
+    "correlation_id": "01a0d837-d0dd-717c-a115-a4d60de1ba80",
+    "actor_id": "01a0b1c2-b010-7000-8000-000000000000",
+    "tick_hz": 20,
+    "server_version": "0.1.0",
+    "ready_tick": 1579468,
+    "connected_at_us": 5344,
+    "ready_at_us": 33937,
+    "closed_at_us": 6816133,
+    "connected_at_unix_ms": 1790333931712,
+    "ready_at_unix_ms": 1790333931740,
+    "closed_at_unix_ms": 1790333938523,
+    "close_code": 1000,
+    "peer_close_code": 1000,
+    "close_reason_text": "",
+    "close_initiator": "client"
+  }
+]

@@ -374,7 +374,13 @@ def main() -> int:
     # 되고 **새로 생기는 파이썬 위반을 가린다** — F-1 이 막으려던 바로 그 형태다. 라벨을 고치고
     # §3.1(봇 하네스)의 지명을 게이트가 읽게 만든 뒤 기본값으로 올린다.
     dirs = args.tools_dir or ["tests/e2e"]
-    if args.include_rust and not args.tools_dir:
+    # qa r13: `--include-rust` 가 `--tools-dir` 와 **함께 주면 조용히 무시되고 있었다**
+    # (`and not args.tools_dir`). 그러면 두 인자를 같이 준 사람은 **Rust 를 검사했다고 믿은 채
+    # exit 0 을 받는다** — 게이트에서 가장 나쁜 실패 형태다(계약 §7a: 초록불이 무엇을 쟀는지
+    # 모르면 아무것도 뜻하지 않는다). 실측으로 걸렸다: `--tools-dir tests/e2e --include-rust` 가
+    # `py 28 / exit 0` 을, 같은 계약에 `--include-rust` 만 주면 `exit 1 · 8건` 을 냈다.
+    # 이제 플래그는 `--tools-dir` 와 무관하게 **항상** 먹는다.
+    if args.include_rust and "tools/bots/src" not in dirs:
         dirs = dirs + ["tools/bots/src"]
     tools: dict[str, str] = {}
     for d in dirs:
@@ -398,7 +404,10 @@ def main() -> int:
     # **무엇을 훑지 않았는지를 적는다** (architect R23). 끄는 선택은 유지하되 **제외가 명시적으로
     # 비어 있게** 만든다 — `도구 없음(사람 관찰)` 이 빈칸과 다른 것과 같은 이치다.
     # **개수를 같이 찍는 것이 핵심이다**: 만기가 지났는지, 수가 늘었는지가 그 자리에서 읽힌다.
-    if not args.include_rust and not args.tools_dir:
+    # qa r13: 여기도 `and not args.tools_dir` 가 붙어 있었다 — `--tools-dir` 를 주면
+    # **제외 안내가 사라져** 그 실행의 출력만 보는 사람은 Rust 가 범위에 있었다고 읽는다.
+    # 끄는 것과 가리는 것은 다르다(이 파일이 §3.2 빈 표에서 스스로 진단한 상태다).
+    if not args.include_rust:
         print(f"**제외**: Rust 도구(`tools/bots/src`)는 이 실행에서 검사하지 않았다 — "
               f"알려진 라벨 불일치 **{RUST_KNOWN_MISMATCHES}건**, "
               f"계약 §7b 규칙 8 만기(블록 8 실행 전). "

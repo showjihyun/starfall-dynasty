@@ -517,15 +517,26 @@ def _spawn_points_mm(system: str) -> tuple[list[tuple[int, int, int]], int, floa
     return mm, int(presence.get("linger_seconds", 30)), float(spawn.get("radial_offset_step_m", 0.0)), path
 
 
-def evaluate_sc10(system: str, tick_hz: int) -> tuple[dict, str]:
+def evaluate_sc10(system: str, tick_hz: int, since_tick: int | None = None) -> tuple[dict, str]:
+    """⚠ `since_tick` 이 **판정의 범위이고 그것이 이 항목의 전부다** (qa r13 실측으로 추가).
+
+    범위를 안 주면 `domain_events` **전체**를 본다. 그 테이블은 추가 전용이고 슬라이스 전체의
+    실행을 담고 있어 **동시 접속 수가 서로 다른 실행이 섞인다.** 무범위로 돌려 보니
+    재스폰 불일치 **4건**이 나왔는데, 넷 다 옛 다봇 실행이고 **두 번째 위치가 전부 스폰 지점
+    위**였다 — 즉 난수가 아니라 `assignment_rule` 의 **점유 탐침**(`index0+1, …` 로 빈 지점을
+    찾는다)이다. 한 건은 SQL 로 확인했다: actor `…0090` 의 2차 스폰 tick 398728 에 1차 지점은
+    actor `…0004` 의 함선(396971 스폰 → 399041 디스폰)이 **점유 중이었다.**
+    **그러므로 이 항목은 절차서 §A-0 의 저밀도 실행 하나에 범위를 맞춰 판정한다.**
+    """
     db.require_tables("domain_events")
     points_mm, linger_seconds, step_m, data_path = _spawn_points_mm(system)
     linger_ticks = linger_seconds * tick_hz
 
+    where = f"and tick >= {int(since_tick)} " if since_tick is not None else ""
     rows = db.psql_rows(
         "select actor_id, tick, "
         "payload->>'position_x_mm', payload->>'position_y_mm', payload->>'position_z_mm' "
-        "from domain_events where event_type='SHIP_SPAWNED' order by tick;"
+        f"from domain_events where event_type='SHIP_SPAWNED' {where}order by tick;"
     )
     spawns = [
         {"actor_id": r[0], "tick": int(r[1]), "pos_mm": (int(r[2]), int(r[3]), int(r[4]))}
@@ -557,6 +568,17 @@ def evaluate_sc10(system: str, tick_hz: int) -> tuple[dict, str]:
                 respawn_mismatch.append(pair)
 
     detail = {
+        "judgment_scope": {
+            "since_tick": since_tick,
+            "why": (
+                "`domain_events` 는 추가 전용이라 범위를 안 주면 **동시 접속 수가 다른 실행이 "
+                "섞인다.** 점유가 높았던 실행에서는 `assignment_rule` 의 탐침이 **다른 지점**을 "
+                "고르는 것이 정상이므로, 무범위 판정은 정상 동작을 FAIL 로 읽는다."
+            ) if since_tick is not None else (
+                "⚠ **범위 없음 — 테이블 전체다.** 여러 실행이 섞이므로 이 결과로 판정하지 않는다. "
+                "`--since-tick <서버 기동 tick>` 으로 절차서 §A-0 의 실행에 맞춘다."
+            ),
+        },
         "data_file": str(data_path),
         "spawn_points": len(points_mm),
         "linger_seconds": linger_seconds,
@@ -604,7 +626,46 @@ def evaluate_sc10(system: str, tick_hz: int) -> tuple[dict, str]:
 # SC-74 — DB 중단 구간에도 스냅샷이 흐르는가
 # ─────────────────────────────────────────────────────────────────────────────
 
-def evaluate_sc74(data: Rows, summary: dict, before: dict, after: dict) -> tuple[dict, str]:
+def _server_initiated_closes(out_dir: Path) -> tuple[int | None, dict]:
+    """"끊긴 연결 0" 의 **출처**. qa r13 실측으로 고쳤다.
+
+    처음에는 `summary.get("server_initiated_closes")` 를 봤는데 **`summary.json` 에 그 키가 없다.**
+    봇은 그 수를 stdout 에만 찍고(`report.rs:62,158` 의 `gates`) 파일로 내보내지 않는다.
+    그래서 값이 늘 `None` 이었고, `None > 0` 이 거짓이라 **그 절반의 판정이 한 번도 평가되지
+    않은 채 PASS 가 인쇄됐다** — 계약 §7a 가 막으려는 바로 그 형태다.
+
+    진짜 출처는 `sessions.json` 의 **세션별 `close_initiator`** 다. 읽을 수 없으면
+    **0 으로 가정하지 않고 `None` 을 돌려주고, 호출자가 `미검증(증거 요건)` 으로 닫는다.**
+    """
+    path = out_dir / "sessions.json"
+    if not path.is_file():
+        return None, {"source": str(path), "why": "sessions.json 이 없다 — 끊긴 연결 수의 출처가 없다"}
+    try:
+        rows = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        return None, {"source": str(path), "why": f"sessions.json 을 읽지 못했다: {exc}"}
+    if not isinstance(rows, list) or not rows:
+        return None, {"source": str(path), "why": "sessions.json 이 비었거나 배열이 아니다"}
+    initiators = [r.get("close_initiator") for r in rows]
+    if any(i is None for i in initiators):
+        return None, {"source": str(path), "sessions": len(rows),
+                      "why": "close_initiator 가 없는 세션이 있다 — 0 으로 가정하지 않는다"}
+    server = [r for r in rows if r.get("close_initiator") != "client"]
+    return len(server), {
+        "source": str(path),
+        "sessions": len(rows),
+        "close_initiators": {i: initiators.count(i) for i in sorted(set(initiators))},
+        "server_initiated": [
+            {"bot": r.get("bot"), "close_initiator": r.get("close_initiator"),
+             "close_code": r.get("close_code"), "peer_close_code": r.get("peer_close_code"),
+             "close_reason_text": r.get("close_reason_text")}
+            for r in server[:5]
+        ],
+    }
+
+
+def evaluate_sc74(data: Rows, summary: dict, before: dict, after: dict,
+                  out_dir: Path | None = None) -> tuple[dict, str]:
     """D 단계: postgres 를 멈춘 구간에 봇이 받은 스냅샷 수 > 0 이고 끊긴 연결이 0 인가.
 
     ⚠ **DB 가 실제로 멈췄다는 것을 먼저 단언한다.** postgres 가 멀쩡한 채로 잰
@@ -675,17 +736,26 @@ def evaluate_sc74(data: Rows, summary: dict, before: dict, after: dict) -> tuple
         for b in summary.get("snapshots_per_bot", []) if b.get("errors")
     ]
     detail["bots_with_errors"] = errors
-    detail["server_initiated_closes"] = summary.get("server_initiated_closes")
+    closes, close_detail = _server_initiated_closes(out_dir) if out_dir else (None, {"why": "out_dir 미지정"})
+    detail["server_initiated_closes"] = closes
+    detail["server_initiated_closes_evidence"] = close_detail
     detail["note"] = (
-        "판정 둘: 중단 창 안에서 **모든 봇이** 스냅샷을 1건 이상 받았는가, 그리고 끊긴 연결이 0 인가."
+        "판정 둘: 중단 창 안에서 **모든 봇이** 스냅샷을 1건 이상 받았는가, 그리고 끊긴 연결이 0 인가. "
+        "끊긴 연결 수는 `sessions.json` 의 세션별 `close_initiator` 에서 읽는다 — "
+        "`summary.json` 에는 그 수가 **없다**(봇이 stdout 에만 찍는다)."
     )
 
     if not data.observers:
         detail["why_not_judged"] = "CSV 에 관측자가 없다"
         return detail, NO_SAMPLES
-    closes = summary.get("server_initiated_closes")
-    closed_bad = isinstance(closes, int) and closes > 0
-    if detail["observers_with_zero_in_window"] or errors or closed_bad:
+    # 읽지 못한 값을 0 으로 가정하지 않는다 — 그러면 그 절반이 평가되지 않은 채 PASS 가 난다.
+    if closes is None:
+        detail["why_not_judged"] = (
+            "끊긴 연결 수를 읽지 못했다 — 판정 둘 중 하나가 평가되지 않는다. "
+            f"{close_detail.get('why')}"
+        )
+        return detail, NO_EVIDENCE
+    if detail["observers_with_zero_in_window"] or errors or closes > 0:
         return detail, FAIL
     return detail, PASS
 
@@ -727,7 +797,7 @@ def cmd_snapshots(args: argparse.Namespace) -> int:
 
 
 def cmd_spawn(args: argparse.Namespace) -> int:
-    detail, verdict = evaluate_sc10(args.system, args.tick_hz)
+    detail, verdict = evaluate_sc10(args.system, args.tick_hz, args.since_tick)
     db.emit({
         "item": "SC-10 (AC-3 c) 스폰 위치의 데이터 일치와 만료 후 재스폰 결정성 — 블록 8",
         "SC-10_verdict": verdict,
@@ -741,7 +811,7 @@ def cmd_db_outage(args: argparse.Namespace) -> int:
     data, summary = load_bot_dir(out_dir)
     before = json.loads(Path(args.stats_before).read_text(encoding="utf-8"))
     after = json.loads(Path(args.stats_after).read_text(encoding="utf-8"))
-    detail, verdict = evaluate_sc74(data, summary, before, after)
+    detail, verdict = evaluate_sc74(data, summary, before, after, out_dir)
     db.emit({
         "item": "SC-74 (AC-18 f) DB 중단 구간의 스냅샷 지속 — 블록 8 D 단계",
         "SC-74_verdict": verdict,
@@ -764,7 +834,8 @@ _SHIP_B = "01a0c000-0000-7000-8000-00000000000b"
 
 
 def _write_dir(root: Path, rows: list[tuple[int, str, str, str]], *,
-               per_bot: list[dict], interval: int | None = 2) -> Path:
+               per_bot: list[dict], interval: int | None = 2,
+               sessions: list[dict] | None = None) -> Path:
     root.mkdir(parents=True, exist_ok=True)
     with (root / "snapshots.csv").open("w", encoding="utf-8", newline="") as f:
         f.write(",".join(COLUMNS) + NL)
@@ -774,9 +845,11 @@ def _write_dir(root: Path, rows: list[tuple[int, str, str, str]], *,
         b.setdefault("snapshot_interval_ticks", interval)
     (root / "summary.json").write_text(json.dumps({
         "stage": "a-steady", "url": "ws://127.0.0.1:8080/ws", "bots": len(per_bot),
-        "seed": 42, "duration_secs": 60, "server_initiated_closes": 0,
+        "seed": 42, "duration_secs": 60,
         "snapshots_per_bot": per_bot,
     }), encoding="utf-8")
+    if sessions is not None:
+        (root / "sessions.json").write_text(json.dumps(sessions), encoding="utf-8")
     return root
 
 
@@ -925,24 +998,42 @@ def cmd_selftest(args: argparse.Namespace) -> int:
         results["p2_observer_set_mismatch"] = "rejected(NotImplementedYet)"
 
     # ── SC-74 ────────────────────────────────────────────────────────────────
-    d, s = load_bot_dir(_write_dir(tmp / "d", _good_rows(ticks), per_bot=_both_bots()))
+    client_closed = [{"bot": "bot-000", "close_initiator": "client", "close_code": 1000},
+                     {"bot": "bot-001", "close_initiator": "client", "close_code": 1000}]
+    dir_d = _write_dir(tmp / "d", _good_rows(ticks), per_bot=_both_bots(), sessions=client_closed)
+    d, s = load_bot_dir(dir_d)
     grew = {"tick": ticks[0], "persist_backlog": 3, "domain_events_persist_failed_total": 0,
             "last_committed_tick": 90}
     grew_after = {"tick": ticks[-1], "persist_backlog": 240,
                   "domain_events_persist_failed_total": 0, "last_committed_tick": 90}
-    det, v = evaluate_sc74(d, s, grew, grew_after)
+    det, v = evaluate_sc74(d, s, grew, grew_after, dir_d)
     results["sc74_clean_with_real_outage"] = v
     obs["sc74_snapshots_in_window"] = det["snapshots_in_window_per_observer"]
 
     flat_after = dict(grew_after, persist_backlog=3)
-    results["sc74_negative_control_db_never_stopped"] = evaluate_sc74(d, s, grew, flat_after)[1]
+    results["sc74_negative_control_db_never_stopped"] = evaluate_sc74(d, s, grew, flat_after, dir_d)[1]
 
     # 중단 창에 스냅샷이 한 건도 없으면 FAIL
     late = {"tick": ticks[-1] + 100, "persist_backlog": 3,
             "domain_events_persist_failed_total": 0, "last_committed_tick": 90}
     late_after = dict(late, tick=ticks[-1] + 200, persist_backlog=240)
-    det, v = evaluate_sc74(d, s, late, late_after)
+    det, v = evaluate_sc74(d, s, late, late_after, dir_d)
     results["sc74_negative_control_no_snapshots_in_window"] = v
+
+    # **끊긴 연결이 있으면 FAIL** — 이 절반이 실제로 판정되는가(r13 에서 조용히 통과했던 자리)
+    srv = [{"bot": "bot-000", "close_initiator": "client", "close_code": 1000},
+           {"bot": "bot-001", "close_initiator": "server", "close_code": 1011,
+            "peer_close_code": 1011, "close_reason_text": "SLOW_CONSUMER"}]
+    dir_srv = _write_dir(tmp / "d_srv", _good_rows(ticks), per_bot=_both_bots(), sessions=srv)
+    d2, s2 = load_bot_dir(dir_srv)
+    det, v = evaluate_sc74(d2, s2, grew, grew_after, dir_srv)
+    results["sc74_negative_control_server_initiated_close"] = v
+    obs["sc74_server_closes_on_that_input"] = det["server_initiated_closes"]
+
+    # **출처가 없으면 0 으로 가정하지 않는다** — 미검증이지 PASS 가 아니다
+    dir_nos = _write_dir(tmp / "d_nosess", _good_rows(ticks), per_bot=_both_bots())
+    d3, s3 = load_bot_dir(dir_nos)
+    results["sc74_no_sessions_json_is_not_pass"] = evaluate_sc74(d3, s3, grew, grew_after, dir_nos)[1]
 
     # ── SC-32 resume 경로 ────────────────────────────────────────────────────
     hdr = ",".join(COLUMNS)
@@ -1003,6 +1094,8 @@ def cmd_selftest(args: argparse.Namespace) -> int:
         "sc74_clean_with_real_outage": PASS,
         "sc74_negative_control_db_never_stopped": NO_EVIDENCE,
         "sc74_negative_control_no_snapshots_in_window": FAIL,
+        "sc74_negative_control_server_initiated_close": FAIL,
+        "sc74_no_sessions_json_is_not_pass": NO_EVIDENCE,
     }
     failures = {k: {"got": results.get(k), "expected": e}
                 for k, e in expected.items() if results.get(k) != e}
@@ -1023,6 +1116,7 @@ def cmd_selftest(args: argparse.Namespace) -> int:
         and occurred["sc32_despawn_events_on_no_despawn_input"] == 0
         and (obs.get("sc32r_reappearances_on_that_input") or 0) > 0
         and (obs.get("sc32r_observer_ticks_after_vanish") or 0) > 0
+        and (obs.get("sc74_server_closes_on_that_input") or 0) > 0
     )
 
     db.emit({
@@ -1055,6 +1149,9 @@ def main() -> int:
     p = sub.add_parser("spawn", help="SC-10")
     p.add_argument("--system", default="cradle")
     p.add_argument("--tick-hz", type=int, default=20)
+    p.add_argument("--since-tick", type=int, default=None,
+                   help="이 tick 이후의 SHIP_SPAWNED 만 본다 — **절차서 §A-0 의 서버 기동 tick 을 준다.** "
+                        "생략하면 테이블 전체(여러 실행이 섞여 점유 탐침이 FAIL 로 읽힌다)")
     p.add_argument("--evidence")
     p.set_defaults(fn=cmd_spawn)
 
