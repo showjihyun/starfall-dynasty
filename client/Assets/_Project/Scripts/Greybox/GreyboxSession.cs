@@ -132,6 +132,33 @@ namespace Starfall.Greybox
         /// glued to the pre-correction position forever - worse than no smoothing at all.</summary>
         long _renderOffsetDecayFrameTotal;
 
+        // qa12 fix request (2026-09-25, same bug reported against ObserverSession.cs, present
+        // here too): items 2/3/4 above only ever measure the POSITION offset's magnitude even
+        // though item 1 (_smoothedReconcileTotal) counts a band classified on EITHER axis. A
+        // session smoothed only on orientation shows band_total > 0 with nonzero/max/decay all
+        // 0, which the four-gate procedure (12a §6.1) reads as "no offset was ever built" - wrong,
+        // it just wasn't on the axis being measured. These mirror items 2/3/4 for orientation
+        // (degrees, not metres).
+        //
+        // qa12 cross-check (numeric simulation, dt=1/700s, duration_ms=200): the orientation
+        // decay (slerp + renormalise) reaches exactly 0.0deg at a finite frame; the position
+        // decay (scalar exp(-dt/tau)) crawls toward 0 by denormals and did not reach exact zero
+        // in 5,000,000 simulated frames (~2h). So *_nonzero_frames_total on the position side
+        // can structurally run far higher than the orientation side for a comparable correction -
+        // this is a property of RenderSmoothing's two decay functions, not a bug here. DO NOT
+        // compare the two counters' magnitudes against each other; each only means "this axis's
+        // offset was nonzero this frame", read per-axis.
+        //
+        // qa12: that tail is the case with NO further reconcile - in practice every
+        // non-smoothed-band reconcile overwrites the offset with exact Zero/Identity
+        // (RenderSmoothing.cs:41,51), so a live session (reconciles ~every 100ms) cuts the tail
+        // off long before either decay reaches it. Measured, block 7: 1219/26683 = 4.6% nonzero
+        // frames on the position axis - nowhere near the ~100% the denormal tail alone implies.
+        long _renderOffsetOrientationNonZeroFrameTotal;
+        double _renderOffsetMaxDeg;
+        long _renderOffsetMaxDegN;
+        long _renderOffsetOrientationDecayFrameTotal;
+
         /// <summary>Set false at the top of every ApplyPendingRebase() call, true only if it
         /// actually reached _controller.Reconcile() this frame - lets RenderLocalShip() (which
         /// runs later in the SAME Update()) tell "the offset changed because of decay" apart from
@@ -372,6 +399,10 @@ namespace Starfall.Greybox
             _renderOffsetMaxM = 0.0;
             _renderOffsetMaxN = 0;
             _renderOffsetDecayFrameTotal = 0;
+            _renderOffsetOrientationNonZeroFrameTotal = 0;
+            _renderOffsetMaxDeg = 0.0;
+            _renderOffsetMaxDegN = 0;
+            _renderOffsetOrientationDecayFrameTotal = 0;
 
             foreach (GameObject view in _remoteViews.Values) Destroy(view);
             _remoteViews.Clear();
@@ -441,7 +472,14 @@ namespace Starfall.Greybox
                       "render_offset_nonzero_frames_total=" + _renderOffsetNonZeroFrameTotal + ", " +
                       "render_offset_max_m=" + _renderOffsetMaxM.ToString("F4", CultureInfo.InvariantCulture) +
                       " (n=" + _renderOffsetMaxN + "), " +
-                      "render_offset_decay_frames_total=" + _renderOffsetDecayFrameTotal);
+                      "render_offset_decay_frames_total=" + _renderOffsetDecayFrameTotal + ", " +
+                      // qa12 fix request: orientation-axis mirror - without these, a session
+                      // smoothed only on orientation reads as "band_total > 0 but nothing was
+                      // ever built" from the position-only fields above.
+                      "render_offset_orientation_nonzero_frames_total=" + _renderOffsetOrientationNonZeroFrameTotal + ", " +
+                      "render_offset_max_deg=" + _renderOffsetMaxDeg.ToString("F4", CultureInfo.InvariantCulture) +
+                      " (n=" + _renderOffsetMaxDegN + "), " +
+                      "render_offset_orientation_decay_frames_total=" + _renderOffsetOrientationDecayFrameTotal);
 
             // H-10'/H-17 (architect K-4): run-scope (never reset) counterparts, each max with
             // its own n so "no bigger sample landed" and "stopped measuring" cannot be confused.
@@ -1066,6 +1104,7 @@ namespace Starfall.Greybox
             double durationMs = _tuning?.ReconcileSmoothDurationMs ?? 200.0;
             double dt = Time.unscaledDeltaTime;
             double offsetBeforeDecayM = _renderPositionOffset.Length(); // R23 (e) item 4: baseline for "did decay actually shrink it"
+            double offsetBeforeDecayDeg = Quatd.AngleDegrees(_renderOrientationOffset, Quatd.Identity);
             _renderPositionOffset = RenderSmoothing.DecayPositionOffset(_renderPositionOffset, dt, durationMs);
             _renderOrientationOffset = RenderSmoothing.DecayOrientationOffset(_renderOrientationOffset, dt, durationMs);
 
@@ -1085,6 +1124,14 @@ namespace Starfall.Greybox
             // _renderOffsetDecayFrameTotal's doc comment for why the exclusion matters.
             if (!_reconciledThisFrame && offsetM < offsetBeforeDecayM) _renderOffsetDecayFrameTotal++;
             if (offsetM > 0.0) _renderOffsetNonZeroFrameTotal++;
+
+            // qa12 fix request: orientation-axis mirror of items 2/3/4, degrees instead of
+            // metres - see the field block's doc comment for why this was missing entirely.
+            double offsetDeg = Quatd.AngleDegrees(_renderOrientationOffset, Quatd.Identity);
+            _renderOffsetMaxDegN++;
+            if (offsetDeg > _renderOffsetMaxDeg) _renderOffsetMaxDeg = offsetDeg;
+            if (!_reconciledThisFrame && offsetDeg < offsetBeforeDecayDeg) _renderOffsetOrientationDecayFrameTotal++;
+            if (offsetDeg > 0.0) _renderOffsetOrientationNonZeroFrameTotal++;
         }
 
         void RenderRemoteShips()
@@ -1169,6 +1216,12 @@ namespace Starfall.Greybox
                 " render_offset_max_m=" + _renderOffsetMaxM.ToString("F4", CultureInfo.InvariantCulture) +
                 " (n=" + _renderOffsetMaxN + ")" +
                 " render_offset_decay_frames_total=" + _renderOffsetDecayFrameTotal,
+                // qa12 fix request: orientation-axis mirror, own line (position line above was
+                // already at the practical width limit for the HUD box).
+                "render_offset_orientation_nonzero_frames_total=" + _renderOffsetOrientationNonZeroFrameTotal +
+                " render_offset_max_deg=" + _renderOffsetMaxDeg.ToString("F4", CultureInfo.InvariantCulture) +
+                " (n=" + _renderOffsetMaxDegN + ")" +
+                " render_offset_orientation_decay_frames_total=" + _renderOffsetOrientationDecayFrameTotal,
                 // SC-56(b): p50/p99/max over the whole session so far, not just the last value
                 // above - cached PercentileStats, recomputed at reconcile rate (see the
                 // HasError branch in OnWorldSnapshotCore), never here in OnGUI.

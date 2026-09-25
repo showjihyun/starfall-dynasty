@@ -234,6 +234,53 @@ SC-64 의 PASS 는 그대로 유효하되, **평활화가 SC-64 예산을 얼마
 **재현**: `evidence/R16-block7/Editor-session.log:1786` + `observer-a.csv` 의 비-0 4행(§4.1).
 **판정에 걸리는가**: 아니다. SC-56 (e) 의 **판정 불능**을 만들 뿐이다 — 그래서 고쳐야 한다.
 
+### 4.4 그 수정의 후속 — **컴파일 확인. 테스트는 아직 미검증(환경, E10)**
+
+client 가 같은 날 (a) 방식으로 고쳤다(`ObserverSession.cs` + **같은 결함이 있던 `GreyboxSession.cs`**,
+자세 축 트리플렛 신설 · `OnSessionReady` 리셋 · 세션 종료 로그 · Greybox 는 HUD 까지).
+`PeriodicStatusLog` 에 남은 같은 결함은 범위 밖으로 두고 `03_client_impl.md` R24 절에 기록했다 —
+**내 리포트가 이 건을 "판정에 안 걸리는 계측 결함"으로 분류했으므로 그 판단에 동의한다.**
+
+**Unity Editor 가 PID 19348 으로 점유돼 `unity test` 를 돌릴 수 없다**(내 점유가 아니다 — 나는 Editor 를
+연 적이 없다). 그래서 **컴파일만** Editor 없이 확인했다. Unity 가 생성한 csproj 를 그대로 썼다:
+
+```
+cd client
+dotnet build Starfall.Greybox.csproj        -t:Rebuild  → 경고 0 / 오류 0  (exit 0)
+dotnet build Starfall.Tests.EditMode.csproj -t:Rebuild  → 경고 0 / 오류 0  (exit 0)
+```
+
+`netstandard2.1` · `LangVersion 9.0` · HintPath 293개(= Unity 가 쓰는 참조 DLL 그대로).
+`-t:Rebuild` 이므로 증분 no-op 이 아니다. `client/*.csproj` 는 이미 `.gitignore` 대상이고,
+스크래치 파일은 전부 지웠다(`git status` 에 client 변경 셋 외 없음).
+
+**§7a — 이 초록불이 실제로 무언가를 쟀는가 (단언 둘)**
+
+1. **산출물에 새 심볼이 들어 있다.** DLL 을 지우고 다시 빌드해 `client/Temp/bin/Debug/Starfall.Greybox.dll`
+   이 **내 빌드로 재생성된 것**을 mtime 으로 확인한 뒤(16:46:22), 바이트를 뒤져
+   `render_offset_orientation_nonzero_frames_total` · `render_offset_max_deg` ·
+   `render_offset_orientation_decay_frames_total` **셋 다 존재**. 옛 DLL 을 보고 통과를 선언한 것이 아니다.
+2. **이 검사는 실패할 수 있다(음성 대조).** 같은 csproj 를 복사해 깨진 파일 하나를 `Compile Include` 에
+   더해 돌리니 **`error CS1061` · exit 1**. 없으면 "무엇을 먹여도 0 errors 를 내는 빌드"와 구분되지 않는다.
+
+**이것이 답하지 않는 것 — `unity test` 를 대신하지 않는다**
+
+- **테스트를 한 줄도 실행하지 않았다.** `PeriodicStatusLogTests.cs:86-88` 의 통과 여부는 **모른다.**
+  (읽어서 추론한 것: client 가 `PeriodicStatusLog` 를 건드리지 않았고 단언이 `Does.Contain` 이므로
+  종료 로그가 길어진 것은 영향이 없어야 한다. **추론이지 실행이 아니다.**)
+- asmdef 수준 검증 · 도메인 리로드 · 런타임 카운터 거동은 보지 않았다.
+
+⇒ **컴파일 위험은 해소됐다**(§4.3 을 낼 때의 "낮다"는 추정이 실측으로 바뀌었다).
+**계측 수정 자체는 `미검증(환경, E10)` 이고 PASS 가 아니다.** Editor 가 풀려 client 가 `unity test` 를
+돌리면 이 절을 갱신한다.
+
+**나머지 두 문장 수정도 확인했다**(내가 §4.3 이후에 제기한 것):
+`ObserverSession.cs:209-211` 의 로그 줄 주석이 *"Compare this triplet"* → *"Read this triplet's
+**PRESENCE**(nonzero vs zero) … do **NOT** compare their magnitudes"* 로 바뀌어 필드 선언부의 금지
+문장과 방향이 맞다. denormal 꼬리 단서(감쇠 꼬리는 후속 재조정이 없을 때의 것이고, 실세션에서는
+비평활 밴드가 offset 을 Zero/Identity 로 덮어써 도달하지 않는다 — 실측 `1219/26683 = 4.6 %`)가
+**두 파일 필드 선언부 각각에** 들어갔다.
+
 ---
 
 ## 5. 작업 4 — 서버 정상 종료

@@ -2374,3 +2374,40 @@ md5 (변경분): `Greybox/ObserverSession.cs` → `1cb501dea06ee7251462fc95c32c6
 (R22 종료 시점 `8ee53ad77e57e67baffe57914a6607fa`에서 변경 — 주석 전용 diff).
 
 커밋하지 않았다.
+
+---
+
+## R24 — qa12 계측 수정: SC-56 (e) 축 불일치 (자세 전용 평활화가 "오프셋 없음"으로 오독됨)
+
+**요청**: qa12, ObserverSession.cs — `_smoothedReconcileTotal`(SC-56 (e) item 1)은 위치 **OR**
+자세 어느 쪽이든 Smooth/SmoothTracked로 분류되면 세는데, item 2~4(`_renderOffsetNonZeroFrameTotal`/
+`_renderOffsetMaxM`/`_renderOffsetDecayFrameTotal`)는 **위치 오프셋만** 잰다. 자세 축만 평활화된
+세션은 `band_total>0`인데 나머지 셋이 전부 0으로 나와, 12a §6.1 네 갈래 표가 "오프셋을 안 세웠다"로
+오독한다(블록 7 실측: `observer.A: band_total=4, nonzero_frames=0, decay_frames=0`, CSV의 비-0
+4행 전부 `render_offset_deg`만 비고 `render_offset_mm`은 0 — 자세만 평활화됐는데 위치 지표만 보는
+표는 그걸 "안 세움"으로 읽는다). **판정에는 안 걸림, client FAIL 아님**(qa12 명시) — 계측 보강 요청.
+
+### 수정
+
+`ObserverSession.cs`와 (같은 결함이 있어 함께 고친) `GreyboxSession.cs` 둘 다: item 2~4의 **자세
+축 짝**을 신설 — `_renderOffsetOrientationNonZeroFrameTotal` / `_renderOffsetMaxDeg`(+
+`_renderOffsetMaxDegN`) / `_renderOffsetOrientationDecayFrameTotal`. `DecayRenderOffset()`
+(Observer)/함선 렌더 갱신 지점(Greybox)에서 `Quatd.AngleDegrees(_renderOrientationOffset,
+Quatd.Identity)`로 위치의 `.Length()`와 같은 세 조건(최댓값 갱신 · nonzero 프레임 · decay-only
+프레임)을 그대로 자세 축에 적용. `OnSessionReady`에서 리셋, 세션종료 로그에 `render_offset_
+orientation_nonzero_frames_total`/`render_offset_max_deg (n=...)`/`render_offset_orientation_
+decay_frames_total` 추가(GreyboxSession은 HUD에도 별도 줄로 추가). **`_smoothedReconcileTotal`
+(band_total)의 OR 집계 자체는 그대로 뒀다** — 자세 축 트리플렛이 생기면 "band_total>0인데 어느
+축 트리플렛이 비-0인지"로 이미 구분 가능해서, band를 축별로 쪼개는 건 불필요하다고 판단했다(qa12가
+제시한 두 대안 (a)/(b) 중 (a)만 적용).
+
+**범위 밖으로 남긴 것**: `PeriodicStatusLog.cs`(H-13 배경 로그)는 같은 위치-only 트리플렛을 갖고
+있어 배경 재현(SC-89) 구간에서도 같은 오독 여지가 남는다 — 이번엔 구조체 파라미터가 이미 30개
+가까이 돼서(생성자·`Format()`·기존 `PeriodicStatusLogTests.cs` 전부 갱신 필요) 범위 밖으로 뒀다.
+qa12 리포트가 "판정에 안 걸림"이라고 명시한 만큼 급한 건 아니라고 판단 — 필요하면 다음 라운드에.
+
+### 실행 결과
+
+**미검증(환경)** — Unity Editor가 이미 다른 프로세스(PID 19348)에서 열려 있어 `unity test`를 못
+돌렸다. 코드는 수동으로 두 번 읽어 구조(괄호 짝, 메서드 경계, 필드명 일치)를 확인했지만, 컴파일
+확인은 Editor를 쓸 수 있게 되는 대로 하겠다. 커밋하지 않았다.
