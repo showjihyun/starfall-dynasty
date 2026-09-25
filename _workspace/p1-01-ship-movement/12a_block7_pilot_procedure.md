@@ -185,9 +185,16 @@ architect 가 R13 §5.2 에 새로 넣은 줄이다. 열은 들어갔지만 **�
 | 관측 | 원인 | 처분 |
 |---|---|---|
 | `render_smooth_band_total == 0` | **(i) 보정이 한 번도 안 일어났다** — 평활화 밴드에 드는 재조정이 없었다. 구현 결함이 아니다 | SC-64 는 그대로 판정. **"이 세션은 평활화 경로를 밟지 않았다"를 리포트에 적는다** — 그 열이 이 세션에서 아무것도 증명하지 않았다는 뜻이다 |
-| `render_smooth_band_total > 0` **이고** `render_offset_nonzero_frames_total == 0` | **client 가 오프셋을 세우지 않았다** | client 에게 수정 요청 (FAIL) |
+| `render_smooth_band_total > 0` **이고** `render_offset_nonzero_frames_total == 0` **이고** CSV 의 `render_offset_deg` 가 **전 행 0** | **client 가 오프셋을 세우지 않았다** | client 에게 수정 요청 (FAIL) |
+| `render_smooth_band_total > 0` **이고** `render_offset_nonzero_frames_total == 0` **인데** CSV 의 `render_offset_deg` 에 **비-0 행이 있다** | **(v) 계측의 축이 갈려 있다 — 결함이 아니다** (qa r13). 밴드는 `ObserverSession.cs:346-349` 가 **위치 OR 자세**로 세는데, `:474-483` 의 나머지 세 카운터는 **위치 오프셋만** 잰다. **자세 오프셋에는 카운터가 없다.** 즉 자세 밴드만 발동한 세션은 `band > 0` 이고 나머지가 전부 0 이다 | **client FAIL 이 아니다.** 계측 수정 요청은 별건으로 올리고, **SC-56 (e) ②③④ 는 이 세션이 아무 증거도 내지 못했다**고 적는다 |
 | `render_offset_nonzero_frames_total > 0` **이고** `render_offset_decay_frames_total == 0` | **(ii) `Update()` 감쇠 누락** — 오프셋을 세워 놓고 줄이지 않는다. SC-56 (e) ④ 가 겨냥한 결함 | client 에게 수정 요청 (FAIL) |
 | **세 숫자가 전부 찍히지 않는다**(로그 줄 자체가 없다) | **(iii) client 미구현** — 또는 Play 를 정상 종료하지 않았다 | 먼저 §5-1 을 다시 확인. 정상 종료였는데도 없으면 미구현 |
+
+> **⚠ SC-64 의 `max_render_offset_mm = 0` 을 "평활화가 작다"로 읽지 마라** (qa r13).
+> 위 (i) 과 (v) 에서는 **"이 세션에 위치 평활화가 없었다"** 는 뜻이고, 그때 `max_gap_m` 은
+> **평활화가 섞이지 않은 값**이다. SC-64 의 PASS 는 유효하되 **평활화가 2 m 예산을 얼마나
+> 먹는지는 그 블록이 답하지 않는다** — 같은 로그의 다른 세션에서 `0.6330 m`(예산의 **32 %**)
+> 가 관측된 적이 있다. 둘을 같은 값으로 읽으면 예산 여유를 과대평가한다.
 
 **그리고 `render_offset_nonzero_frames_total > 0` 인데 CSV 의 `render_offset_mm` 이 전 행 0 이면
 그 자체가 결함이다** — 프레임에는 오프셋이 섰는데 **스냅샷을 쓰는 순간에만 0** 이라는 뜻이고,

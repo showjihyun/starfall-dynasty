@@ -1,0 +1,65 @@
+{
+  "item": "SC-61/62 (AC-16) 두 관측자 대조 — 블록 7",
+  "SC-61_verdict": "PASS",
+  "SC-62_verdict": "PASS",
+  "judgment_inputs": {
+    "sc62_tolerance_m": 0.05,
+    "sc62_min_span_ticks": 400,
+    "sc62_min_coverage_ratio": 0.9,
+    "sc62_a_min_net_displacement_m": 100.0,
+    "sc61_speed_cap_mps": 140.0,
+    "sc61_path_slack": 1.05,
+    "sc61_backward_threshold_mm": 1000
+  },
+  "join_key": "(tick, ship_id)",
+  "rows_a": 3033,
+  "rows_b": 3033,
+  "pairs_compared": 2972,
+  "SC-61": {
+    "ship": "01a0d76c-a53d-76a2-8c24-b9305de133da",
+    "a_net_displacement_m": 5125.307,
+    "contrast_required_m": 100.0,
+    "contrast_ok": true,
+    "samples": 1547,
+    "tick_span": 3092,
+    "seconds": 154.6,
+    "path_length_m": 5270.984,
+    "displacement_m": 5125.307,
+    "max_possible_m_at_max_speed": 21644.0,
+    "backward_steps_over_1m": 0
+  },
+  "SC-62": {
+    "max_deviation_m": 0.0,
+    "max_deviation_mm": 0.0,
+    "samples": 1486,
+    "tick_span": 3092,
+    "a_net_displacement_m": 5125.307,
+    "tolerance_m_passed_in": 0.05,
+    "expected_m": 0.0,
+    "endpoint_displacement_m": 0.0,
+    "exceeds_one_lsb_1mm": false,
+    "defense_i_sampling": {
+      "rows": 1486,
+      "own_tick_span": 3092,
+      "min_span_ticks": 400,
+      "a_tick_span": 3092,
+      "coverage_ratio": 1.0,
+      "min_coverage_ratio": 0.9,
+      "ok": true
+    },
+    "recorded_row_gaps_ticks": {
+      "max_gap_between_a_ship_rows": 2,
+      "max_gap_between_b_own_rows": 40,
+      "expected_gap_ticks": 2,
+      "note": "**두 값은 서로 다른 기록 층이고 같은 잣대로 읽으면 안 된다**(qa r13 §3, 실측으로 정정). `max_gap_between_a_ship_rows` 는 **원격 함선 행** — `ObserverSession.OnWorldSnapshot()` 이 **스냅샷 메시지마다** 쓴다. **이것이 기록 연속성의 지표다**: 2 보다 크면 CSV 가 실제로 끊긴 것이다. `max_gap_between_b_own_rows` 는 **자기 함선 행** — F-2 배치 수정 이후 `ApplyPendingRebase()` 가 **`Update()` 당 최대 한 행**만, 그 프레임에 드레인된 스냅샷 중 **가장 높은 tick** 하나에 대해 쓴다(`ObserverSession.cs:262-271`). 한 `Update()` 에 스냅샷이 N 개 들어오면 원격 행은 N 개, 자기 함선 행은 1 개다 — **설계상 그렇다.** 따라서 이 값이 크다는 것은 **기록이 끊긴 것이 아니라 메인 스레드가 그만큼 지연됐다**는 뜻이고, 둘을 가르는 것은 **같은 창의 원격 행 간격**이다(그것이 2 면 기록은 멀쩡하다). 스팬·비율 게이트는 두 경우를 모두 통과시키므로 리포트가 값을 적는다(§0.4 기록)."
+    },
+    "defense_ii_contrast": {
+      "a_net_displacement_m": 5125.307,
+      "required_m": 100.0,
+      "ok": true,
+      "why_not_path_gt_0": "`path_mm > 0` 은 1 mm 로도 참이라 아무도 움직이지 않은 세션이 SC-61 PASS + SC-62 PASS 를 동시에 인쇄한다(architect R15)"
+    },
+    "note": "기대값은 **정확히 0** 이다 — B 는 at_rest 로 스폰하고 가속원이 하나도 없다. 임계는 **인자로만** 받는다(계약 (iii)): 계약 행에 있는 수의 사본을 코드에 두면 한 수에 출처가 둘이 되고, 계약이 바뀌었을 때 도구가 옛 수로 조용히 초록을 낸다."
+  },
+  "SC-63": "이 명령은 SC-63 을 판정하지 않는다 (13차 개정, 블록 10). 판정 입력은 봇 2대의 원시 스냅샷 CSV 이고 명령은 `raw2 --bot-out-dir` 다. 이 CSV 에는 원시 층이 한 열도 없다."
+}

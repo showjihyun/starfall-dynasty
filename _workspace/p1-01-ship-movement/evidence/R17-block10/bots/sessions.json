@@ -1,0 +1,40 @@
+[
+  {
+    "bot": "bot-000",
+    "session_id": "01a0d778-8260-779c-931b-f9d854e30c2f",
+    "correlation_id": "01a0d778-828d-7281-9b0b-c15dc6445516",
+    "actor_id": "01a0b1c2-b010-7000-8000-000000000000",
+    "tick_hz": 20,
+    "server_version": "0.1.0",
+    "ready_tick": 1574601,
+    "connected_at_us": 14015,
+    "ready_at_us": 58946,
+    "closed_at_us": 31874061,
+    "connected_at_unix_ms": 1790321394272,
+    "ready_at_unix_ms": 1790321394316,
+    "closed_at_unix_ms": 1790321426132,
+    "close_code": 1000,
+    "peer_close_code": 1000,
+    "close_reason_text": "",
+    "close_initiator": "client"
+  },
+  {
+    "bot": "bot-001",
+    "session_id": "01a0d778-8c18-730c-bf5e-06d2400582a0",
+    "correlation_id": "01a0d778-8c1f-740e-b699-6d8d582fd8f3",
+    "actor_id": "01a0b1c2-b010-7000-8000-000000000001",
+    "tick_hz": 20,
+    "server_version": "0.1.0",
+    "ready_tick": 1574650,
+    "connected_at_us": 2502257,
+    "ready_at_us": 2509247,
+    "closed_at_us": 34428631,
+    "connected_at_unix_ms": 1790321396760,
+    "ready_at_unix_ms": 1790321396767,
+    "closed_at_unix_ms": 1790321428686,
+    "close_code": 1000,
+    "peer_close_code": 1000,
+    "close_reason_text": "",
+    "close_initiator": "client"
+  }
+]

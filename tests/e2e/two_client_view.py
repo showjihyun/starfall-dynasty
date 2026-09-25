@@ -296,10 +296,18 @@ def evaluate_compare(
                 "max_gap_between_b_own_rows": own_row_gap,
                 "expected_gap_ticks": 2,
                 "note": (
-                    "스냅샷은 2 tick 마다다. 이 값이 2 보다 크게 크면 **창 안쪽에서 기록이 "
-                    "끊겼다** — Unity `runInBackground: 0` 이라 조종사가 창을 전환하면 "
-                    "`Update()` 가 멈추고 CSV 가 끊긴다. 스팬·비율 게이트는 이것을 통과시키므로 "
-                    "리포트가 값을 적는다(§0.4 기록)."
+                    "**두 값은 서로 다른 기록 층이고 같은 잣대로 읽으면 안 된다**(qa r13 §3, "
+                    "실측으로 정정). `max_gap_between_a_ship_rows` 는 **원격 함선 행** — "
+                    "`ObserverSession.OnWorldSnapshot()` 이 **스냅샷 메시지마다** 쓴다. "
+                    "**이것이 기록 연속성의 지표다**: 2 보다 크면 CSV 가 실제로 끊긴 것이다. "
+                    "`max_gap_between_b_own_rows` 는 **자기 함선 행** — F-2 배치 수정 이후 "
+                    "`ApplyPendingRebase()` 가 **`Update()` 당 최대 한 행**만, 그 프레임에 "
+                    "드레인된 스냅샷 중 **가장 높은 tick** 하나에 대해 쓴다"
+                    "(`ObserverSession.cs:262-271`). 한 `Update()` 에 스냅샷이 N 개 들어오면 "
+                    "원격 행은 N 개, 자기 함선 행은 1 개다 — **설계상 그렇다.** 따라서 이 값이 "
+                    "크다는 것은 **기록이 끊긴 것이 아니라 메인 스레드가 그만큼 지연됐다**는 뜻이고, "
+                    "둘을 가르는 것은 **같은 창의 원격 행 간격**이다(그것이 2 면 기록은 멀쩡하다). "
+                    "스팬·비율 게이트는 두 경우를 모두 통과시키므로 리포트가 값을 적는다(§0.4 기록)."
                 ),
             },
             "defense_ii_contrast": {
