@@ -1,0 +1,112 @@
+# STARFALL DYNASTY — PR·main 게이트
+#
+# CLAUDE.md "명령과 환경" 표의 서버 게이트와 판정 게이트를 자동으로 돌린다.
+# main 브랜치 보호가 이 워크플로의 세 job 을 필수 체크로 요구한다 — job 이름(name:)을
+# 바꾸면 보호 설정의 필수 체크 이름도 같이 바꿔야 한다. 안 바꾸면 병합이 영원히 막힌다.
+#
+# 이 워크플로가 **보지 않는 것** (PR 템플릿의 수동 체크로 남긴다):
+#   - Unity EditMode — CI 라이선스가 없다. 로컬에서 돌리고 test-results.xml 로 판정한다.
+#   - 실서버·봇 세션, live_smoke(#[ignore]) — PostgreSQL 과 사람이 필요하다.
+#   - tests/e2e/log_pipe_backpressure.py — Windows 전용(ctypes.wintypes·msvcrt).
+
+name: gates
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gates-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  server:
+    name: server (rust)
+    runs-on: ubuntu-latest
+    steps:
+      # 판정 게이트는 증거 CSV(LFS)를 읽지 않는다. LFS 를 받으면 실행마다 ~109 MB 가
+      # 무료 LFS 대역폭(월 1 GB)에서 빠진다.
+      - uses: actions/checkout@v4
+        with:
+          lfs: false
+      - name: 툴체인 (rust-toolchain.toml 에서 버전을 읽는다)
+        run: |
+          channel=$(sed -n 's/^channel = "\(.*\)"/\1/p' rust-toolchain.toml)
+          rustup toolchain install "$channel" --profile minimal --component rustfmt,clippy
+          rustc --version
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: server
+      - name: fmt
+        working-directory: server
+        run: cargo fmt --all --check
+      - name: clippy
+        working-directory: server
+        run: cargo clippy --workspace --all-targets -- -D warnings
+      - name: test
+        working-directory: server
+        run: cargo test --workspace --locked
+      # #[cfg(not(debug_assertions))] 테스트는 위 표준 게이트에서 컴파일조차 되지 않는다.
+      - name: test (릴리스 전용)
+        working-directory: server
+        run: cargo test -p starfall-sim --release --locked
+
+  bots:
+    name: bots (rust)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: false
+      - name: 툴체인 (rust-toolchain.toml 에서 버전을 읽는다)
+        run: |
+          channel=$(sed -n 's/^channel = "\(.*\)"/\1/p' rust-toolchain.toml)
+          rustup toolchain install "$channel" --profile minimal --component rustfmt,clippy
+          rustc --version
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: tools/bots
+      - name: fmt
+        working-directory: tools/bots
+        run: cargo fmt --all --check
+      - name: clippy
+        working-directory: tools/bots
+        run: cargo clippy --workspace --all-targets -- -D warnings
+      - name: test
+        working-directory: tools/bots
+        run: cargo test --workspace --locked
+
+  judgment:
+    name: judgment gates (python)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: 의존성
+        run: python -m pip install jsonschema==4.23.0 referencing==0.36.2
+      # 슬라이스가 바뀌면 이 계약 경로도 바꿔야 한다.
+      - name: 출처 게이트 (계약 p1-01)
+        run: python tests/e2e/check_item_sources.py --contract _workspace/p1-01-ship-movement/02_sprint_contract.md
+      - name: 판정 도구 selftest
+        run: |
+          set -e
+          python tests/e2e/check_item_sources.py --selftest
+          python tests/e2e/check_contract_items.py --selftest
+          python tests/e2e/check_occurred_at.py --selftest
+          python tests/e2e/bandwidth.py --selftest
+          python tests/e2e/block8_invariants.py selftest
+          python tests/e2e/server_boot.py selftest
+          python tests/e2e/ship_events.py selftest
+          python tests/e2e/two_client_view.py selftest
