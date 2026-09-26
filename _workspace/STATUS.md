@@ -4,7 +4,7 @@
 |---------|------|------|-------------|---------|-------|
 | p0-01-bootstrap | BOOT | done | 6 | r1 PASS 37/37 (기록 1) | 2026-09-18 |
 | p0-02-networking-spike | SLICE | done | 6 | r1 PASS 73 / 부분 1 / FAIL 0 | 2026-09-19 |
-| p1-01-ship-movement | SLICE | evaluating | 5 | r10: SC-46·**SC-56**·**SC-89** PASS · SC-59 통과(제품 책임자) — 남은 사람 손 3건 | 2026-09-24 |
+| p1-01-ship-movement | SLICE | done | 6 | r21: **90 / 90 PASS** · main 병합(PR #1 `78aac7e`) | 2026-09-27 |
 
 ## Phase 0 — 종료 기준 충족 (2026-09-19)
 "30명 동시 접속 + 실시간 이벤트 기록" 실증 완료: 31 연결(봇 30 + Unity 1), 명령 3,570건 손실 0, 마지막 봇 종료 후 0.242초에 전 행 DB 가시, DB 30초 중단에도 유실 0.
@@ -216,3 +216,11 @@ HitchInjection) **첫 실서버 세션에서 진짜 결함이 나왔다.**
 **누계를 구간 사건처럼 읽기**(R7 시점, R8 세션 경계), **규약을 실행하지 않고 이름만 적기**
 (축 규약 두 라운드 연속, 홀짝 법칙). 마지막 형태는 **결함을 발견한 문서 안에서 그 교훈을
 자기 집계에 적용하지 않은 사례**(F-28)로도 나타났다.
+
+## p1-01 마감 (2026-09-27)
+
+**done — 스프린트 계약 90 / 90 PASS.** 요약은 `p1-01-ship-movement/05_summary.md`.
+- main 병합: PR #1(슬라이스 + 코드 리뷰 결함 4건 수정, `78aac7e`), PR #2(CI `gates` + 브랜치 보호, `7f3497b`).
+- 이후 모든 변경은 브랜치 → PR → CI 초록 → 병합이다. 필수 체크: `server (rust)` · `bots (rust)` · `judgment gates (python)`, enforce_admins.
+- 열린 것: 이슈 #3, `GreyboxSession` 시계 주입, `world_full` 예약 누수, 만기 둘(함선 클래스 2개 · SC-67 분할), CI 밖 게이트(Unity EditMode·실서버 세션). 목록과 닫는 조건은 `05_summary.md`.
+- 다음: **p1-02-mining** (채굴 + 인벤토리 + 최초 발견 Historical Event).
