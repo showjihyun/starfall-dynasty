@@ -130,7 +130,11 @@ fn reject(stats: &Stats, rejection: UpgradeRejection) -> Response {
 /// 자기 함선으로 돌아오지 못하고, 그 함선은 `linger_seconds` 뒤 주인 없이 사라진다
 /// (architect 결정, ADR-0011 §1).
 #[must_use]
-const fn world_full_rejects(ships_total: u64, world_capacity: u64, actor_has_ship: bool) -> bool {
+pub(crate) const fn world_full_rejects(
+    ships_total: u64,
+    world_capacity: u64,
+    actor_has_ship: bool,
+) -> bool {
     ships_total >= world_capacity && !actor_has_ship
 }
 
@@ -169,17 +173,23 @@ pub async fn ws_handler(
     // `WORLD_SNAPSHOT.ships` 의 계약 상한(`maxItems: 64`)은 스키마 층이 강제하지 못한다
     // (architect 결정, `02_server_ack.md` §1③) — 여기, 입장에서 막는다. 스폰을 거부하는
     // 대신인 이유: 스폰 거부는 함선 없는 세션을 만들어 I-29 를 깬다. **재개는 면제한다**
-    // (I-44, S9) — `actor_has_ship`은 tick 드라이버가 매 tick 갱신하는 읽기 전용 집합을
-    // 읽을 뿐이다(I-13 위반 아님 — `ships_total`과 같은 취급).
-    if world_full_rejects(
-        state.stats.ships_total(),
-        state.stats.world_capacity(),
-        state.stats.actor_has_ship(actor_id),
-    ) {
+    // (I-44, S9).
+    //
+    // **판정과 자리 예약은 한 임계 구역이다(PR #1 리뷰 결함 3 수정).**
+    // `ships_active`/`ships_lingering` 은 tick 당 한 번만 갱신되므로(I-25), 옛날처럼
+    // "읽고 → (따로) 예약"하면 그 사이에 동시 접속한 다른 actor 가 똑같이 낡은 값을
+    // 보고 같이 통과한다 — 여기서 문제였던 그 경합이다. `Stats::try_enter_world` 가
+    // 락 하나 안에서 읽기와 예약을 함께 한다.
+    let Ok(reservation) = state
+        .stats
+        .try_enter_world(actor_id, state.stats.actor_has_ship(actor_id))
+    else {
         return reject(&state.stats, UpgradeRejection::WorldFull);
-    }
+    };
 
     let Some(submit) = state.submit.clone() else {
+        // `reservation` 이 여기서 드롭되며 즉시 되돌아간다(연결 실패로 자리가 새지
+        // 않는다 — 결함 3 수정 요구사항).
         return reject(&state.stats, UpgradeRejection::ShuttingDown);
     };
     let stats = state.stats.clone();
@@ -188,9 +198,11 @@ pub async fn ws_handler(
         .max_message_size(LIBRARY_MESSAGE_LIMIT)
         .max_frame_size(LIBRARY_MESSAGE_LIMIT)
         .on_failed_upgrade(move |error| {
+            // `reservation` 은 이 클로저가 아니라 `on_upgrade` 클로저가 들고 있다 —
+            // 업그레이드가 실패하면 그쪽 클로저가 통째로 버려지며 예약도 드롭돼 풀린다.
             tracing::warn!(%error, "WebSocket 업그레이드 실패");
         })
-        .on_upgrade(move |socket| serve_session(socket, submit, stats, actor_id))
+        .on_upgrade(move |socket| serve_session(socket, submit, stats, actor_id, reservation))
 }
 
 /// 한 연결의 생애.
@@ -205,7 +217,13 @@ pub async fn ws_handler(
 /// 둘 중 하나라도 남아 있으면 `SESSION_CLOSED` 가 발행되지 않아 I-16 이 깨진다. 그래서
 /// **먼저 끝난 쪽이 다른 쪽을 끝낸다**: 수신이 끝나면 `finish` 로 송신을 깨우고,
 /// 송신이 먼저 끝나면(유휴·라우트 제거·소켓 오류) 수신을 abort 한다.
-async fn serve_session(socket: WebSocket, submit: SubmitHandle, stats: Stats, actor_id: UuidV7) {
+async fn serve_session(
+    socket: WebSocket,
+    submit: SubmitHandle,
+    stats: Stats,
+    actor_id: UuidV7,
+    reservation: Option<crate::stats::ShipSlotReservation>,
+) {
     // session_id 는 게이트웨이가 만든다 — 라우팅 표의 키가 되어야 하므로 tick 보다 먼저
     // 필요하다. correlation_id 는 tick 이 만든다(결정적 코어의 id 생성기).
     stats.connection_opened();
@@ -227,6 +245,12 @@ async fn serve_session(socket: WebSocket, submit: SubmitHandle, stats: Stats, ac
             finish: Arc::clone(&finish),
         },
     );
+    // 세션이 tick 드라이버에 실제로 제출됐다 — 이제부터 자리 해제는
+    // `Stats::set_actors_with_ships` 의 정산에만 맡긴다(결함 3 수정). `commit` 을 안
+    // 부르면(위에서 일찍 return 하면) 드롭이 즉시 되돌린다.
+    if let Some(reservation) = reservation {
+        reservation.commit();
+    }
     tracing::debug!(%session_id, %actor_id, "세션 수립 — 다음 tick 이 SESSION_READY 를 보낸다");
 
     let (sink, stream) = socket.split();

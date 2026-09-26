@@ -23,7 +23,7 @@
 //!   `tick_total == tick − start_tick + 1` 항등식을 노출한다.
 
 use std::sync::atomic::{AtomicBool, AtomicI64, AtomicU64, Ordering};
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, Mutex, RwLock};
 
 use axum::Json;
 use axum::extract::State;
@@ -216,6 +216,24 @@ struct Inner {
     /// S9)에 쓴다. tick 드라이버가 매 tick `Simulation::actors_with_ships()` 로 통째로
     /// 덮어쓴다(`ws_connections` 와 같은 취급 — 카운터가 아니라 실제 집합의 스냅샷).
     actors_with_ships: RwLock<std::collections::HashSet<starfall_contracts::primitives::UuidV7>>,
+    /// `world_full` 게이트를 통과했지만 **아직 tick 드라이버가 `ships_active`/
+    /// `ships_lingering` 에 반영하지 않은** 신규 스폰 자리(PR #1 리뷰 결함 3).
+    ///
+    /// `ships_active`/`ships_lingering` 은 tick 당 한 번만 갱신되므로(I-25), 그 값만
+    /// 읽는 게이트는 **같은 tick 경계 안에서 동시에 들어오는 여러 actor** 를 전부
+    /// 통과시킬 수 있다. 이 맵은 게이트를 통과하는 바로 그 순간(같은 락 임계 구역
+    /// 안에서, `try_enter_world` 참고) 자리를 "예약"해 `ships_total()` 에 즉시 반영한다.
+    /// `Mutex` 인 이유: 판정(읽기)과 예약(쓰기)이 **한 임계 구역**이어야 TOCTOU 가 없다
+    /// (`RwLock` 의 읽기 다음에 별도로 쓰기 락을 잡으면 그 사이에 다시 경합이 생긴다).
+    ///
+    /// actor_id 로 색인하는 이유: 한 actor 가 두 연결을 동시에 열어도(레이스) 예약이
+    /// 하나로 뭉개지지 않게 카운트를 둔다. 해제는 두 경로: (1) `ShipSlotReservation`
+    /// 이 스폰까지 못 가고 드롭되면(업그레이드 실패·종료 중 등) 즉시 되돌린다. (2)
+    /// `set_actors_with_ships` 가 이 actor 를 실제 함선 보유 집합에서 보면(tick 이
+    /// 반영했다는 뜻) 지운다 — 그래서 이중 계산 없이 정확히 한 tick(대개 그 이하) 동안만
+    /// `ships_total()` 에 더해진다.
+    ship_reservations:
+        Mutex<std::collections::HashMap<starfall_contracts::primitives::UuidV7, u32>>,
 }
 
 /// 서버 전체의 관측 값. 싸게 clone 된다.
@@ -280,6 +298,7 @@ impl Stats {
                 snapshot_build_us: Histogram::default(),
                 snapshot_over_capacity_total: AtomicU64::new(0),
                 actors_with_ships: RwLock::new(std::collections::HashSet::new()),
+                ship_reservations: Mutex::new(std::collections::HashMap::new()),
             }),
         }
     }
@@ -310,11 +329,79 @@ impl Stats {
             .store(world_capacity, Ordering::Relaxed);
     }
 
-    /// 지금 세계에 있는 함선 수(활성 + 잔류). `world_full` 판정에 쓴다.
+    /// 지금 세계에 있는 함선 수(활성 + 잔류) **더하기** tick 이 아직 반영하지 못한
+    /// 예약(결함 3 수정, 위 `ship_reservations` 문서 참고). 관측·디버그용 — 판정
+    /// 자체는 `try_enter_world` 가 같은 락 임계 구역 안에서 한다.
     #[must_use]
     pub fn ships_total(&self) -> u64 {
+        let reserved = self
+            .inner
+            .ship_reservations
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .values()
+            .map(|&count| u64::from(count))
+            .sum::<u64>();
         self.inner.ships_active.load(Ordering::Relaxed)
             + self.inner.ships_lingering.load(Ordering::Relaxed)
+            + reserved
+    }
+
+    /// `world_full` 게이트의 판정과 자리 예약을 **한 임계 구역**에서 한다 — 읽고 나서
+    /// 따로 예약하면 그 사이에 다른 요청이 끼어드는 것 자체가 결함 3(PR #1 리뷰)이었다.
+    ///
+    /// `actor_has_ship` 가 참이면(재개, I-44/S9) 예약 없이 통과한다 — 새 함선이 스폰되지
+    /// 않으므로 정원에 더할 것이 없다.
+    ///
+    /// 통과하면 [`ShipSlotReservation`] 을 돌려준다. 호출자는 세션이 tick 드라이버에
+    /// **실제로 제출된 뒤**(`SubmitHandle::open` 호출 직후) [`ShipSlotReservation::commit`]
+    /// 을 불러야 한다 — 그 전에 드롭되면(업그레이드 실패, 종료 중 등) 자리는 즉시
+    /// 되돌아간다. 재개(면제)는 예약이 없으므로 `None`.
+    ///
+    /// # Errors
+    ///
+    /// 정원이 찼고 이 actor가 재개 대상이 아니면 [`WorldFullError`].
+    pub fn try_enter_world(
+        &self,
+        actor_id: starfall_contracts::primitives::UuidV7,
+        actor_has_ship: bool,
+    ) -> Result<Option<ShipSlotReservation>, WorldFullError> {
+        let mut reservations = self
+            .inner
+            .ship_reservations
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let ships_total = self.inner.ships_active.load(Ordering::Relaxed)
+            + self.inner.ships_lingering.load(Ordering::Relaxed)
+            + reservations
+                .values()
+                .map(|&count| u64::from(count))
+                .sum::<u64>();
+        if crate::ws::world_full_rejects(ships_total, self.world_capacity(), actor_has_ship) {
+            return Err(WorldFullError);
+        }
+        if actor_has_ship {
+            return Ok(None);
+        }
+        *reservations.entry(actor_id).or_insert(0) += 1;
+        Ok(Some(ShipSlotReservation {
+            stats: Some(self.clone()),
+            actor_id,
+        }))
+    }
+
+    /// [`ShipSlotReservation`] 하나를 되돌린다. `ShipSlotReservation::drop` 전용 —
+    /// 직접 부르지 않는다.
+    fn release_ship_reservation(&self, actor_id: starfall_contracts::primitives::UuidV7) {
+        if let Ok(mut reservations) = self.inner.ship_reservations.lock()
+            && let Some(count) = reservations.get_mut(&actor_id)
+        {
+            if *count <= 1 {
+                reservations.remove(&actor_id);
+            } else {
+                *count -= 1;
+            }
+        }
     }
 
     /// `WORLD_SNAPSHOT.ships` 의 계약 상한.
@@ -518,6 +605,16 @@ impl Stats {
             guard.clear();
             guard.extend(actors);
         }
+        // 결함 3 수정 — 이 actor 가 지금 실제로 함선을 가졌다면(방금 tick 이 반영했다),
+        // 게이트에서 잡아 둔 예약은 이제 `ships_active`/`ships_lingering` 이 대신
+        // 세고 있으므로 지운다. 안 지우면 예약이 세션이 열려 있는 내내 정원을 하나씩
+        // 영구히 깎아먹는다.
+        if let (Ok(actors_guard), Ok(mut reservations)) = (
+            self.inner.actors_with_ships.read(),
+            self.inner.ship_reservations.lock(),
+        ) {
+            reservations.retain(|actor_id, _| !actors_guard.contains(actor_id));
+        }
     }
 
     /// 이 actor가 지금 함선을 가졌는가(활성이든 잔류든) — `world_full` 게이트가 재개를
@@ -679,6 +776,39 @@ impl Stats {
             snapshot_over_capacity_total: inner
                 .snapshot_over_capacity_total
                 .load(Ordering::Relaxed),
+        }
+    }
+}
+
+/// [`Stats::try_enter_world`] 가 정원이 찼을 때 돌려주는 오류 — `world_full` 거절.
+#[derive(Debug, Clone, Copy)]
+pub struct WorldFullError;
+
+/// [`Stats::try_enter_world`] 가 돌려주는 예약 손잡이 — 결함 3 수정.
+///
+/// **드롭하면 예약이 즉시 풀린다.** 세션이 tick 드라이버에 실제로 제출됐다면
+/// [`commit`](Self::commit) 을 불러 그 뒤로는 `Stats::set_actors_with_ships` 의 정산에
+/// 해제를 맡겨라 — 그 전에(업그레이드 실패, 종료 중 등으로) 그냥 드롭되면 자리가 즉시
+/// 세계로 돌아가야 다른 대기자가 새지 않은 정원을 볼 수 있다.
+#[derive(Debug)]
+#[must_use = "드롭되면 예약이 즉시 풀린다 — commit() 하거나 의도적으로 놓아야 한다"]
+pub struct ShipSlotReservation {
+    stats: Option<Stats>,
+    actor_id: starfall_contracts::primitives::UuidV7,
+}
+
+impl ShipSlotReservation {
+    /// 세션이 tick 드라이버에 제출됐다(`SubmitHandle::open` 호출 직후). 이제부터 해제는
+    /// `Stats::set_actors_with_ships` 의 정산만 한다 — 여기서 드롭돼도 되돌리지 않는다.
+    pub fn commit(mut self) {
+        self.stats = None;
+    }
+}
+
+impl Drop for ShipSlotReservation {
+    fn drop(&mut self) {
+        if let Some(stats) = self.stats.take() {
+            stats.release_ship_reservation(self.actor_id);
         }
     }
 }

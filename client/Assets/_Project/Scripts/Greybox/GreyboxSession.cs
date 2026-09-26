@@ -66,9 +66,14 @@ namespace Starfall.Greybox
 
         // H-2 (RebaseHold, T-2): how long (real seconds) this session has been holding off a
         // rebase because the retained history has an un-sent entry the latest snapshot's
-        // ack_input_seq cannot yet resolve. 0 when not holding.
-        double _rebaseHoldSeconds;
-        float _rebaseHoldLastRealTime;
+        // ack_input_seq cannot yet resolve. PR #1 review defect 1 (2026-09-26): this used to be
+        // two loose fields (a double + a float) plus an inline "_rebaseHoldSeconds > 0.0" guard
+        // that could never distinguish "holding, currently at 0s" from "not holding" - the timer
+        // could never advance past 0, so RebaseHold's 500ms force-rebase threshold was
+        // unreachable. Now a single pure, independently-tested state machine (RebaseHoldTimer.cs,
+        // RebaseHoldTimerTests.cs) - see that file's header for the full defect writeup. There is
+        // exactly one implementation of this accumulation now, not a session-local copy of it.
+        readonly RebaseHoldTimer _rebaseHoldTimer = new RebaseHoldTimer();
         long _reconcileForcedAfterHitchTotal;
 
         // C-1 (R8 판정 D-3, ADR-0012 section 6.4 point 6): reconcile_tick_drift_{total,max}.
@@ -352,7 +357,7 @@ namespace Starfall.Greybox
             _lastSentPayload = null;
             _lastSentInputSeq = null;
             _ticksSinceLastSend = 0;
-            _rebaseHoldSeconds = 0.0;
+            _rebaseHoldTimer.Reset(Time.unscaledTime);
 
             // C-1: a new session has no baseline to compare against - the next applied snapshot
             // is this session's first, same as Reconciliation.Result.HasError's first-snapshot rule.
@@ -678,13 +683,12 @@ namespace Starfall.Greybox
             // exactly the way _tickAccumulator accumulates Time.unscaledDeltaTime - reset the
             // moment we are not holding.
             float now = Time.unscaledTime;
-            double heldSeconds = _rebaseHoldSeconds > 0.0 ? _rebaseHoldSeconds + (now - _rebaseHoldLastRealTime) : 0.0;
+            double heldSeconds = _rebaseHoldTimer.Sample(now);
             RebaseHold.Action holdAction = RebaseHold.Evaluate(_controller.History, ackInputSeq, heldSeconds);
 
             if (holdAction == RebaseHold.Action.HoldAndKeepPredicting)
             {
-                _rebaseHoldSeconds = heldSeconds;
-                _rebaseHoldLastRealTime = now;
+                _rebaseHoldTimer.Continue(heldSeconds, now);
                 return; // keep predicting - do not touch _controller.CurrentState/history this snapshot
             }
 
@@ -693,8 +697,7 @@ namespace Starfall.Greybox
                 _controller.DiscardUnsentHistory();
                 _reconcileForcedAfterHitchTotal++;
             }
-            _rebaseHoldSeconds = 0.0;
-            _rebaseHoldLastRealTime = now;
+            _rebaseHoldTimer.Reset(now);
 
             // C-1 (R8 판정 D-3, ADR-0012 section 6.4 point 6): measure drift on every snapshot
             // that reaches this point (i.e. actually applied, not held) - BEFORE Reconcile, so a

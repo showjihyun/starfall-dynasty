@@ -16,7 +16,7 @@
 use std::net::SocketAddr;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use futures_util::{SinkExt, StreamExt};
 use starfall_contracts::events::SessionCloseReason;
@@ -1021,7 +1021,7 @@ async fn graceful_client_close_is_prompt() {
         "SESSION_READY"
     );
 
-    let started = std::time::Instant::now();
+    let started = Instant::now();
     client.close(None).await.unwrap();
     while let Some(Ok(_)) = client.next().await {}
     let polls = wait_for_no_connections(&server).await;
@@ -1559,4 +1559,94 @@ async fn r4_s6_second_connection_takes_over_the_ship_not_a_second_one() {
     println!(
         "[R4 S-6 §7a] SHIP_SPAWNED 정확히 1건, ship_id={spawned:?} — 넘겨받기 확인(복제 아님)"
     );
+}
+
+/// S-3 (PR #1 리뷰 결함 3) — 동시 입장이 `world_full` 정원을 넘지 못한다.
+///
+/// `ships_total()`(`stats.rs`)은 tick 드라이버가 **tick 당 한 번**만 갱신한다(I-25) —
+/// `/ws` 핸들러는 그 값을 읽기만 했고 입장 시 자리를 예약하지 않았다. 정원이 빈 상태에서
+/// actor 여럿이 **같은 tick 경계 전에** 동시에 들어오면 전부 게이트를 통과하고, 다음
+/// tick 에 정원을 넘는 함선이 한꺼번에 스폰된다.
+///
+/// # 경합을 결정적으로 만든다 (§7a)
+///
+/// tick 간격을 3초로 늘린다. `/ws` 핸들러는 게이트 판정을 **tick 을 기다리지 않고** 그
+/// 자리에서 응답한다(HTTP 업그레이드 자체가 판정 직후 끝난다) — 그래서 5개 연결을
+/// `join_all` 로 동시에 쏘면, 판정이 전부 같은 tick 간격 안(= `ships_active`/
+/// `ships_lingering` 갱신 전)에서 끝난다는 것을 **타이밍 운에 기대지 않고** 시계로
+/// 보장할 수 있다. 아래 `elapsed < tick_interval / 2` 단언이 바로 그 보장이 실제로
+/// 성립했다는 증거다 — 이게 없으면 "정원 초과 0건"은 경합이 애초에 안 생긴 입력에서
+/// 나온 `0 == 0` 일 수 있다.
+///
+/// **디버그 빌드에서 이 결함을 재현하면 `simulation.rs` 의 `debug_assert!` 가 먼저
+/// panic 한다** — `r4_s6_second_connection_takes_over_the_ship_not_a_second_one` 와
+/// 같은 이유다. 그 panic 자체가 "게이트가 뚫렸다"는 독립된 증거이지, 이 테스트가
+/// 무력하다는 뜻이 아니다. 릴리스 빌드(`cargo test -p starfall-gateway --release`)에는
+/// 그 그물이 없으므로 아래 단언들이 직접 하중을 받는다.
+#[tokio::test]
+async fn s3_concurrent_entrants_cannot_exceed_world_capacity() {
+    let mut world = default_world();
+    world.max_entities_per_snapshot = 2;
+    let capacity = u64::try_from(world.max_entities_per_snapshot).unwrap();
+    let tick_interval = Duration::from_secs(3);
+    let mut server = TestServer::start_with_world_and_interval(true, world, tick_interval).await;
+
+    const ACTORS: [&str; 5] = [
+        "01a0b1c2-2c01-7a45-8b67-0000000000c1",
+        "01a0b1c2-2c01-7a45-8b67-0000000000c2",
+        "01a0b1c2-2c01-7a45-8b67-0000000000c3",
+        "01a0b1c2-2c01-7a45-8b67-0000000000c4",
+        "01a0b1c2-2c01-7a45-8b67-0000000000c5",
+    ];
+    let tokens: Vec<String> = ACTORS.iter().map(|actor| server.token(actor)).collect();
+
+    let start = Instant::now();
+    let attempts: Vec<Result<Client, u16>> =
+        futures_util::future::join_all(tokens.iter().map(|token| connect(&server, Some(token))))
+            .await;
+    let elapsed = start.elapsed();
+    let codes: Vec<Result<(), u16>> = attempts
+        .iter()
+        .map(|result| match result {
+            Ok(_) => Ok(()),
+            Err(code) => Err(*code),
+        })
+        .collect();
+    drop(attempts); // 소켓은 더 필요 없다 — 이미 기록된 SHIP_SPAWNED 는 지워지지 않는다.
+
+    // §7a — 경합이 실제로 일어났다는 증거: 5건의 게이트 판정이 tick 간격(3초)의 한참
+    // 안쪽에서 끝났다 — 그 사이 어떤 tick 도 `ships_active`/`ships_lingering` 을 갱신할
+    // 수 없었으므로, 5개 요청은 정말로 같은(갱신 전) `ships_total()` 을 놓고 겨뤘다.
+    assert!(
+        elapsed < tick_interval / 2,
+        "경합 창이 만들어지지 않았다 — tick 이 그 사이에 끼어들었을 수 있다: {elapsed:?}"
+    );
+
+    let succeeded = codes.iter().filter(|result| result.is_ok()).count();
+    let rejected_503 = codes
+        .iter()
+        .filter(|result| matches!(result, Err(503)))
+        .count();
+    assert_eq!(
+        succeeded + rejected_503,
+        codes.len(),
+        "503 도 성공도 아닌 응답이 있었다: {codes:?}"
+    );
+    assert_eq!(
+        u64::try_from(succeeded).unwrap(),
+        capacity,
+        "정원({capacity})을 넘겨 통과했다 — world_full 게이트가 동시 입장을 막지 못했다: {codes:?}"
+    );
+
+    // tick 이 실제로 들어온 Open 을 처리할 시간을 준다. 디버그 빌드라면 정원을 넘는
+    // 함선이 스폰되는 순간 tick 스레드가 `debug_assert!` 로 먼저 죽는다(위 문서 참고).
+    tokio::time::sleep(tick_interval + Duration::from_millis(200)).await;
+    let spawned = server.ship_spawned_ids();
+    assert_eq!(
+        u64::try_from(spawned.len()).unwrap(),
+        capacity,
+        "정원을 넘는 함선이 실제로 스폰됐다 — SHIP_SPAWNED: {spawned:?}"
+    );
+
+    server.shutdown_and_join().await;
 }

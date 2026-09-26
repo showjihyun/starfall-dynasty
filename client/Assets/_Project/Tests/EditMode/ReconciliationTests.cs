@@ -582,6 +582,62 @@ namespace Starfall.Tests.EditMode
             foreach (InputRecord record in controller.History) Assert.That(record.InputSeq, Is.Not.EqualTo(2u));
         }
 
+        // ------------------------------------------------------------------ PR #1 review defect 2: DerivedFromSeq must survive a reconcile
+
+        [Test]
+        public void Reconcile_PreservesDerivedFromSeq_SoDropRejectedStillDropsCarryForwardEntriesAfterAReconcile()
+        {
+            // H-15 (architect R4 보충 판정 §D): DropRejected must drop not only the rejected
+            // command's own entry but every entry carry-forward-derived from it
+            // (DerivedFromSeq == rejectedInputSeq). PR #1 review defect 2: Reconciliation.Reconcile
+            // used to build its retained/replayed entries with a plain 4-arg InputRecord
+            // constructor call, silently defaulting DerivedFromSeq to null - so any un-sent entry
+            // that survived a reconcile (replayed, not dropped) reported WasNotSent == false from
+            // then on, and DropRejected could no longer find it via DerivedFromSeq. This test goes
+            // through the real production path both GreyboxSession and ObserverSession call
+            // (PredictedShipController.ApplyInput/Reconcile/DropRejected -> PredictionHistory /
+            // Reconciliation.Reconcile) - there is only one implementation of this logic, so
+            // proving it here proves the wiring too.
+            ShipClassStats ship = LoadScoutFixture();
+            var controller = new PredictedShipController(ship, WideOpenBoundary, Dt, ShipSimState.Zero);
+
+            controller.ApplyInput(ForwardThrust(1), derivedFromSeq: null); // tick 1: actually sent
+            controller.ApplyInput(ForwardThrust(2), derivedFromSeq: null); // tick 2: actually sent, later rejected
+            controller.ApplyInput(ForwardThrust(3), derivedFromSeq: 2);    // tick 3: NEVER sent - carry-forward derived from seq 2 (I-36: reuses seq 2's payload verbatim, same as GreyboxSession.PredictCarryForwardOrDormantTick)
+
+            Assert.That(controller.History.Select(r => r.InputSeq).ToArray(), Is.EqualTo(new uint[] { 1, 2, 3 }), "test setup");
+            Assert.That(controller.History[2].WasNotSent, Is.True, "test setup: tick 3's entry must be the un-sent carry-forward one");
+
+            // A reconcile against snapshotTick=1 drops the tick-1 entry and REPLAYS ticks 2 and 3
+            // onto the rebased state (Reconciliation.Reconcile steps 3/4, Reconciliation.cs:116-126)
+            // - exactly the step defect 2 broke: the replayed copy of tick 3's entry used to lose
+            // its DerivedFromSeq in that replay.
+            ShipSimState confirmedAtTick1 = ShipStateWire.ToSimState(ToWireShipState(
+                ShipIntegrator.Step(ShipSimState.Zero, ForwardThrust(1), ship, WideOpenBoundary, Dt).State));
+            controller.Reconcile(confirmedAtTick1, snapshotTick: 1, TestTuning());
+
+            Assert.That(controller.History.Select(r => r.InputSeq).ToArray(), Is.EqualTo(new uint[] { 2, 3 }),
+                "test setup: the tick-1 entry must have been dropped and ticks 2/3 replayed");
+            Assert.That(controller.History[1].WasNotSent, Is.True,
+                "the replayed carry-forward entry must still report WasNotSent == true after surviving " +
+                "a reconcile - it was never actually sent to the server. Losing this is PR #1 defect 2 " +
+                "(Reconciliation.cs dropping DerivedFromSeq on replay).");
+
+            // H-15: COMMAND_RESULT{REJECTED} for seq 2 arrives AFTER the reconcile above (e.g.
+            // reordered behind the WORLD_SNAPSHOT that triggered it) - DropRejected must still
+            // remove the carry-forward entry derived from it, reachable ONLY via the surviving
+            // replayed copy's DerivedFromSeq now that the original tick-2-derived-from-nothing
+            // entry itself is also being dropped by its own InputSeq match.
+            controller.DropRejected(2);
+
+            Assert.That(controller.History.Select(r => r.InputSeq).ToArray(), Is.Empty,
+                "DropRejected(2) must drop BOTH the rejected command's own entry (InputSeq == 2) AND " +
+                "the carry-forward entry derived from it (DerivedFromSeq == 2), even though the latter " +
+                "has already survived one reconciliation. Under the pre-fix behaviour this assertion " +
+                "sees the tick-3 entry (InputSeq == 3) still present, because its DerivedFromSeq was " +
+                "silently reset to null by the reconcile above.");
+        }
+
         // ------------------------------------------------------------------ reconnect / resume reset
 
         [Test]

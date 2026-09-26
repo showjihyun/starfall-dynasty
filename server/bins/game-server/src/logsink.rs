@@ -35,8 +35,8 @@
 
 use std::io::{self, Write};
 use std::sync::Arc;
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::mpsc::{Receiver, SyncSender, TrySendError, sync_channel};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::mpsc::{Receiver, RecvTimeoutError, SyncSender, TrySendError, sync_channel};
 use std::time::{Duration, Instant};
 
 use tracing_subscriber::fmt::MakeWriter;
@@ -52,10 +52,22 @@ const QUEUE_LINES: usize = 4096;
 /// 서버가 안 내려간다"가 되어 고치려던 결함으로 되돌아간다.
 const FLUSH_DEADLINE: Duration = Duration::from_secs(2);
 
+/// 드레인 스레드가 "더 줄이 없는가"를 다시 확인하는 주기 (PR #1 리뷰 결함 4).
+///
+/// 채널 disconnect 로는 종료를 알 수 없다 — 전역 tracing subscriber 에 설치된
+/// `NonBlockingStdout` 복제본(`:make_writer` 가 아니라 subscriber 가 **소유한** 값)이
+/// 자기 `tx` 를 프로세스가 죽을 때까지 들고 있어서, `FlushGuard::drop` 이 자기 몫의
+/// `tx` 하나만 놓아도 채널은 절대 닫히지 않는다. 그래서 "끝"은 채널이 아니라
+/// `Shared::shutdown` 플래그로 판단한다.
+const DRAIN_POLL: Duration = Duration::from_millis(20);
+
 #[derive(Debug)]
 struct Shared {
     /// 큐가 가득 차 버린 줄 수.
     dropped: AtomicU64,
+    /// `true` 가 되면 드레인 스레드는 큐에 남은 줄을 마저 비우고 끝난다(결함 4 수정).
+    /// `FlushGuard::drop` 이 세운다.
+    shutdown: AtomicBool,
 }
 
 /// `tracing_subscriber` 에 넘기는 writer 팩토리.
@@ -71,12 +83,19 @@ pub struct NonBlockingStdout {
 pub struct FlushGuard {
     tx: Option<SyncSender<Vec<u8>>>,
     drain: Option<std::thread::JoinHandle<()>>,
+    shared: Arc<Shared>,
 }
 
 impl Drop for FlushGuard {
     fn drop(&mut self) {
-        // 송신단을 놓으면 드레인 스레드가 큐를 비우고 끝난다.
+        // 송신단을 놓는다 — 하지만 **이것만으로는 드레인 스레드가 끝나지 않는다**
+        // (결함 4). 전역 tracing subscriber 에 설치된 `NonBlockingStdout` 이 `tx`
+        // 복제본을 하나 더 들고 있고, 그건 여기서 못 건드린다 — 그래서 `shutdown`
+        // 플래그로 직접 신호를 보낸다(`drain_loop` 참고). 남는 tx 를 여기서 놓는 것도
+        // 여전히 의미가 있다: 이 값이 유일한 sender 였던 경우(테스트 등) 채널이 실제로
+        // 닫혀 드레인이 더 빨리 끝난다.
         drop(self.tx.take());
+        self.shared.shutdown.store(true, Ordering::SeqCst);
         let Some(drain) = self.drain.take() else {
             return;
         };
@@ -102,6 +121,7 @@ pub fn non_blocking_stdout() -> Option<(NonBlockingStdout, FlushGuard)> {
     let (tx, rx) = sync_channel::<Vec<u8>>(QUEUE_LINES);
     let shared = Arc::new(Shared {
         dropped: AtomicU64::new(0),
+        shutdown: AtomicBool::new(false),
     });
     let drain_shared = Arc::clone(&shared);
     let drain = std::thread::Builder::new()
@@ -112,35 +132,68 @@ pub fn non_blocking_stdout() -> Option<(NonBlockingStdout, FlushGuard)> {
     Some((
         NonBlockingStdout {
             tx: tx.clone(),
-            shared,
+            shared: Arc::clone(&shared),
         },
         FlushGuard {
             tx: Some(tx),
             drain: Some(drain),
+            shared,
         },
     ))
 }
 
 /// 전용 스레드. **여기서만 stdout 에 실제로 쓴다** — 그래서 여기서 막혀도 서버는 돈다.
 fn drain_loop(rx: &Receiver<Vec<u8>>, shared: &Shared) {
-    let mut reported = 0u64;
-    while let Ok(line) = rx.recv() {
+    drain_into(rx, shared, |line| {
         let stdout = io::stdout();
         let mut out = stdout.lock();
-        let _ = out.write_all(&line);
-
-        // 버린 줄이 있었다면 **그 사실을 로그 스트림 안에** 남긴다. 조용히 사라지면
-        // 리포트를 읽는 쪽이 "로그가 끊겼다"를 다시 서버 정지로 오해한다.
-        let dropped = shared.dropped.load(Ordering::Relaxed);
-        if dropped > reported {
-            let _ = writeln!(
-                out,
-                "[로그 싱크] 소비자가 느려 {}줄을 버렸다 (누적 {dropped}) — 서버는 계속 돈다",
-                dropped - reported
-            );
-            reported = dropped;
-        }
+        let _ = out.write_all(line);
         let _ = out.flush();
+    });
+}
+
+/// `drain_loop` 의 순수 로직 — 실제 stdout 대신 임의의 sink 로 테스트할 수 있게
+/// 분리한다(결함 4 수정, 유닛 테스트 참고).
+///
+/// **채널 disconnect 를 종료 신호로 쓰지 않는다.** 전역 subscriber 가 든
+/// `NonBlockingStdout` 복제본이 자기 `tx` 를 프로세스가 죽을 때까지 들고 있어서
+/// disconnect 는 (정상적인 운영에서는) 일어나지 않는다 — 그래서 `shared.shutdown` 을
+/// 짧은 주기로 폴링한다. `shutdown` 이 서기 전에 큐에 들어온 줄은 반드시 다 내보낸
+/// 뒤에야 끝난다: 루프를 빠져나온 뒤 `try_recv` 로 마저 비운다.
+fn drain_into<F: FnMut(&[u8])>(rx: &Receiver<Vec<u8>>, shared: &Shared, mut sink: F) {
+    let mut reported = 0u64;
+    loop {
+        match rx.recv_timeout(DRAIN_POLL) {
+            Ok(line) => write_line(&line, shared, &mut reported, &mut sink),
+            Err(RecvTimeoutError::Timeout) => {
+                if shared.shutdown.load(Ordering::SeqCst) {
+                    break;
+                }
+            }
+            // 정상 운영에서는 도달하지 않는다(위 문서 참고) — 방어적으로만 처리한다.
+            Err(RecvTimeoutError::Disconnected) => break,
+        }
+    }
+    // 종료 신호 이후에도 큐에 남아 있을 수 있는 줄을 전부 비운다 — "빨리 끝나는 것"이
+    // 아니라 "남은 줄을 전부 내보낸 뒤 끝나는 것"이 요구사항이다.
+    while let Ok(line) = rx.try_recv() {
+        write_line(&line, shared, &mut reported, &mut sink);
+    }
+}
+
+fn write_line<F: FnMut(&[u8])>(line: &[u8], shared: &Shared, reported: &mut u64, sink: &mut F) {
+    sink(line);
+
+    // 버린 줄이 있었다면 **그 사실을 로그 스트림 안에** 남긴다. 조용히 사라지면
+    // 리포트를 읽는 쪽이 "로그가 끊겼다"를 다시 서버 정지로 오해한다.
+    let dropped = shared.dropped.load(Ordering::Relaxed);
+    if dropped > *reported {
+        let message = format!(
+            "[로그 싱크] 소비자가 느려 {}줄을 버렸다 (누적 {dropped}) — 서버는 계속 돈다\n",
+            dropped - *reported
+        );
+        sink(message.as_bytes());
+        *reported = dropped;
     }
 }
 
@@ -201,6 +254,7 @@ impl<'a> MakeWriter<'a> for NonBlockingStdout {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::Mutex;
 
     /// 큐가 가득 차도 **쓰는 쪽은 막히지 않는다** — 이 파일의 존재 이유 그 자체다.
     ///
@@ -211,6 +265,7 @@ mod tests {
         let (tx, rx) = sync_channel::<Vec<u8>>(4);
         let shared = Arc::new(Shared {
             dropped: AtomicU64::new(0),
+            shutdown: AtomicBool::new(false),
         });
         let sink = NonBlockingStdout {
             tx,
@@ -237,6 +292,7 @@ mod tests {
         let (tx, rx) = sync_channel::<Vec<u8>>(8);
         let shared = Arc::new(Shared {
             dropped: AtomicU64::new(0),
+            shutdown: AtomicBool::new(false),
         });
         let sink = NonBlockingStdout { tx, shared };
 
@@ -260,5 +316,91 @@ mod tests {
         }
         drop(sink);
         drop(guard); // 여기서 막히면 테스트가 걸린다 — 유계 대기가 그것을 막는다.
+    }
+
+    /// PR #1 리뷰 결함 4 — 전역 subscriber 가 든 `NonBlockingStdout` 복제본은
+    /// `FlushGuard::drop`이 절대 놓지 않는다(자기 `tx` 만 놓는다, `:79` 참고). 그래서
+    /// 지금 코드는 `rx.recv()` 가 `Disconnected` 를 볼 일이 없어 **항상** `FLUSH_DEADLINE`
+    /// (2초)까지 기다린다 — stdin `shutdown` 한 번마다 2초 지연.
+    ///
+    /// 이 테스트는 그 조건을 그대로 재현한다: `sink`(전역 구독자가 들고 있을 원본
+    /// `NonBlockingStdout`, `tx` 보유)를 **드롭하지 않고** `guard` 만 드롭한다.
+    ///
+    /// 시간 단언은 실제 관측(§7a — "드레인이 실제로 끝났는가")의 **보조**일 뿐이다.
+    /// 주 단언은 아래 `drain_into_...` 유닛 테스트가 `is_finished()`(폴링, 시간이 아닌
+    /// 완료 여부)로 진다.
+    #[test]
+    fn dropping_the_guard_does_not_wait_for_a_surviving_sender_clone() {
+        let (sink, guard) = non_blocking_stdout().expect("드레인 스레드");
+        {
+            let mut line = sink.make_writer();
+            writeln!(line, "[테스트] 살아남은 sender 아래 flush").unwrap();
+        }
+        // `sink` 를 일부러 드롭하지 않는다 — 전역 tracing subscriber 가 이 값을 영구히
+        // 들고 있는 상황을 흉내 낸다. `drop(sink)` 를 넣으면 이 테스트는 결함을 재현하지
+        // 못한다(그러면 유일한 sender 가 없어져 `rx.recv()` 가 정상적으로 `Disconnected`
+        // 를 본다).
+        let start = Instant::now();
+        drop(guard);
+        let elapsed = start.elapsed();
+        assert!(
+            elapsed < Duration::from_millis(500),
+            "guard 가 살아있는 sender clone 때문에 FLUSH_DEADLINE(2s) 까지 기다렸다: {elapsed:?}"
+        );
+        drop(sink);
+    }
+
+    /// PR #1 리뷰 결함 4의 **주 단언**. `drain_into` 를 직접 돌려서 (1) `shutdown` 신호
+    /// 뒤 살아있는 sender 가 있어도 실제로 끝나는지(`is_finished()` 폴링 — 시간이 아니라
+    /// 완료 여부), (2) 신호 전에 큐에 있던 줄이 **전부** sink 에 도달했는지(버려지지
+    /// 않았는지)를 함께 본다. "빨리 끝난다"만으로는 부족하다 — "남은 줄을 전부 내보낸
+    /// 뒤 끝난다"가 요구사항이다.
+    #[test]
+    fn drain_into_flushes_every_queued_line_then_stops_even_with_a_live_sender() {
+        let (tx, rx) = sync_channel::<Vec<u8>>(8);
+        let shared = Arc::new(Shared {
+            dropped: AtomicU64::new(0),
+            shutdown: AtomicBool::new(false),
+        });
+
+        tx.send(b"line-1\n".to_vec()).unwrap();
+        tx.send(b"line-2\n".to_vec()).unwrap();
+        tx.send(b"line-3\n".to_vec()).unwrap();
+
+        // 전역 subscriber 가 들고 있을 복제본을 흉내 낸다 — drain_into 는 이게 살아
+        // 있어도 shutdown 플래그만으로 끝나야 한다.
+        let _surviving_clone = tx.clone();
+
+        let collected = Arc::new(Mutex::new(Vec::<u8>::new()));
+        let collected_in_drain = Arc::clone(&collected);
+        let shared_in_drain = Arc::clone(&shared);
+        let drain = std::thread::spawn(move || {
+            drain_into(&rx, &shared_in_drain, |line: &[u8]| {
+                collected_in_drain.lock().unwrap().extend_from_slice(line);
+            });
+        });
+
+        // 드레인 스레드가 큐에 있던 3줄을 소비할 시간을 준 뒤 종료 신호를 보낸다.
+        std::thread::sleep(Duration::from_millis(100));
+        shared.shutdown.store(true, Ordering::SeqCst);
+
+        // **주 단언**: 실제로 끝났는가(시간이 아니라 상태) — 관대한 상한(1초 ≫
+        // `DRAIN_POLL` 20ms)은 "테스트가 영원히 안 걸리게"일 뿐, 빠름을 재는 게 아니다.
+        let deadline = Instant::now() + Duration::from_secs(1);
+        while !drain.is_finished() {
+            assert!(
+                Instant::now() < deadline,
+                "drain_into 가 shutdown 신호 뒤에도 끝나지 않았다 — 살아있는 sender 가 \
+                 여전히 완료를 막고 있다(결함 4)"
+            );
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        drain.join().unwrap();
+
+        assert_eq!(
+            &*collected.lock().unwrap(),
+            b"line-1\nline-2\nline-3\n",
+            "shutdown 신호 전에 큐에 있던 줄이 전부 나가지 않고 잘렸다"
+        );
     }
 }

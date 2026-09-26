@@ -120,9 +120,19 @@ namespace Starfall.Flight
                 if (record.ServerTick <= snapshotTick) continue;
 
                 state = ShipIntegrator.Step(state, record.Input, ship, boundary, dt).State;
-                // NOTE: DerivedFromSeq intentionally not carried over here - matches the
-                // pre-existing behaviour before this rekey (unrelated to D-1/D-2, not touched).
-                retained.Add(new InputRecord(record.InputSeq, record.Input, state, record.ServerTick));
+                // PR #1 review defect 2 (2026-09-26): DerivedFromSeq WAS dropped here on replay,
+                // on the theory that this was pre-existing, untouched behaviour (see git history
+                // for the note this replaces). It was not neutral: InputRecord.WasNotSent reads
+                // DerivedFromSeq.HasValue (InputRecord.cs), so every retained entry silently
+                // became WasNotSent == false the moment it survived one reconciliation, even
+                // though it was never actually sent to the server. Two real consumers break on
+                // that: PredictionHistory.DropRejected(X) (H-15) can no longer find and drop
+                // entries derived from a rejected command X once they are a reconcile old, and
+                // RebaseHold.HasUnresolvedUnsentEntry/DiscardUnsentEntries stop recognising them
+                // as un-sent, so a hold that should still be held (or force-discarded) instead
+                // gets replayed as if the server had actually seen it. Carrying the field forward
+                // verbatim is the only behaviour consistent with H-15/RebaseHold's design.
+                retained.Add(new InputRecord(record.InputSeq, record.Input, state, record.ServerTick, record.DerivedFromSeq));
             }
 
             return new Result(state, retained, hasError, positionErrorM, orientationErrorDeg);
