@@ -119,6 +119,26 @@ impl TestServer {
         world: WorldConstants,
         tick_interval: Duration,
     ) -> Self {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        Self::start_with_world_and_interval_and_listener(
+            auth_enabled,
+            world,
+            tick_interval,
+            listener,
+        )
+        .await
+    }
+
+    /// [`start_with_world_and_interval`] 와 같지만 **리스너를 직접 받는다** — SC-22 전용.
+    /// accept 되는 소켓에 리스너의 소켓 옵션(예: `SO_SNDBUF`)을 물려주려고, 이 테스트만
+    /// `TcpSocket` 으로 직접 리스너를 만들어 넘길 수 있게 한다. 다른 테스트는 전부
+    /// [`start_with_world_and_interval`] 를 그대로 쓴다(기본 `TcpListener::bind`).
+    async fn start_with_world_and_interval_and_listener(
+        auth_enabled: bool,
+        world: WorldConstants,
+        tick_interval: Duration,
+        listener: tokio::net::TcpListener,
+    ) -> Self {
         let stats = Stats::new();
         stats.set_start_tick(0);
         // `world_full` 게이트가 읽는 `world_capacity` 는 운영에서 `bins/game-server`의
@@ -160,7 +180,6 @@ impl TestServer {
         .unwrap();
         let state = AppState::new("0.1.0-test", probes).with_realtime(auth.clone(), stats, submit);
 
-        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let addr = listener.local_addr().unwrap();
         tokio::spawn(async move {
             let _ = axum::serve(listener, realtime_router(state)).await;
@@ -234,6 +253,38 @@ impl Drop for TestServer {
     }
 }
 
+/// SC-22 전용 리스너 — **송신 버퍼를 명시적으로 작게** 잡는다.
+///
+/// # 왜 리스너 쪽까지 잡아야 하는가
+///
+/// 클라이언트 수신 버퍼를 작게 잡아도([`connect_with_small_recv_buffer`]), 서버가 쓴
+/// 바이트는 일단 **서버 커널의 송신 버퍼**에 쌓인다. Linux 는 그 송신 버퍼도 자동으로
+/// (autotuning) `net.ipv4.tcp_wmem` 최대치(보통 수 MiB)까지 키우므로, 클라이언트 창이
+/// 작아도 서버 쪽 송신 버퍼가 그만큼을 흡수해 버리면 게이트웨이 쓰기 태스크는 여전히
+/// 막히지 않고 mpsc 송신 큐(64)가 차지 않는다(CI 실측 — 클라이언트 수신 버퍼만 줄였을
+/// 때도 Linux 에서 재현됨).
+///
+/// **명시적으로 `SO_SNDBUF` 를 설정한 소켓은 커널이 자동 조정을 하지 않는다** — 그리고
+/// Linux 는 리스닝 소켓의 소켓 옵션을 accept 된 소켓이 물려받는다. 그래서 리스너를
+/// `TcpListener::bind` 대신 `TcpSocket` 으로 직접 만들어 `set_send_buffer_size` 를 미리
+/// 걸면, 이 리스너로 accept 되는 모든 연결의 송신 버퍼가 작게 고정된다.
+///
+/// 커널이 요청값을 조정할 수 있으므로(최소값 보정 등) **리스너에 실제로 잡힌 값**을 함께
+/// 돌려준다 — accept 된 소켓 자체의 값을 읽을 안정적인 tokio API는 없으므로, 상속 전
+/// 리스너 값을 증거로 남긴다.
+async fn bind_listener_with_small_send_buffer(
+    requested_send_buffer_bytes: u32,
+) -> (tokio::net::TcpListener, u32) {
+    let socket = tokio::net::TcpSocket::new_v4().unwrap();
+    socket
+        .set_send_buffer_size(requested_send_buffer_bytes)
+        .unwrap();
+    let actual_send_buffer_bytes = socket.send_buffer_size().unwrap();
+    socket.bind("127.0.0.1:0".parse().unwrap()).unwrap();
+    let listener = socket.listen(1024).unwrap();
+    (listener, actual_send_buffer_bytes)
+}
+
 type Client =
     tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>;
 
@@ -254,6 +305,61 @@ async fn connect(server: &TestServer, token: Option<&str>) -> Result<Client, u16
         Err(error) => panic!("예상치 못한 연결 오류: {error}"),
     }
 }
+
+/// `connect()` 의 특수판 — **클라이언트 쪽 TCP 수신 버퍼를 작게** 잡고 연결한다. SC-22
+/// 전용이다.
+///
+/// # 왜 필요한가
+///
+/// SC-22 는 "느린 소비자(읽지 않는 클라이언트)가 송신 큐(64)를 채워 SLOW_CONSUMER 로
+/// 닫힌다"를 증명해야 한다. 하지만 게이트웨이의 쓰기 태스크가 mpsc 채널에서 메시지를
+/// 꺼내 소켓에 쓰는 시도는, **OS TCP 송신 버퍼가 먼저 가득 차야** 비로소 막히기 시작한다.
+/// 송신 버퍼가 얼마나 흡수하느냐는 상대(이 클라이언트)가 광고하는 **수신 윈도** 에 좌우되고,
+/// 그 윈도는 클라이언트 쪽 수신 버퍼 크기로 정해진다. Windows 는 기본 수신 버퍼가 작아
+/// 몇 초 안에 윈도가 막히지만, Linux 는 커널이 버퍼를 자동으로 MB 단위까지 조정해서
+/// (autotuning) 막히는 데 30초(=IDLE_TIMEOUT)보다 오래 걸릴 수 있다 — 그래서 CI(Linux)
+/// 에서만 유휴 종료가 느린 소비자보다 먼저 이겼다.
+///
+/// 연결 전에 `TcpSocket::set_recv_buffer_size` 로 수신 버퍼를 명시적으로 작게 잡으면(예:
+/// 수 KB), 이 소켓의 수신 윈도가 OS 기본값·autotuning 과 무관하게 좁게 유지된다.
+///
+/// **이것만으로는 부족했다(CI 실측)** — 서버가 쓴 바이트는 클라이언트 창과 별개로
+/// **서버 커널의 송신 버퍼**에도 쌓이고, Linux 는 그 송신 버퍼도 자동으로 MB 단위까지
+/// 키운다. 그래서 이 헬퍼는 [`bind_listener_with_small_send_buffer`](서버 쪽 리스너의
+/// `SO_SNDBUF` 를 작게 고정) 와 **함께** 써야 어느 플랫폼에서든 몇 초 안에 송신 큐
+/// (→ mpsc 채널)가 막힌다. `sc22_slow_consumer_is_closed_with_slow_consumer_reason` 이
+/// 그 조합을 쓴다.
+///
+/// 커널이 요청값을 조정할 수 있으므로(Linux 는 최소값 보정·2배 확장이 흔하다) **실제로
+/// 잡힌 크기**를 함께 돌려준다 — 호출부가 증거로 로그에 남긴다.
+async fn connect_with_small_recv_buffer(
+    server: &TestServer,
+    token: &str,
+    requested_recv_buffer_bytes: u32,
+) -> (RawClient, u32) {
+    let socket = tokio::net::TcpSocket::new_v4().unwrap();
+    socket
+        .set_recv_buffer_size(requested_recv_buffer_bytes)
+        .unwrap();
+    let actual_recv_buffer_bytes = socket.recv_buffer_size().unwrap();
+    let stream = socket.connect(server.addr).await.unwrap();
+
+    let mut request = format!("ws://{}/ws", server.addr)
+        .into_client_request()
+        .unwrap();
+    request
+        .headers_mut()
+        .insert("Authorization", format!("Bearer {token}").parse().unwrap());
+
+    let (ws, _response) = tokio_tungstenite::client_async(request, stream)
+        .await
+        .unwrap();
+    (ws, actual_recv_buffer_bytes)
+}
+
+/// [`connect_with_small_recv_buffer`] 가 쓰는 원시 소켓 타입 — `Client`(`MaybeTlsStream`)
+/// 대신 `TcpSocket` 으로 직접 만든 `TcpStream` 을 그대로 감싼다.
+type RawClient = tokio_tungstenite::WebSocketStream<tokio::net::TcpStream>;
 
 fn ping_command(command_id: &str, probe_seq: u32) -> Message {
     Message::Text(Utf8Bytes::from(format!(
@@ -758,7 +864,10 @@ async fn sc25_binary_frames_use_the_same_budget() {
 }
 
 /// Close 프레임이 올 때까지 읽고 close code 를 돌려준다.
-async fn read_until_close(client: &mut Client) -> Option<u16> {
+async fn read_until_close<S>(client: &mut S) -> Option<u16>
+where
+    S: futures_util::Stream<Item = Result<Message, tokio_tungstenite::tungstenite::Error>> + Unpin,
+{
     let deadline = Duration::from_secs(10);
     loop {
         let next = tokio::time::timeout(deadline, client.next()).await.ok()??;
@@ -777,11 +886,29 @@ async fn read_until_close(client: &mut Client) -> Option<u16> {
 /// 보내 `COMMAND_RESULT`로 송신 큐를 채웠지만, 이제 tick당 명령 상한(8)이 초과분을
 /// 큐에 넣기 **전에** 버려 그 경로로는 더 이상 큐를 채울 수 없다(SC-20 절 참고). 대신
 /// ADR-0011 §5.2가 명시한 대로 **`WORLD_SNAPSHOT`은 클라이언트 행동과 무관하게
-/// 밀려들어간다** — 이 테스트는 이제 **아무것도 보내지 않고 그냥 읽지 않는 것만으로**
+/// 밀려들어간다** — 이 테스트는 **아무것도 보내지 않고 그냥 읽지 않는 것만으로**
 /// SLOW_CONSUMER 를 유발한다. 실운영 스냅샷 주기(`snapshot_interval_ticks`)를 그대로
 /// 쓰려고 이 테스트만 전용 `WorldConstants`(간격 1 tick = 20 Hz)로 서버를 띄운다 —
 /// `default_world()`의 200(10초)은 다른 테스트가 스냅샷 간섭을 피하려고 일부러 늘린
 /// 값이라 여기서는 맞지 않는다.
+///
+/// # 이 테스트는 왜 원시 소켓(작은 수신 버퍼)을 쓰는가 — CI(Linux)에서만 실패했던 경주
+///
+/// 게이트웨이의 쓰기 태스크가 mpsc 송신 큐(64)에서 메시지를 꺼내 소켓에 쓰는 시도는,
+/// **OS TCP 송신 버퍼가 먼저 가득 차야** 비로소 막히기 시작한다. 그 버퍼가 얼마나
+/// 흡수하느냐는 이 클라이언트가 광고하는 **수신 윈도**에 좌우된다. `connect()`(OS 기본
+/// 수신 버퍼)를 쓰면: Windows 는 기본 버퍼가 작아 몇 초 안에 막히지만, Linux 커널은
+/// 버퍼를 자동으로 MB 단위까지 늘린다(autotuning) — 그러면 큐가 차는 데
+/// `IDLE_TIMEOUT`(30초)보다 오래 걸릴 수 있고, 그 사이 **유휴 종료가 먼저 발동해
+/// close 1001 로 끝난다**. 로컬(Windows)은 우연히 통과했지만 CI(Linux ubuntu 러너)에서
+/// `left: 1001, right: 1011` 로 실패한 원인이 이것이다 — 큰 수신 버퍼로 재현해 확인했다
+/// (`connect_with_small_recv_buffer(.., 8 * 1024 * 1024)` 로 바꾸면 이 테스트 형태가
+/// 그대로 1001/유휴로 실패한다).
+///
+/// [`connect_with_small_recv_buffer`] 로 수신 버퍼를 명시적으로 작게 잡으면 OS
+/// 기본값·autotuning 과 무관하게 수신 윈도가 좁게 유지되어, 어느 플랫폼에서든 몇 초 안에
+/// 송신 큐가 찬다. 그래서 **닫힘이 `IDLE_TIMEOUT` 보다 확실히 먼저 일어났다**는 것까지
+/// 단언한다(아래) — 그래야 "느린 소비자가 이겼다"가 우연이 아니라 조건 발생으로 증명된다.
 ///
 /// # 판정의 정본은 close code 가 아니라 `close_reason` 이다
 ///
@@ -795,27 +922,60 @@ async fn read_until_close(client: &mut Client) -> Option<u16> {
 async fn sc22_slow_consumer_is_closed_with_slow_consumer_reason() {
     let mut world = default_world();
     world.snapshot_interval_ticks = 1; // 20 Hz — 64슬롯 큐가 3.2초면 스냅샷만으로 찬다.
-    let mut server = TestServer::start_with_world(true, world).await;
+
+    // 클라이언트 수신 버퍼만 줄여서는 Linux CI 에서 여전히 막히지 않는다 — 서버 쪽 송신
+    // 버퍼가 autotuning 으로 커지며 남은 흡수원이 되기 때문이다(위 문서 및
+    // `bind_listener_with_small_send_buffer` 참고). 그래서 이 테스트만 리스너부터 직접
+    // 만들어 송신 버퍼를 작게 고정한다.
+    const REQUESTED_SEND_BUFFER_BYTES: u32 = 2 * 1024;
+    let (listener, actual_send_buffer_bytes) =
+        bind_listener_with_small_send_buffer(REQUESTED_SEND_BUFFER_BYTES).await;
+    println!(
+        "[SC-22] 요청 send buffer(리스너) {REQUESTED_SEND_BUFFER_BYTES} bytes, 커널이 실제로 잡은 값 {actual_send_buffer_bytes} bytes"
+    );
+    let mut server = TestServer::start_with_world_and_interval_and_listener(
+        true,
+        world,
+        Duration::from_millis(50),
+        listener,
+    )
+    .await;
     let token = server.token(SUBJECT);
-    let mut client = connect(&server, Some(&token)).await.unwrap();
+
+    // 요청값은 작게 잡되, 커널이 실제로 잡은 값을 증거로 출력한다(요청값을 그대로
+    // 존중한다는 보장이 없다 — 특히 Linux 는 최소값 보정·2배 확장이 흔하다).
+    const REQUESTED_RECV_BUFFER_BYTES: u32 = 2 * 1024;
+    let (mut client, actual_recv_buffer_bytes) =
+        connect_with_small_recv_buffer(&server, &token, REQUESTED_RECV_BUFFER_BYTES).await;
+    println!(
+        "[SC-22] 요청 recv buffer {REQUESTED_RECV_BUFFER_BYTES} bytes, 커널이 실제로 잡은 값 {actual_recv_buffer_bytes} bytes"
+    );
+
+    let start = Instant::now();
     assert_eq!(
         next_json(&mut client).await["message_type"],
         "SESSION_READY"
     );
 
     // 여기서부터 **아무것도 보내지 않고, 아무것도 읽지 않는다.** WORLD_SNAPSHOT 이
-    // 클라이언트 행동과 무관하게 20 Hz 로 밀려들어와 송신 큐(64)를 채운다.
-    //
-    // **6초로는 부족했다(실측 — 5회 중 4회 15초 대기에서도 닫히지 않아 타임아웃).**
-    // 이론상 64 슬롯 ÷ 20 msg/s = 3.2 초지만, 실제로는 그보다 훨씬 오래 걸린다 — 클라이언트가
-    // 안 읽어도 **OS TCP 송신 버퍼가 먼저 흡수**하기 때문이다: 게이트웨이의 쓰기 태스크는
-    // mpsc 채널에서 메시지를 계속 꺼내 소켓에 쓰려 시도하고, mpsc 채널(64슬롯)은 그 시도
-    // 자체가 TCP 송신 버퍼 포화로 막혀야 비로소 차기 시작한다. TCP 버퍼가 수십 KB면 그것만
-    // 흡수하는 데도 수십 개의 스냅샷(수 초)이 더 필요하다. 30초(600개 분량)로 넉넉히 잡는다.
-    tokio::time::sleep(Duration::from_secs(30)).await;
-
-    // 서버가 실제로 닫을 때까지 기다린 뒤 close code 를 확인한다.
+    // 클라이언트 행동과 무관하게 20 Hz 로 밀려들어오고, 작은 수신 버퍼가 TCP 윈도를
+    // 좁혀 몇 초 안에 송신 큐(64)를 채운다. `wait_for_no_connections` 자체의 상한이
+    // `PING_INTERVAL`(15초, `IDLE_TIMEOUT` 30초보다 작다) 이므로, 여기서 통과한다는
+    // 것 자체가 이미 유휴 종료보다 먼저 닫혔다는 뜻이다 — 그래도 아래서 실측 경과 시간을
+    // 명시적으로 `IDLE_TIMEOUT` 과 비교해 증거로 남긴다.
     wait_for_no_connections(&server).await;
+    let elapsed = start.elapsed();
+    println!(
+        "[SC-22] SESSION_READY 이후 닫힘까지 경과 {:.3}초 (IDLE_TIMEOUT {:?})",
+        elapsed.as_secs_f64(),
+        starfall_gateway::ws::IDLE_TIMEOUT
+    );
+    assert!(
+        elapsed < starfall_gateway::ws::IDLE_TIMEOUT,
+        "닫힘이 IDLE_TIMEOUT({:?}) 보다 먼저 일어나야 SLOW_CONSUMER 로 판정할 수 있다 \
+         (그렇지 않으면 유휴 종료와 경주하고 있다는 뜻): 실제 경과 {elapsed:?}",
+        starfall_gateway::ws::IDLE_TIMEOUT
+    );
 
     // close code 를 관측할 수 있으면 1011 이어야 한다(관측하지 못하는 것은 위 문서 참고).
     if let Some(code) = read_until_close(&mut client).await {
@@ -824,6 +984,30 @@ async fn sc22_slow_consumer_is_closed_with_slow_consumer_reason() {
     } else {
         println!("[SC-22] close code 관측 불가(RST) — close_reason 으로 판정한다");
     }
+
+    // `ws_connections` 는 송신 큐가 찬 **그 tick 에서 바로** 라우팅 표에서 빠지지만
+    // (runtime.rs `flush_outbound`), `SESSION_CLOSED(SlowConsumer)` 도메인 이벤트는
+    // 그 tick 이 넘긴 `CloseSession` 제출을 **다음 tick** 이 처리해야 나온다. 그래서
+    // `wait_for_no_connections` 직후 바로 `shutdown_and_join` 하면 그 이벤트가 아직
+    // persist 채널에 닿기 전일 수 있고, `shutdown_and_join` 의 종료 스윕이 (이미 라우팅
+    // 표에서 빠진) 세션을 남은 것으로 착각해 `ServerShutdown` 으로 갈아치울 수 있다 —
+    // 실측으로 확인했다. tick 간격(50ms)보다 넉넉한 상한으로 이벤트가 실릴 때까지
+    // 짧게 폴링한다.
+    const EVENT_POLL_INTERVAL: Duration = Duration::from_millis(20);
+    const EVENT_POLL_BOUND: Duration = Duration::from_secs(5);
+    let event_wait_start = Instant::now();
+    while event_wait_start.elapsed() < EVENT_POLL_BOUND
+        && !server
+            .events()
+            .iter()
+            .any(|(kind, _)| kind == "SESSION_CLOSED")
+    {
+        tokio::time::sleep(EVENT_POLL_INTERVAL).await;
+    }
+    println!(
+        "[SC-22] SESSION_CLOSED 이벤트 대기 {:.3}초",
+        event_wait_start.elapsed().as_secs_f64()
+    );
 
     server.shutdown_and_join().await;
     let closed_events: Vec<_> = server
@@ -837,7 +1021,10 @@ async fn sc22_slow_consumer_is_closed_with_slow_consumer_reason() {
             .any(|(_, reason)| *reason == SessionCloseReason::SlowConsumer),
         "close_reason = SLOW_CONSUMER: {closed_events:?}"
     );
-    println!("[SC-22] 6초간 미수신 후 SLOW_CONSUMER 로 닫힘 (스냅샷 20 Hz, 트리거 경로: S10)");
+    println!(
+        "[SC-22] 작은 수신 버퍼({actual_recv_buffer_bytes} bytes)로 미수신 {elapsed:.2?} 후 \
+         SLOW_CONSUMER 로 닫힘 (스냅샷 20 Hz, 트리거 경로: S10)"
+    );
 }
 
 // ---------------------------------------------------------------------------
