@@ -85,6 +85,12 @@
 *.unitypackage filter=lfs diff=lfs merge=lfs -text
 *.cubemap filter=lfs diff=lfs merge=lfs -text
 
+# 봇 스냅샷 증거 CSV — 크기가 봇 수 × 실행 시간에 비례한다(31봇 60초 = 71 MB).
+# GitHub 는 50 MB 에서 경고, 100 MB 에서 푸시를 거부한다. 2026-09-26 부터 LFS 로 간다.
+# 이전 커밋에 원본 blob 으로 들어간 것은 히스토리에 그대로 둔다 — 재작성하면
+# 감사 기록(규칙 9 증거 등)이 인용한 커밋 해시가 끊긴다.
+_workspace/**/evidence/**/snapshots.csv filter=lfs diff=lfs merge=lfs -text
+
 # 주의: LFS 패턴에 걸리는 파일을 커밋하기 전에 `git lfs install`이 되어 있어야 한다.
 # 없이 커밋하면 실제 바이트가 그대로 들어가고, 나중에 LFS로 옮기려면 히스토리 재작성이 필요하다.
 # unityyamlmerge는 로컬 설정이 필요하다(ADR-0004 참조). 설정하지 않으면 일반 3-way 병합으로 처리된다.
