@@ -119,6 +119,26 @@ impl TestServer {
         world: WorldConstants,
         tick_interval: Duration,
     ) -> Self {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        Self::start_with_world_and_interval_and_listener(
+            auth_enabled,
+            world,
+            tick_interval,
+            listener,
+        )
+        .await
+    }
+
+    /// [`start_with_world_and_interval`] 와 같지만 **리스너를 직접 받는다** — SC-22 전용.
+    /// accept 되는 소켓에 리스너의 소켓 옵션(예: `SO_SNDBUF`)을 물려주려고, 이 테스트만
+    /// `TcpSocket` 으로 직접 리스너를 만들어 넘길 수 있게 한다. 다른 테스트는 전부
+    /// [`start_with_world_and_interval`] 를 그대로 쓴다(기본 `TcpListener::bind`).
+    async fn start_with_world_and_interval_and_listener(
+        auth_enabled: bool,
+        world: WorldConstants,
+        tick_interval: Duration,
+        listener: tokio::net::TcpListener,
+    ) -> Self {
         let stats = Stats::new();
         stats.set_start_tick(0);
         // `world_full` 게이트가 읽는 `world_capacity` 는 운영에서 `bins/game-server`의
@@ -160,7 +180,6 @@ impl TestServer {
         .unwrap();
         let state = AppState::new("0.1.0-test", probes).with_realtime(auth.clone(), stats, submit);
 
-        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let addr = listener.local_addr().unwrap();
         tokio::spawn(async move {
             let _ = axum::serve(listener, realtime_router(state)).await;
@@ -234,6 +253,38 @@ impl Drop for TestServer {
     }
 }
 
+/// SC-22 전용 리스너 — **송신 버퍼를 명시적으로 작게** 잡는다.
+///
+/// # 왜 리스너 쪽까지 잡아야 하는가
+///
+/// 클라이언트 수신 버퍼를 작게 잡아도([`connect_with_small_recv_buffer`]), 서버가 쓴
+/// 바이트는 일단 **서버 커널의 송신 버퍼**에 쌓인다. Linux 는 그 송신 버퍼도 자동으로
+/// (autotuning) `net.ipv4.tcp_wmem` 최대치(보통 수 MiB)까지 키우므로, 클라이언트 창이
+/// 작아도 서버 쪽 송신 버퍼가 그만큼을 흡수해 버리면 게이트웨이 쓰기 태스크는 여전히
+/// 막히지 않고 mpsc 송신 큐(64)가 차지 않는다(CI 실측 — 클라이언트 수신 버퍼만 줄였을
+/// 때도 Linux 에서 재현됨).
+///
+/// **명시적으로 `SO_SNDBUF` 를 설정한 소켓은 커널이 자동 조정을 하지 않는다** — 그리고
+/// Linux 는 리스닝 소켓의 소켓 옵션을 accept 된 소켓이 물려받는다. 그래서 리스너를
+/// `TcpListener::bind` 대신 `TcpSocket` 으로 직접 만들어 `set_send_buffer_size` 를 미리
+/// 걸면, 이 리스너로 accept 되는 모든 연결의 송신 버퍼가 작게 고정된다.
+///
+/// 커널이 요청값을 조정할 수 있으므로(최소값 보정 등) **리스너에 실제로 잡힌 값**을 함께
+/// 돌려준다 — accept 된 소켓 자체의 값을 읽을 안정적인 tokio API는 없으므로, 상속 전
+/// 리스너 값을 증거로 남긴다.
+async fn bind_listener_with_small_send_buffer(
+    requested_send_buffer_bytes: u32,
+) -> (tokio::net::TcpListener, u32) {
+    let socket = tokio::net::TcpSocket::new_v4().unwrap();
+    socket
+        .set_send_buffer_size(requested_send_buffer_bytes)
+        .unwrap();
+    let actual_send_buffer_bytes = socket.send_buffer_size().unwrap();
+    socket.bind("127.0.0.1:0".parse().unwrap()).unwrap();
+    let listener = socket.listen(1024).unwrap();
+    (listener, actual_send_buffer_bytes)
+}
+
 type Client =
     tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>;
 
@@ -270,8 +321,14 @@ async fn connect(server: &TestServer, token: Option<&str>) -> Result<Client, u16
 /// 에서만 유휴 종료가 느린 소비자보다 먼저 이겼다.
 ///
 /// 연결 전에 `TcpSocket::set_recv_buffer_size` 로 수신 버퍼를 명시적으로 작게 잡으면(예:
-/// 수 KB), 이 소켓의 수신 윈도가 OS 기본값·autotuning 과 무관하게 좁게 유지되어 어느
-/// 플랫폼에서든 몇 초 안에 송신 버퍼(→ mpsc 채널)가 막힌다.
+/// 수 KB), 이 소켓의 수신 윈도가 OS 기본값·autotuning 과 무관하게 좁게 유지된다.
+///
+/// **이것만으로는 부족했다(CI 실측)** — 서버가 쓴 바이트는 클라이언트 창과 별개로
+/// **서버 커널의 송신 버퍼**에도 쌓이고, Linux 는 그 송신 버퍼도 자동으로 MB 단위까지
+/// 키운다. 그래서 이 헬퍼는 [`bind_listener_with_small_send_buffer`](서버 쪽 리스너의
+/// `SO_SNDBUF` 를 작게 고정) 와 **함께** 써야 어느 플랫폼에서든 몇 초 안에 송신 큐
+/// (→ mpsc 채널)가 막힌다. `sc22_slow_consumer_is_closed_with_slow_consumer_reason` 이
+/// 그 조합을 쓴다.
 ///
 /// 커널이 요청값을 조정할 수 있으므로(Linux 는 최소값 보정·2배 확장이 흔하다) **실제로
 /// 잡힌 크기**를 함께 돌려준다 — 호출부가 증거로 로그에 남긴다.
@@ -865,7 +922,24 @@ where
 async fn sc22_slow_consumer_is_closed_with_slow_consumer_reason() {
     let mut world = default_world();
     world.snapshot_interval_ticks = 1; // 20 Hz — 64슬롯 큐가 3.2초면 스냅샷만으로 찬다.
-    let mut server = TestServer::start_with_world(true, world).await;
+
+    // 클라이언트 수신 버퍼만 줄여서는 Linux CI 에서 여전히 막히지 않는다 — 서버 쪽 송신
+    // 버퍼가 autotuning 으로 커지며 남은 흡수원이 되기 때문이다(위 문서 및
+    // `bind_listener_with_small_send_buffer` 참고). 그래서 이 테스트만 리스너부터 직접
+    // 만들어 송신 버퍼를 작게 고정한다.
+    const REQUESTED_SEND_BUFFER_BYTES: u32 = 2 * 1024;
+    let (listener, actual_send_buffer_bytes) =
+        bind_listener_with_small_send_buffer(REQUESTED_SEND_BUFFER_BYTES).await;
+    println!(
+        "[SC-22] 요청 send buffer(리스너) {REQUESTED_SEND_BUFFER_BYTES} bytes, 커널이 실제로 잡은 값 {actual_send_buffer_bytes} bytes"
+    );
+    let mut server = TestServer::start_with_world_and_interval_and_listener(
+        true,
+        world,
+        Duration::from_millis(50),
+        listener,
+    )
+    .await;
     let token = server.token(SUBJECT);
 
     // 요청값은 작게 잡되, 커널이 실제로 잡은 값을 증거로 출력한다(요청값을 그대로
