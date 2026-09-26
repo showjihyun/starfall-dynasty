@@ -43,6 +43,10 @@ import re
 import sys
 from pathlib import Path
 
+# Rust 팔 파서 (architect R28 Q-1). 같은 폴더에 있고, **SC 번호를 라벨로 쓰지 않는다**
+# — 출처 게이트가 자기 모듈을 위반으로 세지 않게.
+import rust_case_refs as RCR
+
 for _stream in (sys.stdout, sys.stderr):
     try:
         _stream.reconfigure(encoding="utf-8")
@@ -57,53 +61,8 @@ SC_RANGE = re.compile(r"SC-(\d+)\s*[~-]\s*(\d+)")
 # 이것을 안 펼치면 첫 번호만 걸리고 나머지는 조용히 빠진다 — 실제 라벨의 절반이 이 형태다.
 SC_LIST = re.compile(r"SC-(\d+)((?:\s*[/·,]\s*(?:SC-)?\d+)+)")
 BARE_NUM = re.compile(r"\d+")
-CONTRACT_ROW = re.compile(r"^\|\s*\*{0,2}SC-(\d+)\*{0,2}\s*\|", re.M)
-# **E-2 (architect R19)**: 도구가 없는 것이 정당한 항목(사람이 보는 육안·영상 항목)은 계약이
-# 그 사실을 **명시**해야 한다. 명시가 없는 미지명은 *비어 있음*과 구별되지 않는다.
-NO_TOOL_MARK = "도구 없음(사람 관찰)"
-# 종료 코드: 0 통과 / **1 출처 위반** / **3 미지명만** / 2 사용법 오류.
-# 이 레포엔 이미 `4 = 미검증(판정 기준 미지정)` 관례가 있으므로 새 규약이 아니다.
-EXIT_SOURCE_VIOLATION = 1
-EXIT_UNNAMED_ONLY = 3
-# 기본 실행이 제외를 적을 때 같이 찍는 수. **이 수가 출력에 있어야 만기가 지났는지·
-# 늘었는지가 그 자리에서 읽힌다**(architect R23). `--include-rust` 실행으로 갱신한다.
-RUST_DIRS = ("tools/bots/src",)
-
-
-def rust_label_coverage(dirs=RUST_DIRS):
-    """(주석 아닌 `SC-` 줄 수, `RUST_LABEL` 이 실제로 보는 줄 수).
-
-    **수를 손으로 적지 않는다.** 이 자리에 `RUST_KNOWN_MISMATCHES = 8` 을 박아 뒀었는데
-    그 8건이 `참고:` 로 강등되면서 **수가 낡았고, 낡은 수는 거짓을 인쇄한다.** 더 나쁜 것은
-    그것을 0 으로 고치는 것이다 — *"불일치 0건"* 은 **검출되는 것만 센 값**이고,
-    **검출되지 않는 것까지 세야 참이다**(리더 판정 R25).
-
-    분모(전체 줄)와 분자(보는 줄)를 같이 내는 이유: 둘이 벌어져 있으면 `--include-rust` 의
-    **exit 0 은 "라벨이 옳다"가 아니라 "정규식이 보는 줄에 없다"** 라는 뜻이다.
-    """
-    total = 0
-    seen = 0
-    for d in dirs:
-        base = Path(d)
-        if not base.is_dir():
-            continue
-        for f in sorted(base.glob("*.rs")):
-            src = f.read_text(encoding="utf-8")
-            total += sum(
-                1 for line in src.splitlines()
-                if "SC-" in line and not line.lstrip().startswith("//")
-            )
-            seen += len(RUST_LABEL.findall(src))
-    return total, seen
-# **규칙 7 의 대상은 verdict 라벨이다** (architect R23). 로그가 관련 항목을 *가리키는*
-# 표식은 금지가 아니라 표시의 문제다 — 이것을 위반으로 잡으면 게이트가 "로그에서 SC
-# 번호를 전부 빼라"는 압력을 만들고, 그러면 라벨 불일치와 함께 **증거에서 항목으로
-# 가는 길도 사라진다**. 고치는 것이 재는 것을 망가뜨리는 형태다.
-OBSERVATION_MARKS = ("관측용", "참고", "참조")
 # 분모를 셀 때 **판정 수단이 지명됐는가**를 본다. `.py` 만 세면 이 레포 항목의 절반 이상이
-# "미지명"으로 나오는데, 그것들은 지명이 없는 게 아니라 **수단이 파이썬이 아닌 것**이다
-# (server 게이트는 `cargo test`, client 는 `unity test`·EditMode, 기록 무결성은 SQL).
-# 출처 **대조**는 파이썬 도구에만 걸리지만, 출처 **분모**는 수단 전체를 세야 뜻이 있다.
+# "미지명"으로 나오는데, 그것들은 지명이 없는 게 아니라 **수단이 파이썬이 아닌 것**이다.
 MEANS = (
     re.compile(r"cargo\s+(test|fmt|clippy|run)"),
     re.compile(r"unity\s+test|EditMode|PlayMode"),
@@ -112,19 +71,27 @@ MEANS = (
     re.compile(r"dotnet\s+run|ContractsCodegen"),
     re.compile(r"\.mp4|영상|녹화|육안"),
     re.compile(r"/debug/stats|summary\.json|Profiler"),
-    # R21 이후: architect 가 쓴 수단 표기 둘을 분모가 못 읽고 있었다 — **분모를 세는
-    # 쪽의 결함이지 계약의 누락이 아니었다.** 14건 중 7건이 이 형태였다.
     re.compile(r"grep"),
     re.compile("tools/bots|probe|봇 2대|봇 두 대"),
 )
-# verdict 를 내는 라벨. `"item": "..."` 와 `item = f"..."` 두 형태를 본다.
+# verdict 를 내는 파이썬 라벨. `"item": "..."` 와 `item = f"..."` 두 형태를 본다.
 ITEM_LABEL = re.compile(r'"item"\s*:\s*(?:f?")([^"]*)"|^\s*item\s*=\s*f?"([^"]*)"', re.M)
-# **Rust 도구도 SC 라벨을 출력한다** — `tools/bots/src/scenario.rs` 의 probe 설명 문자열이
-# 그것이다. 파이썬만 훑으면 그 라벨은 영원히 안 보이고, **안 보이는 것은 검사가 없는 것과
-# 같다**(규칙 7 주석의 분모 논리). 주석(`//`)은 제외한다 — 주석은 verdict 를 인쇄하지 않는다.
-RUST_LABEL = re.compile(r'^\s*(?!//)[^\n]*?=>\s*"([^"]*SC-\d[^"]*)"', re.M)
+# 규칙 7 의 대상은 verdict 라벨이다 — 관측 표식은 위반이 아니다(R23).
+OBSERVATION_MARKS = ("관측용", "참고", "참조")
 
-
+CONTRACT_ROW = re.compile(r"^\|\s*\*{0,2}SC-(\d+)\*{0,2}\s*\|", re.M)
+# **E-2 (architect R19)**: 도구가 없는 것이 정당한 항목(사람이 보는 육안·영상 항목)은 계약이
+# 그 사실을 **명시**해야 한다. 명시가 없는 미지명은 *비어 있음*과 구별되지 않는다.
+NO_TOOL_MARK = "도구 없음(사람 관찰)"
+# 종료 코드: 0 통과 / **1 출처 위반** / **3 미지명만** / 2 사용법 오류.
+# 이 레포엔 이미 `4 = 미검증(판정 기준 미지정)` 관례가 있으므로 새 규약이 아니다.
+EXIT_SOURCE_VIOLATION = 1
+EXIT_UNNAMED_ONLY = 3
+# **분류 불가·항등식 깨짐 → 4** (architect R28 Q-3·Q-4). 판정을 시도하지 않았다는 뜻이고
+# **exit 1(거짓 주장)·exit 3(문서 공백)과 섞으면 셋이 한 빨간불로 합쳐진다**(F-1).
+EXIT_UNDECIDABLE = 4
+# 기본 실행이 제외를 적을 때 같이 찍는 수. **이 수가 출력에 있어야 만기가 지났는지·
+# 늘었는지가 그 자리에서 읽힌다**(architect R23). `--include-rust` 실행으로 갱신한다.
 def expand(text: str) -> set[int]:
     """문자열 안의 SC 번호를 범위까지 펼쳐 모은다."""
     out: set[int] = set()
@@ -178,6 +145,83 @@ def emitted(tool_path: Path) -> set[int]:
     return out
 
 
+def rust_check(contract_text: str, all_rs: dict) -> dict:
+    """Rust 팔을 **케이스 이름**으로 계약 §1 에 잇는다 (architect R28 Q-2·Q-4·Q-5).
+
+    **`PY_NAME` 경로를 타지 않는다** — 그것은 `.py` 만 잡으므로 `.rs` 는 원리적으로 지명될 수
+    없다(그래서 옛 게이트에서 Rust 는 "지명 0" 상태로 검사됐다). 대신 계약 §1 행의 백틱 span 안
+    토큰과 `as_str()` 의 CLI 이름을 **완전히 같을 때만** 잇는다.
+
+    **미지명 verdict 팔은 exit 1 이다(3 이 아니다)** — §1 미지명(3)은 *계약이 도구를 안 적었다*는
+    문서 공백이고, 미지명 verdict 팔은 *도구가 근거 없이 판정을 주장한다*는 **거짓 주장**이다.
+    방향이 반대이고 후자는 "남의 번호"와 같은 무게다.
+    """
+    scen = all_rs.get("scenario.rs", "")
+    main = all_rs.get("main.rs", "")
+    if not scen:
+        return {"skipped": "scenario.rs 가 없다"}
+    ids = RCR.identities(scen, main, all_rs)
+    names = RCR.case_names(scen)
+    arms = RCR.contract_arms(scen)
+    named = RCR.contract_named_cases(contract_text, set(names.values()))
+
+    unclassifiable = [a["variant"] for a in arms if a["kind"] == "unclassifiable"]
+    unqualified = [a["variant"] for a in arms if a["kind"] == "unqualified"]   # Q-8
+    # **다섯 수 중 3 과 4 를 가른다** (리더 R29): 3 은 *계약이 그 케이스를 아예 안 적었다*,
+    # 4 는 *적었는데 그 번호를 주지 않았다*. 합치면 **"몇 건이 위반이고 몇 건이 옳은 라벨인가"**
+    # 가 출력에서 갈리지 않는다.
+    unnamed_verdict_arms = []   # (케이스, [SC…]) — 계약 §1 에 그 케이스 이름이 없다
+    violations = []             # (케이스, SC) — 이름은 있는데 그 번호를 안 줬다
+    for a in arms:
+        if a["kind"] != "verdict":
+            continue
+        case = names.get(a["variant"]) or a["variant"]
+        if case not in named:
+            unnamed_verdict_arms.append((case, a["sc"]))
+            continue
+        for n in a["sc"]:
+            if n not in named[case]:
+                violations.append((case, n))
+    # Q-5 유령 지명: 계약이 백틱으로 적은 케이스 이름이 `as_str()` 에 없으면 위반
+    ghosts = sorted(set(named) - set(names.values()))
+    return {
+        "identities": ids,
+        "arms_total": len(arms),
+        "verdict_arms": sum(1 for a in arms if a["kind"] == "verdict"),
+        "reference_arms": sum(1 for a in arms if a["kind"] == "reference"),
+        # Q-9: **여섯째 수.** `ContractRef` 명시로 종류가 정해진 팔 수. `< 팔 수` 면 exit 4 —
+        # 대체 사슬(관측 표식 → 기본 verdict)은 **지우지 않는다.** 바꾸는 것은 그 단계가
+        # **조용한 것**이고, 수 하나가 소리 나게 만든다.
+        "explicit_arms": sum(1 for a in arms if a.get("decided_by") == "explicit"),
+        "decided_by": {k: sum(1 for a in arms if a.get("decided_by") == k)
+                       for k in ("explicit", "mark", "default", "unqualified")},
+        "unclassifiable_arms": unclassifiable,
+        "unqualified_arms": unqualified,
+        "unnamed_verdict_arms": sorted(unnamed_verdict_arms),
+        "contract_named_cases": {k: sorted(v) for k, v in sorted(named.items())},
+        "violations": sorted(violations),
+        "ghost_named_cases": ghosts,
+    }
+
+
+def rust_exit_code(res: dict) -> int:
+    """항등식 → 분류 → 위반 **순서로** 본다.
+
+    **항등식을 팔 루프보다 먼저 본다** — architect 시제품이 검사를 뒤에 뒀다가 깨진 입력에서
+    `KeyError` 로 죽었고, **죽는 것과 exit 4 는 CI 에서 다르게 읽힌다.**
+    """
+    if res.get("skipped"):
+        return 0
+    if (not res["identities"]["ok"] or res["unclassifiable_arms"]
+            or res["unqualified_arms"]
+            # Q-9: 명시가 팔 수보다 적으면 **게이트가 무엇으로 판정했는지 모르는 상태**다.
+            or res["explicit_arms"] < res["arms_total"]):
+        return EXIT_UNDECIDABLE
+    if res["violations"] or res["ghost_named_cases"] or res["unnamed_verdict_arms"]:
+        return EXIT_SOURCE_VIOLATION
+    return 0
+
+
 def exit_code(bad: list, unmarked: set) -> int:
     """**빨간불 둘을 같은 코드로 내보내지 않는다** (architect R20 F-1).
 
@@ -227,23 +271,193 @@ def coverage(contract_text: str) -> tuple[set[int], set[int], set[int]]:
     return all_sc, named | exempt | other_means, unmarked
 
 
-def check(contract_text: str, tools: dict[str, str]) -> list[tuple[str, int]]:
-    """(도구, 남의 번호) 목록. 빈 목록이 통과다."""
+def check(contract_text: str, tools: dict[str, str],
+          refused: list[str] | None = None) -> list[tuple[str, int]]:
+    """(도구, 남의 번호) 목록. 빈 목록이 통과다.
+
+    `.rs` 는 **이 경로로 판정하지 않는다** — `refused` 에 이름만 담고 건너뛴다(R28 Q-2).
+    """
     allowed = contract_allowed(contract_text)
     bad: list[tuple[str, int]] = []
+    if refused is None:
+        refused = []
     for name, source in sorted(tools.items()):
         used: set[int] = set()
         if name.endswith(".rs"):
-            for lbl in RUST_LABEL.findall(source):
-                if any(mark in lbl for mark in OBSERVATION_MARKS):
-                    continue          # verdict 가 아님이 문자열 안에 있다
-                used |= expand(lbl)
-        else:
-            for a, b in ITEM_LABEL.findall(source):
-                used |= expand(a or b)
+            # **이 경로로 `.rs` 를 판정하지 않는다** (architect R28 Q-2). 옛 한 줄 정규식은
+            # 17 팔 중 1 개만 보았고, `PY_NAME` 이 `.py` 만 잡아 **옳은 라벨이어도 지명될 수
+            # 없다.** 그 상태로 통과시키면 `--tools-dir tools/bots/src` 가 **거짓 초록**을 낸다.
+            # Rust 는 `rust_check()` 가 **케이스 이름**으로 판정한다.
+            refused.append(name)
+            continue
+        for a, b in ITEM_LABEL.findall(source):
+            used |= expand(a or b)
         for n in sorted(used - allowed.get(name, set())):
             bad.append((name, n))
     return bad
+
+
+
+# 합성 소스 조립용. 모듈 수준에 두면 `_rs` 와 `rust_selftest` 가 같이 쓴다.
+NL = chr(10)
+
+
+def _rs(arms: list[tuple[str, str]], variants: list[str] | None = None,
+        names: list[tuple[str, str]] | None = None) -> str:
+    """합성 `scenario.rs`. `arms` = (변이, 팔 본문). 본문을 그대로 넣으므로 주석·다줄·복수
+    리터럴을 **그 모양대로** 시험할 수 있다."""
+    names = names or [(v, v.lower()) for v, _ in arms]
+    variants = variants or [v for v, _ in arms]
+    out = ["pub enum ProbeCase {"] + ["    %s," % v for v in variants] + ["}", ""]
+    out += ["impl ProbeCase {", "    pub fn as_str(self) -> &'static str {", "        match self {"]
+    out += ['            Self::%s => "%s",' % (v, n) for v, n in names]
+    out += ["        }", "    }", "", "    pub fn contract_item(self) -> &'static str {",
+            "        match self {"]
+    for v, body in arms:
+        out.append("            Self::%s => %s" % (v, body))
+    out += ["        }", "    }", "}"]
+    return NL.join(out) + NL
+
+
+def rust_selftest() -> int:
+    """**R28 Q-6 — 여덟 케이스가 고치기 전 입력에서 실제로 빨간불을 켜는가.**
+
+    (a) 가 제일 중요하다 — **오늘 정규식이 놓치던 정확한 모양**(`=> {` + 주석 + 문자열)이고,
+    이 케이스가 없으면 다음 회귀가 안 보인다.
+    """
+    S1 = "## 1. 검증 항목" + NL
+    OUT = "## 7b. 자명 통과 시험" + NL
+    row = lambda n, cell: "| SC-%d | 무엇 | %s | qa | AC-x | E6 |%s" % (n, cell, NL)
+    multiline = '{' + NL + '                // 주석이 여기 들어간다' + NL         + '                "SC-24 (AC-5c): 범위 초과"' + NL + '            }'
+    cases = []
+
+    # (a) 다줄 + 주석 — 잡히는가. 주석을 안 지우면 이 팔의 리터럴이 안 보인다.
+    src = _rs([("CheatRange", multiline)], names=[("CheatRange", "cheat-range")])
+    arms = RCR.contract_arms(src)
+    cases.append(("(a) `=> {` + 주석 + 문자열을 잡는다",
+                  len(arms) == 1 and arms[0]["kind"] == "verdict" and arms[0]["sc"] == [24],
+                  "팔=%s" % arms))
+    # 같은 입력에서 **주석을 지우지 않으면** 리터럴이 하나 더 보인다(대조)
+    naive = len(RCR.STRING_LIT.findall(src))
+    stripped = len(RCR.STRING_LIT.findall(RCR.strip_line_comments(src)))
+    cases.append(("(a') 주석 제거가 실제로 무언가를 지운다",
+                  naive >= stripped, "naive=%d stripped=%d" % (naive, stripped)))
+
+    # (b) verdict 팔에 남의 번호 → 위반
+    src = _rs([("CheatRange", 'ContractRef::Verdict("SC-24/SC-99 (AC-5c): 범위 초과")')],
+              names=[("CheatRange", "cheat-range")])
+    res = rust_check(S1 + row(24, "`probe --case cheat-range`"), {"scenario.rs": src, "main.rs": ""})
+    cases.append(("(b) verdict 팔의 남의 번호 → 위반",
+                  ("cheat-range", 99) in res["violations"], str(res["violations"])))
+
+    # (c) 같은 번호를 Reference 로 → 위반 아님
+    src = _rs([("CheatRange", 'ContractRef::Reference("SC-24/SC-99 재현용")')],
+              names=[("CheatRange", "cheat-range")])
+    res = rust_check(S1 + row(24, "`probe --case cheat-range`"), {"scenario.rs": src, "main.rs": ""})
+    cases.append(("(c) 같은 번호를 Reference 로 → 위반 없음",
+                  res["violations"] == [] and res["reference_arms"] == 1, str(res)[:60]))
+
+    # (d) 접두 누출 — 계약이 `cheat-range` 만 적을 때 `cheat-range-turn` 은 미지명
+    src = _rs([("CheatRangeTurn", 'ContractRef::Verdict("SC-67 (AC-17b)")')],
+              names=[("CheatRangeTurn", "cheat-range-turn")])
+    res = rust_check(S1 + row(24, "`probe --case cheat-range`"), {"scenario.rs": src, "main.rs": ""})
+    # 계약이 `cheat-range` 만 적었으므로 `cheat-range-turn` 은 **이름 자체가 미지명 = ③** 이다.
+    # 부분문자열로 이었다면 여기서 ④ 도 ③ 도 비어 exit 0 이 났을 것이다.
+    cases.append(("(d) 접두 누출 없음 — cheat-range 가 cheat-range-turn 을 지명하지 않는다",
+                  res["unnamed_verdict_arms"] == [("cheat-range-turn", [67])]
+                  and rust_exit_code(res) == EXIT_SOURCE_VIOLATION,
+                  "③=%s ④=%s" % (res["unnamed_verdict_arms"], res["violations"])))
+
+    # (e) 팔 수 != 변이 수 → 항등식 깨짐 → exit 4
+    src = _rs([("CheatRange", 'ContractRef::Verdict("SC-24")')], variants=["CheatRange", "Orphan"],
+              names=[("CheatRange", "cheat-range"), ("Orphan", "orphan")])
+    res = rust_check(S1 + row(24, "`probe --case cheat-range`"), {"scenario.rs": src, "main.rs": ""})
+    cases.append(("(e) 팔 없는 변이 → exit 4 (이름으로 인쇄)",
+                  rust_exit_code(res) == EXIT_UNDECIDABLE
+                  and res["identities"]["identity_1_variants_vs_arms"]["variants_without_arm"] == ["Orphan"],
+                  str(res["identities"]["identity_1_variants_vs_arms"])))
+
+    # (f) 백틱 **밖** 케이스 이름은 지명이 아니다
+    src = _rs([("Binary", 'ContractRef::Verdict("SC-25 (AC-8b)")')], names=[("Binary", "binary")])
+    res = rust_check(S1 + row(25, "binary 프레임도 같은 예산"), {"scenario.rs": src, "main.rs": ""})
+    cases.append(("(f) 백틱 밖 `binary` 는 지명이 아니다",
+                  res["unnamed_verdict_arms"] == [("binary", [25])]
+                  and rust_exit_code(res) == EXIT_SOURCE_VIOLATION,
+                  "③=%s ④=%s" % (res["unnamed_verdict_arms"], res["violations"])))
+
+    # (g) 한 팔에 문자열 둘 → 분류 불가 → exit 4
+    two = '{' + NL + '                ContractRef::Verdict("첫 리터럴")' + NL         + '                "SC-11 둘째"' + NL + '            }'
+    src = _rs([("CheatRange", two)], names=[("CheatRange", "cheat-range")])
+    res = rust_check(S1 + row(24, "`probe --case cheat-range`"), {"scenario.rs": src, "main.rs": ""})
+    cases.append(("(g) 한 팔에 문자열 둘 → exit 4",
+                  rust_exit_code(res) == EXIT_UNDECIDABLE and res["unclassifiable_arms"] == ["CheatRange"],
+                  str(res["unclassifiable_arms"])))
+
+    # (i) **Q-8 — 비수식 종류 토큰 → exit 4.** 합성 최소 입력이다(파일 전체를 fixture 로 박으면
+    #     `scenario.rs` 가 바뀔 때마다 낡는다 — architect·리더 둘 다 짚었다).
+    #     **이것은 실제로 일어난 모양이다**: `use ContractRef::{Reference, Verdict};` 한 줄이
+    #     수식 적중을 0/17 로 만들었고, **위반도 0 이라 "위반 0 · exit 0" 이 인쇄될 수 있었다.**
+    src = ("use ContractRef::{Reference, Verdict};" + NL
+           + _rs([("CheatRange", 'Verdict("SC-24 (AC-5c): 범위 초과")')],
+                 names=[("CheatRange", "cheat-range")]))
+    res = rust_check(S1 + row(24, "`probe --case cheat-range`"), {"scenario.rs": src, "main.rs": ""})
+    cases.append(("(i) Q-8 비수식 `Verdict(` → exit 4 (조용한 exit 0 이 아니다)",
+                  rust_exit_code(res) == EXIT_UNDECIDABLE and res["unqualified_arms"] == ["CheatRange"],
+                  "code=%s unqualified=%s" % (rust_exit_code(res), res["unqualified_arms"])))
+    # (i') 같은 입력을 **수식**으로 고치면 통과한다 — 음성 대조. 없으면 (i) 가
+    #      "무조건 exit 4" 와 구분되지 않는다.
+    src_ok = _rs([("CheatRange", 'ContractRef::Verdict("SC-24 (AC-5c): 범위 초과")')],
+                 names=[("CheatRange", "cheat-range")])
+    res_ok = rust_check(S1 + row(24, "`probe --case cheat-range`"),
+                        {"scenario.rs": src_ok, "main.rs": ""})
+    cases.append(("(i') 수식으로 고치면 exit 0 — (i) 가 무조건 4 를 내는 게 아니다",
+                  rust_exit_code(res_ok) == 0 and res_ok["verdict_arms"] == 1,
+                  "code=%s" % rust_exit_code(res_ok)))
+
+    # (j) ③ 과 ④ 를 가른다 — 계약이 케이스를 **아예 안 적은** 경우는 ③ 이다
+    src = _rs([("TickBurst", 'ContractRef::Verdict("SC-89 (g)")')],
+              names=[("TickBurst", "tick-burst")])
+    res = rust_check(S1 + row(24, "`probe --case cheat-range`"), {"scenario.rs": src, "main.rs": ""})
+    cases.append(("(j) 계약이 케이스를 안 적었으면 ③(미지명 verdict 팔) — ④ 가 아니다",
+                  res["unnamed_verdict_arms"] == [("tick-burst", [89])] and res["violations"] == [],
+                  "③=%s ④=%s" % (res["unnamed_verdict_arms"], res["violations"])))
+
+    # (k) **Q-9 — `ContractRef` 명시가 없으면 exit 4.** 기본값 verdict 는 남겨 두지만
+    #     **조용하지 않게** 만든다. 항등식 ① 은 이 팔을 못 잡는다(팔 수는 17 그대로다).
+    src = _rs([("CheatRange", '"SC-24 (AC-5c): 범위 초과"')],
+              names=[("CheatRange", "cheat-range")])
+    res = rust_check(S1 + row(24, "`probe --case cheat-range`"), {"scenario.rs": src, "main.rs": ""})
+    cases.append(("(k) Q-9 ContractRef 없는 팔 → exit 4 (기본 verdict 로 조용히 통과하지 않는다)",
+                  rust_exit_code(res) == EXIT_UNDECIDABLE
+                  and res["explicit_arms"] == 0 and res["decided_by"]["default"] == 1
+                  and res["identities"]["ok"],      # ① 은 성립한다 — 그래서 여섯째 수가 필요하다
+                  "code=%s 명시=%s/%s ①=%s" % (rust_exit_code(res), res["explicit_arms"],
+                                               res["arms_total"], res["identities"]["ok"])))
+
+    # (l) **architect 가 실측한 정확한 구멍**: verdict 주장 하나가 `참고:` 두 글자로 면제되고
+    #     항등식은 성립하고 출력에 표시가 없던 경로. 이제 exit 4 다.
+    src = _rs([("TickBurst", '"참고: SC-89 (g) 재현용"')], names=[("TickBurst", "tick-burst")])
+    res = rust_check(S1 + row(89, "`probe --case tick-burst`"), {"scenario.rs": src, "main.rs": ""})
+    cases.append(("(l) Q-9 `참고:` 산문만으로 reference 가 된 팔 → exit 4",
+                  rust_exit_code(res) == EXIT_UNDECIDABLE
+                  and res["decided_by"]["mark"] == 1 and res["identities"]["ok"],
+                  "code=%s 표식=%s ①=%s" % (rust_exit_code(res), res["decided_by"]["mark"],
+                                            res["identities"]["ok"])))
+
+    # (h) §1 **밖** 항목행은 지명하지 않는다
+    src = _rs([("CheatRange", 'ContractRef::Verdict("SC-24 (AC-5c)")')], names=[("CheatRange", "cheat-range")])
+    res = rust_check(OUT + row(24, "`probe --case cheat-range`"), {"scenario.rs": src, "main.rs": ""})
+    cases.append(("(h) §1 밖 `| SC-24 |` 행은 지명이 아니다",
+                  res["unnamed_verdict_arms"] == [("cheat-range", [24])]
+                  and rust_exit_code(res) == EXIT_SOURCE_VIOLATION,
+                  "③=%s ④=%s" % (res["unnamed_verdict_arms"], res["violations"])))
+
+    failures = 0
+    for name, ok, detail in cases:
+        print("%s [Rust] %s%s" % ("OK  " if ok else "FAIL", name, "" if ok else " :: " + detail))
+        if not ok:
+            failures += 1
+    return failures
 
 
 def selftest() -> int:
@@ -295,16 +509,6 @@ def selftest() -> int:
             "SC 번호가 없는 라벨은 아무것도 주장하지 않는다",
             {"poll_until.py": '"item": "계약 외 검사 — 대기 헬퍼"'},
             [],
-        ),
-        (
-            "관측 표식은 위반이 아니다 — `관측용` 이 문자열 안에 있다 (architect R23)",
-            {"scenario.rs": '    Self::Fly => "SC-70 관측용: 스냅샷 주기 전송",'},
-            [],
-        ),
-        (
-            "같은 파일의 **verdict 라벨**은 잡는다 — 표식이 없으면 주장이다",
-            {"scenario.rs": '    Self::Binary => "SC-70 (AC-8b): 바이너리 프레임도 같은 예산",'},
-            [("scenario.rs", 70)],
         ),
     ]
     # -- E-3 (architect R19): **E-2 의 방어 자신에 규칙 6 을 돌린다.**
@@ -371,8 +575,9 @@ def selftest() -> int:
         print(f"{'OK  ' if ok else 'FAIL'} {name} :: 잡은 것={got} 기대={expected}")
         if not ok:
             failures += 1
-    total = len(cases) + len(cov_cases) + len(code_cases)
-    print(f"selftest: {'PASS' if failures == 0 else f'FAIL ({failures})'}  케이스={total} (출처 {len(cases)} + 분모 {len(cov_cases)} + 종료코드 {len(code_cases)})")
+    failures += rust_selftest()
+    total = len(cases) + len(cov_cases) + len(code_cases) + 14
+    print(f"selftest: {'PASS' if failures == 0 else f'FAIL ({failures})'}  케이스={total} (출처 {len(cases)} + 분모 {len(cov_cases)} + 종료코드 {len(code_cases)} + Rust 14)")
     return 0 if failures == 0 else 1
 
 
@@ -382,6 +587,8 @@ def main() -> int:
     ap.add_argument("--contract")
     ap.add_argument("--tools-dir", action="append", default=None,
                     help="여러 번 줄 수 있다. 기본값: tests/e2e 와 tools/bots/src")
+    ap.add_argument("--no-rust", action="store_true",
+                    help="Rust 판정을 끈다. 끄면 항등식도 안 찍힌다 — 그 사실이 출력에 남는다")
     ap.add_argument("--include-rust", action="store_true",
                     help="tools/bots/src 의 Rust 라벨도 훑는다(규칙 8 만기 항목, 기본 꺼짐)")
     ap.add_argument("--selftest", action="store_true")
@@ -395,19 +602,10 @@ def main() -> int:
         return 2
 
     contract_text = Path(args.contract).read_text(encoding="utf-8")
-    # **Rust 훑기는 아직 기본값이 아니다 (규칙 8 만기 항목).** `scenario.rs` 의 probe 설명
-    # 문자열이 **p0-02 번호 11개**를 쓰고 있어, 지금 기본으로 켜면 게이트가 **상시 exit 1** 이
-    # 되고 **새로 생기는 파이썬 위반을 가린다** — F-1 이 막으려던 바로 그 형태다. 라벨을 고치고
-    # §3.1(봇 하네스)의 지명을 게이트가 읽게 만든 뒤 기본값으로 올린다.
+    # **Rust 는 이제 별도 경로로 판정한다** (architect R28 Q-2·Q-7). `.rs` 는 `PY_NAME`
+    # (`.py` 만 잡는다) 로 지명될 수 없으므로 `dirs` 에 넣어 같은 검사를 돌릴 수 없다 —
+    # **케이스 이름**으로 잇는 `rust_check()` 가 그 일을 한다. `dirs` 는 파이썬 전용이다.
     dirs = args.tools_dir or ["tests/e2e"]
-    # qa r13: `--include-rust` 가 `--tools-dir` 와 **함께 주면 조용히 무시되고 있었다**
-    # (`and not args.tools_dir`). 그러면 두 인자를 같이 준 사람은 **Rust 를 검사했다고 믿은 채
-    # exit 0 을 받는다** — 게이트에서 가장 나쁜 실패 형태다(계약 §7a: 초록불이 무엇을 쟀는지
-    # 모르면 아무것도 뜻하지 않는다). 실측으로 걸렸다: `--tools-dir tests/e2e --include-rust` 가
-    # `py 28 / exit 0` 을, 같은 계약에 `--include-rust` 만 주면 `exit 1 · 8건` 을 냈다.
-    # 이제 플래그는 `--tools-dir` 와 무관하게 **항상** 먹는다.
-    if args.include_rust and "tools/bots/src" not in dirs:
-        dirs = dirs + ["tools/bots/src"]
     tools: dict[str, str] = {}
     for d in dirs:
         base = Path(d)
@@ -415,7 +613,21 @@ def main() -> int:
             if f.name == Path(__file__).name:
                 continue
             tools[f.name] = f.read_text(encoding="utf-8")
-    bad = check(contract_text, tools)
+    refused: list[str] = []
+    bad = check(contract_text, tools, refused)
+
+    # ── Rust (architect R28 Q-7). **기본으로 켠다** — rust 의 라벨 강등(R-1·R-2)이 들어온 것을
+    #    실행으로 확인했다(verdict 6 / reference 11). `--no-rust` 로 끌 수 있지만 **두 항등식은
+    #    항상 찍는다** — 끄는 것과 안 적는 것은 다르다(R23).
+    # **`--no-rust` 여도 두 항등식은 찍는다** (architect R28 Q-7). 끄는 것이 *판정*을 끄는 것이지
+    # *보고*를 끄는 것이 아니다 — 안 찍으면 "끈 것"과 "볼 게 없던 것"이 같은 출력이 된다.
+    rs_dir = Path("tools/bots/src")
+    all_rs = (
+        {f.name: f.read_text(encoding="utf-8") for f in sorted(rs_dir.glob("*.rs"))}
+        if rs_dir.is_dir() else {}
+    )
+    rust_res = rust_check(contract_text, all_rs) if all_rs else {"skipped": "tools/bots/src 가 없다"}
+    rust_code = 0 if args.no_rust else rust_exit_code(rust_res)
 
     allowed = contract_allowed(contract_text)
     all_sc, covered, unmarked = coverage(contract_text)
@@ -433,23 +645,74 @@ def main() -> int:
     # qa r13: 여기도 `and not args.tools_dir` 가 붙어 있었다 — `--tools-dir` 를 주면
     # **제외 안내가 사라져** 그 실행의 출력만 보는 사람은 Rust 가 범위에 있었다고 읽는다.
     # 끄는 것과 가리는 것은 다르다(이 파일이 §3.2 빈 표에서 스스로 진단한 상태다).
-    if not args.tools_dir:
-        total, seen = rust_label_coverage()
-        where = "이 실행에서 검사하지 않았다" if not args.include_rust else "검사했다"
-        print(f"**Rust 도구(`tools/bots/src`)**: {where} — "
-              f"이 게이트가 **볼 수 있는 줄이 {seen} / {total}** 이다.")
-        if seen < total:
-            print(f"   ⚠ `--include-rust` 의 exit 0 은 **'라벨이 옳다'는 뜻이 아니다** — "
-                  f"RUST_LABEL 이 한 줄짜리 화살표 라벨만 잡아 **{total - seen}줄을 못 본다.** "
-                  f"그리고 PY_NAME 이 `.py` 만 잡아 **`.rs` 는 옳은 라벨이어도 지명될 수 없다** "
-                  f"— 계약이 봇 도구를 산문으로 부르므로 `scenario.rs` 라는 문자열이 방법 칸에 없다. "
-                  f"**정규식 문제가 아니라 게이트 설계 문제이고, 설계는 architect 소유다.** "
-                  f"계약 §7b 규칙 8 만기(블록 8 실행 전) — **아직 안 끝났다.**")
-    # **검사하지 않은 것을 적는다** (architect R23). `--include-rust` 기본 꺼짐의 근거는
-    # "켜면 상시 exit 1 이 되어 새 파이썬 위반을 가린다" 였는데, **F-1 의 해법은 끄는 것이
-    # 아니라 가르는 것**이었다(exit 1 / exit 3). 끄기만 하면 가려지는 정도가 아니라
-    # **사라진다** — 기본 출력에 Rust 가 한 글자도 없으면 `85/90` 을 읽는 사람은 그게 전부라고
-    # 읽는다. 이 검사 자신이 §3.2 빈 표에서 진단한 상태다.
+    if refused:
+        print("**거부**: `.rs` %d개는 이 경로로 판정하지 않는다 — %s (Rust 는 케이스 이름으로 "
+              "판정한다. R28 Q-2)" % (len(refused), ", ".join(refused)))
+        print("   ⚠ **검사해 달라고 받은 것을 검사하지 못했으므로 exit 4 다** — "
+              "받은 파일을 건너뛰고 `위반 없음`을 인쇄하면 **11개를 주고 0개를 검사한 실행이 "
+              "통과로 읽힌다.**")
+    if args.no_rust:
+        print("**Rust**: `--no-rust` — **판정을 끈 것이고 보고를 끈 것이 아니다.** "
+              "아래 항등식은 그대로 찍히지만 **exit 코드는 Rust 위반에 대해 아무것도 말하지 않는다.**")
+    if rust_res:
+        if rust_res.get("skipped"):
+            print("**Rust**: " + str(rust_res["skipped"]))
+        else:
+            ids = rust_res["identities"]
+            i1 = ids["identity_1_variants_vs_arms"]
+            i2 = ids["identity_2_sc_lines"]
+            # **항등식은 항상 찍는다.** 이 두 줄이 없으면 exit 0 이 "라벨이 옳다"로 읽힌다.
+            extra1 = ""
+            if i1["variants_without_arm"]:
+                extra1 += "  팔 없는 변이=" + str(i1["variants_without_arm"])
+            if i1["arms_without_variant"]:
+                extra1 += "  변이 없는 팔=" + str(i1["arms_without_variant"])
+            print("Rust 항등식 ① 변이 %d == 팔 %d: %s%s"
+                  % (i1["variants"], i1["arms"], "OK" if i1["ok"] else "FAIL", extra1))
+            print("Rust 항등식 ② 주석 아닌 SC- 줄 %d == 판정 팔 %d + 도움말 %d: %s"
+                  % (i2["non_comment_sc_lines_all_rs"], i2["contract_item_arms"],
+                     i2["main_usage_sc_lines"], "OK" if i2["ok"] else "FAIL"))
+            print("Rust 팔: verdict %d · reference %d · 분류 불가 %d%s · **비수식 %d**%s"
+                  % (rust_res["verdict_arms"], rust_res["reference_arms"],
+                     len(rust_res["unclassifiable_arms"]),
+                     " " + str(rust_res["unclassifiable_arms"]) if rust_res["unclassifiable_arms"] else "",
+                     len(rust_res["unqualified_arms"]),
+                     " " + str(rust_res["unqualified_arms"]) if rust_res["unqualified_arms"] else ""))
+            # **3 과 4 를 따로 찍는다** — 합치면 위반과 옳은 라벨이 안 갈린다.
+            db = rust_res["decided_by"]
+            print("Rust **ContractRef 명시 팔: %d / %d**  (표식 %d · 기본 %d · 비수식 %d)"
+                  % (rust_res["explicit_arms"], rust_res["arms_total"],
+                     db["mark"], db["default"], db["unqualified"]))
+            if rust_res["explicit_arms"] < rust_res["arms_total"]:
+                print("   ⚠ **명시가 팔 수보다 적다 → exit 4.** 산문(`참고:` 등)으로 종류가 정해진 팔은")
+                print("   **항등식 ①에 안 걸린다** — ①은 *팔 수*를 세고 *무엇이 종류를 정했는가*는 세지 않는다.")
+            print("Rust ③ 미지명 verdict 팔 %d · ④ .rs 출처 위반 %d · ⑤ 유령 지명 %d"
+                  % (len(rust_res["unnamed_verdict_arms"]), len(rust_res["violations"]),
+                     len(rust_res["ghost_named_cases"])))
+            if rust_res["unnamed_verdict_arms"]:
+                print()
+                print("!! 위반 ③ — **계약 §1 이 그 케이스 이름을 아예 적지 않았다**(verdict 주장 근거 0):")
+                for case, scs in rust_res["unnamed_verdict_arms"]:
+                    print("   %s  ->  SC-%s" % (case, ", SC-".join(str(n) for n in scs)))
+            if rust_res["unqualified_arms"]:
+                print()
+                print("!! 비수식 종류 토큰 — **`ContractRef::` 없이 `Verdict(`/`Reference(`** (R28 Q-8).")
+                print("   " + ", ".join(rust_res["unqualified_arms"]))
+                print("   정규식을 넓히지 않는다 — 맨 토큰은 **나중에 들어올 다른 enum 이 공급할 수 있다.**")
+            if rust_res["violations"]:
+                print()
+                print("!! 위반 — **근거 없이 판정을 주장하는 Rust 팔** (계약 §1 이 그 케이스에 그 번호를 주지 않았다):")
+                for case, n in rust_res["violations"]:
+                    print("   %s  ->  SC-%d" % (case, n))
+            if rust_res["ghost_named_cases"]:
+                print()
+                print("!! 위반 — **유령 지명** (계약이 백틱으로 적은 케이스가 as_str() 에 없다):")
+                print("   " + ", ".join(rust_res["ghost_named_cases"]))
+            if rust_res["unclassifiable_arms"]:
+                print()
+                print("!! 분류 불가 팔 — 한 팔에 문자열이 1개가 아니다. **첫 리터럴만 읽으면")
+                print("   둘째의 SC 번호가 안 보이고 exit 0 이 난다**(R28 Q-6 (g)).")
+
     if unmarked:
         print()
         print(f"!! 위반 — 도구 지명도 `{NO_TOOL_MARK}` 명시도 없는 항목 {len(unmarked)}건:")
@@ -466,6 +729,13 @@ def main() -> int:
         print()
         print("번호의 존재만 보는 역방향 게이트는 이것을 통과시킨다 — 그래서 이 검사가 있다.")
     code = exit_code(bad, unmarked)
+    # **무거운 쪽이 이긴다**: 4(판정 불가) > 1(거짓 주장) > 3(문서 공백).
+    if refused:
+        code = EXIT_UNDECIDABLE
+    if rust_code == EXIT_UNDECIDABLE or code == EXIT_UNDECIDABLE:
+        code = EXIT_UNDECIDABLE
+    elif rust_code == EXIT_SOURCE_VIOLATION or code == EXIT_SOURCE_VIOLATION:
+        code = EXIT_SOURCE_VIOLATION
     if code == EXIT_SOURCE_VIOLATION:
         print()
         print("종료 코드 1 = **출처 위반**. 미지명(코드 3)과 다른 코드다 — 섞으면 상시 빨간불이")

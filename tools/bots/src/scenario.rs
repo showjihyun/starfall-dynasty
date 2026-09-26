@@ -254,6 +254,28 @@ pub enum ProbeCase {
     CheatRangeTurn,
 }
 
+/// 이 probe 가 계약 항목에 대해 **무엇을 주장하는가** — 출처 게이트가 산문이 아니라 이
+/// 타입을 읽는다(architect R28). `참고:`/`관측용:` 같은 접두 문자열을 게이트가 부분문자열로
+/// 면제하던 옛 규칙은 설명 문장에 우연히 그 두 글자가 들어간 verdict 라벨도 조용히 면제하는
+/// 구멍이었다 — 타입으로 가르면 오타는 컴파일러가 잡는다.
+#[derive(Debug, Clone, Copy)]
+pub enum ContractRef {
+    /// 이 probe 가 그 항목의 **공식 verdict 도구**다 — 계약 §1 이 이 케이스 이름을
+    /// (백틱으로) 적어야 한다.
+    Verdict(&'static str),
+    /// 관련 항목을 가리키는 표식. verdict 를 주장하지 않으므로 계약의 지명을 요구하지 않는다.
+    Reference(&'static str),
+}
+
+impl std::fmt::Display for ContractRef {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Verdict(s) => write!(f, "[verdict] {s}"),
+            Self::Reference(s) => write!(f, "[reference] {s}"),
+        }
+    }
+}
+
 impl ProbeCase {
     pub fn parse(s: &str) -> Option<Self> {
         match s.to_ascii_lowercase().as_str() {
@@ -301,72 +323,84 @@ impl ProbeCase {
     }
 
     /// 이 probe 가 어떤 스프린트 계약 항목의 증거인가 — 출력에 같이 찍어 리포트로 옮기기 쉽게.
-    pub fn contract_item(self) -> &'static str {
+    ///
+    /// **architect R28**: 팔마다 문자열 리터럴을 **정확히 하나**만 둔다(`format!`·연결 금지) —
+    /// 게이트가 팔의 첫 리터럴만 읽으므로 둘째 리터럴의 `SC-`번호는 보이지 않고 조용히
+    /// 통과한다(실측으로 드러난 구멍). `ContractRef::{Verdict, Reference}` 가 verdict 여부를
+    /// 들고, `참고:` 산문 접두는 **사람이 읽으라고** 그대로 두되 게이트는 의존하지 않는다.
+    pub fn contract_item(self) -> ContractRef {
         match self {
-            Self::AuthOk => {
-                "참고: 첫 메시지가 SESSION_READY, actor_id == 토큰 주체 (p0-02 SC-14/AC-5a 재현용 — p1-01 계약에 대응 항목 없음)"
-            }
-            Self::Order => {
-                "참고: COMMAND_RESULT → PING_REPLY 순서, 같은 tick (p0-02 SC-19/AC-6c 재현용 — p1-01 계약에 대응 항목 없음)"
-            }
-            Self::Duplicate => {
-                "참고: ACCEPTED 1 + PING_REPLY 1 + DUPLICATE_COMMAND_ID 1 (p0-02 SC-21/AC-7b 재현용 — p1-01 계약에 대응 항목 없음)"
-            }
-            Self::InFlight => {
-                "참고: TOO_MANY_IN_FLIGHT, 연결 유지, 보낸 수 == 받은 수 (p0-02 SC-20/AC-7a 재현용 — p1-01 에서는 tick 당 상한(MAX_COMMANDS_PER_SESSION_PER_TICK)이 먼저 걸려 구조적 미도달, 계약 §1 D절 머리말)"
-            }
-            Self::SlowConsumer => {
-                "참고: DB 의 close_reason=SLOW_CONSUMER 가 정본, close code 1011 은 RST 로 유실될 수 있다 (p0-02 SC-22/AC-7c 재현용 — p1-01 SC-22 는 퇴화 쿼터니언 항목으로 무관, p1-01 계약에 대응 항목 없음)"
-            }
-            Self::Oversize => {
-                "참고: 위반 계수 후 close 1002 + PROTOCOL_VIOLATION (p0-02 SC-24/AC-8a 재현용 — p1-01 계약에 대응 항목 없음)"
-            }
-            Self::Binary => {
-                "참고: 바이너리 프레임도 같은 예산, close 1002 (p0-02 SC-25/AC-8b 재현용 — p1-01 계약에 대응 항목 없음)"
-            }
-            Self::Idle => {
-                "참고: Pong 없음 → close 1001 + IDLE_TIMEOUT (p0-02 SC-26/AC-8c 재현용 — p1-01 계약에 대응 항목 없음)"
-            }
-            Self::Fly => "SC-61/62 관측용: SET_SHIP_CONTROL 정상 주기 전송",
-            Self::CheatPosition => {
-                "SC-23/SC-66 (AC-5a/AC-17a): 위치 필드 주입 → MALFORMED_COMMAND, 상태 변화 0"
-            }
-            Self::CheatAttitude => {
-                "SC-23/SC-66 (AC-5a/AC-17a): 현재 자세 필드 주입 → MALFORMED_COMMAND"
-            }
-            Self::CheatRange => {
-                // SC-24 (c)(d) 는 계약이 **명시적으로 tools/bots 의 cheat-range 를 지명한
-                // 진짜 verdict 도구**다(계약 §1 SC-24 검증 방법 칸). "참고" 표식은 그 사실을
-                // 뒤집는 게 아니라, 출처 게이트가 `.rs` 파일을 아직 못 읽는 구조적 빈틈의
-                // 임시 우회다(계약 §7b 규칙 8, `03_server_impl.md` 참조). SC-67 은 별개
-                // 항목(공식 verdict 도구 = `cargo test ack_input_seq`)이라 여기서 겸해 내지 않는다
-                "참고: SC-24 (c)(d)(AC-5c/AC-5d) 범위 초과 → 거부 + 이월로 조작 유지"
-            }
-            Self::CheatSeq => {
-                // 내용은 p1-01 SC-67 과 같지만(AC-17d), 계약이 지명한 공식 verdict 도구는
-                // `cargo test -p starfall-sim --locked ack_input_seq` 다. 이 probe 는 재현용이라
-                // SC-67 을 verdict 로 내지 않는다
-                "참고: input_seq 역행 → STALE_INPUT, ack 후퇴 없음 (p1-01 SC-67/AC-17d 재현용 — 공식 verdict 도구는 cargo test)"
-            }
-            Self::CheatFlood => {
-                // `SC-20` 은 p0-02 번호다(p0-02 SC-20 = in-flight 폭주, 연결 유지 — 내용이
-                // 일치한다. p1-01 SC-20 은 브레이크 감쇠 항목이라 무관).
-                // `SC-25` 는 **어느 계약에도 없는 번호**다 — p1-01 SC-25 는 속도 핵 거리
-                // 대조, p0-02 SC-25 는 바이너리 프레임 예산으로 **둘 다 이 라벨의 내용
-                // (SLOW_CONSUMER 로 안 끊긴다)과 무관하다**. 내용상 p0-02 SC-22(SLOW_CONSUMER
-                // 판정 정본)의 오타로 보이지만 **추정이고 확인되지 않았다** — 다음 사람이
-                // "p0-02 번호구나"로 뭉개지 않도록 이 사실을 남긴다
-                "참고: 폭주 — 큰 burst 가 SLOW_CONSUMER 로 끊기지 않는다 (SC-20 은 p0-02 SC-20/AC-6 재현용. SC-25 는 p1-01·p0-02 어느 계약에도 없는 번호 — 내용상 p0-02 SC-22 의 오타로 추정되나 미확인. p1-01 계약에 대응 항목 없음)"
-            }
-            Self::TickBurst => {
-                "SC-89 (g) 양성 대조: 한 tick 에 9건 × N회 → 서버가 위반을 계수하고 예산이 차면 1002 로 닫는다"
-            }
-            Self::CheatPreReady => {
-                "SC-68 (AC-17g): SESSION_READY 이전 전송이 함선을 만들거나 움직이지 않는다"
-            }
-            Self::CheatRangeTurn => {
-                "SC-24 (c)(d) / SC-67: 범위 초과 거부 + 같은 실행에서 이월 지속, aim 극단값의 tick 당 회전 ≤ 한도"
-            }
+            Self::AuthOk => ContractRef::Reference(
+                "참고: 첫 메시지가 SESSION_READY, actor_id == 토큰 주체 (p0-02 SC-14/AC-5a 재현용 — p1-01 계약에 대응 항목 없음)",
+            ),
+            Self::Order => ContractRef::Reference(
+                "참고: COMMAND_RESULT → PING_REPLY 순서, 같은 tick (p0-02 SC-19/AC-6c 재현용 — p1-01 계약에 대응 항목 없음)",
+            ),
+            Self::Duplicate => ContractRef::Reference(
+                "참고: ACCEPTED 1 + PING_REPLY 1 + DUPLICATE_COMMAND_ID 1 (p0-02 SC-21/AC-7b 재현용 — p1-01 계약에 대응 항목 없음)",
+            ),
+            Self::InFlight => ContractRef::Reference(
+                "참고: TOO_MANY_IN_FLIGHT, 연결 유지, 보낸 수 == 받은 수 (p0-02 SC-20/AC-7a 재현용 — p1-01 에서는 tick 당 상한(MAX_COMMANDS_PER_SESSION_PER_TICK)이 먼저 걸려 구조적 미도달, 계약 §1 D절 머리말)",
+            ),
+            Self::SlowConsumer => ContractRef::Reference(
+                "참고: DB 의 close_reason=SLOW_CONSUMER 가 정본, close code 1011 은 RST 로 유실될 수 있다 (p0-02 SC-22/AC-7c 재현용 — p1-01 SC-22 는 퇴화 쿼터니언 항목으로 무관, p1-01 계약에 대응 항목 없음)",
+            ),
+            Self::Oversize => ContractRef::Reference(
+                "참고: 위반 계수 후 close 1002 + PROTOCOL_VIOLATION (p0-02 SC-24/AC-8a 재현용 — p1-01 계약에 대응 항목 없음)",
+            ),
+            Self::Binary => ContractRef::Reference(
+                "참고: 바이너리 프레임도 같은 예산, close 1002 (p0-02 SC-25/AC-8b 재현용 — p1-01 계약에 대응 항목 없음)",
+            ),
+            Self::Idle => ContractRef::Reference(
+                "참고: Pong 없음 → close 1001 + IDLE_TIMEOUT (p0-02 SC-26/AC-8c 재현용 — p1-01 계약에 대응 항목 없음)",
+            ),
+            Self::Fly => ContractRef::Reference("SC-61/62 관측용: SET_SHIP_CONTROL 정상 주기 전송"),
+            // 계약 §1 SC-23·SC-66 이 `cheat-position`·`cheat-attitude` 를 **각각 백틱으로**
+            // 지명한다(architect R28 §6 계약 수정) — 진짜 verdict 다.
+            Self::CheatPosition => ContractRef::Verdict(
+                "SC-23/SC-66 (AC-5a/AC-17a): 위치 필드 주입 → MALFORMED_COMMAND, 상태 변화 0",
+            ),
+            Self::CheatAttitude => ContractRef::Verdict(
+                "SC-23/SC-66 (AC-5a/AC-17a): 현재 자세 필드 주입 → MALFORMED_COMMAND",
+            ),
+            // 계약 §1 SC-24 검증 방법 칸이 `cheat-range` 를 명시적으로 지명한다 — 진짜 verdict.
+            // (예전에 "참고:" 로 강등했던 것은 출처 게이트가 `.rs` 를 못 읽던 시절의 임시
+            // 우회였고, R28 의 `ContractRef` 타입 구분으로 더는 필요 없다.) SC-67 은 별개
+            // 항목(공식 verdict 도구 = `cargo test ack_input_seq`)이라 겸해 내지 않는다.
+            Self::CheatRange => ContractRef::Verdict(
+                "SC-24 (c)(d)(AC-5c/AC-5d): 범위 초과 → 거부 + 이월로 조작 유지",
+            ),
+            // 내용은 p1-01 SC-67 (input_seq 역행) 과 같지만, 계약이 지명한 공식 verdict 도구는
+            // `cargo test -p starfall-sim --locked ack_input_seq` 다. 이 probe 는 재현용이라
+            // SC-67 을 verdict 로 내지 않는다.
+            Self::CheatSeq => ContractRef::Reference(
+                "참고: input_seq 역행 → STALE_INPUT, ack 후퇴 없음 (p1-01 SC-67/AC-17d 재현용 — 공식 verdict 도구는 cargo test)",
+            ),
+            // `SC-20` 은 p0-02 번호다(p0-02 SC-20 = in-flight 폭주, 연결 유지 — 내용이 일치한다.
+            // p1-01 SC-20 은 브레이크 감쇠 항목이라 무관). `SC-25` 는 **어느 계약에도 없는
+            // 번호**다 — p1-01 SC-25 는 속도 핵 거리 대조, p0-02 SC-25 는 바이너리 프레임
+            // 예산으로 **둘 다 이 라벨의 내용(SLOW_CONSUMER 로 안 끊긴다)과 무관하다**.
+            // 내용상 p0-02 SC-22(SLOW_CONSUMER 판정 정본)의 오타로 보이지만 **추정이고
+            // 확인되지 않았다** — 다음 사람이 "p0-02 번호구나"로 뭉개지 않도록 남긴다.
+            Self::CheatFlood => ContractRef::Reference(
+                "참고: 폭주 — 큰 burst 가 SLOW_CONSUMER 로 끊기지 않는다 (SC-20 은 p0-02 SC-20/AC-6 재현용. SC-25 는 p1-01·p0-02 어느 계약에도 없는 번호 — 내용상 p0-02 SC-22 의 오타로 추정되나 미확인. p1-01 계약에 대응 항목 없음)",
+            ),
+            // 계약 §1 SC-89 (g) 가 `probe --case tick-burst` 를 백틱으로 지명한다.
+            Self::TickBurst => ContractRef::Verdict(
+                "SC-89 (g) 양성 대조: 한 tick 에 9건 × N회 → 서버가 위반을 계수하고 예산이 차면 1002 로 닫는다",
+            ),
+            // 계약 §1 SC-68 (g) 가 `= pre-ready` 를 백틱으로 지명한다.
+            Self::CheatPreReady => ContractRef::Verdict(
+                "SC-68 (AC-17g): SESSION_READY 이전 전송이 함선을 만들거나 움직이지 않는다",
+            ),
+            // 계약 §1 SC-24 검증 방법 칸이 `cheat-range-turn` 도 지명한다(cheat-range 와 함께).
+            // **SC-67 을 내지 않는다** — `CheatRange`·`CheatSeq` 두 형제 팔이 이미 "SC-67 의
+            // 공식 verdict 도구는 cargo test" 라고 정했는데 이 팔만 SC-67 을 같이 내면 같은
+            // 파일 안에서 같은 번호에 세 팔이 다르게 행동하는 모순이 된다(architect R28 §2).
+            // (b) 범위 초과를 실제로 돌린다는 사실은 이 주석과 아래 문구에 남긴다.
+            Self::CheatRangeTurn => ContractRef::Verdict(
+                "SC-24 (c)(d) 재확인: 유효 → 범위 초과 → 유효 재개 → aim 극단값 한 실행에서, 거부 + 이월 지속과 tick 당 회전 ≤ 한도를 함께 본다",
+            ),
         }
     }
 }

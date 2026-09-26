@@ -40,7 +40,7 @@ fn probe_case_round_trips() {
     let case = ProbeCase::parse("tick-burst").expect("tick-burst 를 파싱해야 한다");
     assert_eq!(case.as_str(), "tick-burst");
     assert!(
-        case.contract_item().contains("SC-89"),
+        case.contract_item().to_string().contains("SC-89"),
         "설명이 어느 항목의 대조인지 말해야 한다: {}",
         case.contract_item()
     );
