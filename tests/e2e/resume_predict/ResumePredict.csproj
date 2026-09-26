@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    qa 소유 (tests/e2e). SC-11 (3) 의 "qa 독립 계산" 하네스.
+
+    서버(Rust)가 계산한 값을 서버가 확인하면 I-25 위반이다. 그래서 적분을 **client 의 C# 이식본**
+    (Starfall.Sim — ADR-0010 §2 를 줄 단위로 옮긴 순수 함수, UnityEngine 없음)으로 돌린다.
+    레포의 client 소스를 그대로 컴파일할 뿐 복사하거나 고치지 않는다.
+
+    이것은 빌드 산출물이 아니다: 측정 해석 도구다. 빌드는 측정 전에 끝낸다(계약 G-c).
+  -->
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <NoWarn>$(NoWarn);CS8632</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="$(MSBuildThisFileDirectory)../../../client/Assets/_Project/Scripts/Contracts/**/*.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)../../../client/Assets/_Project/Scripts/Sim/*.cs" />
+    <Compile Include="Program.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Unity 패키지 com.unity.nuget.newtonsoft-json 3.2.2 와 같은 버전 (tools/codegen/verify 와 동일). -->
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.2" />
+  </ItemGroup>
+
+</Project>

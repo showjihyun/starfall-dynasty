@@ -38,7 +38,7 @@
           "$ref": "../../common/primitives.schema.json#/$defs/UuidV7"
         },
         "close_reason": {
-          "description": "CLIENT_CLOSED: the peer closed cleanly. IDLE_TIMEOUT: no pong within the liveness window. PROTOCOL_VIOLATION: the peer exceeded the violation budget. SLOW_CONSUMER: the outbound queue filled and the server dropped the connection to protect the tick loop. SERVER_SHUTDOWN: graceful shutdown. TRANSPORT_ERROR: the socket failed. Values may be ADDED in a later version; consumers must tolerate unknown values.",
+          "description": "CLIENT_CLOSED: the peer closed cleanly. IDLE_TIMEOUT: no pong within the liveness window. PROTOCOL_VIOLATION: the peer exceeded the violation budget. SLOW_CONSUMER: the outbound queue filled and the server dropped the connection to protect the tick loop. SERVER_SHUTDOWN: graceful shutdown. TRANSPORT_ERROR: the socket failed. SUPERSEDED: the same actor opened a newer session, which took over this session's ship in the same tick without a linger window; this is the only reason whose causation_id is non-null, and it is that newer session's SESSION_OPENED.event_id (same tick, smaller sequence). Every other reason is a transport fact with no causing event, so its causation_id stays null. Values may be ADDED in a later version; consumers must tolerate unknown values.",
           "type": "string",
           "enum": [
             "CLIENT_CLOSED",
@@ -46,7 +46,8 @@
             "PROTOCOL_VIOLATION",
             "SLOW_CONSUMER",
             "SERVER_SHUTDOWN",
-            "TRANSPORT_ERROR"
+            "TRANSPORT_ERROR",
+            "SUPERSEDED"
           ]
         }
       },

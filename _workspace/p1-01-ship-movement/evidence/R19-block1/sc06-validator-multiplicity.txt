@@ -1,0 +1,47 @@
+# SC-06 rule=schema 층의 기계 검사 (architect R25)
+# 검증자가 필드와 1:1 이 아니면 로그의 함수 이름으로 필드를 특정할 수 없다.
+# **전부 1 이 되는 것이 구제(S-R25)의 종료 조건이다.**
+
+$ grep -o 'deserialize_with = "de_[a-z0-9_]*"' server/crates/contracts/src/data.rs | sort | uniq -c | sort -rn
+      7 de_accel_mps2
+      3 de_positive_upto_100000
+      3 de_boundary_radius_m
+      3 de_accel_deg_s2
+      2 de_spawn_radius_m
+      2 de_rate_deg_s
+      2 de_presence_seconds_i
+      2 de_orientation_deg_0_180
+      2 de_hz_1_60
+      2 de_deadzone_sin
+      1 de_wrapped
+      1 de_remote_interp_delay_ms
+      1 de_remote_extrapolate_max_ms
+      1 de_reconcile_smooth_threshold_m
+      1 de_reconcile_smooth_duration_ms
+      1 de_reconcile_ignore_threshold_m
+      1 de_rate_limit_hz
+      1 de_protocol_violation_hz
+      1 de_points_m
+      1 de_point_count
+      1 de_orientation_ignore_threshold_deg
+      1 de_opt_spawn_radius_m
+      1 de_opt_hz_1_60
+      1 de_max_speed_mps
+      1 de_max_probe_attempts
+      1 de_f64_0_3600
+      1 de_count_1_64
+      1 de_client_send_hz
+      1 de_carry_forward_max_ticks
+
+# 공유 검증자별 필드 (server_boot.py 의 validator_field_map)
+검증자 총수 29 · 공유 10
+  de_accel_mps2 × 7 → main_thrust_mps2 (data.rs:245), reverse_thrust_mps2 (data.rs:248), lateral_thrust_mps2 (data.rs:251), brake_decel_mps2 (data.rs:254), assist_linear_decel_mps2 (data.rs:257), assist_lateral_decel_mps2 (data.rs:260), boundary_pull_mps2 (data.rs:452)
+  de_accel_deg_s2 × 3 → turn_accel_deg_s2 (data.rs:266), turn_gain_deg_s_per_sin_half (data.rs:269), roll_accel_deg_s2 (data.rs:278)
+  de_positive_upto_100000 × 3 → hull_radius_m (data.rs:329), egress_budget_kib_s_per_session (data.rs:617), reconcile_hard_snap_threshold_m (data.rs:669)
+  de_boundary_radius_m × 3 → soft_boundary_radius_m (data.rs:446), hard_boundary_radius_m (data.rs:449), visual_radius_m (data.rs:566)
+  de_hz_1_60 × 2 → ?:199, snapshot_hz (data.rs:611)
+  de_rate_deg_s × 2 → turn_rate_max_deg_s (data.rs:263), roll_rate_max_deg_s (data.rs:275)
+  de_deadzone_sin × 2 → turn_deadzone_sin_half (data.rs:272), auto_level_deadzone_sin (data.rs:284)
+  de_spawn_radius_m × 2 → clearance_m (data.rs:502), radial_offset_step_m (data.rs:508)
+  de_presence_seconds_i × 2 → linger_seconds (data.rs:529), reconnect_resume_window_seconds (data.rs:532)
+  de_orientation_deg_0_180 × 2 → reconcile_orientation_smooth_threshold_deg (data.rs:675), reconcile_orientation_hard_snap_deg (data.rs:678)

@@ -78,3 +78,22 @@ python tests/e2e/run_block.py probes
 - Bash 전경 `sleep` 은 이 세션 도구가 막는다. 대기는 `docker compose exec -T postgres pg_isready -t N`
   (컨테이너 안), PowerShell `Start-Sleep`, 또는 이 스크립트들의 폴링을 쓴다.
 - SQL·HTTP 호출은 전부 파이썬 안에 있다. 셸 인용 규칙 차이로 같은 명령이 다르게 깨지지 않게 하려는 것이다.
+
+## p1-01 라운드 3 추가 (qa)
+
+| 스크립트 | 항목 | 비고 |
+|---------|------|------|
+| `log_pipe_backpressure.py run/selftest` | AC-2(i) | **드레인하지 않는** stdout 파이프로 서버를 띄운다(`server_boot.py` 는 드레인한다 — 경로 분리). ① `PeekNamedPipe` 로 파이프가 찼음을 단언, 안 찼으면 종료 코드 **4(관측 조건 미발생)**. ③ stderr 는 파일 |
+| `make_red_logsink_binary.py` | AC-2(i) ② RED | 현재 소스를 레포 밖으로 복사해 `init_tracing` 한 줄만 바꿔(싱크 끔) 빌드. `server/` 는 건드리지 않는다 |
+| `stats_delta.py snap/diff` | SC-33 | `/debug/stats` 전후 델타를 **라벨 전부** 펼치고 `--expect LABEL=N`(봇이 받은 거부 수)과 라벨별 일치 단언 |
+| `ship_events.py shutdown` | SC-13 | 종료 디스폰을 (a) 잔류 / (b) 활성(같은 tick 원인)으로 분리. 둘 다 1건 이상이어야 PASS |
+| `resume_check.py` + `resume_predict/` | SC-11 (3) | `bots resume` 결과를 **client C# 적분기**(서버 아님, I-25)로 독립 계산과 대조. 양자화 봉투 + 음성 대조(틀린 휴면 모델) |
+
+종료 코드 4 는 이 표의 `log_pipe_backpressure.py` 에만 있다: **관찰이 겨냥한 조건이 생기지 않았다** — PASS 도 FAIL 도 아니다(계약 §7a).
+
+## p1-01 라운드 4 추가 (qa, 계약 7차)
+
+| 스크립트 | 항목 | 비고 |
+|---------|------|------|
+| `ship_events.py ledger` / `causation-selftest` | SC-81 | 인과 결함(null·**self**·dangling·타입·순서)을 표 전체에서 모아 **동결 장부 7건과 등식**. 구간을 주면 그 구간 결함 0. 존재만 보는 조인은 자기 참조를 통과시킨다. 7차: 세션 간선(`SUPERSEDED` ← 새 `SESSION_OPENED`, 나머지 원인 null)도 본다. `causation-selftest` 는 합성 17행을 CTE 로 덮어 같은 SQL 을 검사한다(DB 쓰기 없음) |
+| `concurrent_session.py run/check` | SC-88 | 같은 라벨 봇 둘 겹침 접속 → (a) 함선 1척 (b) `SUPERSEDED` 원인 = 새 `SESSION_OPENED` (c) close 4001 (e) 유령 0·종료 디스폰 원인 실재. **(d) 재접속 안 함은 Unity 로만**(봇은 원래 재접속하지 않는다) |

@@ -1,0 +1,84 @@
+{
+  "item": "I-29 actor 당 동시 1척 (수명 구간 겹침)",
+  "verdict": "FAIL",
+  "ships_checked": 42,
+  "concurrent_overlaps": [
+    {
+      "actor_id": "01a0b1c2-b010-7000-8000-000000000000",
+      "ship_a": "01a0c46a-bb51-73e8-82ef-26a1e673b89c",
+      "a_spawn": 395710,
+      "a_despawn": 395902,
+      "ship_b": "01a0c46d-412c-75c4-a72e-5ea96ae5bfca",
+      "b_spawn": 395901,
+      "b_despawn": 395902
+    },
+    {
+      "actor_id": "01a0b1c2-b010-7000-8000-000000000001",
+      "ship_a": "01a0c46a-c033-70f5-a480-485d3f4d4e93",
+      "a_spawn": 395735,
+      "a_despawn": 395902,
+      "ship_b": "01a0c46d-412c-75c4-a72e-5ea4b32e9bb9",
+      "b_spawn": 395901,
+      "b_despawn": 395902
+    },
+    {
+      "actor_id": "01a0b1c2-b010-7000-8000-000000000001",
+      "ship_a": "01a0c46a-c033-70f5-a480-485d3f4d4e93",
+      "a_spawn": 395735,
+      "a_despawn": 395902,
+      "ship_b": "01a0c46a-ccb3-7031-aee7-e9836b9d1800",
+      "b_spawn": 395799,
+      "b_despawn": 395902
+    },
+    {
+      "actor_id": "01a0b1c2-b010-7000-8000-000000000001",
+      "ship_a": "01a0c46a-ccb3-7031-aee7-e9836b9d1800",
+      "a_spawn": 395799,
+      "a_despawn": 395902,
+      "ship_b": "01a0c46d-412c-75c4-a72e-5ea4b32e9bb9",
+      "b_spawn": 395901,
+      "b_despawn": 395902
+    },
+    {
+      "actor_id": "01a0b1c2-b010-7000-8000-000000000002",
+      "ship_a": "01a0c46a-c515-7094-bb85-7d50b8145a74",
+      "a_spawn": 395760,
+      "a_despawn": 395902,
+      "ship_b": "01a0c46d-412c-75c4-a72e-5e9fe6022df6",
+      "b_spawn": 395901,
+      "b_despawn": 395902
+    },
+    {
+      "actor_id": "01a0b1c2-b010-7000-8000-000000000002",
+      "ship_a": "01a0c46a-c515-7094-bb85-7d50b8145a74",
+      "a_spawn": 395760,
+      "a_despawn": 395902,
+      "ship_b": "01a0c46a-cb87-7516-8dac-503594c9b64e",
+      "b_spawn": 395793,
+      "b_despawn": 395902
+    },
+    {
+      "actor_id": "01a0b1c2-b010-7000-8000-000000000002",
+      "ship_a": "01a0c46a-cb87-7516-8dac-503594c9b64e",
+      "a_spawn": 395793,
+      "a_despawn": 395902,
+      "ship_b": "01a0c46d-412c-75c4-a72e-5e9fe6022df6",
+      "b_spawn": 395901,
+      "b_despawn": 395902
+    },
+    {
+      "actor_id": "01a0b1c2-b010-7000-8000-000000000003",
+      "ship_a": "01a0c46a-c9f7-72eb-99af-923cac8fc887",
+      "a_spawn": 395785,
+      "a_despawn": 395902,
+      "ship_b": "01a0c46d-412c-75c4-a72e-5e9ade25ee7b",
+      "b_spawn": 395901,
+      "b_despawn": 395902
+    }
+  ],
+  "tick_window": {
+    "from_tick": 395701,
+    "to_tick": 403434,
+    "mode": "tick 구간 한정"
+  }
+}

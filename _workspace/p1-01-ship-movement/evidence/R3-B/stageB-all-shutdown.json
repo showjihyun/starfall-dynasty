@@ -1,0 +1,467 @@
+{
+  "item": "SC-13 (AC-3f) 정상 종료 디스폰 — (a) 잔류 / (b) 활성",
+  "verdict": "FAIL",
+  "server_shutdown_despawns": 44,
+  "a_lingering": 32,
+  "b_active_same_tick": 12,
+  "cause_wrong_or_not_earlier": [
+    {
+      "ship_id": "01a0c46a-bb51-73e8-82ef-26a1e673b89c",
+      "tick": 395902,
+      "sequence": 8,
+      "cause_type": "SHIP_DESPAWNED",
+      "cause_tick": 395902,
+      "cause_sequence": 8,
+      "cause_earlier": false
+    },
+    {
+      "ship_id": "01a0c46a-c033-70f5-a480-485d3f4d4e93",
+      "tick": 395902,
+      "sequence": 9,
+      "cause_type": "SHIP_DESPAWNED",
+      "cause_tick": 395902,
+      "cause_sequence": 9,
+      "cause_earlier": false
+    },
+    {
+      "ship_id": "01a0c46a-c515-7094-bb85-7d50b8145a74",
+      "tick": 395902,
+      "sequence": 10,
+      "cause_type": "SHIP_DESPAWNED",
+      "cause_tick": 395902,
+      "cause_sequence": 10,
+      "cause_earlier": false
+    },
+    {
+      "ship_id": "01a0c46a-c9f7-72eb-99af-923cac8fc887",
+      "tick": 395902,
+      "sequence": 11,
+      "cause_type": "SHIP_DESPAWNED",
+      "cause_tick": 395902,
+      "cause_sequence": 11,
+      "cause_earlier": false
+    },
+    {
+      "ship_id": "01a0c46a-cb87-7516-8dac-503594c9b64e",
+      "tick": 395902,
+      "sequence": 12,
+      "cause_type": "SHIP_DESPAWNED",
+      "cause_tick": 395902,
+      "cause_sequence": 12,
+      "cause_earlier": false
+    },
+    {
+      "ship_id": "01a0c46a-ccb3-7031-aee7-e9836b9d1800",
+      "tick": 395902,
+      "sequence": 13,
+      "cause_type": "SHIP_DESPAWNED",
+      "cause_tick": 395902,
+      "cause_sequence": 13,
+      "cause_earlier": false
+    }
+  ],
+  "rows": [
+    {
+      "ship_id": "01a0c46d-61ee-713c-98d7-c9f541640b94",
+      "tick": 396263,
+      "sequence": 1,
+      "cause_type": "SESSION_CLOSED",
+      "cause_tick": 396072,
+      "cause_sequence": 0,
+      "cause_earlier": true
+    },
+    {
+      "ship_id": "01a0c46d-66d0-71e8-b7f2-35eb5694743b",
+      "tick": 396263,
+      "sequence": 2,
+      "cause_type": "SESSION_CLOSED",
+      "cause_tick": 396095,
+      "cause_sequence": 0,
+      "cause_earlier": true
+    },
+    {
+      "ship_id": "01a0c46d-6bb2-7206-a648-bac78656613e",
+      "tick": 396263,
+      "sequence": 3,
+      "cause_type": "SESSION_CLOSED",
+      "cause_tick": 396122,
+      "cause_sequence": 0,
+      "cause_earlier": true
+    },
+    {
+      "ship_id": "01a0c46d-7094-74c1-ae15-9c0af8055aa6",
+      "tick": 396263,
+      "sequence": 4,
+      "cause_type": "SESSION_CLOSED",
+      "cause_tick": 396147,
+      "cause_sequence": 0,
+      "cause_earlier": true
+    },
+    {
+      "ship_id": "01a0c46d-d1e5-71e8-a629-d66faf7adeaf",
+      "tick": 396921,
+      "sequence": 0,
+      "cause_type": "SESSION_CLOSED",
+      "cause_tick": 396432,
+      "cause_sequence": 0,
+      "cause_earlier": true
+    },
+    {
+      "ship_id": "01a0c46d-d6c7-7050-bd8e-1e6a8a2cc77c",
+      "tick": 396921,
+      "sequence": 1,
+      "cause_type": "SESSION_CLOSED",
+      "cause_tick": 396457,
+      "cause_sequence": 0,
+      "cause_earlier": true
+    },
+    {
+      "ship_id": "01a0c46d-dba9-756d-a311-2a6b3e5a72ee",
+      "tick": 396921,
+      "sequence": 2,
+      "cause_type": "SESSION_CLOSED",
+      "cause_tick": 396483,
+      "cause_sequence": 0,
+      "cause_earlier": true
+    },
+    {
+      "ship_id": "01a0c46d-e08b-71ff-beb9-635198249e4a",
+      "tick": 396921,
+      "sequence": 3,
+      "cause_type": "SESSION_CLOSED",
+      "cause_tick": 396506,
+      "cause_sequence": 0,
+      "cause_earlier": true
+    },
+    {
+      "ship_id": "01a0c46e-1352-77d3-b4ea-4e6df0d4b3fb",
+      "tick": 396921,
+      "sequence": 4,
+      "cause_type": "SESSION_CLOSED",
+      "cause_tick": 396620,
+      "cause_sequence": 0,
+      "cause_earlier": true
+    },
+    {
+      "ship_id": "01a0c46e-ae5c-7214-9873-e0ff4d375025",
+      "tick": 399041,
+      "sequence": 0,
+      "cause_type": "SESSION_CLOSED",
+      "cause_tick": 398514,
+      "cause_sequence": 2,
+      "cause_earlier": true
+    },
+    {
+      "ship_id": "01a0c46e-b050-771f-9ebf-e3becb919688",
+      "tick": 399041,
+      "sequence": 1,
+      "cause_type": "SESSION_CLOSED",
+      "cause_tick": 398525,
+      "cause_sequence": 0,
+      "cause_earlier": true
+    },
+    {
+      "ship_id": "01a0c46e-b276-702b-bf49-340497d6f482",
+      "tick": 399041,
+      "sequence": 2,
+      "cause_type": "SESSION_CLOSED",
+      "cause_tick": 398537,
+      "cause_sequence": 1,
+      "cause_earlier": true
+    },
+    {
+      "ship_id": "01a0c46e-b438-76fd-a4d1-b44e13793049",
+      "tick": 399041,
+      "sequence": 3,
+      "cause_type": "SESSION_CLOSED",
+      "cause_tick": 398546,
+      "cause_sequence": 1,
+      "cause_earlier": true
+    },
+    {
+      "ship_id": "01a0c46e-b62c-7041-ac3b-57272db3013f",
+      "tick": 399041,
+      "sequence": 4,
+      "cause_type": "SESSION_CLOSED",
+      "cause_tick": 398552,
+      "cause_sequence": 0,
+      "cause_earlier": true
+    },
+    {
+      "ship_id": "01a0c46e-b820-7201-bfa9-6813a42a00fe",
+      "tick": 399041,
+      "sequence": 5,
+      "cause_type": "SESSION_CLOSED",
+      "cause_tick": 398562,
+      "cause_sequence": 1,
+      "cause_earlier": true
+    },
+    {
+      "ship_id": "01a0c46e-ba14-7225-a5d0-66b2ec077eeb",
+      "tick": 399041,
+      "sequence": 6,
+      "cause_type": "SESSION_CLOSED",
+      "cause_tick": 398577,
+      "cause_sequence": 0,
+      "cause_earlier": true
+    },
+    {
+      "ship_id": "01a0c46e-bc3a-74d1-9f2f-02d0d01c27cd",
+      "tick": 399041,
+      "sequence": 7,
+      "cause_type": "SESSION_CLOSED",
+      "cause_tick": 398584,
+      "cause_sequence": 0,
+      "cause_earlier": true
+    },
+    {
+      "ship_id": "01a0c46e-be2e-72eb-ac28-6ff787c45844",
+      "tick": 399041,
+      "sequence": 8,
+      "cause_type": "SESSION_CLOSED",
+      "cause_tick": 398594,
+      "cause_sequence": 0,
+      "cause_earlier": true
+    },
+    {
+      "ship_id": "01a0c46e-bff0-7508-9c87-14dbe1d7618f",
+      "tick": 399041,
+      "sequence": 9,
+      "cause_type": "SESSION_CLOSED",
+      "cause_tick": 398601,
+      "cause_sequence": 0,
+      "cause_earlier": true
+    },
+    {
+      "ship_id": "01a0c470-0d56-7345-a95a-a46512a81f05",
+      "tick": 399041,
+      "sequence": 10,
+      "cause_type": "SESSION_CLOSED",
+      "cause_tick": 398739,
+      "cause_sequence": 0,
+      "cause_earlier": true
+    },
+    {
+      "ship_id": "01a0c470-98aa-7125-8b7c-5476fcc11d7b",
+      "tick": 403434,
+      "sequence": 0,
+      "cause_type": "SESSION_CLOSED",
+      "cause_tick": 403170,
+      "cause_sequence": 0,
+      "cause_earlier": true
+    },
+    {
+      "ship_id": "01a0c470-9a9e-74ad-90a6-6ff5bf584334",
+      "tick": 403434,
+      "sequence": 1,
+      "cause_type": "SESSION_CLOSED",
+      "cause_tick": 403182,
+      "cause_sequence": 0,
+      "cause_earlier": true
+    },
+    {
+      "ship_id": "01a0c470-9c92-752d-b76b-9d2a032c203b",
+      "tick": 403434,
+      "sequence": 2,
+      "cause_type": "SESSION_CLOSED",
+      "cause_tick": 403193,
+      "cause_sequence": 0,
+      "cause_earlier": true
+    },
+    {
+      "ship_id": "01a0c470-9e86-73bc-9ee0-a3229635456d",
+      "tick": 403434,
+      "sequence": 3,
+      "cause_type": "SESSION_CLOSED",
+      "cause_tick": 403201,
+      "cause_sequence": 0,
+      "cause_earlier": true
+    },
+    {
+      "ship_id": "01a0c470-a07a-7685-a6c3-a20d3b160f29",
+      "tick": 403434,
+      "sequence": 4,
+      "cause_type": "SESSION_CLOSED",
+      "cause_tick": 403207,
+      "cause_sequence": 0,
+      "cause_earlier": true
+    },
+    {
+      "ship_id": "01a0c470-a26e-7128-828a-5f8ffbcdc150",
+      "tick": 403434,
+      "sequence": 5,
+      "cause_type": "SESSION_CLOSED",
+      "cause_tick": 403217,
+      "cause_sequence": 0,
+      "cause_earlier": true
+    },
+    {
+      "ship_id": "01a0c470-a462-713e-a70a-5c41d95284fe",
+      "tick": 403434,
+      "sequence": 6,
+      "cause_type": "SESSION_CLOSED",
+      "cause_tick": 403232,
+      "cause_sequence": 0,
+      "cause_earlier": true
+    },
+    {
+      "ship_id": "01a0c470-a656-701b-bc23-fe9b196c1d39",
+      "tick": 403434,
+      "sequence": 7,
+      "cause_type": "SESSION_CLOSED",
+      "cause_tick": 403232,
+      "cause_sequence": 1,
+      "cause_earlier": true
+    },
+    {
+      "ship_id": "01a0c470-a84a-77ed-9661-d4a7a819ad70",
+      "tick": 403434,
+      "sequence": 8,
+      "cause_type": "SESSION_CLOSED",
+      "cause_tick": 403249,
+      "cause_sequence": 0,
+      "cause_earlier": true
+    },
+    {
+      "ship_id": "01a0c470-aa3e-7762-87f6-38da98612a0e",
+      "tick": 403434,
+      "sequence": 9,
+      "cause_type": "SESSION_CLOSED",
+      "cause_tick": 403259,
+      "cause_sequence": 0,
+      "cause_earlier": true
+    },
+    {
+      "ship_id": "01a0c473-ed98-7134-9fcd-d95b92b77ca8",
+      "tick": 403434,
+      "sequence": 10,
+      "cause_type": "SESSION_CLOSED",
+      "cause_tick": 403430,
+      "cause_sequence": 0,
+      "cause_earlier": true
+    },
+    {
+      "ship_id": "01a0c486-645a-718e-8990-28684227c04a",
+      "tick": 427104,
+      "sequence": 2,
+      "cause_type": "SESSION_CLOSED",
+      "cause_tick": 427029,
+      "cause_sequence": 0,
+      "cause_earlier": true
+    },
+    {
+      "ship_id": "01a0c46a-bb51-73e8-82ef-26a1e673b89c",
+      "tick": 395902,
+      "sequence": 8,
+      "cause_type": "SHIP_DESPAWNED",
+      "cause_tick": 395902,
+      "cause_sequence": 8,
+      "cause_earlier": false
+    },
+    {
+      "ship_id": "01a0c46a-c033-70f5-a480-485d3f4d4e93",
+      "tick": 395902,
+      "sequence": 9,
+      "cause_type": "SHIP_DESPAWNED",
+      "cause_tick": 395902,
+      "cause_sequence": 9,
+      "cause_earlier": false
+    },
+    {
+      "ship_id": "01a0c46a-c515-7094-bb85-7d50b8145a74",
+      "tick": 395902,
+      "sequence": 10,
+      "cause_type": "SHIP_DESPAWNED",
+      "cause_tick": 395902,
+      "cause_sequence": 10,
+      "cause_earlier": false
+    },
+    {
+      "ship_id": "01a0c46a-c9f7-72eb-99af-923cac8fc887",
+      "tick": 395902,
+      "sequence": 11,
+      "cause_type": "SHIP_DESPAWNED",
+      "cause_tick": 395902,
+      "cause_sequence": 11,
+      "cause_earlier": false
+    },
+    {
+      "ship_id": "01a0c46a-cb87-7516-8dac-503594c9b64e",
+      "tick": 395902,
+      "sequence": 12,
+      "cause_type": "SHIP_DESPAWNED",
+      "cause_tick": 395902,
+      "cause_sequence": 12,
+      "cause_earlier": false
+    },
+    {
+      "ship_id": "01a0c46a-ccb3-7031-aee7-e9836b9d1800",
+      "tick": 395902,
+      "sequence": 13,
+      "cause_type": "SHIP_DESPAWNED",
+      "cause_tick": 395902,
+      "cause_sequence": 13,
+      "cause_earlier": false
+    },
+    {
+      "ship_id": "01a0c46d-412c-75c4-a72e-5e9ade25ee7b",
+      "tick": 395902,
+      "sequence": 14,
+      "cause_type": "SESSION_CLOSED",
+      "cause_tick": 395902,
+      "cause_sequence": 4,
+      "cause_earlier": true
+    },
+    {
+      "ship_id": "01a0c46d-412c-75c4-a72e-5e9fe6022df6",
+      "tick": 395902,
+      "sequence": 15,
+      "cause_type": "SESSION_CLOSED",
+      "cause_tick": 395902,
+      "cause_sequence": 5,
+      "cause_earlier": true
+    },
+    {
+      "ship_id": "01a0c46d-412c-75c4-a72e-5ea4b32e9bb9",
+      "tick": 395902,
+      "sequence": 16,
+      "cause_type": "SESSION_CLOSED",
+      "cause_tick": 395902,
+      "cause_sequence": 6,
+      "cause_earlier": true
+    },
+    {
+      "ship_id": "01a0c46d-412c-75c4-a72e-5ea96ae5bfca",
+      "tick": 395902,
+      "sequence": 17,
+      "cause_type": "SESSION_CLOSED",
+      "cause_tick": 395902,
+      "cause_sequence": 7,
+      "cause_earlier": true
+    },
+    {
+      "ship_id": "01a0c46d-a424-751d-99a2-2cacb0142cc6",
+      "tick": 396263,
+      "sequence": 5,
+      "cause_type": "SESSION_CLOSED",
+      "cause_tick": 396263,
+      "cause_sequence": 0,
+      "cause_earlier": true
+    },
+    {
+      "ship_id": "01a0c486-645a-718e-8990-2863179a5b6b",
+      "tick": 427104,
+      "sequence": 1,
+      "cause_type": "SESSION_CLOSED",
+      "cause_tick": 427104,
+      "cause_sequence": 0,
+      "cause_earlier": true
+    }
+  ],
+  "note": "(a)(b) 중 하나라도 0 이면 그 경로는 이 실행에서 타지 않았다 — PASS 아님",
+  "tick_window": {
+    "from_tick": 395701,
+    "to_tick": null,
+    "mode": "tick 구간 한정"
+  }
+}

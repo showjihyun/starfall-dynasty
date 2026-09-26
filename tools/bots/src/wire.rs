@@ -26,6 +26,9 @@ pub const PING_SERVER: &str = "PING_SERVER";
 pub const PING_REPLY: &str = "PING_REPLY";
 pub const COMMAND_RESULT: &str = "COMMAND_RESULT";
 pub const SESSION_READY: &str = "SESSION_READY";
+// p1-01 신규 2종.
+pub const SET_SHIP_CONTROL: &str = "SET_SHIP_CONTROL";
+pub const WORLD_SNAPSHOT: &str = "WORLD_SNAPSHOT";
 
 /// 명령 envelope (contracts/common/command-envelope.schema.json).
 ///
@@ -124,6 +127,177 @@ pub struct PingReplyPayload {
     pub probe_seq: u32,
 }
 
+/// 조작 명령 (p1-01). **위치·속도·현재 자세 필드가 없다** — 어휘에 없는 것이 I-26의 방어다.
+///
+/// 봇은 양자화 정수를 **직접** 만든다. 서버의 변환 헬퍼를 쓰면 서버가 자기 변환을 자기가
+/// 확인하는 꼴이 되어 독립 출처가 아니게 된다(I-25).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct SetShipControlCommand {
+    pub command_id: Uuid,
+    pub command_type: String,
+    pub schema_version: u32,
+    pub client_sent_at: Option<String>,
+    pub payload: SetShipControlPayload,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct SetShipControlPayload {
+    pub input_seq: u64,
+    pub thrust_x_milli: i32,
+    pub thrust_y_milli: i32,
+    pub thrust_z_milli: i32,
+    pub roll_milli: i32,
+    pub aim_x_micro: i32,
+    pub aim_y_micro: i32,
+    pub aim_z_micro: i32,
+    pub aim_w_micro: i32,
+    pub brake: bool,
+    pub flight_assist: bool,
+}
+
+/// 항등 자세(`w = 1.0`)의 마이크로 표기. ADR-0009 §2의 배율 1e6.
+pub const AIM_IDENTITY_W_MICRO: i32 = 1_000_000;
+
+impl SetShipControlCommand {
+    /// 항등 자세·보조 켜짐·브레이크 없음의 기본 명령.
+    pub fn new(command_id: Uuid, input_seq: u64) -> Self {
+        Self {
+            command_id,
+            command_type: SET_SHIP_CONTROL.to_owned(),
+            schema_version: 1,
+            client_sent_at: None,
+            payload: SetShipControlPayload {
+                input_seq,
+                thrust_x_milli: 0,
+                thrust_y_milli: 0,
+                thrust_z_milli: 0,
+                roll_milli: 0,
+                aim_x_micro: 0,
+                aim_y_micro: 0,
+                aim_z_micro: 0,
+                aim_w_micro: AIM_IDENTITY_W_MICRO,
+                brake: false,
+                flight_assist: true,
+            },
+        }
+    }
+
+    pub fn with_thrust(mut self, x: i32, y: i32, z: i32) -> Self {
+        self.payload.thrust_x_milli = x;
+        self.payload.thrust_y_milli = y;
+        self.payload.thrust_z_milli = z;
+        self
+    }
+
+    pub fn with_brake(mut self, brake: bool) -> Self {
+        self.payload.brake = brake;
+        self
+    }
+
+    pub fn with_roll(mut self, roll_milli: i32) -> Self {
+        self.payload.roll_milli = roll_milli;
+        self
+    }
+
+    pub fn with_assist(mut self, flight_assist: bool) -> Self {
+        self.payload.flight_assist = flight_assist;
+        self
+    }
+
+    /// 목표 자세(마이크로 단위 쿼터니언 `x, y, z, w`).
+    pub fn with_aim(mut self, x: i32, y: i32, z: i32, w: i32) -> Self {
+        self.payload.aim_x_micro = x;
+        self.payload.aim_y_micro = y;
+        self.payload.aim_z_micro = z;
+        self.payload.aim_w_micro = w;
+        self
+    }
+}
+
+/// 월드 스냅샷 (p1-01). `ships` 는 계약에서 **배열을 쓰는 첫 타입**이다.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct WorldSnapshotMessage {
+    pub message_id: Uuid,
+    pub message_type: String,
+    pub schema_version: u32,
+    pub tick: u64,
+    pub correlation_id: Option<Uuid>,
+    pub payload: WorldSnapshotPayload,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct WorldSnapshotPayload {
+    pub star_system_id: String,
+    pub soft_boundary_radius_mm: i64,
+    pub hard_boundary_radius_mm: i64,
+    pub snapshot_interval_ticks: u32,
+    /// **널 가능**: 이 세션의 actor 가 아직 함선이 없으면 `null` 이다
+    /// (`WORLD_SNAPSHOT/empty-nulls-and-bounds.json` 이 그 경우다).
+    pub controlled_ship_id: Option<Uuid>,
+    pub ack_input_seq: Option<u64>,
+    pub ships: Vec<ShipState>,
+}
+
+/// 함선 1척의 상태. **18필드** — `angular_velocity_roll_mdeg_s` 가 별도 필드인 것이 핵심이다
+/// (B-1). 월드 각속도 3성분에서 롤을 분해하면 손실 분해가 되어 선회 중 예측이 어긋난다.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct ShipState {
+    pub ship_id: Uuid,
+    pub actor_id: Uuid,
+    pub ship_class_id: String,
+    /// `ACTIVE` | `LINGERING`. **닫힌 열거형으로 만들지 않는다** — 봇은 소비자이고 값이
+    /// 추가되어도 죽지 않아야 한다(ADR-0005 §4).
+    pub presence: String,
+    pub position_x_mm: i64,
+    pub position_y_mm: i64,
+    pub position_z_mm: i64,
+    pub velocity_x_mm_s: i32,
+    pub velocity_y_mm_s: i32,
+    pub velocity_z_mm_s: i32,
+    pub orientation_x_micro: i32,
+    pub orientation_y_micro: i32,
+    pub orientation_z_micro: i32,
+    pub orientation_w_micro: i32,
+    pub angular_velocity_x_mdeg_s: i32,
+    pub angular_velocity_y_mdeg_s: i32,
+    pub angular_velocity_z_mdeg_s: i32,
+    pub angular_velocity_roll_mdeg_s: i32,
+}
+
+impl ShipState {
+    /// 원점 기준 거리 (mm). 부동소수를 쓰지 않고 정수로 제곱합을 구한 뒤 한 번만 변환한다.
+    pub fn radius_mm(&self) -> f64 {
+        let x = self.position_x_mm as f64;
+        let y = self.position_y_mm as f64;
+        let z = self.position_z_mm as f64;
+        (x * x + y * y + z * z).sqrt()
+    }
+
+    /// 두 상태 사이의 이동 거리 (mm).
+    pub fn distance_mm(&self, other: &ShipState) -> f64 {
+        let dx = (self.position_x_mm - other.position_x_mm) as f64;
+        let dy = (self.position_y_mm - other.position_y_mm) as f64;
+        let dz = (self.position_z_mm - other.position_z_mm) as f64;
+        (dx * dx + dy * dy + dz * dz).sqrt()
+    }
+
+    pub fn speed_mm_s(&self) -> f64 {
+        let x = self.velocity_x_mm_s as f64;
+        let y = self.velocity_y_mm_s as f64;
+        let z = self.velocity_z_mm_s as f64;
+        (x * x + y * y + z * z).sqrt()
+    }
+
+    pub fn is_lingering(&self) -> bool {
+        self.presence == "LINGERING"
+    }
+}
+
 /// 수신 프레임 1개를 해석한 결과.
 ///
 /// `Unknown` 은 **경고이지 오류가 아니다**(ADR-0005 §5 와 같은 관용). `Malformed` 는
@@ -133,6 +307,7 @@ pub enum Inbound {
     SessionReady(Box<SessionReadyMessage>),
     CommandResult(Box<CommandResultMessage>),
     PingReply(Box<PingReplyMessage>),
+    WorldSnapshot(Box<WorldSnapshotMessage>),
     Unknown { message_type: String },
     Malformed { reason: String, raw: String },
 }
@@ -175,6 +350,13 @@ pub fn parse_inbound(text: &str) -> Inbound {
             Ok(m) => Inbound::PingReply(Box::new(m)),
             Err(e) => Inbound::Malformed {
                 reason: format!("PING_REPLY: {e}"),
+                raw: truncate(text),
+            },
+        },
+        WORLD_SNAPSHOT => match serde_json::from_value(value) {
+            Ok(m) => Inbound::WorldSnapshot(Box::new(m)),
+            Err(e) => Inbound::Malformed {
+                reason: format!("WORLD_SNAPSHOT: {e}"),
                 raw: truncate(text),
             },
         },

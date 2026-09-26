@@ -1,0 +1,245 @@
+{
+  "label": "green",
+  "expect": "pass",
+  "mode": "strict",
+  "exe": "C:\\WorkSpace\\SpaceHistoric\\server\\target\\debug\\starfall-game-server.exe",
+  "rust_log": null,
+  "pipe": {
+    "capacity": 4096,
+    "capacity_source": "GetNamedPipeInfo",
+    "info": {
+      "ok": true,
+      "out_buffer": 4096,
+      "in_buffer": 4096
+    },
+    "max_avail": 4130,
+    "first_full_at_s": 5.359,
+    "samples": 169
+  },
+  "fills": [
+    {
+      "cmd": "run --scenario b --bots 4 --cycles 5 --pings 1 --url ws://127.0.0.1:8080/ws --out C:\\WorkSpace\\SpaceHistoric\\_workspace\\p1-01-ship-movement\\evidence\\R3-B\\AC2hlog\\green\\fill-1",
+      "rc": 0,
+      "timed_out": false,
+      "elapsed_s": 11.81,
+      "log": "fill-1.log",
+      "round": 1,
+      "peek_after": 4130
+    }
+  ],
+  "probe": {
+    "cmd": "probe --case auth-ok --url ws://127.0.0.1:8080/ws --label bot-090",
+    "rc": 0,
+    "timed_out": false,
+    "elapsed_s": 0.58,
+    "log": "probe-auth-ok.log"
+  },
+  "health": [
+    [
+      "200",
+      "200"
+    ],
+    [
+      "200",
+      "200"
+    ],
+    [
+      "200",
+      "200"
+    ],
+    [
+      "200",
+      "200"
+    ],
+    [
+      "200",
+      "200"
+    ],
+    [
+      "200",
+      "200"
+    ],
+    [
+      "200",
+      "200"
+    ],
+    [
+      "200",
+      "200"
+    ],
+    [
+      "200",
+      "200"
+    ],
+    [
+      "200",
+      "200"
+    ]
+  ],
+  "stdout_bytes_after": 3959,
+  "stderr_bytes": 0,
+  "dropped_total": null,
+  "drop_notices": 0,
+  "shutdown": {
+    "rc": 0,
+    "without_drain": true,
+    "released_by_drain": null,
+    "hard_killed": false
+  },
+  "verdict": "PASS",
+  "condition_occurred": true,
+  "condition_basis": [
+    "peek 4130 B >= 용량 4096 B"
+  ],
+  "health_samples": 10,
+  "healthz_200": 10,
+  "stats_200": 10,
+  "session_ready_under_full": true,
+  "shutdown_ok": true,
+  "fail_reasons": [],
+  "timeline": [
+    {
+      "t_s": 0.328,
+      "event": "spawned",
+      "pid": 37824,
+      "exe": "C:\\WorkSpace\\SpaceHistoric\\server\\target\\debug\\starfall-game-server.exe",
+      "exe_mtime": "2026-09-21T23:41:31",
+      "rust_log": null,
+      "pipe_info": {
+        "ok": true,
+        "out_buffer": 4096,
+        "in_buffer": 4096
+      },
+      "pipe_capacity": 4096,
+      "capacity_source": "GetNamedPipeInfo"
+    },
+    {
+      "t_s": 0.843,
+      "event": "ready",
+      "peek": 859
+    },
+    {
+      "t_s": 12.656,
+      "event": "fill_round",
+      "cmd": "run --scenario b --bots 4 --cycles 5 --pings 1 --url ws://127.0.0.1:8080/ws --out C:\\WorkSpace\\SpaceHistoric\\_workspace\\p1-01-ship-movement\\evidence\\R3-B\\AC2hlog\\green\\fill-1",
+      "rc": 0,
+      "timed_out": false,
+      "elapsed_s": 11.81,
+      "log": "fill-1.log",
+      "round": 1,
+      "peek_after": 4130
+    },
+    {
+      "t_s": 12.656,
+      "event": "fill_done",
+      "peek_now": 4130,
+      "peek_max": 4130,
+      "capacity": 4096
+    },
+    {
+      "t_s": 12.672,
+      "event": "health",
+      "i": 0,
+      "healthz": "200",
+      "stats": "200",
+      "peek": 4130
+    },
+    {
+      "t_s": 13.187,
+      "event": "health",
+      "i": 1,
+      "healthz": "200",
+      "stats": "200",
+      "peek": 4130
+    },
+    {
+      "t_s": 13.718,
+      "event": "health",
+      "i": 2,
+      "healthz": "200",
+      "stats": "200",
+      "peek": 4130
+    },
+    {
+      "t_s": 14.234,
+      "event": "health",
+      "i": 3,
+      "healthz": "200",
+      "stats": "200",
+      "peek": 4130
+    },
+    {
+      "t_s": 14.75,
+      "event": "health",
+      "i": 4,
+      "healthz": "200",
+      "stats": "200",
+      "peek": 4130
+    },
+    {
+      "t_s": 15.25,
+      "event": "health",
+      "i": 5,
+      "healthz": "200",
+      "stats": "200",
+      "peek": 4130
+    },
+    {
+      "t_s": 15.75,
+      "event": "health",
+      "i": 6,
+      "healthz": "200",
+      "stats": "200",
+      "peek": 4130
+    },
+    {
+      "t_s": 16.265,
+      "event": "health",
+      "i": 7,
+      "healthz": "200",
+      "stats": "200",
+      "peek": 4130
+    },
+    {
+      "t_s": 16.781,
+      "event": "health",
+      "i": 8,
+      "healthz": "200",
+      "stats": "200",
+      "peek": 4130
+    },
+    {
+      "t_s": 17.312,
+      "event": "health",
+      "i": 9,
+      "healthz": "200",
+      "stats": "200",
+      "peek": 4130
+    },
+    {
+      "t_s": 18.39,
+      "event": "probe_session_ready",
+      "ok": true,
+      "cmd": "probe --case auth-ok --url ws://127.0.0.1:8080/ws --label bot-090",
+      "rc": 0,
+      "timed_out": false,
+      "elapsed_s": 0.58,
+      "log": "probe-auth-ok.log",
+      "peek": 4130
+    },
+    {
+      "t_s": 18.39,
+      "event": "shutdown_sent",
+      "reader_running": false
+    },
+    {
+      "t_s": 20.453,
+      "event": "exited",
+      "rc": 0,
+      "elapsed_s": 2.06,
+      "without_drain": true,
+      "released_by_drain": null,
+      "hard_killed": false
+    }
+  ]
+}

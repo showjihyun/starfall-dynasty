@@ -26,7 +26,9 @@ use std::time::{Duration, Instant};
 use starfall_contracts::UuidV7;
 use starfall_contracts::events::SessionCloseReason;
 use starfall_contracts::messages::RejectReasonCode;
-use starfall_sim::{IdSource, InboundCommand, PersistBatch, ServerMessage, Simulation, Submission};
+use starfall_sim::{
+    DomainEventBody, IdSource, InboundCommand, PersistBatch, ServerMessage, Simulation, Submission,
+};
 use tokio::sync::{Notify, mpsc};
 
 use crate::stats::Stats;
@@ -45,10 +47,61 @@ pub const COMMAND_QUEUE_CAPACITY: usize = 4096;
 /// 이 선택이 AC-7(c)(`SLOW_CONSUMER`)를 도달 가능하게 만든다 — 수신을 멈춘 클라이언트도
 /// 계속 보낼 수 있어 송신 큐가 찬다. 전달 확인 시점으로 바꾸면 한 세션이 만들 수 있는
 /// 응답이 128건으로 묶여 256 슬롯 송신 큐가 **절대** 차지 않는다.
-pub const SESSION_IN_FLIGHT_LIMIT: u32 = 64;
+///
+/// **64 → 16 (ADR-0011 §5.1, p1-01 S7).** p0-02 는 송신 큐가 256 이던 시절의 값을 물려
+/// 받았다. 송신 큐가 64 로 줄면서(ADR-0011 §5) `64 × MAX_RESPONSES_PER_COMMAND(2) = 128`
+/// 이 `SEND_QUEUE_CAPACITY(64)` 를 넘어 **몰아 보내는 클라이언트가 `TOO_MANY_IN_FLIGHT`
+/// 거부 대신 `SLOW_CONSUMER` 로 연결이 끊기는** 회귀가 생겼다(p0-02 AC-18(a) 위반 — "폭주
+/// 봇은 거부를 받지만 연결은 유지된다"). 16 은 정상 경로(`SET_SHIP_CONTROL` 20 Hz 왕복
+/// 50 ms → in-flight 1~2, `rate_limit_hz = 40` 이 먼저 걸린다)에 닿지 않고, 의도적 폭주만
+/// 거부로 되돌린다. 아래 [`MAX_RESPONSES_PER_COMMAND`]·[`SNAPSHOT_HEADROOM`] 과 함께
+/// `session_in_flight_and_send_queue_capacity_stay_in_the_documented_relationship` 테스트가
+/// 이 세 상수의 관계를 고정한다 — 셋 중 하나를 바꾸면 컴파일이 아니라 그 테스트가 깨진다.
+pub const SESSION_IN_FLIGHT_LIMIT: u32 = 16;
 
-/// 세션별 송신 큐 용량 (ADR-0006 §5). 가득 차면 **연결을 닫는다**.
-pub const SEND_QUEUE_CAPACITY: usize = 256;
+/// 명령 하나가 만들 수 있는 최대 응답 메시지 수.
+///
+/// 지금 최댓값은 `PING_SERVER`(`COMMAND_RESULT` + `PING_REPLY` = 2)다. **새 명령이 응답을
+/// 3건 내면 이 상수를 올려야 하고, 그러면 아래 불변식 테스트가 실패한다 — 그것이 목적이다**
+/// (ADR-0011 §5.1).
+pub const MAX_RESPONSES_PER_COMMAND: u32 = 2;
+
+/// in-flight 상한이 송신 큐를 가득 채운 순간에도 남아 있어야 하는 스냅샷 자리 수.
+///
+/// 스냅샷은 클라이언트 행동과 무관하게 `snapshot_hz` 로 밀려들어간다(10 Hz — 1.6초 분량).
+/// 남겨 두지 않으면 명령 폭주가 스냅샷 절단으로 번진다(ADR-0011 §5.1).
+pub const SNAPSHOT_HEADROOM: usize = 16;
+
+/// 한 세션이 한 tick에 제출할 수 있는 명령 수 상한 (ADR-0011 §5.2, p1-01 S10).
+///
+/// **§5.1의 in-flight 상한은 이 문제를 묶을 수 있는 양이 아니었다** — 거부 응답도 송신
+/// 큐 슬롯을 쓰기 때문에(`ws.rs::send_rejection`), in-flight 상한은 *수락된* 작업만
+/// 묶고 거부는 정의상 그 상한 **밖**에서 나온다. 한 tick에 120건을 보내면
+/// `16(수락)×2 + 104(거부)×1 = 136`건이 64슬롯 큐로 들어간다. **진짜 양은 "그 tick에
+/// 판정된 명령 수"다**:
+///
+/// ```text
+/// MAX_COMMANDS_PER_SESSION_PER_TICK × MAX_RESPONSES_PER_COMMAND + SNAPSHOT_HEADROOM
+///                                 8 ×                          2 +                16 = 32 ≤ 64
+/// ```
+///
+/// 지속 허용치는 `rate_limit_hz = 40` = tick당 2건이므로 8은 4배의 순간 여유다. 초과분은
+/// **큐로 가지 않는다** — 제출하지 않고 `COMMAND_RESULT`도 만들지 않는다
+/// (`commands_dropped_over_tick_cap_total` 증가 + 그 tick에 대해 프로토콜 위반 1회,
+/// 명령 1건당이 아니다 — `ws::TickCommandBudget` 참고). 이 변경의 핵심은 용량이 아니라
+/// 진단이다: 몰아 보내는 클라이언트가 `SLOW_CONSUMER`("당신이 읽지 않는다")로 끊기는
+/// 것은 거짓이었다 — 읽고 있었고 너무 빨리 보냈을 뿐이다. 고친 뒤에는 계속 어기는
+/// 클라이언트만 `PROTOCOL_VIOLATION`으로 끊긴다.
+pub const MAX_COMMANDS_PER_SESSION_PER_TICK: u32 = 8;
+
+/// 세션별 송신 큐 용량. 가득 차면 **연결을 닫는다**.
+///
+/// **256 → 64 (ADR-0011 §5, p1-01).** p0-02 가 정한 256 은 최대 메시지가 275 B 이던 시절의
+/// 값이다. 지금 가장 큰 메시지는 `WORLD_SNAPSHOT`(31척 기준 약 15.1 KiB)이고, 세션당
+/// 생산율이 30 msg/s(스냅샷 10 Hz + `COMMAND_RESULT` 20 Hz)이므로 64 는 2.13초 분량이다
+/// (256 이면 세션당 4.24 MB, 31세션 131 MB — p0-02 실측 RSS 16.6 MB의 8배). **느린
+/// 소비자 하나가 서버 메모리를 여덟 배로 만드는 상태를 그냥 둘 수 없다.**
+pub const SEND_QUEUE_CAPACITY: usize = 64;
 
 /// 영속화 채널 용량.
 pub const PERSIST_QUEUE_CAPACITY: usize = 512;
@@ -107,6 +160,7 @@ const fn encode(reason: SessionCloseReason) -> u8 {
         SessionCloseReason::SlowConsumer => 4,
         SessionCloseReason::ServerShutdown => 5,
         SessionCloseReason::TransportError => 6,
+        SessionCloseReason::Superseded => 7,
     }
 }
 
@@ -117,6 +171,7 @@ const fn decode(value: u8) -> SessionCloseReason {
         4 => SessionCloseReason::SlowConsumer,
         5 => SessionCloseReason::ServerShutdown,
         6 => SessionCloseReason::TransportError,
+        7 => SessionCloseReason::Superseded,
         _ => SessionCloseReason::ClientClosed,
     }
 }
@@ -125,6 +180,9 @@ const fn decode(value: u8) -> SessionCloseReason {
 ///
 /// 둘을 하나로 합치지 않는다: close code 는 전송 계층의 어휘이고 `close_reason` 은
 /// **세계의 사실**이다. `TRANSPORT_ERROR` 에는 close code 가 없다(소켓이 이미 깨졌다).
+///
+/// `SUPERSEDED` → **4001**(R4 S-6, ADR-0005 §2) — 클라이언트가 행동을 바꾸는 첫
+/// close code다(4001을 받으면 자동 재연결하지 않는다, ADR-0005 §5).
 #[must_use]
 pub const fn close_code(reason: SessionCloseReason) -> Option<u16> {
     match reason {
@@ -133,6 +191,7 @@ pub const fn close_code(reason: SessionCloseReason) -> Option<u16> {
         SessionCloseReason::ProtocolViolation => Some(1002),
         SessionCloseReason::SlowConsumer => Some(1011),
         SessionCloseReason::TransportError => None,
+        SessionCloseReason::Superseded => Some(4001),
     }
 }
 
@@ -198,6 +257,32 @@ impl SubmitHandle {
     #[must_use]
     pub fn next_seq(&self) -> u64 {
         self.next_seq.fetch_add(1, Ordering::Relaxed)
+    }
+
+    /// 테스트 전용 — **아무도 읽지 않는** 명령 채널로 핸들을 만든다.
+    ///
+    /// `try_command` 은 채널 용량이 찰 때까지 계속 성공하지만, 그 뒤로 tick 루프를 아무도
+    /// 돌리지 않으므로 `COMMAND_RESULT` 도 영원히 만들어지지 않는다 — "판정을 지연시킨
+    /// tick"을 흉내 낸다(S10, ADR-0011 §5.2 — `TOO_MANY_IN_FLIGHT`가 정상 부하에서는
+    /// 구조적으로 도달 불가능해졌으므로, 그 경로 자체는 이렇게 인위로 지연시킨 tick으로만
+    /// 확인한다). `stats`는 호출자가 넣는다 — `current_tick()`을 직접 조작해 "몇 tick이
+    /// 지났는지"를 통제하기 위해서다. **반환된 수신단을 호출자가 계속 들고 있어야 한다**
+    /// (drop 하면 채널이 닫혀 `try_command` 가 실패로 바뀐다) — 그냥 읽지만 않으면 된다.
+    #[cfg(test)]
+    pub(crate) fn for_test(stats: Stats) -> (Self, mpsc::Receiver<Submission>) {
+        let (control_tx, control_rx) = mpsc::unbounded_channel();
+        let (commands_tx, commands_rx) = mpsc::channel(1024);
+        // `control_rx` 는 아무도 쓰지 않지만 살려는 둬야 `open`/`close` 호출이 죽지 않는다.
+        std::mem::forget(control_rx);
+        (
+            Self {
+                control: control_tx,
+                commands: commands_tx,
+                next_seq: Arc::new(std::sync::atomic::AtomicU64::new(0)),
+                stats,
+            },
+            commands_rx,
+        )
     }
 
     /// 세션 열기. 거부되지 않는다.
@@ -322,9 +407,29 @@ pub fn spawn_tick_thread(
 
                 // ── 2~4. 판정·상태 전이·이벤트 발행 (상태가 바뀌는 유일한 자리) ──
                 let outcome = sim.step(submissions, &mut ids);
+                let had_snapshot_this_tick = outcome
+                    .outbound
+                    .iter()
+                    .any(|out| matches!(out.message, ServerMessage::WorldSnapshot(_)));
 
                 // ── 7. 세션별 송신 큐로 ───────────────────────────────────────
                 route_outbound(&mut routes, &outcome.outbound, &stats, &mut carry);
+
+                // R4 S-6 (ADR-0011 §6.3): SUPERSEDED 로 닫힌 세션은 그 연결이 아직
+                // 살아 있고 스스로는 아무것도 모른다 — `SLOW_CONSUMER` 와 같은 경로로
+                // 드라이버가 대신 close_state 를 정하고 송신 태스크를 깨운다(close 4001).
+                // 아래 `closed_sessions` 루프가 지우기 전에, 라우트가 아직 있을 때 한다.
+                for event in &outcome.events {
+                    if let DomainEventBody::SessionClosed(payload) = &event.body
+                        && payload.close_reason == SessionCloseReason::Superseded
+                        && let Some(route) = routes.get(&payload.session_id)
+                    {
+                        route
+                            .close_state
+                            .set_if_unset(SessionCloseReason::Superseded);
+                        route.finish.notify_one();
+                    }
+                }
 
                 for session_id in &outcome.closed_sessions {
                     routes.remove(session_id);
@@ -335,6 +440,20 @@ pub fn spawn_tick_thread(
                 stats.add_sessions(opened, closed);
                 stats.set_ws_connections(routes.len() as u64);
                 stats.set_send_queue_depth(send_queue_depth(&routes));
+                stats.set_send_queue_bytes(send_queue_bytes_estimate(&routes));
+
+                // p1-01 — 게임 상태 메트릭(SC-33). `ships_active`/`ships_lingering` 는
+                // `ws_connections` 와 같은 방식(I-25): tick 드라이버가 그 tick의 실제
+                // 값을 읽어 store 한다.
+                stats.add_input_superseded(outcome.input_superseded);
+                stats.add_input_carried_forward(outcome.input_carried_forward);
+                stats.add_aim_degenerate(outcome.aim_degenerate);
+                stats.set_ship_presence(outcome.ships_active, outcome.ships_lingering);
+                stats.add_snapshot_over_capacity(outcome.snapshot_over_capacity);
+                log_causeless_despawns(&outcome);
+                // I-44/S9 — `world_full` 게이트의 재개 면제. `sim` 은 이 스레드만 소유하므로
+                // (I-13) 읽기조차 이 tick 루프 안에서만 한다 — 게이트웨이는 이 스냅샷만 본다.
+                stats.set_actors_with_ships(sim.actors_with_ships());
 
                 // ── 6. 영속화 태스크로 (기다리지 않는다) ──────────────────────
                 if !outcome.events.is_empty() || outcome.tick.is_multiple_of(HEARTBEAT_TICKS) {
@@ -347,6 +466,14 @@ pub fn spawn_tick_thread(
 
                 // ── 계측: tick **본문** 소요. 루프 주기가 아니다 (ADR-0006 §2.2). ──
                 let body = body_start.elapsed();
+                // `snapshot_build_us` — **기록용**(M-1)이고 판정 대상이 아니다. `starfall-sim`
+                // 은 시계를 읽지 않으므로(ADR-0010 §2) `Simulation::step` 을 안에서 쪼개
+                // 정확히 분리 측정할 수 없다 — 스냅샷이 나온 tick의 **본문 전체**를
+                // "스냅샷 조립을 포함한 tick" 으로 기록한다(알려진 근사, `03_server_impl.md`).
+                if had_snapshot_this_tick {
+                    stats
+                        .record_snapshot_build(u64::try_from(body.as_micros()).unwrap_or(u64::MAX));
+                }
                 executed = executed.saturating_add(1);
                 let target = Duration::from_nanos(period_nanos.saturating_mul(executed));
                 let elapsed_total = loop_start.elapsed();
@@ -367,6 +494,7 @@ pub fn spawn_tick_thread(
             // ── 종료 스윕 (I-16, AC-8d) ──────────────────────────────────────
             stats.set_accepting(false);
             let final_outcome = sim.shutdown(&mut ids);
+            log_causeless_despawns(&final_outcome);
             let closed = final_outcome.closed_sessions.len() as u64;
             for (_, route) in routes.drain() {
                 route
@@ -414,6 +542,22 @@ fn count_events(outcome: &starfall_sim::TickOutcome, event_type: &str) -> u64 {
         .count() as u64
 }
 
+/// R4 S-3 (architect 1.6-1(c)/1.6-3): `starfall-sim` 에는 로깅이 없다(IO 금지) —
+/// 원인 없는 디스폰에 도달해 이벤트를 쓰지 않은 함선이 있으면 이 tick의 `TickOutcome`
+/// 이 `causeless_despawns` 로 신호를 올리고, 여기서 `ERROR` 로 남긴다. 디버그 빌드는
+/// `sim` 쪽에서 그 자리에 먼저 패닉하므로 이 함수가 실제로 뭔가를 찍는 것은 릴리스에서
+/// 구조적 방어선(S-2)이 뚫렸을 때뿐이다 — 있어서는 안 된다. **`/debug/stats` 키는
+/// 더하지 않는다**(사안 6과 같은 이유 — 다음 키 변경과 묶어 미룬다).
+fn log_causeless_despawns(outcome: &starfall_sim::TickOutcome) {
+    for ship_id in &outcome.causeless_despawns {
+        tracing::error!(
+            %ship_id,
+            tick = outcome.tick,
+            "I-29/I-30 위반: 함선이 잔류 원인 없이 디스폰 경로에 도달해 SHIP_DESPAWNED 를 쓰지 않았다"
+        );
+    }
+}
+
 fn send_queue_depth(routes: &HashMap<UuidV7, SessionRoute>) -> u64 {
     routes
         .values()
@@ -424,6 +568,18 @@ fn send_queue_depth(routes: &HashMap<UuidV7, SessionRoute>) -> u64 {
                 .saturating_sub(route.outbound.capacity())) as u64
         })
         .sum()
+}
+
+/// 큐에 실제로 든 메시지의 평균 크기 추정치(바이트). `WORLD_SNAPSHOT`(31척 기준 약
+/// 15.1 KiB, ADR-0011 §2)와 `COMMAND_RESULT`(약 275 B)가 섞여 있고, 정확한 값을 내려면
+/// 큐에 든 각 메시지를 직렬화해야 하는데 그러면 **이 게이지를 재는 행위 자체**가
+/// 세션별 송신 태스크 밖(tick 드라이버)에서 직렬화 비용을 만든다. 그래서
+/// `send_queue_bytes` 는 깊이 × 이 상수의 **근사치**다 — SC-33 이 요구하는 것은
+/// "존재하고 부하 전후로 움직인다"이지 바이트 정확도가 아니다.
+const SEND_QUEUE_AVERAGE_MESSAGE_BYTES: u64 = 2_048;
+
+fn send_queue_bytes_estimate(routes: &HashMap<UuidV7, SessionRoute>) -> u64 {
+    send_queue_depth(routes).saturating_mul(SEND_QUEUE_AVERAGE_MESSAGE_BYTES)
 }
 
 fn route_outbound(
@@ -440,6 +596,18 @@ fn route_outbound(
         };
         let type_name = out.message.type_name();
 
+        // tick 층이 만드는 거부(`DUPLICATE_COMMAND_ID`·`RATE_LIMITED`·`STALE_INPUT`) 는
+        // 게이트웨이의 `send_rejection` (ws.rs) 을 거치지 않고 곧장 여기로 온다 — 그
+        // 경로에만 있던 `stats.record_rejection` 호출이 이쪽에는 없었다(p1-01 R3 §4.5,
+        // QA 가 봇 응답과 `/debug/stats` 델타의 어긋남으로 찾았다). 여기서 세는 것을
+        // **실제로 세션 송신 큐에 들어간 시점**에 맞춘다 — 아래 `record_message_enqueued`
+        // 와 같은 조건이어야, 클라이언트가 못 받은 메시지(`Full`/`Closed`)를 받은 것으로
+        // 잘못 세지 않는다.
+        let rejection_reason = match &out.message {
+            ServerMessage::CommandResult(result) => result.payload.reason_code,
+            _ => None,
+        };
+
         // in-flight 는 **COMMAND_RESULT 를 만든 시점**에 해제한다 (ADR-0006 §5).
         if matches!(out.message, ServerMessage::CommandResult(_)) {
             let _ = route
@@ -450,7 +618,12 @@ fn route_outbound(
         }
 
         match route.outbound.try_send(out.message.clone()) {
-            Ok(()) => stats.record_message_enqueued(type_name),
+            Ok(()) => {
+                stats.record_message_enqueued(type_name);
+                if let Some(reason) = rejection_reason {
+                    stats.record_rejection(reason);
+                }
+            }
             Err(mpsc::error::TrySendError::Full(_)) => {
                 // 느린 소비자는 시간이 지난다고 회복되지 않고, tick 루프가 그 연결을 기다리면
                 // 세계 전체가 한 클라이언트에 인질이 된다 (ADR-0006 §5).
@@ -550,6 +723,8 @@ mod tests {
         assert_eq!(close_code(SessionCloseReason::SlowConsumer), Some(1011));
         assert_eq!(close_code(SessionCloseReason::ServerShutdown), Some(1001));
         assert_eq!(close_code(SessionCloseReason::TransportError), None);
+        // R4 S-6 (ADR-0005 §2, 사용자 결정 5): 넘겨받기로 밀려난 옛 세션은 4001.
+        assert_eq!(close_code(SessionCloseReason::Superseded), Some(4001));
     }
 
     /// AC-7(d) — `SERVER_BUSY` 는 30 연결에서 구조적으로 도달하지 않는다.
@@ -559,6 +734,44 @@ mod tests {
         assert!(
             max_queued < COMMAND_QUEUE_CAPACITY,
             "30 × {SESSION_IN_FLIGHT_LIMIT} = {max_queued} 는 {COMMAND_QUEUE_CAPACITY} 보다 작다"
+        );
+    }
+
+    /// ADR-0011 §5.1 — in-flight 상한을 송신 큐로 몰아도 스냅샷 자리가 남아야 한다.
+    ///
+    /// `SESSION_IN_FLIGHT_LIMIT × MAX_RESPONSES_PER_COMMAND + SNAPSHOT_HEADROOM ≤
+    /// SEND_QUEUE_CAPACITY` — 16×2+16=48 ≤ 64. 세 상수 중 하나가 이 관계를 깨면 이
+    /// 테스트가 실패한다(컴파일이 아니라 여기서 잡는 것이 목적 — S7).
+    #[test]
+    fn session_in_flight_and_send_queue_capacity_stay_in_the_documented_relationship() {
+        // ADR-0011 §5.2 가 이 부등식의 "송신 큐를 묶는 근거" 지위를 대체했다 — 거부 응답도
+        // 큐 슬롯을 쓰므로 in-flight 상한은 애초에 그 양이 아니었다(S7 에서 재확인). 이
+        // 부등식은 여전히 참이고 깨지면 신호할 가치가 있어 남겨 둔다 — 다만 지금은
+        // `MAX_COMMANDS_PER_SESSION_PER_TICK` 쪽 부등식(아래)이 실제 방어선이고, 이
+        // in-flight 상한은 "2차 방어"(tick 루프가 밀렸을 때)로 격하됐다.
+        let worst_case_responses =
+            SESSION_IN_FLIGHT_LIMIT as usize * MAX_RESPONSES_PER_COMMAND as usize;
+        let required = worst_case_responses + SNAPSHOT_HEADROOM;
+        assert!(
+            required <= SEND_QUEUE_CAPACITY,
+            "{SESSION_IN_FLIGHT_LIMIT} × {MAX_RESPONSES_PER_COMMAND} + {SNAPSHOT_HEADROOM} = {required} 는 \
+             {SEND_QUEUE_CAPACITY} 를 넘는다(참고용 부등식, ADR-0011 §5.1 — 더는 큐를 묶는 근거가 \
+             아니다, §5.2 가 대체했다)"
+        );
+    }
+
+    /// ADR-0011 §5.2 / S10 — tick당 명령 상한이 실제로 송신 큐를 묶는 부등식.
+    /// `8 × 2 + 16 = 32 ≤ 64`. 세 상수 중 하나를 바꾸면 이 테스트가 깨진다(그것이 목적).
+    #[test]
+    fn tick_command_cap_and_send_queue_capacity_stay_in_the_documented_relationship() {
+        let worst_case_responses =
+            MAX_COMMANDS_PER_SESSION_PER_TICK as usize * MAX_RESPONSES_PER_COMMAND as usize;
+        let required = worst_case_responses + SNAPSHOT_HEADROOM;
+        assert!(
+            required <= SEND_QUEUE_CAPACITY,
+            "{MAX_COMMANDS_PER_SESSION_PER_TICK} × {MAX_RESPONSES_PER_COMMAND} + {SNAPSHOT_HEADROOM} \
+             = {required} 는 {SEND_QUEUE_CAPACITY} 를 넘는다 — tick당 명령 상한이 더는 송신 큐를 \
+             지키지 못한다(ADR-0011 §5.2)"
         );
     }
 }

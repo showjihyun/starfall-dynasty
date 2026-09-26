@@ -1,0 +1,2 @@
+fn f(x: f64) -> f64 { x.sin() + f64::hypot(x, 1.0) + x.mul_add(2.0, 1.0) }
+let r = v.expect("no");

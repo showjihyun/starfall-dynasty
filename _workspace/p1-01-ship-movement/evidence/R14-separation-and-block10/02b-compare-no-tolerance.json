@@ -1,0 +1,47 @@
+{
+  "item": "SC-61/62 (AC-16) 두 관측자 대조 — 블록 7",
+  "SC-61_verdict": "PASS",
+  "SC-62_verdict": "미검증(판정 기준 미지정)",
+  "join_key": "(tick, ship_id)",
+  "rows_a": 20,
+  "rows_b": 40,
+  "pairs_compared": 20,
+  "SC-61": {
+    "ship": "01a0c000-0000-7000-8000-00000000000a",
+    "samples": 20,
+    "tick_span": 418,
+    "seconds": 20.9,
+    "path_length_m": 133.0,
+    "displacement_m": 133.0,
+    "max_possible_m_at_max_speed": 2926.0,
+    "backward_steps_over_1m": 0
+  },
+  "SC-62": {
+    "max_deviation_m": 0.0,
+    "max_deviation_mm": 0.0,
+    "samples": 20,
+    "tick_span": 418,
+    "a_net_displacement_m": 133.0,
+    "tolerance_m_passed_in": null,
+    "expected_m": 0.0,
+    "endpoint_displacement_m": 0.0,
+    "exceeds_one_lsb_1mm": false,
+    "defense_i_sampling": {
+      "rows": 20,
+      "own_tick_span": 418,
+      "min_span_ticks": 400,
+      "a_tick_span": 418,
+      "coverage_ratio": 1.0,
+      "min_coverage_ratio": 0.9,
+      "ok": true
+    },
+    "defense_ii_contrast": {
+      "a_net_displacement_m": 133.0,
+      "required_m": 100.0,
+      "ok": true,
+      "why_not_path_gt_0": "`path_mm > 0` 은 1 mm 로도 참이라 아무도 움직이지 않은 세션이 SC-61 PASS + SC-62 PASS 를 동시에 인쇄한다(architect R15)"
+    },
+    "note": "기대값은 **정확히 0** 이다 — B 는 at_rest 로 스폰하고 가속원이 하나도 없다. 임계는 **인자로만** 받는다(계약 (iii)): 계약 행에 있는 수의 사본을 코드에 두면 한 수에 출처가 둘이 되고, 계약이 바뀌었을 때 도구가 옛 수로 조용히 초록을 낸다."
+  },
+  "SC-63": "이 명령은 SC-63 을 판정하지 않는다 (13차 개정, 블록 10). 판정 입력은 봇 2대의 원시 스냅샷 CSV 이고 명령은 `raw2 --bot-out-dir` 다. 이 CSV 에는 원시 층이 한 열도 없다."
+}

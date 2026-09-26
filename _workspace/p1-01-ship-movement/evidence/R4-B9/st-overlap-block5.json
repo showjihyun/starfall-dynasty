@@ -1,0 +1,11 @@
+{
+  "item": "I-29 actor 당 동시 1척 (수명 구간 겹침)",
+  "verdict": "PASS",
+  "ships_checked": 13,
+  "concurrent_overlaps": [],
+  "tick_window": {
+    "from_tick": 403435,
+    "to_tick": 427104,
+    "mode": "tick 구간 한정"
+  }
+}

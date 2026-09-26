@@ -40,7 +40,7 @@ def run(args: argparse.Namespace) -> int:
     ok = not bad and total > 0
     db.emit(
         {
-            "item": "SC-59 (AC-16c) sequence 빈틈 검사",
+            "item": "SC-79 (AC-20d) sequence 빈틈 검사 — 전 테이블",
             "verdict": "PASS" if ok else ("FAIL" if bad else "FAIL(빈 테이블 — 검사할 것이 없다)"),
             "rows_total": total,
             "distinct_world_tick_groups": ticks,

@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "id": "newtonian-hulk",
+  "display_name": "Newtonian Hulk",
+  "hull_class": "scout",
+  "movement": {
+    "model": "assisted_6dof",
+    "max_speed_mps": 100000.0,
+    "main_thrust_mps2": 0.0,
+    "reverse_thrust_mps2": 0.0,
+    "lateral_thrust_mps2": 0.0,
+    "brake_decel_mps2": 0.0,
+    "assist_linear_decel_mps2": 0.0,
+    "assist_lateral_decel_mps2": 0.0,
+    "turn_rate_max_deg_s": 75.0,
+    "turn_accel_deg_s2": 220.0,
+    "turn_gain_deg_s_per_sin_half": 290.0,
+    "turn_deadzone_sin_half": 0.0,
+    "roll_rate_max_deg_s": 90.0,
+    "roll_accel_deg_s2": 300.0,
+    "auto_level_rate_deg_s": 0.0,
+    "auto_level_deadzone_sin": 0.0
+  },
+  "geometry": {
+    "hull_radius_m": 12.0
+  },
+  "derived_for_review": {
+    "note": "assist 0 = 순수 뉴턴. 같은 적분기의 하위 설정이다.",
+    "coast_to_rest_from_max_speed_s": 0.0
+  },
+  "reference_stats_unused_in_p1_01": {
+    "note": "GDD 원문 스탯. p1-01 코드는 읽지 않는다.",
+    "crew": 1,
+    "cargo_capacity_t": 20.0,
+    "weapon_hardpoints": 1,
+    "warp_range_ly": 1.2,
+    "shield": 100.0
+  }
+}

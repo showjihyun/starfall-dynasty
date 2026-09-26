@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.starfall.invalid/contracts/commands/SET_SHIP_CONTROL.schema.json",
+  "title": "SetShipControlCommand",
+  "description": "The complete control intent of one tick for the ship this session's actor is flying: where the pilot wants to be pointing, how hard the thrusters are pushed, and which two assists are engaged. THE CLIENT CANNOT SEND A POSITION, A VELOCITY OR ITS CURRENT ATTITUDE: those words are not in this vocabulary, so a client that tries to place its ship is rejected by the schema and by serde, not merely ignored (CLAUDE.md principle 1, I-26). aim_* is the attitude the pilot WANTS - an intent about the future, not a claim about the present - and the server decides how fast the ship may turn toward it, which is why it does not weaken server authority. Every field is absolute state, not a delta, so a lost or superseded input is harmless: the server carries the previous input forward (ADR-0011 section 4). 좌표계 규약 (ADR-0009 section 1): 왼손 좌표계, Y-up. +X = 함선 기준 오른쪽, +Y = 위, +Z = 전방(뱃머리). 쿼터니언은 (x,y,z,w) 순서의 Hamilton 곱. 이 문장이 축 의미의 정본이며 구현은 여기서만 읽는다.",
+  "allOf": [
+    {
+      "$ref": "../common/command-envelope.schema.json"
+    }
+  ],
+  "properties": {
+    "command_type": {
+      "const": "SET_SHIP_CONTROL"
+    },
+    "schema_version": {
+      "const": 1
+    },
+    "payload": {
+      "$ref": "#/$defs/SetShipControlPayload"
+    }
+  },
+  "unevaluatedProperties": false,
+  "$defs": {
+    "SetShipControlPayload": {
+      "title": "SetShipControlPayload",
+      "type": "object",
+      "required": [
+        "input_seq",
+        "thrust_x_milli",
+        "thrust_y_milli",
+        "thrust_z_milli",
+        "roll_milli",
+        "aim_x_micro",
+        "aim_y_micro",
+        "aim_z_micro",
+        "aim_w_micro",
+        "brake",
+        "flight_assist"
+      ],
+      "properties": {
+        "input_seq": {
+          "description": "This session's input counter. The server echoes the newest consumed value in WORLD_SNAPSHOT.ack_input_seq so the client can replay its unacknowledged inputs.",
+          "$ref": "../common/primitives.schema.json#/$defs/InputSeq"
+        },
+        "thrust_x_milli": {
+          "description": "Ship-local +X (right) thrust intent. Lateral thrusters.",
+          "$ref": "../common/primitives.schema.json#/$defs/ControlAxisMilli"
+        },
+        "thrust_y_milli": {
+          "description": "Ship-local +Y (up) thrust intent. Lateral thrusters.",
+          "$ref": "../common/primitives.schema.json#/$defs/ControlAxisMilli"
+        },
+        "thrust_z_milli": {
+          "description": "Ship-local +Z (forward) thrust intent. Positive uses the main engine, negative the weaker reverse thrusters.",
+          "$ref": "../common/primitives.schema.json#/$defs/ControlAxisMilli"
+        },
+        "roll_milli": {
+          "description": "Manual roll rate intent about the ship-local +Z axis. A non-zero value suspends auto-levelling for this tick.",
+          "$ref": "../common/primitives.schema.json#/$defs/ControlAxisMilli"
+        },
+        "aim_x_micro": {
+          "description": "Target attitude quaternion x. The server renormalises and turns toward it at the ship class turn rate; it never adopts it directly.",
+          "$ref": "../common/primitives.schema.json#/$defs/QuaternionComponentMicro"
+        },
+        "aim_y_micro": {
+          "description": "Target attitude quaternion y.",
+          "$ref": "../common/primitives.schema.json#/$defs/QuaternionComponentMicro"
+        },
+        "aim_z_micro": {
+          "description": "Target attitude quaternion z.",
+          "$ref": "../common/primitives.schema.json#/$defs/QuaternionComponentMicro"
+        },
+        "aim_w_micro": {
+          "description": "Target attitude quaternion w.",
+          "$ref": "../common/primitives.schema.json#/$defs/QuaternionComponentMicro"
+        },
+        "brake": {
+          "description": "Held brake. While true, thrust is ignored and velocity is bled at the ship class brake rate. It outranks both flight-assist dampings: only one damping applies per tick.",
+          "type": "boolean"
+        },
+        "flight_assist": {
+          "description": "Flight assist engaged. False is full Newtonian flight: no damping, no auto-levelling. Default is true.",
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

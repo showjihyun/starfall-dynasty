@@ -1,0 +1,190 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.starfall.invalid/contracts/data/sync-tuning.schema.json",
+  "title": "SyncTuningTable",
+  "description": "Shape of data/movement/sync-tuning.json: the networking values that are FELT, kept out of code literals so that tuning 'does movement feel right' never means editing Rust or C#. WHAT IS DELIBERATELY NOT HERE: tick_hz (a world constant on the worlds row - I-19 - and a third copy would make 'which one is true' a judgement call), the quantisation scales and integer ranges (ADR-0009), and the integrator identity and the ban on transcendental functions (ADR-0010). Those are laws, not tunables: putting them in data would let someone change a value and have nothing happen, which is worse than not having it. 단위 접미사 규약: 모든 수치 필드 이름이 단위로 끝난다 (_m, _mps, _mps2, _deg_s, _deg_s2, _ms, _s, _hz, _t, _ly, _kib_s, _ticks). 스키마가 모든 필드를 명시 선언하므로 접미사는 propertyNames 패턴이 아니라 이 선언 자체가 강제한다. 데이터 테이블은 와이어 계약과 달리 실수(SI 단위)를 쓴다 (ADR-0009 section 2의 명시적 예외). 이 값들은 와이어를 왕복하지 않고 기동 시 한 번 읽히며, 튜닝하는 사람이 읽을 수 있어야 한다. 서버 내부 상태도 같은 SI f64라 변환이 없다.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "id",
+    "snapshot",
+    "input",
+    "prediction"
+  ],
+  "properties": {
+    "schema_version": {
+      "$ref": "../common/primitives.schema.json#/$defs/SchemaVersion"
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$"
+    },
+    "designer_note": {
+      "type": "string",
+      "maxLength": 2000
+    },
+    "snapshot": {
+      "$ref": "#/$defs/Snapshot"
+    },
+    "input": {
+      "$ref": "#/$defs/Input"
+    },
+    "prediction": {
+      "$ref": "#/$defs/Prediction"
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "Snapshot": {
+      "title": "SyncTuningSnapshot",
+      "type": "object",
+      "required": [
+        "snapshot_hz",
+        "max_entities_per_snapshot",
+        "egress_budget_kib_s_per_session"
+      ],
+      "properties": {
+        "snapshot_hz": {
+          "description": "Full snapshots per second. MUST divide tick_hz exactly; the server derives snapshot_interval_ticks = tick_hz / snapshot_hz and refuses to start otherwise. p1-01 uses 10: at 31 ships a 20 Hz stream is about 340 KiB/s per session, which the budget below already forbids.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 60
+        },
+        "max_entities_per_snapshot": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 64
+        },
+        "egress_budget_kib_s_per_session": {
+          "description": "The measured per-session snapshot stream must stay under this. It is the rule that decided snapshot_hz, and it is written down so nobody has to re-derive it later.",
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 100000
+        },
+        "fallback_snapshot_hz_if_over_budget": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 60
+        },
+        "note": {
+          "type": "string",
+          "maxLength": 2000
+        }
+      },
+      "additionalProperties": false
+    },
+    "Input": {
+      "title": "SyncTuningInput",
+      "type": "object",
+      "required": [
+        "client_send_hz",
+        "carry_forward_max_ticks",
+        "rate_limit_hz",
+        "protocol_violation_hz"
+      ],
+      "properties": {
+        "client_send_hz": {
+          "description": "One control input per tick. The client's prediction advances exactly once per input it sends.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 240
+        },
+        "carry_forward_max_ticks": {
+          "description": "How long the server keeps applying the last input when none arrives. Zero would turn one late packet into a hiccup; unbounded would let a disconnected ship accelerate forever.",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 200
+        },
+        "rate_limit_hz": {
+          "description": "Sustained input rate above which commands are rejected with RATE_LIMITED. Rejection, never silent discard (I-22).",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000
+        },
+        "protocol_violation_hz": {
+          "description": "Rate above which the session's protocol violation budget is charged (ADR-0006 section 6).",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10000
+        },
+        "note": {
+          "type": "string",
+          "maxLength": 2000
+        }
+      },
+      "additionalProperties": false
+    },
+    "Prediction": {
+      "title": "SyncTuningPrediction",
+      "type": "object",
+      "required": [
+        "remote_interp_delay_ms",
+        "remote_extrapolate_max_ms",
+        "reconcile_ignore_threshold_m",
+        "reconcile_smooth_threshold_m",
+        "reconcile_smooth_duration_ms",
+        "reconcile_hard_snap_threshold_m",
+        "reconcile_orientation_ignore_threshold_deg",
+        "reconcile_orientation_smooth_threshold_deg",
+        "reconcile_orientation_hard_snap_deg"
+      ],
+      "properties": {
+        "remote_interp_delay_ms": {
+          "description": "How far in the past other ships are drawn. Must be at least one snapshot interval or the buffer runs dry every frame.",
+          "type": "number",
+          "minimum": 0,
+          "maximum": 2000
+        },
+        "remote_extrapolate_max_ms": {
+          "description": "How long a missing snapshot may be extrapolated from the last velocity before the ship is simply held still. Extrapolating further invents facts.",
+          "type": "number",
+          "minimum": 0,
+          "maximum": 5000
+        },
+        "reconcile_ignore_threshold_m": {
+          "description": "Below this the render offset is not touched at all. It exists because the wire quantises position to 1 mm, so a perfectly correct client still sees up to sqrt(3)/2 mm of disagreement every single snapshot; without this band the correction machinery would run forever on noise. Keep it above 0.002 and far below the smooth threshold.",
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "reconcile_smooth_threshold_m": {
+          "description": "Up to this error the simulation snaps but the render offset decays smoothly.",
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 1000
+        },
+        "reconcile_smooth_duration_ms": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 5000
+        },
+        "reconcile_hard_snap_threshold_m": {
+          "description": "Above this the render jumps and a counter is incremented. It is a bug signal, not a feel setting: on a local link with the same integrator on both sides it should never fire.",
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 100000
+        },
+        "reconcile_orientation_ignore_threshold_deg": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 10
+        },
+        "reconcile_orientation_smooth_threshold_deg": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 180
+        },
+        "reconcile_orientation_hard_snap_deg": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 180
+        },
+        "note": {
+          "type": "string",
+          "maxLength": 2000
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

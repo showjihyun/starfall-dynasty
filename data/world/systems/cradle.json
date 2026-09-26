@@ -1,0 +1,90 @@
+{
+  "schema_version": 1,
+  "id": "cradle",
+  "display_name": "Cradle",
+  "designer_note": "The one star system of MVP-1 (GDD 36). Content id only — the persisted `world_id` UUID stays architect's. Every number here is a designer assumption; see docs/design/p1-01-ship-movement-design.md.",
+  "coordinate_space": {
+    "frame": "system_local",
+    "unit": "meter",
+    "server_type": "f64",
+    "origin": [0.0, 0.0, 0.0],
+    "up_axis": [0.0, 1.0, 0.0],
+    "note": "Left-handed, Y up, +Z forward (Unity convention, ADR-0009 §1). Ecliptic = XZ plane. The spawn ring and markers below are symmetric, so their coordinates are unchanged by the handedness correction — only this sentence was wrong. Client transforms are float32; the boundary below is what keeps that safe without Floating Origin."
+  },
+
+  "play_area": {
+    "soft_boundary_radius_m": 10000.0,
+    "hard_boundary_radius_m": 12000.0,
+    "boundary_pull_mps2": 25.0,
+    "client_float32_ulp_at_hard_boundary_m": 0.00098,
+    "client_float32_ulp_visible_jitter_threshold_m": 0.005,
+    "floating_origin_required_above_radius_m": 50000.0,
+    "note": "At 12 km a float32 world coordinate quantizes to 0.98 mm — 5x under the jitter threshold. Do not grow the play area past 50,000 m in any slice until techart lands Floating Origin."
+  },
+
+  "spawn": {
+    "ring_radius_m": 2500.0,
+    "plane": "ecliptic",
+    "point_count": 12,
+    "y_alternation_m": 250.0,
+    "clearance_m": 150.0,
+    "max_probe_attempts": 12,
+    "radial_offset_step_m": 150.0,
+    "initial_velocity_mps": [0.0, 0.0, 0.0],
+    "initial_facing": "system_origin",
+    "assignment_rule": "index0 = H(world_seed_le8 || actor_id_16bytes) % point_count, where H is the deterministic integer hash specified inside starfall-sim and pinned by fixed-input tests (ADR-0010 §4 — no external hash crate, so determinism is not delegated to a crate version). Then probe index0, index0+1, ... (mod point_count) for the first point with no active or lingering ship within clearance_m + hull_radius_m; if all 12 are occupied, use index0 offset outward along its radial by radial_offset_step_m * ceil(attempts / point_count).",
+    "points_m": [
+      [2500.0, 250.0, 0.0],
+      [2165.0635095, -250.0, 1250.0],
+      [1250.0, 250.0, 2165.0635095],
+      [0.0, -250.0, 2500.0],
+      [-1250.0, 250.0, 2165.0635095],
+      [-2165.0635095, -250.0, 1250.0],
+      [-2500.0, 250.0, 0.0],
+      [-2165.0635095, -250.0, -1250.0],
+      [-1250.0, 250.0, -2165.0635095],
+      [0.0, -250.0, -2500.0],
+      [1250.0, 250.0, -2165.0635095],
+      [2165.0635095, -250.0, -1250.0]
+    ],
+    "note": "Adjacent points are 1,294 m apart (~13 s of travel), opposite points 5,000 m (~39 s). The alternating Y teaches the player on the first screen that there is an up."
+  },
+
+  "presence": {
+    "linger_seconds": 30,
+    "reconnect_resume_window_seconds": 30,
+    "note": "A disconnected ship does not vanish. It coasts, the assist brings it to rest, and it stays visible for linger_seconds. Reconnecting inside the window resumes the SAME ship at its current position/velocity/orientation."
+  },
+
+  "reference_markers": [
+    {
+      "id": "star-cradle",
+      "display_name": "Cradle",
+      "kind": "star",
+      "position_m": [0.0, 0.0, 0.0],
+      "visual_radius_m": 600.0
+    },
+    {
+      "id": "planet-vela",
+      "display_name": "Vela",
+      "kind": "planet",
+      "position_m": [3000.0, -200.0, -900.0],
+      "visual_radius_m": 900.0
+    },
+    {
+      "id": "beacon-meridian",
+      "display_name": "Meridian Beacon",
+      "kind": "beacon",
+      "position_m": [-1800.0, 900.0, 2200.0],
+      "visual_radius_m": 80.0
+    },
+    {
+      "id": "derelict-unnamed",
+      "display_name": "Unregistered Hull",
+      "kind": "derelict",
+      "position_m": [700.0, -1400.0, -3900.0],
+      "visual_radius_m": 25.0
+    }
+  ],
+  "reference_markers_note": "CLIENT-SIDE STATIC VISUALS ONLY. No server entity, no server state, no collision, no interaction, never in a snapshot. They exist because without a fixed object in view a player cannot tell whether the ship is moving — which would make this slice's stated goal ('눈으로 확인 가능') unverifiable."
+}

@@ -1,0 +1,17 @@
+{
+  "event_id": "01a0b1c2-9f22-7b32-bd42-3e52f6207b9c",
+  "event_type": "SESSION_CLOSED",
+  "schema_version": 1,
+  "world_id": "01a0b1c2-3d4e-7f01-8a2b-9c0d1e2f3a4b",
+  "tick": 36000,
+  "sequence": 3,
+  "occurred_at": "3800-01-02T06:00:00Z",
+  "recorded_at": "2026-09-22T09:14:07.512Z",
+  "correlation_id": "01a0b1c2-9e12-7a22-9b32-1c42d52e62f8",
+  "causation_id": "01a0b1c2-9f21-7b31-ac41-2d51e61f7a8b",
+  "actor_id": "01a0b1c2-2c01-7a45-8b67-89abcdef0123",
+  "payload": {
+    "session_id": "01a0b1c2-9e11-7a21-8b31-0c41d51e61f7",
+    "close_reason": "SUPERSEDED"
+  }
+}

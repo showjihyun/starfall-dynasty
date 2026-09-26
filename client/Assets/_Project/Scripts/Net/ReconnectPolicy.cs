@@ -26,6 +26,45 @@ namespace Starfall.Net
         public const int CapMs = 10_000;
 
         /// <summary>
+        /// WebSocket close code the server uses when the same actor opened a newer session and
+        /// this connection's ship was handed to it in the same tick
+        /// (<c>SESSION_CLOSED{close_reason: SUPERSEDED}</c>, RFC 6455 application range).
+        /// <para>
+        /// 01_architect_decisions.md "R3 추가 판정" section 1.3 / user decision 5 (2026-09-22).
+        /// ADR-0005's close-code table names this the first code the client changes behaviour
+        /// for - every other code before it was diagnostic-only.
+        /// </para>
+        /// </summary>
+        public const int SupersededCloseCode = 4001;
+
+        /// <summary>
+        /// Whether a disconnect should be followed by a reconnect attempt.
+        /// <para>
+        /// False only for <see cref="SupersededCloseCode"/>. By the time this close code
+        /// reaches the client, the server has already opened a newer session for this actor and
+        /// handed the ship to it (SESSION_CLOSED{SUPERSEDED}). Reconnecting would just open a
+        /// third session that gets closed the exact same way. Since SESSION_READY is the only
+        /// point the retry counter resets to 0 (RealtimeClient.OnSessionReady), two clients on
+        /// the same account left to auto-reconnect on 4001 would push each other off forever at
+        /// the ~500 ms backoff floor, each cycle writing a permanent SESSION_OPENED/
+        /// SESSION_CLOSED pair into history (I-20: additive, never deleted).
+        /// </para>
+        /// <para>
+        /// True for every other close, including no close code at all: <c>world_full</c>'s
+        /// refused upgrade (a rejection before the WebSocket handshake completes has no close
+        /// code to read - <see cref="DisconnectKind.Failed"/>, ADR-0011 section 8), a dropped
+        /// TCP connection, <c>SLOW_CONSUMER</c>, and a normal 1000 close. Those keep the
+        /// existing behaviour unchanged.
+        /// </para>
+        /// </summary>
+        /// <param name="closeCode">The close code the transport reported, or null when none was
+        /// available (<see cref="DisconnectInfo.CloseCode"/>).</param>
+        public static bool ShouldReconnect(int? closeCode)
+        {
+            return closeCode != SupersededCloseCode;
+        }
+
+        /// <summary>
         /// Largest exponent that can still change the ceiling: 500 ms * 2^5 = 16 s, already
         /// past the 10 s cap.
         /// <para>

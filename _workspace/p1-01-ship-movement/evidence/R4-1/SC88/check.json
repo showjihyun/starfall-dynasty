@@ -1,0 +1,248 @@
+{
+  "from_tick": 430380,
+  "rounds": {
+    "A": {
+      "actor_id": "01a0b1c2-b010-7000-8000-000000000050",
+      "s1": {
+        "close_code": 4001,
+        "initiator": "server",
+        "actor_id": "01a0b1c2-b010-7000-8000-000000000050",
+        "correlation_id": "01a0c619-ff17-7108-b497-66e101dac33d",
+        "controlled_ship_id": "01a0c619-ff17-7108-b497-66e4f2ec6c1c"
+      },
+      "s2": {
+        "close_code": 1000,
+        "initiator": "client",
+        "actor_id": "01a0b1c2-b010-7000-8000-000000000050",
+        "correlation_id": "01a0c61a-06e7-755f-822e-e282d1b8ee2e",
+        "controlled_ship_id": "01a0c619-ff17-7108-b497-66e4f2ec6c1c"
+      },
+      "spawns": 1,
+      "session_opened": 2,
+      "superseded_rows": [
+        {
+          "tick": "430423",
+          "seq": "1",
+          "type": "SESSION_CLOSED",
+          "id": "01a0c61a-06e7-755f-822e-e2853422d9d2",
+          "cause": "01a0c61a-06e7-755f-822e-e283261be62f",
+          "corr": "01a0c619-ff17-7108-b497-66e101dac33d",
+          "close_reason": "SUPERSEDED",
+          "ship": "",
+          "despawn": ""
+        }
+      ],
+      "a_one_ship": true,
+      "b_superseded_caused_by_new_open": true,
+      "c_close_4001": true,
+      "events": [
+        {
+          "tick": "430383",
+          "seq": "0",
+          "type": "SESSION_OPENED",
+          "id": "01a0c619-ff17-7108-b497-66e2e7c65fe7",
+          "cause": "",
+          "corr": "01a0c619-ff17-7108-b497-66e101dac33d",
+          "close_reason": "",
+          "ship": "",
+          "despawn": ""
+        },
+        {
+          "tick": "430383",
+          "seq": "1",
+          "type": "SHIP_SPAWNED",
+          "id": "01a0c619-ff17-7108-b497-66e53d131016",
+          "cause": "01a0c619-ff17-7108-b497-66e2e7c65fe7",
+          "corr": "01a0c619-ff17-7108-b497-66e101dac33d",
+          "close_reason": "",
+          "ship": "01a0c619-ff17-7108-b497-66e4f2ec6c1c",
+          "despawn": ""
+        },
+        {
+          "tick": "430423",
+          "seq": "0",
+          "type": "SESSION_OPENED",
+          "id": "01a0c61a-06e7-755f-822e-e283261be62f",
+          "cause": "",
+          "corr": "01a0c61a-06e7-755f-822e-e282d1b8ee2e",
+          "close_reason": "",
+          "ship": "",
+          "despawn": ""
+        },
+        {
+          "tick": "430423",
+          "seq": "1",
+          "type": "SESSION_CLOSED",
+          "id": "01a0c61a-06e7-755f-822e-e2853422d9d2",
+          "cause": "01a0c61a-06e7-755f-822e-e283261be62f",
+          "corr": "01a0c619-ff17-7108-b497-66e101dac33d",
+          "close_reason": "SUPERSEDED",
+          "ship": "",
+          "despawn": ""
+        },
+        {
+          "tick": "430654",
+          "seq": "0",
+          "type": "SESSION_CLOSED",
+          "id": "01a0c61a-3405-7021-8a16-f1f3acc1b0e8",
+          "cause": "",
+          "corr": "01a0c61a-06e7-755f-822e-e282d1b8ee2e",
+          "close_reason": "CLIENT_CLOSED",
+          "ship": "",
+          "despawn": ""
+        },
+        {
+          "tick": "431254",
+          "seq": "0",
+          "type": "SHIP_DESPAWNED",
+          "id": "01a0c61a-a934-7682-8df7-5f45165b4b0b",
+          "cause": "01a0c61a-3405-7021-8a16-f1f3acc1b0e8",
+          "corr": "01a0c61a-06e7-755f-822e-e282d1b8ee2e",
+          "close_reason": "",
+          "ship": "01a0c619-ff17-7108-b497-66e4f2ec6c1c",
+          "despawn": "LINGER_EXPIRED"
+        }
+      ],
+      "e_no_ghost_after_linger": true,
+      "gauges": {
+        "before": {
+          "tick": 430380,
+          "ws_connections": 0,
+          "ships_active": 0,
+          "ships_lingering": 0
+        },
+        "s1_only": {
+          "tick": 430422,
+          "ws_connections": 1,
+          "ships_active": 1,
+          "ships_lingering": 0
+        },
+        "after_s2": {
+          "tick": 430462,
+          "ws_connections": 1,
+          "ships_active": 1,
+          "ships_lingering": 0
+        },
+        "both_closed": {
+          "tick": 430653,
+          "ws_connections": 1,
+          "ships_active": 1,
+          "ships_lingering": 0
+        },
+        "after_linger": {
+          "tick": 431353,
+          "ws_connections": 0,
+          "ships_active": 0,
+          "ships_lingering": 0
+        }
+      }
+    },
+    "B": {
+      "actor_id": "01a0b1c2-b010-7000-8000-000000000051",
+      "s1": {
+        "close_code": 4001,
+        "initiator": "server",
+        "actor_id": "01a0b1c2-b010-7000-8000-000000000051",
+        "correlation_id": "01a0c61a-bcbc-70df-ad38-50cf1ee61358",
+        "controlled_ship_id": "01a0c61a-bcbc-70df-ad38-50d2243b1316"
+      },
+      "s2": {
+        "close_code": 1001,
+        "initiator": "server",
+        "actor_id": "01a0b1c2-b010-7000-8000-000000000051",
+        "correlation_id": "01a0c61a-c48c-76a7-ab79-80e4305bb872",
+        "controlled_ship_id": "01a0c61a-bcbc-70df-ad38-50d2243b1316"
+      },
+      "spawns": 1,
+      "session_opened": 2,
+      "superseded_rows": [
+        {
+          "tick": "431394",
+          "seq": "1",
+          "type": "SESSION_CLOSED",
+          "id": "01a0c61a-c48c-76a7-ab79-80e73fc9883f",
+          "cause": "01a0c61a-c48c-76a7-ab79-80e5c4f6dc79",
+          "corr": "01a0c61a-bcbc-70df-ad38-50cf1ee61358",
+          "close_reason": "SUPERSEDED",
+          "ship": "",
+          "despawn": ""
+        }
+      ],
+      "a_one_ship": true,
+      "b_superseded_caused_by_new_open": true,
+      "c_close_4001": true,
+      "events": [
+        {
+          "tick": "431354",
+          "seq": "0",
+          "type": "SESSION_OPENED",
+          "id": "01a0c61a-bcbc-70df-ad38-50d0d16abc0d",
+          "cause": "",
+          "corr": "01a0c61a-bcbc-70df-ad38-50cf1ee61358",
+          "close_reason": "",
+          "ship": "",
+          "despawn": ""
+        },
+        {
+          "tick": "431354",
+          "seq": "1",
+          "type": "SHIP_SPAWNED",
+          "id": "01a0c61a-bcbc-70df-ad38-50d3dbf1cbc2",
+          "cause": "01a0c61a-bcbc-70df-ad38-50d0d16abc0d",
+          "corr": "01a0c61a-bcbc-70df-ad38-50cf1ee61358",
+          "close_reason": "",
+          "ship": "01a0c61a-bcbc-70df-ad38-50d2243b1316",
+          "despawn": ""
+        },
+        {
+          "tick": "431394",
+          "seq": "0",
+          "type": "SESSION_OPENED",
+          "id": "01a0c61a-c48c-76a7-ab79-80e5c4f6dc79",
+          "cause": "",
+          "corr": "01a0c61a-c48c-76a7-ab79-80e4305bb872",
+          "close_reason": "",
+          "ship": "",
+          "despawn": ""
+        },
+        {
+          "tick": "431394",
+          "seq": "1",
+          "type": "SESSION_CLOSED",
+          "id": "01a0c61a-c48c-76a7-ab79-80e73fc9883f",
+          "cause": "01a0c61a-c48c-76a7-ab79-80e5c4f6dc79",
+          "corr": "01a0c61a-bcbc-70df-ad38-50cf1ee61358",
+          "close_reason": "SUPERSEDED",
+          "ship": "",
+          "despawn": ""
+        },
+        {
+          "tick": "431613",
+          "seq": "0",
+          "type": "SESSION_CLOSED",
+          "id": "01a0c61a-ef52-7021-ae2f-0093ef7a331b",
+          "cause": "",
+          "corr": "01a0c61a-c48c-76a7-ab79-80e4305bb872",
+          "close_reason": "SERVER_SHUTDOWN",
+          "ship": "",
+          "despawn": ""
+        },
+        {
+          "tick": "431613",
+          "seq": "1",
+          "type": "SHIP_DESPAWNED",
+          "id": "01a0c61a-ef52-7021-ae2f-009427cd3074",
+          "cause": "01a0c61a-ef52-7021-ae2f-0093ef7a331b",
+          "corr": "01a0c61a-c48c-76a7-ab79-80e4305bb872",
+          "close_reason": "",
+          "ship": "01a0c61a-bcbc-70df-ad38-50d2243b1316",
+          "despawn": "SERVER_SHUTDOWN"
+        }
+      ],
+      "shutdown_despawns": 1,
+      "e_shutdown_cause_real_session_closed": true
+    }
+  },
+  "d_not_judged_here": "봇은 재접속하지 않는다 — (d) 는 Unity S1 로(블록 6)",
+  "verdict": "PASS"
+}

@@ -1,0 +1,16 @@
+{
+  "message_id": "01a0b1c2-9c02-7d12-9f33-2a445566bb77",
+  "message_type": "WORLD_SNAPSHOT",
+  "schema_version": 1,
+  "tick": 0,
+  "correlation_id": null,
+  "payload": {
+    "star_system_id": "cradle",
+    "soft_boundary_radius_mm": 1,
+    "hard_boundary_radius_mm": 20000000,
+    "snapshot_interval_ticks": 1,
+    "controlled_ship_id": null,
+    "ack_input_seq": null,
+    "ships": []
+  }
+}

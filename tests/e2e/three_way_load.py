@@ -135,7 +135,8 @@ def run(args: argparse.Namespace) -> int:
     verdict = "PASS" if not mismatches and bots["missing_results"] == 0 else "FAIL"
     db.emit(
         {
-            "item": "SC-56 (AC-15e/AC-9c) 3자 대조 — 부하 전체(A+B+C+Unity)",
+            "item": "계약 외 검사 — 3자 대조, 부하 전체(A+B+C+Unity)",
+            "label_history": "18차까지 라벨이 p0-02 번호였다(계약 §7b 규칙 7)",
             "verdict": verdict,
             "phases": sorted(phases),
             "correlations_checked": len(corr),

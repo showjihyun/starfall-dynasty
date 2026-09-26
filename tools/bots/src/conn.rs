@@ -13,9 +13,15 @@ use tokio_tungstenite::{MaybeTlsStream, WebSocketStream};
 use uuid::Uuid;
 
 use crate::ledger::{Ledger, SessionRecord};
-use crate::wire::{self, Inbound, PingServerCommand};
+use crate::snapshot::SnapshotLedger;
+use crate::wire::{self, Inbound, PingServerCommand, SetShipControlCommand};
 
 type Ws = WebSocketStream<MaybeTlsStream<TcpStream>>;
+
+/// 원장 표지 — 재개 1구간의 마지막 실제 입력.
+pub const MARK_LAST_INPUT: &str = "last-input";
+/// 원장 표지 — 재개 2구간의 `input_seq = 1` 명령.
+pub const MARK_SEQ1: &str = "seq1";
 type WsSink = SplitSink<Ws, Message>;
 type WsStreamHalf = SplitStream<Ws>;
 
@@ -73,11 +79,70 @@ pub enum Behavior {
     Idle { wait: Duration },
     /// AC-7(c): 읽지 않으면서 명령만 쏟아붓는다 → 서버 송신 큐 포화.
     SlowConsumer { count: u32, wait: Duration },
+
+    // ── p1-01 ───────────────────────────────────────────────────────────────
+    /// 조작 입력을 `interval` 마다 보낸다. `thrust` 는 밀리 단위 로컬 축.
+    Fly {
+        interval: Duration,
+        duration: Duration,
+        thrust: (i32, i32, i32),
+        /// 마지막 `brake_last` 동안 브레이크를 켠다(S-1·S-2 관측용).
+        brake_last: Duration,
+        phase: Duration,
+    },
+    /// **원문 프레임을 그대로** 보낸다 — 계약 반례 주입(위치·자세 필드 등).
+    /// 봇의 타입을 거치지 않아야 "어휘에 없는 것"을 시험할 수 있다.
+    CheatRaw {
+        frames: Vec<String>,
+        gap: Duration,
+        grace: Duration,
+    },
+    /// `input_seq` 를 역행·반복시킨다 → `STALE_INPUT` 기대.
+    CheatSeqRewind { rounds: u32 },
+    /// `SESSION_READY` 를 기다리지 않고 먼저 보낸다.
+    PreReady { count: u32 },
+    /// SC-24 (c)(d) 를 한 연결에서: ① 유효 추력 `lead` → ② 범위 초과 `frames` 를 **유효 명령 대신
+    /// 같은 주기로** → ②' 유효 재개 → ③ `aim_*` 극단값(180° 반대편을 번갈아) 을 `turn_hold` 씩.
+    /// 분석은 `crate::range_turn`.
+    RangeTurn {
+        frames: Vec<String>,
+        lead: Duration,
+        turn_hold: Duration,
+    },
+    /// SC-11 재개 1구간: 추력 + 롤 + **보조 끔**으로 `fly` 동안 조작한 뒤 **입력을 멈추고** `settle`
+    /// 만큼 받기만 하다가 닫는다. `settle` > 이월 창이어야 마지막 스냅샷(T0)이 휴면 구간에 있다.
+    /// 보조를 끈 이유: 이월이 끝나 휴면(보조 켬)으로 넘어가는 순간부터 오토레벨이 돌기 시작해
+    /// 잔류 구간이 5단계를 반드시 탄다(ADR-0011 §6.1 — 독립 계산이 갈리는 자리).
+    ResumeLeg1 { fly: Duration, settle: Duration },
+    /// **SC-89 (g) 양성 대조**: 한 서버 tick 안에 `per_tick` 건을 **사이 간격 없이** 몰아 보내고
+    /// `gap` 만큼 쉬는 것을 `rounds` 회 반복한다.
+    ///
+    /// 왜 이 모양인가 — 두 문턱을 갈라야 하기 때문이다(ADR-0011 §5.2):
+    /// * **tick 당 상한(8)** 은 *한 tick 안의 건수* 를 본다 → 몰아 보내기가 이것을 넘긴다.
+    /// * **`rate_limit_hz`(40)** 는 *평균 속도* 를 본다 → `gap` 이 평균을 낮춰 이쪽은 **건드리지 않는다**.
+    ///
+    /// 평균 속도를 낮추지 않으면 `RATE_LIMITED` 가 먼저 발동해 **위반 경로를 밟기 전에 막힌다** —
+    /// 그러면 이 대조는 "프로토콜 위반이 계수된다"를 증명하지 못하고 다른 것을 증명하게 된다.
+    ///
+    /// 위반 예산은 10초 창에 8건이므로 `rounds >= 8` 이고 `rounds * gap < 10s` 여야 서버가 닫는다.
+    TickBurst {
+        per_tick: u32,
+        rounds: u32,
+        gap: Duration,
+        grace: Duration,
+    },
+    /// 보내지 않고 `listen` 동안 받기만 한다(관측자·재개 2구간). `seq1_after` 가 있으면 그 시점에
+    /// `input_seq = 1` 명령을 하나 보낸다(AC-3(e2): 재개 후 첫 입력이 ACCEPTED 여야 한다).
+    Listen {
+        listen: Duration,
+        seq1_after: Option<Duration>,
+    },
 }
 
 #[derive(Debug)]
 pub struct ConnectionOutcome {
     pub ledger: Ledger,
+    pub snapshots: SnapshotLedger,
     pub connect_ms: f64,
     pub ready_ms: Option<f64>,
     /// 서버가 업그레이드를 거절했을 때의 원인 문자열(클라이언트는 상태 코드를 구분할 수 없다 —
@@ -145,6 +210,7 @@ pub async fn run_connection(spec: BotSpec) -> ConnectionOutcome {
             ledger.on_error(format!("bad url: {e}"));
             return ConnectionOutcome {
                 ledger,
+                snapshots: SnapshotLedger::new(None),
                 connect_ms: 0.0,
                 ready_ms: None,
                 connect_error: Some(format!("bad url: {e}")),
@@ -167,6 +233,7 @@ pub async fn run_connection(spec: BotSpec) -> ConnectionOutcome {
             ledger.on_error(msg.clone());
             return ConnectionOutcome {
                 ledger,
+                snapshots: SnapshotLedger::new(None),
                 connect_ms: (spec.clock.us() - t_connect_start) as f64 / 1000.0,
                 ready_ms: None,
                 connect_error: Some(msg),
@@ -180,6 +247,7 @@ pub async fn run_connection(spec: BotSpec) -> ConnectionOutcome {
         sink,
         stream,
         ledger,
+        snapshots: SnapshotLedger::new(None),
         clock: spec.clock,
         live_corr: spec.live_corr.clone(),
         next_seq: 0,
@@ -204,6 +272,32 @@ pub async fn run_connection(spec: BotSpec) -> ConnectionOutcome {
         Behavior::Violate { oversize, count } => conn.run_violate(oversize, count).await,
         Behavior::Idle { wait } => conn.run_idle(wait).await,
         Behavior::SlowConsumer { count, wait } => conn.run_slow_consumer(count, wait).await,
+        Behavior::Fly {
+            interval,
+            duration,
+            thrust,
+            brake_last,
+            phase,
+        } => {
+            conn.run_fly(interval, duration, thrust, brake_last, phase)
+                .await
+        }
+        Behavior::CheatRaw { frames, gap, grace } => conn.run_cheat_raw(frames, gap, grace).await,
+        Behavior::CheatSeqRewind { rounds } => conn.run_cheat_seq_rewind(rounds).await,
+        Behavior::PreReady { count } => conn.run_pre_ready(count).await,
+        Behavior::RangeTurn {
+            frames,
+            lead,
+            turn_hold,
+        } => conn.run_range_turn(frames, lead, turn_hold).await,
+        Behavior::ResumeLeg1 { fly, settle } => conn.run_resume_leg1(fly, settle).await,
+        Behavior::TickBurst {
+            per_tick,
+            rounds,
+            gap,
+            grace,
+        } => conn.run_tick_burst(per_tick, rounds, gap, grace).await,
+        Behavior::Listen { listen, seq1_after } => conn.run_listen(listen, seq1_after).await,
     }
 
     let ready_ms = conn
@@ -211,6 +305,7 @@ pub async fn run_connection(spec: BotSpec) -> ConnectionOutcome {
         .map(|v| (v.saturating_sub(t_connect_start)) as f64 / 1000.0);
     ConnectionOutcome {
         ledger: conn.ledger,
+        snapshots: conn.snapshots,
         connect_ms: (connect_us - t_connect_start) as f64 / 1000.0,
         ready_ms,
         connect_error: None,
@@ -221,6 +316,8 @@ struct Conn {
     sink: WsSink,
     stream: WsStreamHalf,
     ledger: Ledger,
+    /// p1-01: `WORLD_SNAPSHOT` 관측 계측. 명령 원장과 **분리**한다 — 두 축은 서로 다른 것을 잰다.
+    pub snapshots: SnapshotLedger,
     clock: Clock,
     live_corr: Option<std::sync::Arc<LiveCorrelationSink>>,
     next_seq: u32,
@@ -271,6 +368,7 @@ impl Conn {
                     Inbound::SessionReady(m) => {
                         if self.ready_at_us.is_none() {
                             self.ready_at_us = Some(at);
+                            self.snapshots.set_observer(m.payload.actor_id);
                             self.ledger.on_session_ready(SessionRecord {
                                 bot: self.ledger.bot.clone(),
                                 session_id: m.payload.session_id,
@@ -335,6 +433,15 @@ impl Conn {
                             at,
                             m.tick,
                         );
+                    }
+                    Inbound::WorldSnapshot(m) => {
+                        if self.ready_at_us.is_none() {
+                            self.ledger.on_error(
+                                "first contract message was WORLD_SNAPSHOT, not SESSION_READY"
+                                    .to_owned(),
+                            );
+                        }
+                        self.snapshots.on_snapshot(&m, text.len());
                     }
                     Inbound::PingReply(m) => {
                         if self.ready_at_us.is_none() {
@@ -534,6 +641,272 @@ impl Conn {
     fn ping_text(&self) -> String {
         let cmd = PingServerCommand::new(Uuid::now_v7(), 0);
         serde_json::to_string(&cmd).unwrap_or_else(|_| "{}".to_owned())
+    }
+
+    /// `SET_SHIP_CONTROL` 하나를 보낸다. 원장에는 **명령으로** 기록된다(1:1 대조 대상).
+    async fn send_control(&mut self, cmd: SetShipControlCommand) {
+        let seq = cmd.payload.input_seq;
+        let command_id = cmd.command_id;
+        let text = match serde_json::to_string(&cmd) {
+            Ok(t) => t,
+            Err(e) => {
+                self.ledger.on_error(format!("serialize failed: {e}"));
+                return;
+            }
+        };
+        let at = self.clock.us();
+        match self.sink.send(Message::text(text)).await {
+            // probe_seq 자리에 input_seq 를 넣어 두면 응답 대조가 그대로 동작한다.
+            Ok(()) => self.ledger.on_sent_no_reply(command_id, seq as u32, at),
+            Err(e) => {
+                self.ledger.on_error(format!("send failed: {e}"));
+                self.closed = true;
+            }
+        }
+    }
+
+    async fn run_fly(
+        &mut self,
+        interval: Duration,
+        duration: Duration,
+        thrust: (i32, i32, i32),
+        brake_last: Duration,
+        phase: Duration,
+    ) {
+        if !phase.is_zero() {
+            self.pump_for(phase).await;
+        }
+        let start = tokio::time::Instant::now();
+        let end = start + duration;
+        let brake_from = end.checked_sub(brake_last).unwrap_or(end);
+        let mut seq: u64 = 0;
+        while !self.closed && tokio::time::Instant::now() < end {
+            seq += 1;
+            let braking = tokio::time::Instant::now() >= brake_from;
+            let cmd = SetShipControlCommand::new(Uuid::now_v7(), seq)
+                .with_thrust(thrust.0, thrust.1, thrust.2)
+                .with_brake(braking);
+            self.send_control(cmd).await;
+            let next = (tokio::time::Instant::now() + interval).min(end);
+            let gap = next.saturating_duration_since(tokio::time::Instant::now());
+            if gap.is_zero() {
+                break;
+            }
+            self.pump_for(gap).await;
+        }
+        // 마지막 스냅샷·응답이 돌아올 시간을 준다.
+        self.pump_for(Duration::from_millis(1500)).await;
+        self.close_client_side().await;
+    }
+
+    /// SC-89 (g): 한 tick 에 `per_tick` 건 → `gap` 휴식 → `rounds` 회.
+    ///
+    /// **서버가 먼저 닫기를 기다린다** — 이 대조가 보이려는 것이 *서버의 종료* 이므로
+    /// 클라이언트 쪽에서 닫으면 `close_reason` 이 `CLIENT_CLOSED` 가 되어 아무것도 증명하지 못한다.
+    async fn run_tick_burst(&mut self, per_tick: u32, rounds: u32, gap: Duration, grace: Duration) {
+        let mut seq: u64 = 0;
+        for _round in 0..rounds {
+            if self.closed {
+                break;
+            }
+            // 사이에 await 지점을 두지 않는다(pump 하지 않는다) — 같은 서버 tick 에 얹히는 것이 목적이다.
+            for _ in 0..per_tick {
+                seq += 1;
+                let cmd = SetShipControlCommand::new(Uuid::now_v7(), seq).with_thrust(0, 0, 1000);
+                self.send_control(cmd).await;
+                if self.closed {
+                    break;
+                }
+            }
+            self.pump_for(gap).await;
+        }
+        // 서버가 닫을 시간을 준다. 닫지 않으면 그 사실 자체가 대조의 결과다.
+        self.pump_for(grace).await;
+        if !self.closed {
+            self.close_client_side().await;
+        }
+    }
+
+    async fn run_cheat_raw(&mut self, frames: Vec<String>, gap: Duration, grace: Duration) {
+        for frame in frames {
+            if self.closed {
+                break;
+            }
+            // 원장에 "보냈다"로 기록하지 않는다 — command_id 를 우리가 모를 수 있고,
+            // 이 시나리오의 판정은 1:1 이 아니라 **거부 수와 상태 불변**이다.
+            if let Err(e) = self.sink.send(Message::text(frame)).await {
+                self.ledger.on_error(format!("send failed: {e}"));
+                self.closed = true;
+                break;
+            }
+            self.pump_for(gap).await;
+        }
+        self.pump_for(grace).await;
+        if !self.closed {
+            self.close_client_side().await;
+        }
+    }
+
+    async fn run_cheat_seq_rewind(&mut self, rounds: u32) {
+        // 5 → 3 → 5 → 1 … 순서로 보낸다. 서버는 후퇴를 STALE_INPUT 으로 거부해야 하고
+        // ack_input_seq 는 세션 안에서 되돌아가지 않아야 한다(SC-31·SC-67).
+        let pattern = [5u64, 3, 5, 1, 7, 2];
+        for r in 0..rounds.max(1) {
+            for seq in pattern {
+                if self.closed {
+                    break;
+                }
+                let cmd = SetShipControlCommand::new(Uuid::now_v7(), seq + u64::from(r) * 10)
+                    .with_thrust(0, 0, 300);
+                self.send_control(cmd).await;
+                self.pump_for(Duration::from_millis(60)).await;
+            }
+        }
+        self.pump_for(Duration::from_millis(1500)).await;
+        self.close_client_side().await;
+    }
+
+    async fn run_pre_ready(&mut self, count: u32) {
+        // await_session_ready 가 이미 돌았으므로 여기서는 "READY 직후"가 된다.
+        // 진짜 pre-ready 는 connect 직후 전송이어야 하므로 run_connection 이 아니라
+        // 이 행동을 **SESSION_READY 대기 전에** 호출해야 한다(scenario 에서 처리).
+        for i in 0..count {
+            let cmd = SetShipControlCommand::new(Uuid::now_v7(), u64::from(i) + 1)
+                .with_thrust(0, 0, 1000);
+            self.send_control(cmd).await;
+        }
+        self.pump_for(Duration::from_secs(2)).await;
+        self.close_client_side().await;
+    }
+
+    async fn run_range_turn(&mut self, frames: Vec<String>, lead: Duration, turn_hold: Duration) {
+        use crate::range_turn::{MARK_INJECTED, MARK_TURN_START};
+        // 20 Hz — tick 당 입력 1건(client_send_hz). 주입도 같은 주기로 넣어야 "그 tick 에 유효 입력이
+        // 없어 이월된다"가 성립한다.
+        let interval = Duration::from_millis(50);
+        let mut seq: u64 = 0;
+
+        // ① 유효 추력. 아직 최고 속도 전이어야(0→최고 4초) 이월이 끊기면 속도가 **줄어드는 것**이 보인다.
+        let end = tokio::time::Instant::now() + lead;
+        while !self.closed && tokio::time::Instant::now() < end {
+            seq += 1;
+            let cmd = SetShipControlCommand::new(Uuid::now_v7(), seq).with_thrust(0, 0, 1000);
+            self.send_control(cmd).await;
+            self.pump_for(interval).await;
+        }
+
+        // ② 범위 초과. **input_seq 를 다음 번호로 바꿔 넣는다** — 서버가 클램프해서 적용했다면
+        // `ack_input_seq` 가 그 번호가 되므로 "클램프 흔적 없음"이 스냅샷으로 판정된다.
+        // 위반 예산(10초에 8건)을 넘지 않게 frames 는 4건 안팎으로 둔다.
+        for frame in frames {
+            if self.closed {
+                break;
+            }
+            seq += 1;
+            let command_id = Uuid::now_v7();
+            let text = match serde_json::from_str::<serde_json::Value>(&frame) {
+                Ok(mut v) => {
+                    v["command_id"] = serde_json::json!(command_id.to_string());
+                    v["payload"]["input_seq"] = serde_json::json!(seq);
+                    v.to_string()
+                }
+                Err(e) => {
+                    self.ledger
+                        .on_error(format!("cheat frame parse failed: {e}"));
+                    continue;
+                }
+            };
+            let at = self.clock.us();
+            match self.sink.send(Message::text(text)).await {
+                Ok(()) => {
+                    self.ledger.on_sent_no_reply(command_id, seq as u32, at);
+                    self.ledger.mark(MARK_INJECTED, command_id);
+                }
+                Err(e) => {
+                    self.ledger.on_error(format!("send failed: {e}"));
+                    self.closed = true;
+                }
+            }
+            self.pump_for(interval).await;
+        }
+
+        // ②' 이월 창(10 tick) 안에 유효 입력을 재개한다.
+        for _ in 0..10 {
+            if self.closed {
+                break;
+            }
+            seq += 1;
+            let cmd = SetShipControlCommand::new(Uuid::now_v7(), seq).with_thrust(0, 0, 1000);
+            self.send_control(cmd).await;
+            self.pump_for(interval).await;
+        }
+
+        // ③ aim 극단값: 성분 최댓값으로 **180° 반대편**(Y 축 = 위, ADR-0009 §1)을 번갈아 준다.
+        // Y 축 선회라 오토레벨(롤)이 끼어들 이유가 없다 — 쿼터니언 차분이 조준 회전만 잰다.
+        // 추력 0: 경계 근처 가속이 섞이지 않게.
+        let targets = [
+            (0, 1_000_000, 0, 0),
+            (0, 0, 0, 1_000_000),
+            (0, 1_000_000, 0, 0),
+        ];
+        let mut first = true;
+        for (x, y, z, w) in targets {
+            let end = tokio::time::Instant::now() + turn_hold;
+            while !self.closed && tokio::time::Instant::now() < end {
+                seq += 1;
+                let command_id = Uuid::now_v7();
+                let cmd = SetShipControlCommand::new(command_id, seq).with_aim(x, y, z, w);
+                self.send_control(cmd).await;
+                if first {
+                    self.ledger.mark(MARK_TURN_START, command_id);
+                    first = false;
+                }
+                self.pump_for(interval).await;
+            }
+        }
+        self.pump_for(Duration::from_millis(1500)).await;
+        self.close_client_side().await;
+    }
+
+    async fn run_resume_leg1(&mut self, fly: Duration, settle: Duration) {
+        let interval = Duration::from_millis(50);
+        let end = tokio::time::Instant::now() + fly;
+        let mut seq: u64 = 0;
+        let mut last = None;
+        while !self.closed && tokio::time::Instant::now() < end {
+            seq += 1;
+            let command_id = Uuid::now_v7();
+            let cmd = SetShipControlCommand::new(command_id, seq)
+                .with_thrust(0, 0, 1000)
+                .with_roll(1000)
+                .with_assist(false);
+            self.send_control(cmd).await;
+            last = Some(command_id);
+            self.pump_for(interval).await;
+        }
+        // 마지막 실제 입력의 적용 tick 을 분석이 알게 한다(T0 가 이월 창 뒤인지 확인용).
+        if let Some(id) = last {
+            self.ledger.mark(MARK_LAST_INPUT, id);
+        }
+        self.pump_for(settle).await;
+        self.close_client_side().await;
+    }
+
+    async fn run_listen(&mut self, listen: Duration, seq1_after: Option<Duration>) {
+        match seq1_after {
+            Some(at) if at < listen => {
+                self.pump_for(at).await;
+                if !self.closed {
+                    let command_id = Uuid::now_v7();
+                    let cmd = SetShipControlCommand::new(command_id, 1);
+                    self.send_control(cmd).await;
+                    self.ledger.mark(MARK_SEQ1, command_id);
+                }
+                self.pump_for(listen - at).await;
+            }
+            _ => self.pump_for(listen).await,
+        }
+        self.close_client_side().await;
     }
 
     async fn close_client_side(&mut self) {

@@ -22,8 +22,8 @@
 //! - `tick_skipped_total` 은 없다. 설계상 언제나 0이라 아무것도 검증하지 않는다. 대신
 //!   `tick_total == tick − start_tick + 1` 항등식을 노출한다.
 
-use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicI64, AtomicU64, Ordering};
+use std::sync::{Arc, Mutex, RwLock};
 
 use axum::Json;
 use axum::extract::State;
@@ -42,23 +42,34 @@ const BUCKET_BOUNDS_US: [u64; 15] = [
 pub const TICK_OVERRUN_US: u64 = 50_000;
 
 /// 메시지 타입 라벨. 고정 배열 색인과 순서가 같아야 한다.
-const MESSAGE_TYPES: [&str; 3] = ["SESSION_READY", "COMMAND_RESULT", "PING_REPLY"];
-/// 업그레이드 거절 사유 라벨. 고정 배열 색인과 순서가 같아야 한다.
-const UPGRADE_REJECTIONS: [&str; 5] = [
+const MESSAGE_TYPES: [&str; 4] = [
+    "SESSION_READY",
+    "COMMAND_RESULT",
+    "PING_REPLY",
+    "WORLD_SNAPSHOT",
+];
+/// 업그레이드 거절 사유 라벨. 고정 배열 색인과 순서가 같아야 한다. p1-01 이
+/// `world_full`(architect 결정 — 스폰이 아니라 입장에서 막는다)을 더했다.
+const UPGRADE_REJECTIONS: [&str; 6] = [
     "auth_not_configured",
     "recording_backlog",
     "shutting_down",
     "no_credential",
     "invalid_token",
+    "world_full",
 ];
-/// 거부 사유 라벨. 고정 배열 색인과 순서가 같아야 한다.
-const REJECT_REASONS: [&str; 6] = [
+/// 거부 사유 라벨. 고정 배열 색인과 순서가 같아야 한다. p1-01 이 `RATE_LIMITED`·
+/// `STALE_INPUT` 2개를 더해 8라벨이 됐다 — 순서는 계약 스키마의 `enum` 순서 그대로다
+/// (스프린트 계약 §1-④).
+const REJECT_REASONS: [&str; 8] = [
     "MALFORMED_COMMAND",
     "UNKNOWN_COMMAND_TYPE",
     "SCHEMA_VERSION_UNSUPPORTED",
     "DUPLICATE_COMMAND_ID",
     "SERVER_BUSY",
     "TOO_MANY_IN_FLIGHT",
+    "RATE_LIMITED",
+    "STALE_INPUT",
 ];
 
 /// 메시지 타입 → 고정 배열 색인.
@@ -80,6 +91,8 @@ pub const fn reason_index(reason: RejectReasonCode) -> usize {
         RejectReasonCode::DuplicateCommandId => 3,
         RejectReasonCode::ServerBusy => 4,
         RejectReasonCode::TooManyInFlight => 5,
+        RejectReasonCode::RateLimited => 6,
+        RejectReasonCode::StaleInput => 7,
     }
 }
 
@@ -168,12 +181,59 @@ struct Inner {
     command_queue_depth: AtomicU64,
     command_queue_depth_max: AtomicU64,
     protocol_violations_total: AtomicU64,
+    /// tick당 명령 상한(`MAX_COMMANDS_PER_SESSION_PER_TICK`)을 넘겨 판정에 넣지 못한
+    /// 명령 누적(ADR-0011 §5.2, S10). `COMMAND_RESULT`가 없는 손실이라 I-15 범위 밖이고,
+    /// QA의 손실 항등식은 `보낸 수 = COMMAND_RESULT 수 + commands_dropped_over_tick_cap_total`이 된다.
+    commands_dropped_over_tick_cap_total: AtomicU64,
     upgrade_rejected_total: [AtomicU64; UPGRADE_REJECTIONS.len()],
     accepting_connections: AtomicBool,
     // 영속화 태스크가 같은 Arc 를 갱신한다. 크레이트 의존이 아니라 원자값만 공유한다.
     persisted_total: Arc<AtomicU64>,
     persist_failed_total: Arc<AtomicU64>,
     last_committed_tick: Arc<AtomicU64>,
+    // p1-01 — data/ 로딩 결과(기동 시 한 번 쓰고 다시 바뀌지 않는다, SC-05).
+    data_dir: RwLock<String>,
+    ship_classes_loaded: AtomicU64,
+    spawn_points_loaded: AtomicU64,
+    snapshot_interval_ticks: AtomicU64,
+    /// `WORLD_SNAPSHOT.ships` 의 계약 상한(`max_entities_per_snapshot`, `1..=64`) — `GET /ws`
+    /// 가 이 값에 도달하면 새 연결을 `503 world_full` 로 막는다(architect 결정, 스폰을
+    /// 거부하는 대신 입장에서 막는다 — 함선 없는 세션이 생기면 I-29 가 깨진다).
+    world_capacity: AtomicU64,
+    // p1-01 — 신규 메트릭 7종(SC-33) + 기록용 히스토그램(M-1).
+    snapshots_sent_total: AtomicU64,
+    snapshot_bytes_total: AtomicU64,
+    send_queue_bytes: AtomicU64,
+    send_queue_bytes_max: AtomicU64,
+    input_superseded_total: AtomicU64,
+    input_carried_forward_total: AtomicU64,
+    aim_degenerate_total: AtomicU64,
+    ships_active: AtomicU64,
+    ships_lingering: AtomicU64,
+    snapshot_build_us: Histogram,
+    snapshot_over_capacity_total: AtomicU64,
+    /// 지금 함선을 가진 actor 집합(활성 + 잔류) — `world_full` 게이트의 재개 면제(I-44,
+    /// S9)에 쓴다. tick 드라이버가 매 tick `Simulation::actors_with_ships()` 로 통째로
+    /// 덮어쓴다(`ws_connections` 와 같은 취급 — 카운터가 아니라 실제 집합의 스냅샷).
+    actors_with_ships: RwLock<std::collections::HashSet<starfall_contracts::primitives::UuidV7>>,
+    /// `world_full` 게이트를 통과했지만 **아직 tick 드라이버가 `ships_active`/
+    /// `ships_lingering` 에 반영하지 않은** 신규 스폰 자리(PR #1 리뷰 결함 3).
+    ///
+    /// `ships_active`/`ships_lingering` 은 tick 당 한 번만 갱신되므로(I-25), 그 값만
+    /// 읽는 게이트는 **같은 tick 경계 안에서 동시에 들어오는 여러 actor** 를 전부
+    /// 통과시킬 수 있다. 이 맵은 게이트를 통과하는 바로 그 순간(같은 락 임계 구역
+    /// 안에서, `try_enter_world` 참고) 자리를 "예약"해 `ships_total()` 에 즉시 반영한다.
+    /// `Mutex` 인 이유: 판정(읽기)과 예약(쓰기)이 **한 임계 구역**이어야 TOCTOU 가 없다
+    /// (`RwLock` 의 읽기 다음에 별도로 쓰기 락을 잡으면 그 사이에 다시 경합이 생긴다).
+    ///
+    /// actor_id 로 색인하는 이유: 한 actor 가 두 연결을 동시에 열어도(레이스) 예약이
+    /// 하나로 뭉개지지 않게 카운트를 둔다. 해제는 두 경로: (1) `ShipSlotReservation`
+    /// 이 스폰까지 못 가고 드롭되면(업그레이드 실패·종료 중 등) 즉시 되돌린다. (2)
+    /// `set_actors_with_ships` 가 이 actor 를 실제 함선 보유 집합에서 보면(tick 이
+    /// 반영했다는 뜻) 지운다 — 그래서 이중 계산 없이 정확히 한 tick(대개 그 이하) 동안만
+    /// `ships_total()` 에 더해진다.
+    ship_reservations:
+        Mutex<std::collections::HashMap<starfall_contracts::primitives::UuidV7, u32>>,
 }
 
 /// 서버 전체의 관측 값. 싸게 clone 된다.
@@ -215,13 +275,139 @@ impl Stats {
                 command_queue_depth: AtomicU64::new(0),
                 command_queue_depth_max: AtomicU64::new(0),
                 protocol_violations_total: AtomicU64::new(0),
+                commands_dropped_over_tick_cap_total: AtomicU64::new(0),
                 upgrade_rejected_total: Default::default(),
                 accepting_connections: AtomicBool::new(true),
                 persisted_total: Arc::new(AtomicU64::new(0)),
                 persist_failed_total: Arc::new(AtomicU64::new(0)),
                 last_committed_tick: Arc::new(AtomicU64::new(0)),
+                data_dir: RwLock::new(String::new()),
+                ship_classes_loaded: AtomicU64::new(0),
+                spawn_points_loaded: AtomicU64::new(0),
+                snapshot_interval_ticks: AtomicU64::new(0),
+                world_capacity: AtomicU64::new(u64::MAX),
+                snapshots_sent_total: AtomicU64::new(0),
+                snapshot_bytes_total: AtomicU64::new(0),
+                send_queue_bytes: AtomicU64::new(0),
+                send_queue_bytes_max: AtomicU64::new(0),
+                input_superseded_total: AtomicU64::new(0),
+                input_carried_forward_total: AtomicU64::new(0),
+                aim_degenerate_total: AtomicU64::new(0),
+                ships_active: AtomicU64::new(0),
+                ships_lingering: AtomicU64::new(0),
+                snapshot_build_us: Histogram::default(),
+                snapshot_over_capacity_total: AtomicU64::new(0),
+                actors_with_ships: RwLock::new(std::collections::HashSet::new()),
+                ship_reservations: Mutex::new(std::collections::HashMap::new()),
             }),
         }
+    }
+
+    /// 기동 시 `data/` 로딩 결과를 한 번 기록한다(SC-05). 그 뒤로는 바뀌지 않는다.
+    pub fn set_data_loaded(
+        &self,
+        data_dir: &str,
+        ship_classes: u64,
+        spawn_points: u64,
+        snapshot_interval_ticks: u64,
+        world_capacity: u64,
+    ) {
+        if let Ok(mut guard) = self.inner.data_dir.write() {
+            *guard = data_dir.to_owned();
+        }
+        self.inner
+            .ship_classes_loaded
+            .store(ship_classes, Ordering::Relaxed);
+        self.inner
+            .spawn_points_loaded
+            .store(spawn_points, Ordering::Relaxed);
+        self.inner
+            .snapshot_interval_ticks
+            .store(snapshot_interval_ticks, Ordering::Relaxed);
+        self.inner
+            .world_capacity
+            .store(world_capacity, Ordering::Relaxed);
+    }
+
+    /// 지금 세계에 있는 함선 수(활성 + 잔류) **더하기** tick 이 아직 반영하지 못한
+    /// 예약(결함 3 수정, 위 `ship_reservations` 문서 참고). 관측·디버그용 — 판정
+    /// 자체는 `try_enter_world` 가 같은 락 임계 구역 안에서 한다.
+    #[must_use]
+    pub fn ships_total(&self) -> u64 {
+        let reserved = self
+            .inner
+            .ship_reservations
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .values()
+            .map(|&count| u64::from(count))
+            .sum::<u64>();
+        self.inner.ships_active.load(Ordering::Relaxed)
+            + self.inner.ships_lingering.load(Ordering::Relaxed)
+            + reserved
+    }
+
+    /// `world_full` 게이트의 판정과 자리 예약을 **한 임계 구역**에서 한다 — 읽고 나서
+    /// 따로 예약하면 그 사이에 다른 요청이 끼어드는 것 자체가 결함 3(PR #1 리뷰)이었다.
+    ///
+    /// `actor_has_ship` 가 참이면(재개, I-44/S9) 예약 없이 통과한다 — 새 함선이 스폰되지
+    /// 않으므로 정원에 더할 것이 없다.
+    ///
+    /// 통과하면 [`ShipSlotReservation`] 을 돌려준다. 호출자는 세션이 tick 드라이버에
+    /// **실제로 제출된 뒤**(`SubmitHandle::open` 호출 직후) [`ShipSlotReservation::commit`]
+    /// 을 불러야 한다 — 그 전에 드롭되면(업그레이드 실패, 종료 중 등) 자리는 즉시
+    /// 되돌아간다. 재개(면제)는 예약이 없으므로 `None`.
+    ///
+    /// # Errors
+    ///
+    /// 정원이 찼고 이 actor가 재개 대상이 아니면 [`WorldFullError`].
+    pub fn try_enter_world(
+        &self,
+        actor_id: starfall_contracts::primitives::UuidV7,
+        actor_has_ship: bool,
+    ) -> Result<Option<ShipSlotReservation>, WorldFullError> {
+        let mut reservations = self
+            .inner
+            .ship_reservations
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let ships_total = self.inner.ships_active.load(Ordering::Relaxed)
+            + self.inner.ships_lingering.load(Ordering::Relaxed)
+            + reservations
+                .values()
+                .map(|&count| u64::from(count))
+                .sum::<u64>();
+        if crate::ws::world_full_rejects(ships_total, self.world_capacity(), actor_has_ship) {
+            return Err(WorldFullError);
+        }
+        if actor_has_ship {
+            return Ok(None);
+        }
+        *reservations.entry(actor_id).or_insert(0) += 1;
+        Ok(Some(ShipSlotReservation {
+            stats: Some(self.clone()),
+            actor_id,
+        }))
+    }
+
+    /// [`ShipSlotReservation`] 하나를 되돌린다. `ShipSlotReservation::drop` 전용 —
+    /// 직접 부르지 않는다.
+    fn release_ship_reservation(&self, actor_id: starfall_contracts::primitives::UuidV7) {
+        if let Ok(mut reservations) = self.inner.ship_reservations.lock()
+            && let Some(count) = reservations.get_mut(&actor_id)
+        {
+            if *count <= 1 {
+                reservations.remove(&actor_id);
+            } else {
+                *count -= 1;
+            }
+        }
+    }
+
+    /// `WORLD_SNAPSHOT.ships` 의 계약 상한.
+    #[must_use]
+    pub fn world_capacity(&self) -> u64 {
+        self.inner.world_capacity.load(Ordering::Relaxed)
     }
 
     /// tick 재개 지점을 알린다. `last_committed_tick` 도 여기서 맞춘다.
@@ -357,12 +543,127 @@ impl Stats {
         }
     }
 
+    /// `WORLD_SNAPSHOT` 을 소켓에 실제로 쓴 시점에 함께 센다(SC-33·SC-71) — **큐에 넣은
+    /// 시점이 아니다.** `record_message_written("WORLD_SNAPSHOT")` 과 같은 자리
+    /// (`ws.rs` 의 `writer_loop`)에서만 부른다. `bytes` 는 소켓에 넘긴 바로 그 UTF-8
+    /// 바이트 길이라 봇이 수신 프레임에서 잰 길이와 같은 것을 센다(프레이밍 오버헤드
+    /// 제외 — 20 % 판정에 영향 없는 수준임을 architect 지시 4가 확인했다).
+    pub fn record_snapshot_written(&self, bytes: u64) {
+        self.inner
+            .snapshots_sent_total
+            .fetch_add(1, Ordering::Relaxed);
+        self.inner
+            .snapshot_bytes_total
+            .fetch_add(bytes, Ordering::Relaxed);
+    }
+
+    /// tick 드라이버가 매 tick `TickOutcome` 의 델타를 여기로 더한다.
+    pub fn add_input_superseded(&self, count: u64) {
+        if count > 0 {
+            self.inner
+                .input_superseded_total
+                .fetch_add(count, Ordering::Relaxed);
+        }
+    }
+
+    /// 〃 — `input_carried_forward_total`.
+    pub fn add_input_carried_forward(&self, count: u64) {
+        if count > 0 {
+            self.inner
+                .input_carried_forward_total
+                .fetch_add(count, Ordering::Relaxed);
+        }
+    }
+
+    /// 〃 — `aim_degenerate_total`.
+    pub fn add_aim_degenerate(&self, count: u64) {
+        if count > 0 {
+            self.inner
+                .aim_degenerate_total
+                .fetch_add(count, Ordering::Relaxed);
+        }
+    }
+
+    /// 함선 존재 게이지. **카운터 뺄셈이 아니라 tick 드라이버가 매 tick 월드에서 직접 읽어
+    /// `store` 한다**(I-25 — `ws_connections` 와 같은 방식).
+    pub fn set_ship_presence(&self, active: u64, lingering: u64) {
+        self.inner.ships_active.store(active, Ordering::Relaxed);
+        self.inner
+            .ships_lingering
+            .store(lingering, Ordering::Relaxed);
+    }
+
+    /// 함선을 가진 actor 집합을 통째로 덮어쓴다. **카운터가 아니라 tick 드라이버가 매
+    /// tick `Simulation::actors_with_ships()` 로 직접 읽어 넣는 실제 집합의 스냅샷이다**
+    /// (I-25 와 같은 취급, `ships_active`/`ships_lingering` 참고). `world_full` 게이트의
+    /// 재개 면제(I-44, S9)에 쓴다.
+    pub fn set_actors_with_ships(
+        &self,
+        actors: impl Iterator<Item = starfall_contracts::primitives::UuidV7>,
+    ) {
+        if let Ok(mut guard) = self.inner.actors_with_ships.write() {
+            guard.clear();
+            guard.extend(actors);
+        }
+        // 결함 3 수정 — 이 actor 가 지금 실제로 함선을 가졌다면(방금 tick 이 반영했다),
+        // 게이트에서 잡아 둔 예약은 이제 `ships_active`/`ships_lingering` 이 대신
+        // 세고 있으므로 지운다. 안 지우면 예약이 세션이 열려 있는 내내 정원을 하나씩
+        // 영구히 깎아먹는다.
+        if let (Ok(actors_guard), Ok(mut reservations)) = (
+            self.inner.actors_with_ships.read(),
+            self.inner.ship_reservations.lock(),
+        ) {
+            reservations.retain(|actor_id, _| !actors_guard.contains(actor_id));
+        }
+    }
+
+    /// 이 actor가 지금 함선을 가졌는가(활성이든 잔류든) — `world_full` 게이트가 재개를
+    /// 면제할지 판단하는 데 쓴다(I-44, S9).
+    #[must_use]
+    pub fn actor_has_ship(&self, actor_id: starfall_contracts::primitives::UuidV7) -> bool {
+        self.inner
+            .actors_with_ships
+            .read()
+            .is_ok_and(|guard| guard.contains(&actor_id))
+    }
+
+    /// 스냅샷 구조체 조립에 걸린 시간(마이크로초) — `tick_body_us` 와 분리해 기록한다
+    /// (M-1, server B-14). 판정 대상이 아니라 기록용이다.
+    pub fn record_snapshot_build(&self, micros: u64) {
+        self.inner.snapshot_build_us.record(micros);
+    }
+
+    /// 스냅샷의 `ships` 배열이 계약 상한을 넘은 tick 수. **0이어야 정상이다** — 0이 아니면
+    /// `world_full` 입장 제한이 뚫린 서버 버그다.
+    pub fn add_snapshot_over_capacity(&self, count: u64) {
+        if count > 0 {
+            tracing::error!(
+                count,
+                "SC-05/world_full 위반 — WORLD_SNAPSHOT.ships 가 계약 상한을 넘었다"
+            );
+            self.inner
+                .snapshot_over_capacity_total
+                .fetch_add(count, Ordering::Relaxed);
+        }
+    }
+
     /// 송신 큐 점유 슬롯 합 (채널 상태에서 읽은 값 — 카운터 뺄셈이 아니다).
     pub fn set_send_queue_depth(&self, depth: u64) {
         self.inner.send_queue_depth.store(depth, Ordering::Relaxed);
         self.inner
             .send_queue_depth_max
             .fetch_max(depth, Ordering::Relaxed);
+    }
+
+    /// 송신 큐에 들어 있는 메시지들의 바이트 합 (SC-33). `send_queue_depth` 와 같은 방식
+    /// (채널 상태 스냅샷, 카운터 뺄셈 아님) — 정확한 바이트가 아니라 **추정치**다(큐에
+    /// 든 `ServerMessage` 를 실제 직렬화하지 않고 타입별 평균 크기로 추정한다. 직렬화까지
+    /// 하면 이 값을 재는 행위 자체가 tick 본문 바깥에서도 비용을 만든다).
+    pub fn set_send_queue_bytes(&self, bytes: u64) {
+        self.inner.send_queue_bytes.store(bytes, Ordering::Relaxed);
+        self.inner
+            .send_queue_bytes_max
+            .fetch_max(bytes, Ordering::Relaxed);
     }
 
     /// 전역 명령 큐 깊이.
@@ -379,6 +680,13 @@ impl Stats {
     pub fn record_protocol_violation(&self) {
         self.inner
             .protocol_violations_total
+            .fetch_add(1, Ordering::Relaxed);
+    }
+
+    /// tick당 명령 상한을 넘겨 판정에 넣지 못한 명령 1건(S10, ADR-0011 §5.2).
+    pub fn record_command_dropped_over_tick_cap(&self) {
+        self.inner
+            .commands_dropped_over_tick_cap_total
             .fetch_add(1, Ordering::Relaxed);
     }
 
@@ -436,6 +744,9 @@ impl Stats {
             command_queue_depth: inner.command_queue_depth.load(Ordering::Relaxed),
             command_queue_depth_max: inner.command_queue_depth_max.load(Ordering::Relaxed),
             protocol_violations_total: inner.protocol_violations_total.load(Ordering::Relaxed),
+            commands_dropped_over_tick_cap_total: inner
+                .commands_dropped_over_tick_cap_total
+                .load(Ordering::Relaxed),
             upgrade_rejected_total: labelled(&UPGRADE_REJECTIONS, &inner.upgrade_rejected_total),
             upgrade_rejected_all: sum(&inner.upgrade_rejected_total),
             domain_events_persisted_total: inner.persisted_total.load(Ordering::Relaxed),
@@ -444,6 +755,60 @@ impl Stats {
             persist_backlog: self.persist_backlog(),
             persist_backlog_limit: crate::runtime::PERSIST_BACKLOG_LIMIT,
             accepting_connections: self.is_accepting(),
+            data_dir: inner
+                .data_dir
+                .read()
+                .map(|guard| guard.clone())
+                .unwrap_or_default(),
+            ship_classes_loaded: inner.ship_classes_loaded.load(Ordering::Relaxed),
+            spawn_points_loaded: inner.spawn_points_loaded.load(Ordering::Relaxed),
+            snapshot_interval_ticks: inner.snapshot_interval_ticks.load(Ordering::Relaxed),
+            snapshots_sent_total: inner.snapshots_sent_total.load(Ordering::Relaxed),
+            snapshot_bytes_total: inner.snapshot_bytes_total.load(Ordering::Relaxed),
+            send_queue_bytes: inner.send_queue_bytes.load(Ordering::Relaxed),
+            send_queue_bytes_max: inner.send_queue_bytes_max.load(Ordering::Relaxed),
+            input_superseded_total: inner.input_superseded_total.load(Ordering::Relaxed),
+            input_carried_forward_total: inner.input_carried_forward_total.load(Ordering::Relaxed),
+            aim_degenerate_total: inner.aim_degenerate_total.load(Ordering::Relaxed),
+            ships_active: inner.ships_active.load(Ordering::Relaxed),
+            ships_lingering: inner.ships_lingering.load(Ordering::Relaxed),
+            snapshot_build_us: inner.snapshot_build_us.snapshot(),
+            snapshot_over_capacity_total: inner
+                .snapshot_over_capacity_total
+                .load(Ordering::Relaxed),
+        }
+    }
+}
+
+/// [`Stats::try_enter_world`] 가 정원이 찼을 때 돌려주는 오류 — `world_full` 거절.
+#[derive(Debug, Clone, Copy)]
+pub struct WorldFullError;
+
+/// [`Stats::try_enter_world`] 가 돌려주는 예약 손잡이 — 결함 3 수정.
+///
+/// **드롭하면 예약이 즉시 풀린다.** 세션이 tick 드라이버에 실제로 제출됐다면
+/// [`commit`](Self::commit) 을 불러 그 뒤로는 `Stats::set_actors_with_ships` 의 정산에
+/// 해제를 맡겨라 — 그 전에(업그레이드 실패, 종료 중 등으로) 그냥 드롭되면 자리가 즉시
+/// 세계로 돌아가야 다른 대기자가 새지 않은 정원을 볼 수 있다.
+#[derive(Debug)]
+#[must_use = "드롭되면 예약이 즉시 풀린다 — commit() 하거나 의도적으로 놓아야 한다"]
+pub struct ShipSlotReservation {
+    stats: Option<Stats>,
+    actor_id: starfall_contracts::primitives::UuidV7,
+}
+
+impl ShipSlotReservation {
+    /// 세션이 tick 드라이버에 제출됐다(`SubmitHandle::open` 호출 직후). 이제부터 해제는
+    /// `Stats::set_actors_with_ships` 의 정산만 한다 — 여기서 드롭돼도 되돌리지 않는다.
+    pub fn commit(mut self) {
+        self.stats = None;
+    }
+}
+
+impl Drop for ShipSlotReservation {
+    fn drop(&mut self) {
+        if let Some(stats) = self.stats.take() {
+            stats.release_ship_reservation(self.actor_id);
         }
     }
 }
@@ -545,6 +910,9 @@ pub struct StatsBody {
     pub command_queue_depth_max: u64,
     /// 프로토콜 위반 누적 (거부는 포함하지 않는다).
     pub protocol_violations_total: u64,
+    /// tick당 명령 상한을 넘겨 판정에 넣지 못한 명령 누적(S10, ADR-0011 §5.2). `COMMAND_RESULT`가
+    /// 없는 손실이다 — QA의 손실 항등식은 `보낸 수 = COMMAND_RESULT 수 + 이 값`이 된다.
+    pub commands_dropped_over_tick_cap_total: u64,
     /// 사유별 업그레이드 거절 누적 (401·503). 인증 거부의 서버 쪽 증거다.
     pub upgrade_rejected_total: Vec<LabelledCount>,
     /// 업그레이드 거절 합계.
@@ -561,6 +929,37 @@ pub struct StatsBody {
     pub persist_backlog_limit: u64,
     /// 새 연결을 받는 중인가.
     pub accepting_connections: bool,
+    /// 해석된 `data/` 절대 경로(p1-01 SC-05·SC-06).
+    pub data_dir: String,
+    /// 로드된 함선 클래스 수.
+    pub ship_classes_loaded: u64,
+    /// 로드된 스폰 지점 수.
+    pub spawn_points_loaded: u64,
+    /// 유도된 `snapshot_interval_ticks`(`tick_hz / snapshot_hz`).
+    pub snapshot_interval_ticks: u64,
+    /// 소켓에 쓴 `WORLD_SNAPSHOT` 수 — `messages_written_total` 의 `WORLD_SNAPSHOT` 라벨과
+    /// 같은 수여야 한다(교차 검증용 중복, SC-33).
+    pub snapshots_sent_total: u64,
+    /// 위와 같은 자리에서 센 페이로드 바이트 합.
+    pub snapshot_bytes_total: u64,
+    /// 지금 송신 큐에 들어 있는 메시지들의 바이트 합(추정치).
+    pub send_queue_bytes: u64,
+    /// 위의 최고 수위.
+    pub send_queue_bytes_max: u64,
+    /// 한 tick에 2건 이상 도착해 덮어써진 입력 수.
+    pub input_superseded_total: u64,
+    /// 도착 0건이라 직전 입력을 이월한 함선-tick 수.
+    pub input_carried_forward_total: u64,
+    /// 목표 쿼터니언 노름이 퇴화해 현재 자세로 대체한 횟수.
+    pub aim_degenerate_total: u64,
+    /// 지금 활성 함선 수(게이지 — I-25, 카운터 뺄셈이 아니다).
+    pub ships_active: u64,
+    /// 지금 잔류 함선 수.
+    pub ships_lingering: u64,
+    /// 스냅샷 구조체 조립 소요(마이크로초) — `tick_body_us` 와 분리된 기록(M-1).
+    pub snapshot_build_us: HistogramBody,
+    /// `WORLD_SNAPSHOT.ships` 가 계약 상한을 넘은 tick 누적. **0이어야 한다.**
+    pub snapshot_over_capacity_total: u64,
 }
 
 /// `/debug/stats` 핸들러.

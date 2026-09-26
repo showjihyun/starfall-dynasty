@@ -1866,6 +1866,9 @@ name = "starfall-game-server"
 version = "0.1.0"
 dependencies = [
  "axum",
+ "serde",
+ "serde_json",
+ "serde_path_to_error",
  "starfall-contracts",
  "starfall-gateway",
  "starfall-persistence",
@@ -1916,6 +1919,8 @@ dependencies = [
 name = "starfall-sim"
 version = "0.1.0"
 dependencies = [
+ "serde",
+ "serde_json",
  "starfall-contracts",
 ]
 

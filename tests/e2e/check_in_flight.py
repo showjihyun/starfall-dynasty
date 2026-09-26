@@ -37,7 +37,9 @@ def run(args: argparse.Namespace) -> int:
     ok = opened == expect_open and closed == 0
     db.emit(
         {
-            "item": "SC-61 (AC-17a) 실행 중 가시성",
+            "item": "계약 외 검사 — 실행 중 세션 가시성",
+            "label_history": "18차까지 라벨이 p0-02 번호였다. p1-01 계약에 이 성질의 SC 행이 없다",
+            # R18 라벨 정정: **p0-02 의 번호였다.** p1-01 계약에서 이 번호는 전혀 다른 항목이다 — 라벨로 집계하면 그 항목이 치르지 않은 verdict 를 받는다(architect R18, 계약 §7b 규칙 7). qa 가 리포트 12건을 훑어 **수확된 곳이 없음**을 확인했다.,
             "verdict": "PASS" if ok else "FAIL",
             "measured_when": "A 단계 진행 중 (연결이 열려 있는 동안)",
             "correlations_in_set": len(corr),

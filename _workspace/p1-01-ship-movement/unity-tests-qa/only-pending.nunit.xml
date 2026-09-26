@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<test-run id="2" testcasecount="1" result="Passed" total="1" passed="0" failed="0" inconclusive="1" skipped="0" asserts="0" engine-version="3.5.0.0" clr-version="4.0.30319.42000" start-time="2026-09-20 12:46:56Z" end-time="2026-09-20 12:46:56Z" duration="0.0381213">
+  <test-suite type="TestSuite" id="1000" name="Starfall Dynasty" fullname="Starfall Dynasty" runstate="Runnable" testcasecount="141" result="Passed" start-time="2026-09-20 12:46:56Z" end-time="2026-09-20 12:46:56Z" duration="0.038121" total="1" passed="0" failed="0" inconclusive="1" skipped="0" asserts="0">
+    <properties>
+      <property name="platform" value="EditMode" />
+    </properties>
+    <test-suite type="Assembly" id="1159" name="Starfall.Tests.EditMode.dll" fullname="C:/WorkSpace/SpaceHistoric/client/Library/ScriptAssemblies/Starfall.Tests.EditMode.dll" runstate="Runnable" testcasecount="141" result="Passed" start-time="2026-09-20 12:46:56Z" end-time="2026-09-20 12:46:56Z" duration="0.031001" total="1" passed="0" failed="0" inconclusive="1" skipped="0" asserts="0">
+      <properties>
+        <property name="_PID" value="51004" />
+        <property name="_APPDOMAIN" value="Unity Child Domain" />
+        <property name="platform" value="EditMode" />
+        <property name="EditorOnly" value="True" />
+      </properties>
+      <test-suite type="TestSuite" id="1160" name="Starfall" fullname="Starfall" runstate="Runnable" testcasecount="141" result="Passed" start-time="2026-09-20 12:46:56Z" end-time="2026-09-20 12:46:56Z" duration="0.029567" total="1" passed="0" failed="0" inconclusive="1" skipped="0" asserts="0">
+        <properties />
+        <test-suite type="TestSuite" id="1161" name="Tests" fullname="Starfall.Tests" runstate="Runnable" testcasecount="141" result="Passed" start-time="2026-09-20 12:46:56Z" end-time="2026-09-20 12:46:56Z" duration="0.027980" total="1" passed="0" failed="0" inconclusive="1" skipped="0" asserts="0">
+          <properties />
+          <test-suite type="TestSuite" id="1162" name="EditMode" fullname="Starfall.Tests.EditMode" runstate="Runnable" testcasecount="141" result="Passed" start-time="2026-09-20 12:46:56Z" end-time="2026-09-20 12:46:56Z" duration="0.026590" total="1" passed="0" failed="0" inconclusive="1" skipped="0" asserts="0">
+            <properties />
+            <test-suite type="TestFixture" id="1114" name="ReconciliationTests" fullname="Starfall.Tests.EditMode.ReconciliationTests" classname="Starfall.Tests.EditMode.ReconciliationTests" runstate="Runnable" testcasecount="8" result="Passed" start-time="2026-09-20 12:46:56Z" end-time="2026-09-20 12:46:56Z" duration="0.021211" total="1" passed="0" failed="0" inconclusive="1" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1116" name="Reconcile_MissingS6ReplayAsset_IsRecordedPending" fullname="Starfall.Tests.EditMode.ReconciliationTests.Reconcile_MissingS6ReplayAsset_IsRecordedPending" methodname="Reconcile_MissingS6ReplayAsset_IsRecordedPending" classname="Starfall.Tests.EditMode.ReconciliationTests" runstate="Runnable" seed="27565403" result="Inconclusive" start-time="2026-09-20 12:46:56Z" end-time="2026-09-20 12:46:56Z" duration="0.009777" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <reason>
+                  <message><![CDATA[S6 replay directory exists but this test has not been wired to consume it yet - update this test to replace the synthetic replay once the directory appears.]]></message>
+                </reason>
+                <output><![CDATA[Saving results to: C:/Users/CHOISOOYEON/AppData/LocalLow/Starfall/Starfall Dynasty\TestResults.xml
+]]></output>
+              </test-case>
+            </test-suite>
+          </test-suite>
+        </test-suite>
+      </test-suite>
+    </test-suite>
+  </test-suite>
+</test-run>

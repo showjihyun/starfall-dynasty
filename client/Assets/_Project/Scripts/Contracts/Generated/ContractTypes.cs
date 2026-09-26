@@ -22,6 +22,10 @@ namespace Starfall.Contracts.Generated
                 { "SESSION_CLOSED", typeof(SessionClosedEvent) },
                 { "SESSION_OPENED", typeof(SessionOpenedEvent) },
                 { "SESSION_READY", typeof(SessionReadyMessage) },
+                { "SET_SHIP_CONTROL", typeof(SetShipControlCommand) },
+                { "SHIP_DESPAWNED", typeof(ShipDespawnedEvent) },
+                { "SHIP_SPAWNED", typeof(ShipSpawnedEvent) },
+                { "WORLD_SNAPSHOT", typeof(WorldSnapshotMessage) },
             };
 
         /// <summary>Registry name to the schema_version this build was generated from.</summary>
@@ -34,6 +38,10 @@ namespace Starfall.Contracts.Generated
                 { "SESSION_CLOSED", 1 },
                 { "SESSION_OPENED", 1 },
                 { "SESSION_READY", 1 },
+                { "SET_SHIP_CONTROL", 1 },
+                { "SHIP_DESPAWNED", 1 },
+                { "SHIP_SPAWNED", 1 },
+                { "WORLD_SNAPSHOT", 1 },
             };
     }
 }

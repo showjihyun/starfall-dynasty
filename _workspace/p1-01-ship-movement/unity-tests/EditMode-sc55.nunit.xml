@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<test-run id="2" testcasecount="1" result="Passed" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0" engine-version="3.5.0.0" clr-version="4.0.30319.42000" start-time="2026-09-20 22:22:03Z" end-time="2026-09-20 22:22:03Z" duration="0.2536793">
+  <test-suite type="TestSuite" id="1000" name="Starfall Dynasty" fullname="Starfall Dynasty" runstate="Runnable" testcasecount="145" result="Passed" start-time="2026-09-20 22:22:03Z" end-time="2026-09-20 22:22:03Z" duration="0.253679" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+    <properties>
+      <property name="platform" value="EditMode" />
+    </properties>
+    <test-suite type="Assembly" id="1164" name="Starfall.Tests.EditMode.dll" fullname="C:/WorkSpace/SpaceHistoric/client/Library/ScriptAssemblies/Starfall.Tests.EditMode.dll" runstate="Runnable" testcasecount="145" result="Passed" start-time="2026-09-20 22:22:03Z" end-time="2026-09-20 22:22:03Z" duration="0.246950" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+      <properties>
+        <property name="_PID" value="23860" />
+        <property name="_APPDOMAIN" value="Unity Child Domain" />
+        <property name="platform" value="EditMode" />
+        <property name="EditorOnly" value="True" />
+      </properties>
+      <test-suite type="TestSuite" id="1165" name="Starfall" fullname="Starfall" runstate="Runnable" testcasecount="145" result="Passed" start-time="2026-09-20 22:22:03Z" end-time="2026-09-20 22:22:03Z" duration="0.245437" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+        <properties />
+        <test-suite type="TestSuite" id="1166" name="Tests" fullname="Starfall.Tests" runstate="Runnable" testcasecount="145" result="Passed" start-time="2026-09-20 22:22:03Z" end-time="2026-09-20 22:22:03Z" duration="0.243489" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+          <properties />
+          <test-suite type="TestSuite" id="1167" name="EditMode" fullname="Starfall.Tests.EditMode" runstate="Runnable" testcasecount="145" result="Passed" start-time="2026-09-20 22:22:03Z" end-time="2026-09-20 22:22:03Z" duration="0.241768" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+            <properties />
+            <test-suite type="TestFixture" id="1119" name="ReconciliationTests" fullname="Starfall.Tests.EditMode.ReconciliationTests" classname="Starfall.Tests.EditMode.ReconciliationTests" runstate="Runnable" testcasecount="8" result="Passed" start-time="2026-09-20 22:22:03Z" end-time="2026-09-20 22:22:03Z" duration="0.238935" total="1" passed="1" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1121" name="Reconcile_RealS6Replay_PositionAndOrientationErrorWithinIgnoreThreshold" fullname="Starfall.Tests.EditMode.ReconciliationTests.Reconcile_RealS6Replay_PositionAndOrientationErrorWithinIgnoreThreshold" methodname="Reconcile_RealS6Replay_PositionAndOrientationErrorWithinIgnoreThreshold" classname="Starfall.Tests.EditMode.ReconciliationTests" runstate="Runnable" seed="327914931" result="Passed" start-time="2026-09-20 22:22:03Z" end-time="2026-09-20 22:22:03Z" duration="0.226463" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[[SC-51/52] real S6 replay: compared points=299, position error p99=0.00065578842830249 m, max=0.000675860423635886 m, orientation error p99=8.65812355595793E-05 deg, max=9.28064127720879E-05 deg
+[AC-12(f)] real S6 replay angular velocity error (reported only, no threshold - no tuned tolerance exists for this in the current slice): omega_aim p99=0.000760759092853543 deg/s, max=0.000796529745641209 deg/s, omega_roll p99=0.00042783518102496 deg/s, max=0.000450025517309882 deg/s
+Saving results to: C:/Users/CHOISOOYEON/AppData/LocalLow/Starfall/Starfall Dynasty\TestResults.xml
+]]></output>
+              </test-case>
+            </test-suite>
+          </test-suite>
+        </test-suite>
+      </test-suite>
+    </test-suite>
+  </test-suite>
+</test-run>

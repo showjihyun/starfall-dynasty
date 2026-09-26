@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "id": "p1-01-default",
+  "designer_note": "Feel-bearing networking values, kept out of code literals so that tuning 'does movement feel right' never means editing Rust or C#. What is deliberately NOT here: tick_hz (a world constant on the worlds row, I-19), the quantisation scales and integer ranges (ADR-0009), and the integrator identity and the ban on transcendental functions (ADR-0010). Those are laws, not tunables — a value in data that changes nothing when edited is worse than no value at all.",
+
+  "snapshot": {
+    "snapshot_hz": 10,
+    "max_entities_per_snapshot": 64,
+    "egress_budget_kib_s_per_session": 192,
+    "fallback_snapshot_hz_if_over_budget": 5,
+    "note": "10 Hz is what the budget above produced, not a preference: 31 ships at 20 Hz measured ~289 KiB/s per session, over the 192 KiB/s budget. snapshot_interval_ticks = tick_hz / snapshot_hz = 2. If the budget is still exceeded, the next step is 5 Hz paired with remote_interp_delay_ms 400. Never buy bandwidth by lowering tick_hz — that rewrites the game-time meaning of every stored event (ADR-0006 §3)."
+  },
+
+  "input": {
+    "client_send_hz": 20,
+    "carry_forward_max_ticks": 10,
+    "rate_limit_hz": 40,
+    "protocol_violation_hz": 100,
+    "note": "One input per tick, so input rate stays at tick rate even though snapshots halved to 10 Hz — the client predicts every tick and only hears back every second tick. carry_forward_max_ticks 10 (500 ms) keeps one late packet from reading as a hiccup while stopping a disconnected ship from thrusting forever."
+  },
+
+  "prediction": {
+    "remote_interp_delay_ms": 200,
+    "remote_extrapolate_max_ms": 250,
+
+    "reconcile_ignore_threshold_m": 0.005,
+    "reconcile_smooth_threshold_m": 0.25,
+    "reconcile_smooth_duration_ms": 200,
+    "reconcile_hard_snap_threshold_m": 5.0,
+
+    "reconcile_orientation_ignore_threshold_deg": 0.02,
+    "reconcile_orientation_smooth_threshold_deg": 1.0,
+    "reconcile_orientation_hard_snap_deg": 15.0,
+
+    "note": "remote_interp_delay_ms is two snapshot intervals (2 x 100 ms), the same rule as before at 20 Hz — the number moved because the interval did. Cost: a remote ship is drawn 200 ms behind authority, which at 140 m/s is 28 m (about one greybox hull length). The ignore bands sit UNDER the four thresholds, not instead of them: the wire quantises position to 1 mm, so a perfectly correct client still disagrees by up to sqrt(3)/2 = 0.87 mm every snapshot, and without a band the correction machinery would run forever on that noise (ADR-0009 §2, ADR-0012)."
+  }
+}

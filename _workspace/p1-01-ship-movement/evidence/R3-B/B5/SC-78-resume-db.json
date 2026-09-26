@@ -1,0 +1,32 @@
+{
+  "item": "SC-78 (AC-20c) 재개 함선: 세션 2 : 스폰 1",
+  "verdict": "PASS",
+  "ships_checked": 5,
+  "resumed_ships": [
+    {
+      "ship_id": "01a0c484-dcf2-77e2-9ebe-62d13268675c",
+      "actor_id": "01a0b1c2-b010-7000-8000-000000000007",
+      "sessions": 2,
+      "spawns": 1
+    },
+    {
+      "ship_id": "01a0c484-dcf2-77e2-9ebe-62d63518ea68",
+      "actor_id": "01a0b1c2-b010-7000-8000-000000000017",
+      "sessions": 2,
+      "spawns": 1
+    },
+    {
+      "ship_id": "01a0c485-6fa0-7373-92c6-02351af9dea4",
+      "actor_id": "01a0b1c2-b010-7000-8000-000000000017",
+      "sessions": 2,
+      "spawns": 1
+    }
+  ],
+  "violations": [],
+  "meaning": "세션이 2개 이상인데 스폰이 1건이면 같은 함선을 이어 탄 것이다(I-29).",
+  "tick_window": {
+    "from_tick": 424776,
+    "to_tick": null,
+    "mode": "tick 구간 한정"
+  }
+}

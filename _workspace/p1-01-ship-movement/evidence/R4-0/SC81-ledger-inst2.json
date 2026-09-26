@@ -1,0 +1,27 @@
+{
+  "item": "SC-81 (AC-20f, I-30) 인과 — 타입 + ≠ self + 순서, 동결된 결함 장부",
+  "verdict": "FAIL",
+  "rule": "(c) 구간 결함 0",
+  "ship_events_checked": 12,
+  "defects_found": 1,
+  "defects_by_kind": {
+    "self": 1
+  },
+  "new_defects_not_in_ledger": [],
+  "ledger_rows_missing": [],
+  "defects": [
+    {
+      "event_id": "01a0c48c-6427-744b-9d9a-25dcd98df09f",
+      "event_type": "SHIP_DESPAWNED",
+      "tick": 430030,
+      "sequence": 0,
+      "cause_type": "SHIP_DESPAWNED",
+      "defect": "self"
+    }
+  ],
+  "tick_window": {
+    "from_tick": 427105,
+    "to_tick": 430030,
+    "mode": "tick 구간 한정"
+  }
+}

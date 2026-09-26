@@ -1,0 +1,257 @@
+{
+  "label": "green-drop3",
+  "expect": "pass",
+  "mode": "drop-probe",
+  "exe": "C:\\WorkSpace\\SpaceHistoric\\server\\target\\debug\\starfall-game-server.exe",
+  "rust_log": "trace",
+  "pipe": {
+    "capacity": 4096,
+    "capacity_source": "GetNamedPipeInfo",
+    "info": {
+      "ok": true,
+      "out_buffer": 4096,
+      "in_buffer": 4096
+    },
+    "max_avail": 4486,
+    "first_full_at_s": 0.641,
+    "samples": 2058
+  },
+  "fills": [
+    {
+      "cmd": "run --scenario b --bots 10 --cycles 130 --pings 1 --url ws://127.0.0.1:8080/ws --out C:\\WorkSpace\\SpaceHistoric\\_workspace\\p1-01-ship-movement\\evidence\\R3-B\\AC2hlog\\green-drop3\\fill-1",
+      "rc": 0,
+      "timed_out": false,
+      "elapsed_s": 213.17,
+      "log": "fill-1.log",
+      "round": 1,
+      "peek_after": 4486
+    }
+  ],
+  "probe": {
+    "cmd": "probe --case auth-ok --url ws://127.0.0.1:8080/ws --label bot-090",
+    "rc": 0,
+    "timed_out": false,
+    "elapsed_s": 0.56,
+    "log": "probe-auth-ok.log"
+  },
+  "health": [
+    [
+      "200",
+      "200"
+    ],
+    [
+      "200",
+      "200"
+    ],
+    [
+      "200",
+      "200"
+    ],
+    [
+      "200",
+      "200"
+    ],
+    [
+      "200",
+      "200"
+    ],
+    [
+      "200",
+      "200"
+    ],
+    [
+      "200",
+      "200"
+    ],
+    [
+      "200",
+      "200"
+    ],
+    [
+      "200",
+      "200"
+    ],
+    [
+      "200",
+      "200"
+    ]
+  ],
+  "stdout_bytes_after": 1196854,
+  "stderr_bytes": 0,
+  "dropped_total": 4538,
+  "drop_notices": 1,
+  "shutdown": {
+    "rc": 0,
+    "without_drain": false,
+    "released_by_drain": null,
+    "hard_killed": false
+  },
+  "verdict": "PASS",
+  "condition_occurred": true,
+  "condition_basis": [
+    "peek 4486 B >= 용량 4096 B",
+    "싱크가 버린 줄 누적 4538"
+  ],
+  "health_samples": 10,
+  "healthz_200": 10,
+  "stats_200": 10,
+  "session_ready_under_full": true,
+  "shutdown_ok": true,
+  "fail_reasons": [],
+  "timeline": [
+    {
+      "t_s": 0.0,
+      "event": "spawned",
+      "pid": 36900,
+      "exe": "C:\\WorkSpace\\SpaceHistoric\\server\\target\\debug\\starfall-game-server.exe",
+      "exe_mtime": "2026-09-21T23:41:31",
+      "rust_log": "trace",
+      "pipe_info": {
+        "ok": true,
+        "out_buffer": 4096,
+        "in_buffer": 4096
+      },
+      "pipe_capacity": 4096,
+      "capacity_source": "GetNamedPipeInfo"
+    },
+    {
+      "t_s": 0.516,
+      "event": "ready",
+      "peek": 3234
+    },
+    {
+      "t_s": 213.688,
+      "event": "fill_round",
+      "cmd": "run --scenario b --bots 10 --cycles 130 --pings 1 --url ws://127.0.0.1:8080/ws --out C:\\WorkSpace\\SpaceHistoric\\_workspace\\p1-01-ship-movement\\evidence\\R3-B\\AC2hlog\\green-drop3\\fill-1",
+      "rc": 0,
+      "timed_out": false,
+      "elapsed_s": 213.17,
+      "log": "fill-1.log",
+      "round": 1,
+      "peek_after": 4486
+    },
+    {
+      "t_s": 213.688,
+      "event": "fill_done",
+      "peek_now": 4486,
+      "peek_max": 4486,
+      "capacity": 4096
+    },
+    {
+      "t_s": 213.688,
+      "event": "health",
+      "i": 0,
+      "healthz": "200",
+      "stats": "200",
+      "peek": 4486
+    },
+    {
+      "t_s": 214.219,
+      "event": "health",
+      "i": 1,
+      "healthz": "200",
+      "stats": "200",
+      "peek": 4486
+    },
+    {
+      "t_s": 214.735,
+      "event": "health",
+      "i": 2,
+      "healthz": "200",
+      "stats": "200",
+      "peek": 4486
+    },
+    {
+      "t_s": 215.282,
+      "event": "health",
+      "i": 3,
+      "healthz": "200",
+      "stats": "200",
+      "peek": 4486
+    },
+    {
+      "t_s": 215.797,
+      "event": "health",
+      "i": 4,
+      "healthz": "200",
+      "stats": "200",
+      "peek": 4486
+    },
+    {
+      "t_s": 216.297,
+      "event": "health",
+      "i": 5,
+      "healthz": "200",
+      "stats": "200",
+      "peek": 4486
+    },
+    {
+      "t_s": 216.813,
+      "event": "health",
+      "i": 6,
+      "healthz": "200",
+      "stats": "200",
+      "peek": 4486
+    },
+    {
+      "t_s": 217.329,
+      "event": "health",
+      "i": 7,
+      "healthz": "200",
+      "stats": "200",
+      "peek": 4486
+    },
+    {
+      "t_s": 217.86,
+      "event": "health",
+      "i": 8,
+      "healthz": "200",
+      "stats": "200",
+      "peek": 4486
+    },
+    {
+      "t_s": 218.375,
+      "event": "health",
+      "i": 9,
+      "healthz": "200",
+      "stats": "200",
+      "peek": 4486
+    },
+    {
+      "t_s": 219.469,
+      "event": "probe_session_ready",
+      "ok": true,
+      "cmd": "probe --case auth-ok --url ws://127.0.0.1:8080/ws --label bot-090",
+      "rc": 0,
+      "timed_out": false,
+      "elapsed_s": 0.56,
+      "log": "probe-auth-ok.log",
+      "peek": 4486
+    },
+    {
+      "t_s": 219.469,
+      "event": "drain_resumed",
+      "reason": "--drop-probe: 버린 줄 통지 수집"
+    },
+    {
+      "t_s": 219.657,
+      "event": "drop_notice",
+      "notices": 1,
+      "dropped_total": 4538
+    },
+    {
+      "t_s": 219.672,
+      "event": "shutdown_sent",
+      "reader_running": true
+    },
+    {
+      "t_s": 221.719,
+      "event": "exited",
+      "rc": 0,
+      "elapsed_s": 2.05,
+      "without_drain": false,
+      "released_by_drain": null,
+      "hard_killed": false
+    }
+  ]
+}

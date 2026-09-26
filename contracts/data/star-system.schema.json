@@ -1,0 +1,325 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.starfall.invalid/contracts/data/star-system.schema.json",
+  "title": "StarSystemTable",
+  "description": "Shape of one star system file, e.g. data/world/systems/cradle.json - the one system of MVP-1 (GDD section 36). The designer owns the values. hard_boundary_radius_m has a hard maximum of 20,000 and that ceiling is NOT a balance number: it is the distance at which a float32 world coordinate still holds sub-2 mm precision without a Floating Origin (ADR-0009 section 3). A design that needs a bigger world needs that slice first, and the schema is where it finds that out rather than after the camera starts shaking. 단위 접미사 규약: 모든 수치 필드 이름이 단위로 끝난다 (_m, _mps, _mps2, _deg_s, _deg_s2, _ms, _s, _hz, _t, _ly, _kib_s, _ticks). 스키마가 모든 필드를 명시 선언하므로 접미사는 propertyNames 패턴이 아니라 이 선언 자체가 강제한다. 데이터 테이블은 와이어 계약과 달리 실수(SI 단위)를 쓴다 (ADR-0009 section 2의 명시적 예외). 이 값들은 와이어를 왕복하지 않고 기동 시 한 번 읽히며, 튜닝하는 사람이 읽을 수 있어야 한다. 서버 내부 상태도 같은 SI f64라 변환이 없다.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "id",
+    "display_name",
+    "coordinate_space",
+    "play_area",
+    "spawn",
+    "presence"
+  ],
+  "properties": {
+    "schema_version": {
+      "$ref": "../common/primitives.schema.json#/$defs/SchemaVersion"
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$",
+      "description": "Stable content id, lower-kebab. Distinct from the persisted world_id UUID, which the server owns. Written into SHIP_SPAWNED.star_system_id."
+    },
+    "display_name": {
+      "type": "string",
+      "pattern": "^[^\\u0000-\\u001f]{1,64}$"
+    },
+    "designer_note": {
+      "type": "string",
+      "maxLength": 2000
+    },
+    "coordinate_space": {
+      "$ref": "#/$defs/CoordinateSpace"
+    },
+    "play_area": {
+      "$ref": "#/$defs/PlayArea"
+    },
+    "spawn": {
+      "$ref": "#/$defs/Spawn"
+    },
+    "presence": {
+      "$ref": "#/$defs/Presence"
+    },
+    "reference_markers": {
+      "description": "CLIENT-SIDE STATIC VISUALS ONLY. No server entity, no server state, no collision, never in a snapshot. They exist because without a fixed object in view a player cannot tell whether the ship is moving, which would make this slice's stated goal unverifiable by eye.",
+      "type": "array",
+      "minItems": 0,
+      "maxItems": 64,
+      "items": {
+        "$ref": "#/$defs/ReferenceMarker"
+      }
+    },
+    "reference_markers_note": {
+      "type": "string",
+      "maxLength": 2000
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "CoordinateSpace": {
+      "title": "StarSystemCoordinateSpace",
+      "type": "object",
+      "description": "Declarative only - the server does not read a handedness from here. THE AXIS CONVENTION IS FIXED BY ADR-0009 section 1 AND IS LEFT-HANDED, Y-up, +Z forward, matching the only renderer that consumes it. A conversion layer between server and client is where sign bugs live, so there is none.",
+      "required": [
+        "frame",
+        "unit",
+        "server_type",
+        "origin",
+        "up_axis"
+      ],
+      "properties": {
+        "frame": {
+          "type": "string",
+          "enum": [
+            "system_local"
+          ]
+        },
+        "unit": {
+          "type": "string",
+          "enum": [
+            "meter"
+          ]
+        },
+        "server_type": {
+          "type": "string",
+          "enum": [
+            "f64"
+          ]
+        },
+        "origin": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "items": {
+            "type": "number"
+          }
+        },
+        "up_axis": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "items": {
+            "type": "number"
+          }
+        },
+        "note": {
+          "type": "string",
+          "maxLength": 2000
+        }
+      },
+      "additionalProperties": false
+    },
+    "PlayArea": {
+      "title": "StarSystemPlayArea",
+      "type": "object",
+      "required": [
+        "soft_boundary_radius_m",
+        "hard_boundary_radius_m",
+        "boundary_pull_mps2"
+      ],
+      "properties": {
+        "soft_boundary_radius_m": {
+          "description": "Beyond this radius the server adds a constant pull toward the origin. A wall you are warned about is not a wall.",
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 20000
+        },
+        "hard_boundary_radius_m": {
+          "description": "The wall. Position is projected onto this sphere and outward radial velocity removed (I-34). Maximum 20,000 is the float32 budget of ADR-0009 section 3, not a design choice.",
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 20000
+        },
+        "boundary_pull_mps2": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1000000
+        },
+        "client_float32_ulp_at_hard_boundary_m": {
+          "description": "Documentation of the precision argument. Not read by code.",
+          "type": "number",
+          "minimum": 0
+        },
+        "client_float32_ulp_visible_jitter_threshold_m": {
+          "type": "number",
+          "minimum": 0
+        },
+        "floating_origin_required_above_radius_m": {
+          "description": "Documentation only. The enforced ceiling is the maximum on hard_boundary_radius_m above; this field records where the designer believes the real limit is, and the two disagreeing is a conversation, not a build failure.",
+          "type": "number",
+          "minimum": 0
+        },
+        "note": {
+          "type": "string",
+          "maxLength": 2000
+        }
+      },
+      "additionalProperties": false
+    },
+    "Spawn": {
+      "title": "StarSystemSpawn",
+      "type": "object",
+      "description": "Deterministic and auditable: a seeded hash picks a starting index and clearance probing walks forward from it. No random number generator is involved (principle 9).",
+      "required": [
+        "point_count",
+        "clearance_m",
+        "max_probe_attempts",
+        "radial_offset_step_m",
+        "initial_velocity_mps",
+        "initial_facing",
+        "assignment_rule",
+        "points_m"
+      ],
+      "properties": {
+        "ring_radius_m": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 20000
+        },
+        "plane": {
+          "type": "string",
+          "enum": [
+            "ecliptic"
+          ]
+        },
+        "point_count": {
+          "description": "Must equal the length of points_m. The server refuses to start if they disagree.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 64
+        },
+        "y_alternation_m": {
+          "type": "number"
+        },
+        "clearance_m": {
+          "description": "A spawn point is taken only if no active or lingering ship is within clearance_m + hull_radius_m of it.",
+          "type": "number",
+          "minimum": 0,
+          "maximum": 20000
+        },
+        "max_probe_attempts": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1024
+        },
+        "radial_offset_step_m": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 20000
+        },
+        "initial_velocity_mps": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "items": {
+            "type": "number"
+          }
+        },
+        "initial_facing": {
+          "type": "string",
+          "enum": [
+            "system_origin"
+          ]
+        },
+        "assignment_rule": {
+          "type": "string",
+          "maxLength": 2000,
+          "description": "Prose statement of the rule the server implements. Not parsed. It is here so that a reader of the data and a reader of the code can find each other."
+        },
+        "points_m": {
+          "description": "Spawn positions in system-local metres, each [x, y, z]. Every point must lie inside the hard boundary; the server checks this at startup.",
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 64,
+          "items": {
+            "type": "array",
+            "minItems": 3,
+            "maxItems": 3,
+            "items": {
+              "type": "number"
+            }
+          }
+        },
+        "note": {
+          "type": "string",
+          "maxLength": 2000
+        }
+      },
+      "additionalProperties": false
+    },
+    "Presence": {
+      "title": "StarSystemPresence",
+      "type": "object",
+      "description": "A disconnected ship does not vanish. It coasts, the assist brings it to rest, and it stays visible. Reconnecting in time resumes the SAME ship where it is.",
+      "required": [
+        "linger_seconds",
+        "reconnect_resume_window_seconds"
+      ],
+      "properties": {
+        "linger_seconds": {
+          "description": "How long a pilotless ship stays in the world after its session closes. SHIP_DESPAWNED fires when this expires.",
+          "type": "number",
+          "minimum": 0,
+          "maximum": 3600
+        },
+        "reconnect_resume_window_seconds": {
+          "description": "How long the same actor may reconnect and reclaim the ship. Must not exceed linger_seconds: you cannot reclaim a ship that no longer exists. The server refuses to start if it does.",
+          "type": "number",
+          "minimum": 0,
+          "maximum": 3600
+        },
+        "note": {
+          "type": "string",
+          "maxLength": 2000
+        }
+      },
+      "additionalProperties": false
+    },
+    "ReferenceMarker": {
+      "title": "StarSystemReferenceMarker",
+      "type": "object",
+      "required": [
+        "id",
+        "display_name",
+        "kind",
+        "position_m",
+        "visual_radius_m"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$"
+        },
+        "display_name": {
+          "type": "string",
+          "pattern": "^[^\\u0000-\\u001f]{1,64}$"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "star",
+            "planet",
+            "beacon",
+            "derelict"
+          ]
+        },
+        "position_m": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "items": {
+            "type": "number"
+          }
+        },
+        "visual_radius_m": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 20000
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

@@ -1,0 +1,25 @@
+HEAD           : 443ab3c129aaa395691c32029fc981f8eaa53107
+worktree_clean : false
+--- git status --porcelain ---
+ M _workspace/p1-01-ship-movement/01_architect_decisions.md
+ M _workspace/p1-01-ship-movement/02_sprint_contract.md
+ M _workspace/p1-01-ship-movement/evidence/R14-separation-and-block10/07-source-gate.txt
+ M _workspace/p1-01-ship-movement/evidence/R14-separation-and-block10/10-source-gate-rust.txt
+ M client/ProjectSettings/ProjectSettings.asset
+ M docs/adr/0011-state-sync-snapshot-and-input-queue.md
+ M server/Cargo.lock
+ M server/Cargo.toml
+ M server/bins/game-server/Cargo.toml
+ M server/bins/game-server/src/data.rs
+ M server/crates/gateway/tests/ws_integration.rs
+ M tests/e2e/check_item_sources.py
+ M tests/e2e/server_boot.py
+ M tests/e2e/validate_data_files.py
+?? _workspace/p1-01-ship-movement/15_block1_procedure.md
+?? _workspace/p1-01-ship-movement/16_unity_session_procedure.md
+?? _workspace/p1-01-ship-movement/17_qa_report_r20.md
+?? _workspace/p1-01-ship-movement/evidence/R19-block1/
+?? _workspace/p1-01-ship-movement/evidence/R20-unity/
+?? _workspace/p1-01-ship-movement/evidence/R21-sc56e/
+--- 주의 ---
+이 세션은 위 미커밋 상태에서 났다. 커밋 해시 하나로는 재현되지 않는다 (규칙 9 이행).

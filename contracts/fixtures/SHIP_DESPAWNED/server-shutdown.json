@@ -1,0 +1,21 @@
+{
+  "event_id": "01a0b1c2-5b24-7e1a-a9f2-5f1a6b7c8d9f",
+  "event_type": "SHIP_DESPAWNED",
+  "schema_version": 1,
+  "world_id": "01a0b1c2-3d4e-7f01-8a2b-9c0d1e2f3a4b",
+  "tick": 86400,
+  "sequence": 0,
+  "occurred_at": "3800-01-04T00:00:00Z",
+  "recorded_at": "2026-09-18T14:12:33.900Z",
+  "correlation_id": "01a0b1c2-4a22-7c11-8d12-2e134f145a15",
+  "causation_id": "01a0b1c2-5b23-7e19-a9f1-4f1a5b6c7d8d",
+  "actor_id": "01a0b1c2-2c02-7b46-8c68-9abcdef01234",
+  "payload": {
+    "ship_id": "01a0b1c2-8b02-7a12-9c33-0d44e55f6a77",
+    "last_session_id": "01a0b1c2-4a21-7b32-9c43-1d54e65f7a87",
+    "despawn_reason": "SERVER_SHUTDOWN",
+    "position_x_mm": 0,
+    "position_y_mm": 0,
+    "position_z_mm": 0
+  }
+}

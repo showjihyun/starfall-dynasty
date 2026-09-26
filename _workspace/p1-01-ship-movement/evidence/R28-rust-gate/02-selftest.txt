@@ -1,0 +1,37 @@
+OK   [분모] 지명이 다 있으면 미지명 0 :: 미지명=[] 기대=[]
+OK   [분모] 지명이 사라지면 그 항목이 드러난다 :: 미지명=[59] 기대=[59]
+OK   [분모] 명시가 있으면 통과 :: 미지명=[] 기대=[]
+OK   [분모] cargo :: 미지명=[] 기대=[]
+OK   [분모] unity EditMode :: 미지명=[] 기대=[]
+OK   [분모] grep :: 미지명=[] 기대=[]
+OK   [분모] 봇 probe :: 미지명=[] 기대=[]
+OK   [분모] 봇 2대 :: 미지명=[] 기대=[]
+OK   [분모] SQL :: 미지명=[] 기대=[]
+OK   [분모] 수단이 없다 :: 미지명=[99] 기대=[99]
+OK   [분모] §9 이력 행은 지명이 아니다 :: 미지명=[99] 기대=[99]
+OK   [종료코드] 출처 위반 → 1 :: 1 기대=1
+OK   [종료코드] 미지명만 → 3 :: 3 기대=3
+OK   [종료코드] 둘 다 → 1 (출처 위반이 더 무겁다) :: 1 기대=1
+OK   [종료코드] 둘 다 없음 → 0 :: 0 기대=0
+OK   위반 — append_only_probe 가 SC-11 로 verdict 를 낸다 (실제 사례) :: 잡은 것=[('append_only_probe.py', 11), ('append_only_probe.py', 12), ('append_only_probe.py', 13)] 기대=[('append_only_probe.py', 11), ('append_only_probe.py', 12), ('append_only_probe.py', 13)]
+OK   깨끗 — §3.2 표가 지명한 번호 :: 잡은 것=[] 기대=[]
+OK   깨끗 — §1 행이 그 도구를 지명한다 :: 잡은 것=[] 기대=[]
+OK   깨끗 — 범위 표기를 펼친다 (SC-61~65 안의 63) :: 잡은 것=[] 기대=[]
+OK   위반 — 범위 밖 (SC-61~65 인데 SC-70 을 낸다) :: 잡은 것=[('two_client_view.py', 70)] 기대=[('two_client_view.py', 70)]
+OK   `item = f"…"` 형태도 본다 :: 잡은 것=[('poll_until.py', 62)] 기대=[('poll_until.py', 62)]
+OK   SC 번호가 없는 라벨은 아무것도 주장하지 않는다 :: 잡은 것=[] 기대=[]
+OK   [Rust] (a) `=> {` + 주석 + 문자열을 잡는다
+OK   [Rust] (a') 주석 제거가 실제로 무언가를 지운다
+OK   [Rust] (b) verdict 팔의 남의 번호 → 위반
+OK   [Rust] (c) 같은 번호를 Reference 로 → 위반 없음
+OK   [Rust] (d) 접두 누출 없음 — cheat-range 가 cheat-range-turn 을 지명하지 않는다
+OK   [Rust] (e) 팔 없는 변이 → exit 4 (이름으로 인쇄)
+OK   [Rust] (f) 백틱 밖 `binary` 는 지명이 아니다
+OK   [Rust] (g) 한 팔에 문자열 둘 → exit 4
+OK   [Rust] (i) Q-8 비수식 `Verdict(` → exit 4 (조용한 exit 0 이 아니다)
+OK   [Rust] (i') 수식으로 고치면 exit 0 — (i) 가 무조건 4 를 내는 게 아니다
+OK   [Rust] (j) 계약이 케이스를 안 적었으면 ③(미지명 verdict 팔) — ④ 가 아니다
+OK   [Rust] (k) Q-9 ContractRef 없는 팔 → exit 4 (기본 verdict 로 조용히 통과하지 않는다)
+OK   [Rust] (l) Q-9 `참고:` 산문만으로 reference 가 된 팔 → exit 4
+OK   [Rust] (h) §1 밖 `| SC-24 |` 행은 지명이 아니다
+selftest: PASS  케이스=36 (출처 7 + 분모 11 + 종료코드 4 + Rust 14)

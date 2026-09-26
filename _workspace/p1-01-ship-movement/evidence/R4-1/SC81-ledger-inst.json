@@ -1,0 +1,18 @@
+{
+  "item": "SC-81 (AC-20f, I-30) 인과 — 타입 + ≠ self + 순서, 동결된 결함 장부",
+  "verdict": "PASS",
+  "rule": "(c) 구간 결함 0",
+  "ship_events_checked": 4,
+  "session_events_checked": 8,
+  "superseded_closes_checked": 2,
+  "defects_found": 0,
+  "defects_by_kind": {},
+  "new_defects_not_in_ledger": [],
+  "ledger_rows_missing": [],
+  "defects": [],
+  "tick_window": {
+    "from_tick": 430357,
+    "to_tick": null,
+    "mode": "tick 구간 한정"
+  }
+}

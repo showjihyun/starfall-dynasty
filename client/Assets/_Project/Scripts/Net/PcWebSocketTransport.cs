@@ -240,12 +240,16 @@ namespace Starfall.Net
             }
         }
 
+        long _queueFullTotal;
+        public long QueueFullTotal => System.Threading.Interlocked.Read(ref _queueFullTotal);
+
         public bool Send(string message)
         {
             if (message == null) throw new ArgumentNullException(nameof(message));
             if (_state != TransportState.Open) return false;
             if (_outbound.Count >= MaxOutboundQueue)
             {
+                System.Threading.Interlocked.Increment(ref _queueFullTotal);
                 _log.Warn("starfall.net: outbound queue full (" + MaxOutboundQueue + "), refusing to send");
                 return false;
             }

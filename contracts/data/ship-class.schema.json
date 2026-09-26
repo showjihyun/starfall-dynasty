@@ -1,0 +1,280 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.starfall.invalid/contracts/data/ship-class.schema.json",
+  "title": "ShipClassTable",
+  "description": "Shape of one ship class file, e.g. data/ships/scout-s01.json. THE NUMBERS BELONG TO THE DESIGNER; this contract fixes only what a ship class is made of and the ranges outside which a value is not a balance choice but a broken simulation. Every value under `movement` is read by the server integrator (ADR-0010 section 2) and by the client's prediction of the same integrator, from the same file. 단위 접미사 규약: 모든 수치 필드 이름이 단위로 끝난다 (_m, _mps, _mps2, _deg_s, _deg_s2, _ms, _s, _hz, _t, _ly, _kib_s, _ticks). 스키마가 모든 필드를 명시 선언하므로 접미사는 propertyNames 패턴이 아니라 이 선언 자체가 강제한다. 데이터 테이블은 와이어 계약과 달리 실수(SI 단위)를 쓴다 (ADR-0009 section 2의 명시적 예외). 이 값들은 와이어를 왕복하지 않고 기동 시 한 번 읽히며, 튜닝하는 사람이 읽을 수 있어야 한다. 서버 내부 상태도 같은 SI f64라 변환이 없다.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "id",
+    "display_name",
+    "movement",
+    "geometry"
+  ],
+  "properties": {
+    "schema_version": {
+      "$ref": "../common/primitives.schema.json#/$defs/SchemaVersion"
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$",
+      "description": "Stable id, lower-kebab. Written into SHIP_SPAWNED.ship_class_id after the server upper-snakes it, so renaming it rewrites history (principle 5)."
+    },
+    "display_name": {
+      "type": "string",
+      "pattern": "^[^\\u0000-\\u001f]{1,64}$"
+    },
+    "hull_class": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_-]{0,31}$"
+    },
+    "gdd_source": {
+      "type": "string",
+      "maxLength": 2000
+    },
+    "designer_note": {
+      "type": "string",
+      "maxLength": 2000
+    },
+    "movement": {
+      "$ref": "#/$defs/Movement"
+    },
+    "derived_for_review": {
+      "$ref": "#/$defs/DerivedForReview"
+    },
+    "geometry": {
+      "$ref": "#/$defs/Geometry"
+    },
+    "reference_stats_unused_in_p1_01": {
+      "$ref": "#/$defs/ParkedStats"
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "Movement": {
+      "title": "ShipClassMovement",
+      "type": "object",
+      "description": "Every field here is an input to ADR-0010 section 2. Changing one changes what both the server and the client compute, in the same tick, from the same file.",
+      "required": [
+        "model",
+        "max_speed_mps",
+        "main_thrust_mps2",
+        "reverse_thrust_mps2",
+        "lateral_thrust_mps2",
+        "brake_decel_mps2",
+        "assist_linear_decel_mps2",
+        "assist_lateral_decel_mps2",
+        "turn_rate_max_deg_s",
+        "turn_accel_deg_s2",
+        "turn_gain_deg_s_per_sin_half",
+        "turn_deadzone_sin_half",
+        "roll_rate_max_deg_s",
+        "roll_accel_deg_s2",
+        "auto_level_rate_deg_s",
+        "auto_level_deadzone_sin"
+      ],
+      "properties": {
+        "model": {
+          "description": "Flight model. assisted_6dof is the superset: setting both assist decelerations to 0 and flight_assist to false gives pure Newtonian flight with no new code.",
+          "type": "string",
+          "enum": [
+            "assisted_6dof"
+          ]
+        },
+        "max_speed_mps": {
+          "description": "Speed cap applied to |v| after integrating. No per-direction caps: on a rotating ship they make adjudication messy for no gain.",
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 100000
+        },
+        "main_thrust_mps2": {
+          "description": "Acceleration along ship-local +Z at full forward thrust. Also the cap for the assembled local acceleration vector (diagonal clamp).",
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1000000
+        },
+        "reverse_thrust_mps2": {
+          "description": "Acceleration along ship-local -Z at full reverse. Keep it well under main thrust or flying backwards becomes optimal.",
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1000000
+        },
+        "lateral_thrust_mps2": {
+          "description": "Acceleration along ship-local +/-X and +/-Y at full deflection.",
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1000000
+        },
+        "brake_decel_mps2": {
+          "description": "Velocity bled per second while the brake is held. Outranks both assists; only one damping applies per tick.",
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1000000
+        },
+        "assist_linear_decel_mps2": {
+          "description": "Velocity bled per second when flight assist is on and no thrust is applied. This is where the feeling of inertia lives: small means a long coast.",
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1000000
+        },
+        "assist_lateral_decel_mps2": {
+          "description": "Bleed applied only to the velocity component perpendicular to the current thrust direction. Low makes turning feel like ice, high kills drifting.",
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1000000
+        },
+        "turn_rate_max_deg_s": {
+          "description": "Cap on the attitude slew rate toward the aim quaternion.",
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 3600
+        },
+        "turn_accel_deg_s2": {
+          "description": "How fast the angular velocity itself may change. Without it the ship reaches full turn rate instantly and feels robotic.",
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 36000
+        },
+        "turn_gain_deg_s_per_sin_half": {
+          "description": "Proportional gain from attitude error to target turn rate, measured per unit of sin(theta/2). Deliberately expressed in sin(theta/2) and not in degrees: converting to an angle needs asin, and no transcendental function may enter the integrator (ADR-0010 section 3).",
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 36000
+        },
+        "turn_deadzone_sin_half": {
+          "description": "Below this attitude error the target turn rate is zero. Without it a parked ship jitters forever.",
+          "type": "number",
+          "minimum": 0,
+          "maximum": 0.5
+        },
+        "roll_rate_max_deg_s": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 3600
+        },
+        "roll_accel_deg_s2": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 36000
+        },
+        "auto_level_rate_deg_s": {
+          "description": "Cap on the roll rate the assist uses to bring ship-local up back toward system up. Slower than manual roll on purpose: a fast auto-level reads as 'my ship is turning by itself'.",
+          "type": "number",
+          "minimum": 0,
+          "maximum": 3600
+        },
+        "auto_level_deadzone_sin": {
+          "description": "Below this roll error, and also when the nose is nearly parallel to system up (no roll reference exists there), auto-levelling does nothing.",
+          "type": "number",
+          "minimum": 0,
+          "maximum": 0.5
+        }
+      },
+      "additionalProperties": false
+    },
+    "DerivedForReview": {
+      "title": "ShipClassDerivedForReview",
+      "type": "object",
+      "description": "NOT READ BY CODE. Values recomputed by QA from `movement` and compared, so that a silent retune of one number shows up as a contradiction instead of as a feel complaint three slices later (I-25: verification needs independent sources).",
+      "required": [],
+      "properties": {
+        "note": {
+          "type": "string",
+          "maxLength": 2000
+        },
+        "zero_to_max_speed_s": {
+          "type": "number",
+          "minimum": 0
+        },
+        "zero_to_max_speed_distance_m": {
+          "type": "number",
+          "minimum": 0
+        },
+        "brake_from_max_speed_s": {
+          "type": "number",
+          "minimum": 0
+        },
+        "brake_from_max_speed_distance_m": {
+          "type": "number",
+          "minimum": 0
+        },
+        "coast_to_rest_from_max_speed_s": {
+          "type": "number",
+          "minimum": 0
+        },
+        "coast_to_rest_distance_m": {
+          "type": "number",
+          "minimum": 0
+        },
+        "flip_180_deg_s": {
+          "type": "number",
+          "minimum": 0
+        },
+        "position_delta_per_tick_at_max_speed_m": {
+          "type": "number",
+          "minimum": 0
+        },
+        "rotation_delta_per_tick_at_max_rate_deg": {
+          "type": "number",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false
+    },
+    "Geometry": {
+      "title": "ShipClassGeometry",
+      "type": "object",
+      "required": [
+        "hull_radius_m"
+      ],
+      "properties": {
+        "hull_radius_m": {
+          "description": "There is NO collision in p1-01. Used only for spawn clearance and for the nearest-ship distance metric.",
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 100000
+        },
+        "note": {
+          "type": "string",
+          "maxLength": 2000
+        }
+      },
+      "additionalProperties": false
+    },
+    "ParkedStats": {
+      "title": "ShipClassParkedStats",
+      "type": "object",
+      "description": "Verbatim GDD 6.1 stats, parked so nobody re-invents them. NO p1-01 code may read this block.",
+      "required": [],
+      "properties": {
+        "note": {
+          "type": "string",
+          "maxLength": 2000
+        },
+        "crew": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100000
+        },
+        "cargo_capacity_t": {
+          "type": "number",
+          "minimum": 0
+        },
+        "weapon_hardpoints": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1000
+        },
+        "warp_range_ly": {
+          "type": "number",
+          "minimum": 0
+        },
+        "shield": {
+          "type": "number",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

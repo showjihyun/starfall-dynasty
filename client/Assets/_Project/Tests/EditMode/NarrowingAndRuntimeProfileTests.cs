@@ -184,9 +184,16 @@ namespace Starfall.Tests.EditMode
         [Test]
         public void Runtime_ValidFixture_ProducesNoWarnings()
         {
+            // Data-table fixtures (SHIP_CLASS/STAR_SYSTEM/SYNC_TUNING) carry no envelope
+            // discriminator at all (AC-10(d): no DTO is generated for kind "data"), so they are
+            // not candidates for Runtime/Strict dispatch - same split as the round-trip suite
+            // (ContractFixtureTests.RoundTrippableValidFixtureCases, 27 found / 21 dispatchable -
+            // R3 decision 5 added SESSION_CLOSED/superseded.json, 2026-09-22).
             int checkedCount = 0;
             foreach (FixtureFile fixture in ContractFixtures.RequireValidFixtures())
             {
+                if (ContractFixtures.IsDataOnly(fixture)) continue;
+
                 var warnings = new List<string>();
                 Type dtoType = DtoTypeOf(fixture);
 
@@ -199,7 +206,7 @@ namespace Starfall.Tests.EditMode
             }
 
             TestContext.WriteLine("valid fixtures read under Runtime with zero warnings: " + checkedCount);
-            Assert.That(checkedCount, Is.EqualTo(ContractFixtures.ExpectedValidFixtureCount));
+            Assert.That(checkedCount, Is.EqualTo(ContractFixtures.ExpectedRoundTrippableValidFixtureCount));
         }
 
         [Test]

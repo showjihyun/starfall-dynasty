@@ -147,7 +147,11 @@ def run(args: argparse.Namespace) -> int:
     verdict = "PASS" if not mismatches and gates.get("all_ok") else "FAIL"
     db.emit(
         {
-            "item": "SC-56 (AC-15e/AC-9c) 3자 대조",
+            "item": "계약 외 검사 — 서버·클라이언트·봇 3자 대조",
+            "label_history": (
+                "18차까지 라벨이 p0-02 번호였다. 이 슬라이스에서 그 번호는 client 의 "
+                "재조정 항목이고 이 도구가 아니다(계약 §7b 규칙 7)."
+            ),
             "verdict": verdict,
             "sources": {
                 "bots": str(out_dir / "summary.json"),

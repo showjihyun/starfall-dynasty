@@ -1,0 +1,21 @@
+ok   양성: 기대한 그대로: 기대 PASS / 실제 PASS
+ok   음성: 종료 코드가 0: 기대 FAIL / 실제 FAIL
+ok   음성: 거부 로그가 없다(다른 이유로 죽음): 기대 FAIL / 실제 FAIL
+ok   음성: 다른 필드로 거부됐다: 기대 FAIL / 실제 FAIL
+ok   음성: rule 이 다르다: 기대 FAIL / 실제 FAIL
+ok   음성: 심은 값이 로그에 없다: 기대 FAIL / 실제 FAIL
+ok   음성: file= 토큰이 없다(파일명을 안 찍는다): 기대 FAIL / 실제 FAIL
+ok   음성: file= 는 있는데 다른 파일이다: 기대 FAIL / 실제 FAIL
+ok   음성: derived 인데 expected= 토큰이 없다: 기대 FAIL / 실제 FAIL
+ok   음성: 검증자 이름만 찍는다 — 필드 지칭 없음 (구제 전, 사례 ①): 기대 FAIL / 실제 FAIL
+ok   양성: JSON 경로가 앞에 붙어 필드가 특정된다 (구제 ⓐ 후) — 공유는 그대로다: 기대 PASS / 실제 PASS
+ok   음성: 형제 필드가 대신 찍혔다 (soft ↔ hard, cradle.json:16,17 한 줄 차이): 기대 FAIL / 실제 FAIL
+ok   음성: 검증자 이름이 필드명을 품었을 뿐이다 (de_points_m ⊃ points_m): 기대 FAIL / 실제 FAIL
+ok   양성: 메시지가 필드명을 직접 적는다 (사례 ② 의 구제 전 로그): 기대 PASS / 실제 PASS
+ok   양성: data 로딩이 DB 오류보다 먼저다: 기대 PASS / 실제 PASS
+ok   음성: 순서가 뒤집혔다(DB 가 먼저 — 전제 붕괴): 기대 FAIL / 실제 FAIL
+ok   음성: data 로딩 완료 자체가 없다: 기대 FAIL / 실제 FAIL
+ok   음성: DB 단계에 닿지도 못했다(로그가 한 줄): 기대 FAIL / 실제 FAIL
+ok   음성: 순서는 맞지만 데이터 거부가 섞여 있다: 기대 FAIL / 실제 FAIL
+
+19/19 케이스 통과 (judge_case 9 · schema 필드 특정 5 · judge_negative_control 5)

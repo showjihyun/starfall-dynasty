@@ -1,0 +1,25 @@
+# SC-06 — S-R25 전후 대조
+# 전: 2026-09-25T21:50:52 (구제 전)   후: 2026-09-25T22:08:29 (구제 ⓐ 적용)
+# 비교하는 것은 `error=` 뒤의 형식이다. rust 의 임시 `S-R25 CAPTURE` 출력과 문자 비교하지 않는다.
+
+## 형식이 바뀐 사례 (2건)
+  1-hard-radius-above-ceiling  [schema]  FAIL → PASS
+     전: de_boundary_radius_m 는 (0 .. 20000 범위를 벗어난다 (받음: 20000.1) at line 24 column 37 rule=schema
+     후: play_area.hard_boundary_radius_m: de_boundary_radius_m 는 (0 .. 20000 범위를 벗어난다 (받음: 20000.1) at line 24 column 37 rule=schema
+  2-spawn-points-empty  [schema]  PASS → PASS
+     전: points_m 은 1 ..= 64 개여야 한다 (받음: 0) at line 46 column 18 rule=schema
+     후: spawn.points_m: points_m 은 1 ..= 64 개여야 한다 (받음: 0) at line 46 column 18 rule=schema
+
+## 형식이 그대로인 사례 (6건)
+  3-point-count-mismatch  [derived]  PASS → PASS
+  4-tick-snapshot-ratio-not-integer  [derived]  PASS → PASS
+  5-resume-window-above-linger  [derived]  PASS → PASS
+  6-spawn-point-outside-hard-boundary  [derived]  PASS → PASS
+  7-main-thrust-below-lateral-or-reverse  [derived]  PASS → PASS
+  8-duplicate-ship-class-id  [derived]  PASS → PASS
+
+# 읽는 법
+#  · `rule=schema` 둘만 형식이 바뀌었고 `rule=derived` 여섯은 그대로다 — 예측과 일치한다.
+#    **안 바뀌었음을 재는 것도 관측이다**(리더). 그 여섯은 S-R25 가 안 건드린 경로다.
+#  · 공유 검증자 수는 10 → 10 로 **그대로다** — 구제 ⓐ 는 공유를 없애지 않고 JSON 경로를 붙인다.
+#    **원인(공유)을 재던 옛 검사는 후자를 FAIL 로 돌렸을 것이다.** 결과(필드 지칭)를 재도록 고친 뒤라 PASS 가 난다.

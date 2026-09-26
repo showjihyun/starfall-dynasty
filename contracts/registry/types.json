@@ -1,5 +1,5 @@
 {
-  "registry_version": 2,
+  "registry_version": 3,
   "types": [
     {
       "name": "PING_SERVER",
@@ -29,7 +29,7 @@
       "producers": ["server"],
       "consumers": ["client", "bots"],
       "status": "active",
-      "description": "Adjudication result of one command: ACCEPTED (taken into the simulation on the envelope tick) or REJECTED with a reason code. Accepted is not completed. Introduced by p0-02-networking-spike."
+      "description": "Adjudication result of one command: ACCEPTED (taken into the simulation on the envelope tick) or REJECTED with a reason code. Accepted is not completed. Introduced by p0-02-networking-spike; p1-01-ship-movement adds the RATE_LIMITED and STALE_INPUT reason codes, compatible value additions at the same schema_version."
     },
     {
       "name": "SESSION_READY",
@@ -60,6 +60,76 @@
       "consumers": ["server"],
       "status": "active",
       "description": "The presence interval opened by SESSION_OPENED ended, with the reason. Shares the opening event's correlation_id. Persisted to domain_events. Introduced by p0-02-networking-spike."
+    },
+    {
+      "name": "SET_SHIP_CONTROL",
+      "kind": "command",
+      "schema": "commands/SET_SHIP_CONTROL.schema.json",
+      "schema_version": 1,
+      "producers": ["client", "bots"],
+      "consumers": ["server"],
+      "status": "active",
+      "description": "One tick of control intent (thrust and turn) for the ship the session's actor is flying. Carries no position, velocity or orientation: the client cannot describe where its ship is, only what it is trying to do (principle 1, I-26). The server consumes at most one input per tick per session, so sending faster buys no extra movement. Introduced by p1-01-ship-movement."
+    },
+    {
+      "name": "WORLD_SNAPSHOT",
+      "kind": "server_message",
+      "schema": "messages/WORLD_SNAPSHOT.schema.json",
+      "schema_version": 1,
+      "producers": ["server"],
+      "consumers": ["client", "bots"],
+      "status": "active",
+      "description": "Full authoritative state of every ship at one tick, plus the newest input_seq the server consumed for the receiving session. The only way any client learns a position, its own included. Introduced by p1-01-ship-movement."
+    },
+    {
+      "name": "SHIP_SPAWNED",
+      "kind": "domain_event",
+      "schema": "events/domain/SHIP_SPAWNED.schema.json",
+      "schema_version": 1,
+      "producers": ["server"],
+      "consumers": ["server"],
+      "status": "active",
+      "description": "A ship entity started existing at a position. Distinct from SESSION_OPENED, which is about the actor (GDD section 4). Caused by the SESSION_OPENED of the same tick: the first contract in the project where causation_id is non-null. Importance level 0 by design. 'history' joins consumers when the history crate exists (p2). Introduced by p1-01-ship-movement."
+    },
+    {
+      "name": "SHIP_DESPAWNED",
+      "kind": "domain_event",
+      "schema": "events/domain/SHIP_DESPAWNED.schema.json",
+      "schema_version": 1,
+      "producers": ["server"],
+      "consumers": ["server"],
+      "status": "active",
+      "description": "The ship entity stopped existing, with the reason and its last position. Caused by the SESSION_CLOSED that started its linger window - possibly many ticks earlier, and not necessarily from the session that spawned the ship. A pilot disconnecting does not despawn a ship. causation_id never equals event_id. Importance level 0 by design. Introduced by p1-01-ship-movement."
+    },
+    {
+      "name": "SHIP_CLASS",
+      "kind": "data",
+      "schema": "data/ship-class.schema.json",
+      "schema_version": 1,
+      "producers": [],
+      "consumers": ["server"],
+      "status": "active",
+      "description": "Shape of a ship class file such as data/ships/scout-s01.json. The designer owns the values; this contract owns the fields and the ranges outside which a value is a broken simulation rather than a balance choice. Every movement field feeds the ADR-0010 integrator on both the server and the client's prediction of it. producers is empty: the table is hand-authored, not emitted by any component. Introduced by p1-01-ship-movement."
+    },
+    {
+      "name": "STAR_SYSTEM",
+      "kind": "data",
+      "schema": "data/star-system.schema.json",
+      "schema_version": 1,
+      "producers": [],
+      "consumers": ["server"],
+      "status": "active",
+      "description": "Shape of a star system file such as data/world/systems/cradle.json: coordinate space, soft and hard boundary, deterministic spawn ring, ship linger and reconnect window, and client-only reference markers. hard_boundary_radius_m has a hard ceiling that comes from the float32 rendering budget (ADR-0009), not from design. Introduced by p1-01-ship-movement."
+    },
+    {
+      "name": "SYNC_TUNING",
+      "kind": "data",
+      "schema": "data/sync-tuning.schema.json",
+      "schema_version": 1,
+      "producers": [],
+      "consumers": ["server", "client"],
+      "status": "active",
+      "description": "Shape of data/movement/sync-tuning.json: the networking values that are FELT - snapshot rate, input pacing, remote interpolation delay and the reconciliation thresholds - kept out of code literals so that tuning never means editing Rust or C#. Deliberately excludes tick_hz (a world constant, I-19), the quantisation scales (ADR-0009) and the integrator identity (ADR-0010): those are laws, not tunables. Introduced by p1-01-ship-movement."
     }
   ]
 }

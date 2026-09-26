@@ -40,6 +40,21 @@ namespace Starfall.Net
         /// <summary>Token that QA greps for to collect the 31st session's correlation id.</summary>
         public const string SessionReadyTag = "SESSION_READY";
 
+        /// <summary>Token for <see cref="Superseded"/>, grepped the same way as
+        /// <see cref="SessionReadyTag"/> so a developer or QA can confirm from
+        /// client/Logs/Editor.log alone that the client actually stopped reconnecting.</summary>
+        public const string SupersededTag = "SUPERSEDED";
+
+        /// <summary>Token for <see cref="ProtocolViolationClosed"/> (SC-89, R8/R9 finding:
+        /// before this, WS close code 1002 fell into the generic reconnect log with no
+        /// distinguishing string, so QA had to cross-reference the server log and
+        /// domain_events.close_reason by hand to learn a close was ProtocolViolation - see
+        /// _workspace/p1-01-ship-movement/03_client_impl.md R8 section 3). Grepped the same
+        /// way as <see cref="SupersededTag"/>, but this does NOT stop reconnecting - 1002 stays
+        /// in ReconnectPolicy.ShouldReconnect's "yes" bucket (unlike 4001); this line is
+        /// diagnostics only, logged in addition to the normal reconnect log, never instead of it.</summary>
+        public const string ProtocolViolationTag = "PROTOCOL_VIOLATION";
+
         /// <summary>
         /// <c>starfall.net: SESSION_READY session_id=… correlation_id=… actor_id=… world_id=…
         /// tick_hz=… server_version=… attempt=…</c>
@@ -80,6 +95,35 @@ namespace Starfall.Net
             Prefix + "reconnect attempt=" + attempt.ToString(CultureInfo.InvariantCulture) +
             " delay_ms=" + delayMs.ToString(CultureInfo.InvariantCulture) +
             " (counter resets only on SESSION_READY)";
+
+        /// <summary>
+        /// <c>starfall.net: SUPERSEDED close_code=4001, not reconnecting (R3 decision 5: another
+        /// session for this actor took over the ship in the same tick)</c>
+        /// <para>
+        /// Fixed wording, same as <see cref="SessionReady"/> and <see cref="Reconnect"/>: this is
+        /// the one line that proves - after the fact, from a log file, without watching two
+        /// windows live - that the client stopped instead of grinding a reconnect loop.
+        /// </para>
+        /// </summary>
+        public static string Superseded(int closeCode) =>
+            Prefix + SupersededTag + " close_code=" + closeCode.ToString(CultureInfo.InvariantCulture) +
+            ", not reconnecting (R3 decision 5: another session for this actor took over the ship in the same tick)";
+
+        /// <summary>
+        /// <c>starfall.net: PROTOCOL_VIOLATION close_code=1002, reconnecting as usual (server
+        /// enforced the per-tick command cap, ADR-0011 section 5.2 - see SC-89)</c>
+        /// <para>
+        /// Server-side this is <c>SessionCloseReason::ProtocolViolation</c>
+        /// (server/crates/gateway/src/runtime.rs close_code() -> 1002). Unlike
+        /// <see cref="Superseded"/> this line does not describe a stop - it fires right before
+        /// the same reconnect path every other closeable code takes, so a grep for this tag
+        /// finds the moment without having to also read the immediately-following RECONNECT
+        /// line to know reconnecting still happened.
+        /// </para>
+        /// </summary>
+        public static string ProtocolViolationClosed() =>
+            Prefix + ProtocolViolationTag + " close_code=1002, reconnecting as usual " +
+            "(server enforced the per-tick command cap, ADR-0011 section 5.2 - see SC-89)";
 
         /// <summary>
         /// <c>starfall.net: closing session_id=… reason=… code=1000</c>

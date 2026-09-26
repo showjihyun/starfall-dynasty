@@ -16,6 +16,7 @@ use serde::Serialize;
 
 use crate::conn::{Clock, ConnectionOutcome};
 use crate::ledger::{self, COMMANDS_CSV_HEADER, LedgerSummary};
+use crate::snapshot::{self, SNAPSHOT_CSV_HEADER, SnapshotSummary};
 use crate::stats;
 
 #[derive(Debug, Clone, Serialize)]
@@ -47,6 +48,11 @@ pub struct Gates {
     pub one_to_one: bool,
     /// SC-54: ACCEPTED == PING_REPLY, probe_seq 전부 일치
     pub accepted_reply_pairing: bool,
+    /// 스펙 §5.1a: `COMMAND_RESULT` 수 == accepted + rejected
+    pub results_partition: bool,
+    /// 스펙 §5.1a 의무: `accepted > 0`. 이것이 false 면 위 두 항등식은 `0 == 0` 이라 아무것도
+    /// 검사하지 않은 것이다(라운드 2 의 거짓 초록불).
+    pub accepted_exercised: bool,
     /// SC-55 / I-15
     pub order_violations: u64,
     /// SC-19 / AC-6(c)
@@ -72,12 +78,18 @@ pub struct RunReport {
     pub seed: u64,
     pub duration_secs: u64,
     pub interval_ms: u64,
+    /// **봇별 조작 송신 주기(Hz).** SC-25 의 판정이 "전송률 때문"이라고 말하려면 **무엇을
+    /// 보냈는지가 증거에 있어야 한다** — 이 값이 없으면 두 거리의 차이를 전송률에 귀속할 수 없다.
+    pub send_hz: Vec<f64>,
     pub clock_base_unix_ms: u64,
     pub finished_unix_ms: u64,
     pub connect_ms: stats::Summary,
     pub ready_ms: stats::Summary,
     pub gates: Gates,
     pub aggregate: LedgerSummary,
+    /// p1-01: 스냅샷 관측 집계와 관측자별 요약.
+    pub snapshots: SnapshotSummary,
+    pub snapshots_per_bot: Vec<SnapshotSummary>,
     pub per_bot: Vec<LedgerSummary>,
     pub connect_errors: Vec<String>,
 }
@@ -92,6 +104,7 @@ pub struct RunMeta<'a> {
     pub seed: u64,
     pub duration_secs: u64,
     pub interval_ms: u64,
+    pub send_hz: &'a [f64],
     pub clock: Clock,
 }
 
@@ -103,9 +116,12 @@ pub fn build(meta: RunMeta<'_>, outcomes: &[ConnectionOutcome]) -> RunReport {
         seed,
         duration_secs,
         interval_ms,
+        send_hz,
         clock,
     } = meta;
     let per_bot: Vec<LedgerSummary> = outcomes.iter().map(|o| o.ledger.finish()).collect();
+    let snap_per_bot: Vec<SnapshotSummary> =
+        outcomes.iter().map(|o| o.snapshots.finish()).collect();
     let rtt: Vec<f64> = outcomes
         .iter()
         .flat_map(|o| o.ledger.rtt_samples_ms())
@@ -134,6 +150,8 @@ pub fn build(meta: RunMeta<'_>, outcomes: &[ConnectionOutcome]) -> RunReport {
     let gates = Gates {
         one_to_one: aggregate.one_to_one_holds(),
         accepted_reply_pairing: aggregate.accepted_reply_pairing_holds(),
+        results_partition: aggregate.results_partition_holds(),
+        accepted_exercised: aggregate.accepted_path_exercised(),
         order_violations: aggregate.order_violations,
         tick_mismatches: aggregate.tick_mismatches,
         ticks_compared: aggregate.ticks_compared,
@@ -144,8 +162,12 @@ pub fn build(meta: RunMeta<'_>, outcomes: &[ConnectionOutcome]) -> RunReport {
         wire_errors: aggregate.wire_errors.len(),
         all_ok: false,
     };
+    // 명령→응답 3단언(스펙 §5.1a)은 `LedgerSummary::command_reply_gates_hold` 와 같은 것이다.
+    // 입력이 전부 0 이면 `accepted_exercised` 하나로 all_ok 가 false 가 된다.
     let all_ok = gates.one_to_one
         && gates.accepted_reply_pairing
+        && gates.results_partition
+        && gates.accepted_exercised
         && gates.order_violations == 0
         && gates.tick_mismatches == 0
         && gates.server_initiated_closes == 0
@@ -160,11 +182,14 @@ pub fn build(meta: RunMeta<'_>, outcomes: &[ConnectionOutcome]) -> RunReport {
         seed,
         duration_secs,
         interval_ms,
+        send_hz: send_hz.to_vec(),
         clock_base_unix_ms: clock.wall_base_unix_ms,
         finished_unix_ms: clock.wall_ms_at(clock.us()),
         connect_ms: stats::summarize(outcomes.iter().map(|o| o.connect_ms).collect()),
         ready_ms: stats::summarize(outcomes.iter().filter_map(|o| o.ready_ms).collect()),
         gates: Gates { all_ok, ..gates },
+        snapshots: snapshot::aggregate(&snap_per_bot),
+        snapshots_per_bot: snap_per_bot,
         aggregate,
         per_bot,
         connect_errors: outcomes
@@ -221,6 +246,14 @@ pub fn write_all(
     for o in outcomes {
         for row in o.ledger.command_rows() {
             writeln!(csv, "{row}")?;
+        }
+    }
+
+    let mut snap = fs::File::create(out_dir.join("snapshots.csv"))?;
+    writeln!(snap, "{SNAPSHOT_CSV_HEADER}")?;
+    for o in outcomes {
+        for row in o.snapshots.csv_rows() {
+            writeln!(snap, "{row}")?;
         }
     }
 

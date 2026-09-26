@@ -21,11 +21,14 @@ namespace Starfall.Tests.EditMode
         public const string RootMarker = "contracts/registry/types.json";
 
         /// <summary>
-        /// Valid fixtures the contract currently defines: 6 registry types x 2 (spec section
-        /// 5.3). The loader asserts against this so a silent zero-fixture run cannot be
-        /// mistaken for a pass (invariant I-4).
+        /// Valid fixtures the contract currently defines: 13 registry types x 2 (spec section
+        /// 5.3, p1-01), plus one - SESSION_CLOSED/superseded.json, the third valid variant for
+        /// that type (01_architect_decisions.md "R3 추가 판정" section 1.8, user decision 5,
+        /// 2026-09-22: same-actor session takeover, close_reason=SUPERSEDED). 26 -> 27. The
+        /// loader asserts against this so a silent zero-fixture run cannot be mistaken for a
+        /// pass (invariant I-4).
         /// </summary>
-        public const int ExpectedValidFixtureCount = 12;
+        public const int ExpectedValidFixtureCount = 27;
 
         /// <summary>
         /// Counter-example fixtures the contract currently defines. There is no formula for
@@ -33,7 +36,30 @@ namespace Starfall.Tests.EditMode
         /// - so it is a stated constant, and architect updates the spec and this number
         /// together when it changes (spec section 5.3).
         /// </summary>
-        public const int ExpectedInvalidFixtureCount = 16;
+        public const int ExpectedInvalidFixtureCount = 34;
+
+        /// <summary>
+        /// Of the 27 valid fixtures, how many carry an envelope type discriminator and
+        /// therefore round-trip through a generated DTO (sprint contract SC-47). The remaining
+        /// 6 are the p1-01 data tables (SHIP_CLASS, STAR_SYSTEM, SYNC_TUNING x 2 each) - they
+        /// have no envelope, no discriminator, and AC-10(d) deliberately generates no DTO for
+        /// them, so there is nothing to round-trip. SESSION_CLOSED/superseded.json is a domain
+        /// event (event_type discriminator) and does round-trip, so 20 -> 21, not 20 - measured
+        /// by running Fixtures_RoundTrip_Found26_RoundTripped20, not assumed (contract section
+        /// 0.7: expected numbers come from contracts/fixtures/ only).
+        /// </summary>
+        public const int ExpectedRoundTrippableValidFixtureCount = 21;
+
+        /// <summary>Registry type names for which the generator produces no DTO (AC-10(d)).
+        /// A fixture under one of these carries no message_type/command_type/event_type
+        /// discriminator at all - it is a data table, not a wire message.</summary>
+        public static readonly HashSet<string> DataOnlyTypes =
+            new HashSet<string>(StringComparer.Ordinal) { "SHIP_CLASS", "STAR_SYSTEM", "SYNC_TUNING" };
+
+        /// <summary>True for a fixture belonging to one of <see cref="DataOnlyTypes"/> - no
+        /// envelope, no generated DTO, not a candidate for round-trip or Runtime/Strict
+        /// dispatch tests.</summary>
+        public static bool IsDataOnly(FixtureFile fixture) => DataOnlyTypes.Contains(fixture.TypeName);
 
         /// <summary>Repository root, or null when the marker was not found.</summary>
         public static string FindRepoRoot()

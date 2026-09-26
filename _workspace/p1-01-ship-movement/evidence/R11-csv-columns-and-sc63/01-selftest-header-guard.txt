@@ -1,0 +1,31 @@
+{
+  "item": "two_client_view 자체 검증 (SC-85 계열)",
+  "verdict": "PASS",
+  "identical_files_mismatches": 0,
+  "one_mm_offset_mismatches": 20,
+  "behind_28m_along_track_m": 28.0,
+  "ahead_28m_along_track_m": -28.0,
+  "columns_count": 10,
+  "columns": [
+    "tick",
+    "observer_actor_id",
+    "ship_id",
+    "presence",
+    "px_mm",
+    "py_mm",
+    "pz_mm",
+    "vx_mm_s",
+    "vy_mm_s",
+    "vz_mm_s"
+  ],
+  "header_guard": {
+    "renamed": "rejected(NotImplementedYet)",
+    "reordered": "rejected(NotImplementedYet)",
+    "appended": "rejected(NotImplementedYet)",
+    "truncated": "rejected(NotImplementedYet)",
+    "exact_match": "accepted"
+  },
+  "header_guard_ok": true,
+  "meaning": "1 mm 를 어긋뜨렸을 때 20건 전부 잡히면 SC-63 이 실제로 정수를 비교하고 있다는 뜻이고, 뒤/앞 부호가 반대로 나오면 SC-65 의 부호 판정이 동작한다는 뜻이다. header_guard 의 네 변형이 전부 rejected 이고 exact_match 만 accepted 여야 C#(ObserverCsv.Header) 한쪽만 고쳤을 때 조용히 지나가지 않는다."
+}
+selftest exit=0

@@ -7,6 +7,7 @@
 
 use std::env::{self, VarError};
 use std::net::SocketAddr;
+use std::path::PathBuf;
 
 use starfall_contracts::UuidV7;
 
@@ -83,6 +84,11 @@ pub struct Config {
     /// **기본값이 없다.** 기본값을 코드에 두면 그 값이 배포까지 따라간다. 없으면 프로세스는
     /// 정상 기동하고 `/ws` 만 503 `auth_not_configured` 가 된다.
     pub dev_auth_secret: Option<String>,
+    /// `data/` 위치를 명시적으로 준 값. `None` 이면 로더가 cwd 기준 `data` → `../data` 순으로
+    /// 찾는다(p1-01 architect 결정 — `_workspace/p1-01-ship-movement/02_server_ack.md` §1①).
+    /// **값이 있으면 그 경로만 본다(탐색 없음)** — QA 가 위반 데이터를 임시 디렉토리로
+    /// 시연할 때 원본 `data/` 와 절대 섞이지 않게 하는 장치다.
+    pub data_dir_override: Option<PathBuf>,
 }
 
 /// 기본 바인딩 주소.
@@ -155,6 +161,9 @@ impl Config {
             // 빈 문자열은 "설정하지 않음"과 같게 다룬다 — `.env` 에서 값을 지웠을 때
             // 절반만 설정된 상태가 생기지 않게 한다.
             dev_auth_secret: var_opt("STARFALL_DEV_AUTH_SECRET")?.filter(|s| !s.is_empty()),
+            data_dir_override: var_opt("STARFALL_DATA_DIR")?
+                .filter(|s| !s.is_empty())
+                .map(PathBuf::from),
         })
     }
 }

@@ -21,3 +21,11 @@ workspace = true
 # 한 줄 요약: 의존성은 `starfall-contracts` **하나뿐**이다. 비동기 런타임조차 없다.
 [dependencies]
 starfall-contracts.workspace = true
+
+# 테스트 전용 (S6 결정성 재생 — AC-8/SC-34). 프로덕션 `[dependencies]` 는 여전히
+# `starfall-contracts` 하나뿐이다: `cargo build -p starfall-sim` 는 이 절을 링크하지
+# 않는다. `child process` 로 자기 자신을 재실행하는 데는 표준 라이브러리
+# (`std::process::Command`, `std::env::current_exe`) 만 쓴다 — 새 크레이트가 아니다.
+[dev-dependencies]
+serde.workspace = true
+serde_json.workspace = true

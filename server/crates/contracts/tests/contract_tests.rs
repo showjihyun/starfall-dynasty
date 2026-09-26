@@ -31,9 +31,14 @@ use starfall_contracts::registry::{CONTRACT_TYPES, ContractType};
 const SCHEMA_ID_PREFIX: &str = "https://schemas.starfall.invalid/contracts/";
 
 /// 기대하는 개수. 계약이 늘면 이 상수도 함께 올린다 — 조용히 줄어드는 것을 막는 가드다.
-const EXPECTED_SCHEMA_COUNT: usize = 11;
-const EXPECTED_VALID_FIXTURES: usize = 12;
-const EXPECTED_INVALID_FIXTURES: usize = 16;
+///
+/// p1-01-ship-movement 가 6타입(`SET_SHIP_CONTROL`·`WORLD_SNAPSHOT`·`SHIP_SPAWNED`·
+/// `SHIP_DESPAWNED`·`SHIP_CLASS`·`STAR_SYSTEM`·`SYNC_TUNING` — 7종)을 더했다(스펙 §5.3).
+const EXPECTED_SCHEMA_COUNT: usize = 18;
+// R4 S-6: `SESSION_CLOSED.close_reason` 에 `SUPERSEDED` 가 추가되며 유효 fixture 가
+// `superseded.json` 1건 늘었다(architect 계약 변경, 사용자 결정 5). 26 → 27.
+const EXPECTED_VALID_FIXTURES: usize = 27;
+const EXPECTED_INVALID_FIXTURES: usize = 34;
 
 // ---------------------------------------------------------------------------
 // 경로 해석 — 실패하면 명확히 죽는다
@@ -415,6 +420,22 @@ const SERDE_REJECTION_TABLE: &[(&str, bool)] = &[
     ("missing-world-id.json", true),     // 필수 필드
     ("unknown-close-reason.json", true), // 닫힌 열거형
     ("correlation-id-null.json", true),  // 이벤트 envelope 의 correlation_id 는 비-Option
+    ("causation-id-null.json", true),    // SHIP_SPAWNED·SHIP_DESPAWNED 좁힘 — 비-Option
+    // p1-01-ship-movement 신규 — 18건 (스펙 §5.4)
+    ("attitude-field-injected.json", true), // deny_unknown_fields — I-26
+    ("position-field-injected.json", true), // deny_unknown_fields — I-26
+    ("thrust-above-range.json", true),      // ControlAxisMilli 범위 newtype
+    ("input-seq-zero.json", true),          // InputSeq 는 1부터
+    ("movement-unknown-field.json", true),  // ShipClassMovement deny_unknown_fields
+    ("turn-gain-zero.json", true),          // exclusiveMinimum 0 범위 newtype
+    ("session-closed-is-not-a-despawn.json", true), // DespawnReason 닫힌 열거형
+    ("hard-radius-above-ceiling.json", true), // STAR_SYSTEM·WORLD_SNAPSHOT 공유 — 경계 상한
+    ("no-spawn-points.json", true),         // points_m 은 1개 이상
+    ("integrator-is-not-a-tunable.json", true), // SyncTuningPrediction deny_unknown_fields
+    ("snapshot-hz-zero.json", true),        // snapshot_hz 는 1부터
+    ("angular-velocity-roll-missing.json", true), // ShipState 의 필수 필드
+    ("ship-missing-orientation-w.json", true), // ShipState 의 필수 필드
+    ("unknown-presence.json", true),        // ShipPresence 닫힌 열거형
 ];
 
 #[test]
@@ -535,47 +556,53 @@ fn registry_consistency() {
 
         let schema = read_json(&schema_path);
 
-        // 타입 상수 자리는 kind 에 따라 다르다.
+        // `data` kind 는 envelope 이 없다 — 타입 태그 필드도, 고정된
+        // `schema_version` const 도 없다(파일마다 있는 평범한 정수 필드다). 스펙 §5.1.
         let type_key = match entry.kind.as_str() {
-            "command" => "command_type",
-            "server_message" => "message_type",
-            "domain_event" | "historical_event" => "event_type",
+            "command" => Some("command_type"),
+            "server_message" => Some("message_type"),
+            "domain_event" | "historical_event" => Some("event_type"),
+            "data" => None,
             other => panic!("{}: 알 수 없는 kind {other}", entry.name),
         };
 
-        let schema_type_const = schema["properties"][type_key]["const"]
-            .as_str()
-            .unwrap_or_else(|| {
-                panic!(
-                    "{}: 스키마 최상위 properties.{type_key}.const 가 없다",
-                    entry.name
-                )
-            });
-        assert_eq!(
-            schema_type_const, entry.name,
-            "{}: 레지스트리 이름과 스키마 타입 상수가 다르다",
-            entry.name
-        );
+        if let Some(type_key) = type_key {
+            let schema_type_const = schema["properties"][type_key]["const"]
+                .as_str()
+                .unwrap_or_else(|| {
+                    panic!(
+                        "{}: 스키마 최상위 properties.{type_key}.const 가 없다",
+                        entry.name
+                    )
+                });
+            assert_eq!(
+                schema_type_const, entry.name,
+                "{}: 레지스트리 이름과 스키마 타입 상수가 다르다",
+                entry.name
+            );
 
-        let schema_version_const = schema["properties"]["schema_version"]["const"]
-            .as_u64()
-            .unwrap_or_else(|| panic!("{}: 스키마에 schema_version const 가 없다", entry.name));
-        assert_eq!(
-            schema_version_const, entry.schema_version,
-            "{}: 레지스트리 schema_version 과 스키마 const 가 다르다",
-            entry.name
-        );
+            let schema_version_const = schema["properties"]["schema_version"]["const"]
+                .as_u64()
+                .unwrap_or_else(|| panic!("{}: 스키마에 schema_version const 가 없다", entry.name));
+            assert_eq!(
+                schema_version_const, entry.schema_version,
+                "{}: 레지스트리 schema_version 과 스키마 const 가 다르다",
+                entry.name
+            );
+        }
 
         // active 타입은 유효 fixture 를 가져야 한다 (I-3), 그리고 fixture 의 값도 일치해야 한다.
         if entry.status == "active" {
             for path in valid_fixtures(&entry.name) {
                 let fixture = read_json(&path);
-                assert_eq!(
-                    fixture[type_key].as_str(),
-                    Some(entry.name.as_str()),
-                    "{}: fixture 의 {type_key} 가 레지스트리 이름과 다르다",
-                    path.display()
-                );
+                if let Some(type_key) = type_key {
+                    assert_eq!(
+                        fixture[type_key].as_str(),
+                        Some(entry.name.as_str()),
+                        "{}: fixture 의 {type_key} 가 레지스트리 이름과 다르다",
+                        path.display()
+                    );
+                }
                 assert_eq!(
                     fixture["schema_version"].as_u64(),
                     Some(entry.schema_version),
@@ -673,11 +700,27 @@ fn envelope_required(type_schema: &Value, type_schema_path: &Path) -> Vec<String
 }
 
 /// payload 스키마의 `required` 목록.
+///
+/// **`$defs` 를 "첫 항목"으로 집지 않는다.** `WORLD_SNAPSHOT` 처럼 배열 원소 타입(`ShipState`)
+/// 을 위한 두 번째 `$defs` 항목이 생기면, `serde_json::Value` 의 기본 객체 표현(`BTreeMap`,
+/// `preserve_order` feature 없음)은 **키를 알파벳순으로 정렬**하므로 `ShipState` 가
+/// `WorldSnapshotPayload` 보다 먼저 온다 — "첫 항목"이 조용히 엉뚱한 타입이 된다. 그래서
+/// `properties.payload.$ref` 가 가리키는 이름을 따라간다(그것이 실제로 payload 인 것의
+/// 유일한 근거다).
 fn payload_required(type_schema: &Value) -> Vec<String> {
+    let payload_ref = type_schema["properties"]["payload"]["$ref"]
+        .as_str()
+        .expect("타입 스키마의 properties.payload.$ref 가 없다");
+    let def_name = payload_ref
+        .rsplit('/')
+        .next()
+        .expect("payload $ref 형식이 예상과 다르다");
     let defs = type_schema["$defs"]
         .as_object()
         .expect("타입 스키마에 $defs 가 없다");
-    let payload = defs.values().next().expect("$defs 가 비어 있다");
+    let payload = defs
+        .get(def_name)
+        .unwrap_or_else(|| panic!("$defs 에 {def_name} 이(가) 없다"));
     string_list(&payload["required"])
 }
 
@@ -686,6 +729,14 @@ fn required_field_mutations() {
     let mut mutations = 0usize;
 
     for contract in CONTRACT_TYPES {
+        // `data` kind 에는 envelope 도 단일 `payload` 블록도 없다 — 스키마 최상위 자체가
+        // "payload"다(스펙 §5.1). 그 모양에 맞는 required 변이는 각 타입의 전용 단위
+        // 테스트(`data.rs` 의 `*_rejects_*`)가 덮는다. 여기서 일반화하면
+        // `allOf`/`$defs` 를 읽다가 패닉한다.
+        if contract.kind == "data" {
+            continue;
+        }
+
         let schema_path = contracts_dir().join(contract.schema_path);
         let schema = read_json(&schema_path);
         let top_level = envelope_required(&schema, &schema_path);
@@ -783,4 +834,38 @@ fn integer_bounds_rejected() {
     }
 
     println!("[테스트 9] 정수 경계 5건 확인 (tick 2건, probe_seq 3건)");
+
+    // 정수/소수 구분 (QA 04_qa_report_r1.md §6.1 — SC-40(f) 는 PASS 지만 권고 1건).
+    // 지금까지 `10.0` 이 거부되는 것은 (a) `fixtures_roundtrip` 의 엄격 `Value` 비교와
+    // (b) `tests/e2e/interface_matrix.py` 의 정적 타입 대조에만 기대고 있었다 — 둘 다
+    // qa 소유 도구라 이 스위트가 스스로 지키지 못했다. 여기서 직접 단언한다: integer
+    // 로 선언된 필드에 **같은 값**을 소수 형태로 넣으면 역직렬화가 실패해야 한다.
+    let mut fractional_form_checks = 0usize;
+
+    let mut tick_as_float = base_reply.clone();
+    tick_as_float["tick"] = json!(18_273_391.0);
+    assert!(
+        (ping_reply.round_trip)(&tick_as_float).is_err(),
+        "tick = 18273391.0 (정수와 같은 값의 소수 형태) 이 통과했다 — 정수/소수 구분이 없다"
+    );
+    fractional_form_checks += 1;
+
+    let mut probe_seq_as_float = base_command.clone();
+    probe_seq_as_float["payload"]["probe_seq"] = json!(42.0);
+    assert!(
+        (ping_server.round_trip)(&probe_seq_as_float).is_err(),
+        "probe_seq = 42.0 (정수와 같은 값의 소수 형태) 이 통과했다 — 정수/소수 구분이 없다"
+    );
+    fractional_form_checks += 1;
+
+    println!(
+        "[테스트 9] 정수 선언 필드의 소수 형태(10 -> 10.0) 거부 {fractional_form_checks}건 확인"
+    );
+    // architect 조건 — §5.3/AC-9와 같은 가드: 검사 건수가 0이면 그 자체로 실패시킨다.
+    // (지금은 하드코딩된 두 건이라 "훑기가 조용히 깨진다"는 이 형태로는 못 벌어지지만,
+    // 가드가 있으면 이후 필드를 스캔 방식으로 늘려도 같은 실수를 잡는다.)
+    assert!(
+        fractional_form_checks > 0,
+        "정수 소수 형태 검사가 0건이다 — 아무것도 검사하지 않고 조용히 통과했을 수 있다"
+    );
 }

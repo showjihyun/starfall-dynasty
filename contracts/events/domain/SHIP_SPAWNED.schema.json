@@ -1,0 +1,90 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.starfall.invalid/contracts/events/domain/SHIP_SPAWNED.schema.json",
+  "title": "ShipSpawnedEvent",
+  "description": "A ship entity came into existence in the star system at this tick, at this position. It is not the same fact as SESSION_OPENED: that one says an ACTOR connected, this one says a SHIP with this id exists and started here (GDD section 4, character is not ship). A ship outlives its session - a reconnect inside the linger window reclaims the same ship and emits NO new spawn - so this event fires once per ship, not once per session. The spawn position is the part no other record can reconstruct, so it is stored rather than the spawn slot index: if the design's spawn table is later edited, the stored position stays true and a stored slot index would quietly start lying (principle 5). Movement itself produces NO domain events (I-31): only the beginning and the end of a ship's existence are written down. Importance level 0 by design. actor_id and causation_id are both narrowed to non-null here.",
+  "allOf": [
+    {
+      "$ref": "../../common/event-envelope.schema.json"
+    }
+  ],
+  "properties": {
+    "event_type": {
+      "const": "SHIP_SPAWNED"
+    },
+    "schema_version": {
+      "const": 1
+    },
+    "actor_id": {
+      "description": "Narrowed from the envelope: a spawn always has the actor the ship was created for.",
+      "$ref": "../../common/primitives.schema.json#/$defs/UuidV7"
+    },
+    "causation_id": {
+      "description": "Narrowed from the envelope: always the event_id of the SESSION_OPENED emitted earlier in this same tick. This is the first contract in the project where causation_id carries a real value.",
+      "$ref": "../../common/primitives.schema.json#/$defs/UuidV7"
+    },
+    "payload": {
+      "$ref": "#/$defs/ShipSpawnedPayload"
+    }
+  },
+  "unevaluatedProperties": false,
+  "$defs": {
+    "ShipSpawnedPayload": {
+      "title": "ShipSpawnedPayload",
+      "type": "object",
+      "required": [
+        "ship_id",
+        "session_id",
+        "ship_class_id",
+        "star_system_id",
+        "position_x_mm",
+        "position_y_mm",
+        "position_z_mm",
+        "orientation_x_micro",
+        "orientation_y_micro",
+        "orientation_z_micro",
+        "orientation_w_micro"
+      ],
+      "properties": {
+        "ship_id": {
+          "description": "Identity of the new ship entity.",
+          "$ref": "../../common/primitives.schema.json#/$defs/UuidV7"
+        },
+        "session_id": {
+          "description": "Session the ship was spawned for. Same value as the SESSION_OPENED that caused this event.",
+          "$ref": "../../common/primitives.schema.json#/$defs/UuidV7"
+        },
+        "ship_class_id": {
+          "description": "Row of the SHIP_CLASS data table the ship was built from.",
+          "$ref": "../../common/primitives.schema.json#/$defs/DataId"
+        },
+        "star_system_id": {
+          "description": "Star system the position is local to.",
+          "$ref": "../../common/primitives.schema.json#/$defs/DataId"
+        },
+        "position_x_mm": {
+          "$ref": "../../common/primitives.schema.json#/$defs/PositionMm"
+        },
+        "position_y_mm": {
+          "$ref": "../../common/primitives.schema.json#/$defs/PositionMm"
+        },
+        "position_z_mm": {
+          "$ref": "../../common/primitives.schema.json#/$defs/PositionMm"
+        },
+        "orientation_x_micro": {
+          "$ref": "../../common/primitives.schema.json#/$defs/QuaternionComponentMicro"
+        },
+        "orientation_y_micro": {
+          "$ref": "../../common/primitives.schema.json#/$defs/QuaternionComponentMicro"
+        },
+        "orientation_z_micro": {
+          "$ref": "../../common/primitives.schema.json#/$defs/QuaternionComponentMicro"
+        },
+        "orientation_w_micro": {
+          "$ref": "../../common/primitives.schema.json#/$defs/QuaternionComponentMicro"
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

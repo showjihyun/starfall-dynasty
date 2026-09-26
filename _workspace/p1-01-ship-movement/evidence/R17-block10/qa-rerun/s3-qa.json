@@ -1,0 +1,61 @@
+{
+  "item": "SC-64/65 (designer S-3) 두 화면 비교",
+  "SC-64_verdict": "PASS",
+  "SC-65_verdict": "PASS",
+  "SC-64": {
+    "samples": 991,
+    "max_gap_m": 0.175,
+    "tolerance_m": 2.0,
+    "max_render_offset_mm": 0,
+    "render_offset_attribution": "해당 없음 (초과 없음)",
+    "note": "정지 상태에서는 예측도 보간도 같은 값을 내므로 지연이 오차를 만들지 않는다"
+  },
+  "SC-65": {
+    "samples": 325,
+    "behind_mean_m": 27.156,
+    "expected_m": "28.0 ± 12.0 (뒤쪽이 양수)",
+    "sign": "뒤쪽(기대)",
+    "samples_head": [
+      {
+        "tick": 1564006,
+        "along_track_m": -19.775,
+        "gap_m": 19.775,
+        "speed_mps": 101.5
+      },
+      {
+        "tick": 1564008,
+        "along_track_m": -20.474,
+        "gap_m": 20.474,
+        "speed_mps": 105.0
+      },
+      {
+        "tick": 1564010,
+        "along_track_m": -21.175,
+        "gap_m": 21.175,
+        "speed_mps": 108.5
+      },
+      {
+        "tick": 1564012,
+        "along_track_m": -21.874,
+        "gap_m": 21.874,
+        "speed_mps": 112.0
+      },
+      {
+        "tick": 1564014,
+        "along_track_m": -22.575,
+        "gap_m": 22.575,
+        "speed_mps": 115.5
+      }
+    ],
+    "warning": "관측자 B 가 봇이면 이 수치는 무의미하다 — 봇은 보간이 없어 부호가 뒤집힌다(계약 §0.11). B 는 보간 파이프라인이어야 한다."
+  },
+  "render_offset_presence": {
+    "rows_a": 3033,
+    "nonzero_offset_rows_a": 4,
+    "rows_b": 3033,
+    "nonzero_offset_rows_b": 0,
+    "max_offset_mm_a": 0,
+    "max_offset_mm_b": 0,
+    "note": "전 행 0 이면 **이 값만으로 판정하지 않는다** — (i) 보정 미발생 (ii) Update() 감쇠 누락 (iii) client 미구현을 값으로 구분할 수 없다. 절차서의 세 갈래 구분법(재조정 카운터·계측 로그·코드 확인)을 따른다."
+  }
+}

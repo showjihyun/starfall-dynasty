@@ -153,7 +153,9 @@ def run(args: argparse.Namespace) -> int:
     verdict = "PASS" if mismatches == 0 and bad_pattern == 0 and bad_all == 0 else "FAIL"
     db.emit(
         {
-            "item": "SC-60 (AC-16d) occurred_at 재계산 대조",
+            "item": "계약 외 검사 — occurred_at 재계산 대조",
+            "label_history": "18차까지 라벨이 p0-02 번호였다. p1-01 계약에 이 성질의 SC 행이 없다",
+            # R18 라벨 정정: **p0-02 의 번호였다.** p1-01 계약에서 이 번호는 전혀 다른 항목이다 — 라벨로 집계하면 그 항목이 치르지 않은 verdict 를 받는다(architect R18, 계약 §7b 규칙 7). qa 가 리포트 12건을 훑어 **수확된 곳이 없음**을 확인했다.,
             "verdict": verdict,
             "correlations_checked": len(corr),
             "rows_in_set": total,

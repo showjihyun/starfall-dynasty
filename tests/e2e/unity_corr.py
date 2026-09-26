@@ -99,7 +99,11 @@ def run(args: argparse.Namespace) -> int:
     tick_hz_values = sorted({int(r["tick_hz"]) for r in ready})
     actors = sorted({r["actor_id"] for r in ready})
     result = {
-        "item": "SC-49/50/51 · §0.6 — Unity 세션 로그 추출",
+        "item": "계약 외 검사 — Unity 세션 로그 추출",
+        "label_history": (
+            "18차까지 라벨이 p0-02 번호였다. 이 슬라이스에서 그 번호들은 client 의 "
+            "EditMode·재생 항목이고 이 도구가 아니다(계약 §7b 규칙 7)."
+        ),
         "log": str(path),
         "session_ready_lines": len(ready),
         "distinct_correlations": len(correlations),

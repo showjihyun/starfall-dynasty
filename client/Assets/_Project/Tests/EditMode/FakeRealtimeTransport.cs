@@ -36,6 +36,10 @@ namespace Starfall.Tests.EditMode
         /// <summary>Set to make Send report a full queue.</summary>
         public bool RefuseSend { get; set; }
 
+        /// <summary>H-14: incremented once per Send() refused via RefuseSend (the "queue full"
+        /// case) - not incremented for the separate "not open yet" refusal.</summary>
+        public long QueueFullTotal { get; private set; }
+
         public void Connect(string url, string bearerToken)
         {
             ConnectCount++;
@@ -46,7 +50,8 @@ namespace Starfall.Tests.EditMode
 
         public bool Send(string message)
         {
-            if (State != TransportState.Open || RefuseSend) return false;
+            if (State != TransportState.Open) return false;
+            if (RefuseSend) { QueueFullTotal++; return false; }
             Sent.Add(message);
             return true;
         }

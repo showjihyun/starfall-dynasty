@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "id": "scout-s01",
+  "display_name": "Scout S-01",
+  "hull_class": "scout",
+  "movement": {
+    "model": "assisted_6dof",
+    "max_speed_mps": 140.0,
+    "main_thrust_mps2": 35.0,
+    "reverse_thrust_mps2": 18.0,
+    "lateral_thrust_mps2": 18.0,
+    "brake_decel_mps2": 50.0,
+    "assist_linear_decel_mps2": 7.0,
+    "assist_lateral_decel_mps2": 22.0,
+    "turn_rate_max_deg_s": 75.0,
+    "turn_accel_deg_s2": 220.0,
+    "turn_gain_deg_s_per_sin_half": 290.0,
+    "turn_deadzone_sin_half": 0.0009,
+    "roll_rate_max_deg_s": 90.0,
+    "roll_accel_deg_s2": 300.0,
+    "auto_level_rate_deg_s": 40.0,
+    "auto_level_deadzone_sin": 0.002
+  },
+  "geometry": {
+    "hull_radius_m": 12.0
+  }
+}

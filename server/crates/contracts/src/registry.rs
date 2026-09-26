@@ -15,9 +15,12 @@ use serde::Serialize;
 use serde::de::DeserializeOwned;
 use serde_json::Value;
 
-use crate::commands::PingServerCommand;
-use crate::events::{SessionClosedEvent, SessionOpenedEvent};
-use crate::messages::{CommandResultMessage, PingReplyMessage, SessionReadyMessage};
+use crate::commands::{PingServerCommand, SetShipControlCommand};
+use crate::data::{ShipClassTable, StarSystemTable, SyncTuningTable};
+use crate::events::{SessionClosedEvent, SessionOpenedEvent, ShipDespawnedEvent, ShipSpawnedEvent};
+use crate::messages::{
+    CommandResultMessage, PingReplyMessage, SessionReadyMessage, WorldSnapshotMessage,
+};
 
 /// `PING_SERVER` 레지스트리 이름.
 pub const PING_SERVER: &str = "PING_SERVER";
@@ -31,6 +34,20 @@ pub const SESSION_READY: &str = "SESSION_READY";
 pub const SESSION_OPENED: &str = "SESSION_OPENED";
 /// `SESSION_CLOSED` 레지스트리 이름.
 pub const SESSION_CLOSED: &str = "SESSION_CLOSED";
+/// `SET_SHIP_CONTROL` 레지스트리 이름.
+pub const SET_SHIP_CONTROL: &str = "SET_SHIP_CONTROL";
+/// `WORLD_SNAPSHOT` 레지스트리 이름.
+pub const WORLD_SNAPSHOT: &str = "WORLD_SNAPSHOT";
+/// `SHIP_SPAWNED` 레지스트리 이름.
+pub const SHIP_SPAWNED: &str = "SHIP_SPAWNED";
+/// `SHIP_DESPAWNED` 레지스트리 이름.
+pub const SHIP_DESPAWNED: &str = "SHIP_DESPAWNED";
+/// `SHIP_CLASS` 레지스트리 이름.
+pub const SHIP_CLASS: &str = "SHIP_CLASS";
+/// `STAR_SYSTEM` 레지스트리 이름.
+pub const STAR_SYSTEM: &str = "STAR_SYSTEM";
+/// `SYNC_TUNING` 레지스트리 이름.
+pub const SYNC_TUNING: &str = "SYNC_TUNING";
 
 /// JSON 값을 해당 Rust 타입으로 역직렬화한 뒤 다시 직렬화하는 함수.
 ///
@@ -121,6 +138,62 @@ pub static CONTRACT_TYPES: &[ContractType] = &[
         rust_type: "starfall_contracts::events::SessionClosedEvent",
         round_trip: round_trip_as::<SessionClosedEvent>,
     },
+    ContractType {
+        name: SET_SHIP_CONTROL,
+        kind: "command",
+        schema_path: "commands/SET_SHIP_CONTROL.schema.json",
+        schema_version: 1,
+        rust_type: "starfall_contracts::commands::SetShipControlCommand",
+        round_trip: round_trip_as::<SetShipControlCommand>,
+    },
+    ContractType {
+        name: WORLD_SNAPSHOT,
+        kind: "server_message",
+        schema_path: "messages/WORLD_SNAPSHOT.schema.json",
+        schema_version: 1,
+        rust_type: "starfall_contracts::messages::WorldSnapshotMessage",
+        round_trip: round_trip_as::<WorldSnapshotMessage>,
+    },
+    ContractType {
+        name: SHIP_SPAWNED,
+        kind: "domain_event",
+        schema_path: "events/domain/SHIP_SPAWNED.schema.json",
+        schema_version: 1,
+        rust_type: "starfall_contracts::events::ShipSpawnedEvent",
+        round_trip: round_trip_as::<ShipSpawnedEvent>,
+    },
+    ContractType {
+        name: SHIP_DESPAWNED,
+        kind: "domain_event",
+        schema_path: "events/domain/SHIP_DESPAWNED.schema.json",
+        schema_version: 1,
+        rust_type: "starfall_contracts::events::ShipDespawnedEvent",
+        round_trip: round_trip_as::<ShipDespawnedEvent>,
+    },
+    ContractType {
+        name: SHIP_CLASS,
+        kind: "data",
+        schema_path: "data/ship-class.schema.json",
+        schema_version: 1,
+        rust_type: "starfall_contracts::data::ShipClassTable",
+        round_trip: round_trip_as::<ShipClassTable>,
+    },
+    ContractType {
+        name: STAR_SYSTEM,
+        kind: "data",
+        schema_path: "data/star-system.schema.json",
+        schema_version: 1,
+        rust_type: "starfall_contracts::data::StarSystemTable",
+        round_trip: round_trip_as::<StarSystemTable>,
+    },
+    ContractType {
+        name: SYNC_TUNING,
+        kind: "data",
+        schema_path: "data/sync-tuning.schema.json",
+        schema_version: 1,
+        rust_type: "starfall_contracts::data::SyncTuningTable",
+        round_trip: round_trip_as::<SyncTuningTable>,
+    },
 ];
 
 /// 이름으로 계약 타입을 찾는다.
@@ -151,10 +224,17 @@ mod tests {
             SESSION_READY,
             SESSION_OPENED,
             SESSION_CLOSED,
+            SET_SHIP_CONTROL,
+            WORLD_SNAPSHOT,
+            SHIP_SPAWNED,
+            SHIP_DESPAWNED,
+            SHIP_CLASS,
+            STAR_SYSTEM,
+            SYNC_TUNING,
         ] {
             assert!(find(name).is_some(), "{name} 이 대응표에 없다");
         }
-        assert_eq!(CONTRACT_TYPES.len(), 6);
+        assert_eq!(CONTRACT_TYPES.len(), 13);
         assert!(find("NOT_A_CONTRACT_TYPE").is_none());
     }
 }

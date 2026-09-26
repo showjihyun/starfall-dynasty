@@ -1,0 +1,22 @@
+# SC-06 두 실행 대조 — 리더의 근거 ②(바이너리 시점)에 대한 답
+# 구실행 바이너리 2026-09-23T22:01:51 / 신실행 2026-09-25T21:50:52
+# 정규화한 것은 **타임스탬프와 스크래치 디렉터리 경로뿐**이다(실행마다 다르다).
+# 로그 본문 — 필드명·expected·actual·rule — 은 그대로 비교한다.
+
+동일   1-hard-radius-above-ceiling  exit 1→1
+동일   2-spawn-points-empty  exit 1→1
+동일   3-point-count-mismatch  exit 1→1
+동일   4-tick-snapshot-ratio-not-integer  exit 1→1
+동일   5-resume-window-above-linger  exit 1→1
+동일   6-spawn-point-outside-hard-boundary  exit 1→1
+동일   7-main-thrust-below-lateral-or-reverse  exit 1→1
+동일   8-duplicate-ship-class-id  exit 1→1
+
+# 거부 로그 본문이 다른 사례: 0 / 8
+# 신실행 음성 대조: PASS · 전제(data→DB) True · 데이터 거부 0건
+# 다중도 공유 수: 신실행 10 / 검증자 29
+
+# 판정: 두 실행의 거부 로그가 전부 같다.
+#   → 09-23 빌드와 09-25 새 빌드가 SC-06 이 재는 경로에서 **같은 동작을 한다.**
+#     근거 ②(그 바이너리가 HEAD 소스와 다를 수 있다)가 **실행으로 닫혔다** — 논증이 아니다.
+#   → ②~⑧ PASS 확정. ① 은 R25 기준으로 FAIL 이고 새 빌드에서도 같다(구조적 사실).

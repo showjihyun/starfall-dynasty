@@ -85,6 +85,13 @@ namespace Starfall.Net
     {
         TransportState State { get; }
 
+        /// <summary>H-14 (architect R4 판정 §B / K-2): how many times <see cref="Send"/> refused
+        /// a frame because the outbound queue was full. Observation only - SC-89 does NOT fail
+        /// on this being nonzero (K-2: "outbound_queue_full_total은 SC-89의 관측으로 두되 합격
+        /// 조건에서 빼고, 0이 아니면 별건 발견으로 연다") - it measures a DIFFERENT thing
+        /// (input reaching the server at all) than SC-89 (protocol violations/disconnects).</summary>
+        long QueueFullTotal { get; }
+
         /// <summary>Raised from <see cref="Pump"/> once the socket is open.</summary>
         event Action Opened;
 

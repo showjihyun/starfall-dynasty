@@ -63,7 +63,7 @@ def run(args: argparse.Namespace) -> int:
     steps.append({"step": "탐침 행 삽입", "tick": probe_tick, "sequence": 0,
                   "rows": after_insert, "output": out})
     if after_insert != before + 1:
-        db.emit({"item": "SC-11~13 (AC-4)", "verdict": "FAIL",
+        db.emit({"item": "SC-90 (AC-20) append-only 탐침", "SC-90_verdict": "FAIL",
                  "reason": "탐침 행을 넣지 못했다", "steps": steps}, args.evidence)
         return db.EXIT_FAIL
 
@@ -88,12 +88,38 @@ def run(args: argparse.Namespace) -> int:
     steps.append({"step": "같은 event_id 재삽입", "no_new_row": reinsert_noop,
                   "rows": rows_after_reinsert, "output": again})
 
-    # SC-13: 다른 event_id + 같은 (world_id, tick, sequence) → UNIQUE 위반
+    # (e): 다른 event_id + 같은 (world_id, tick, sequence) → UNIQUE 위반
+    #
+    # **E-1 (architect R19)**: 옛 판정은 `"duplicate key" in dup or "unique" in dup` 였다 —
+    # **어느 제약이든 위반되기만 하면 참이다.** (d) 와 (e) 의 입력 차이는 `event_id` 뿐이라,
+    # (e) 가 `event_id` **PK**(`domain_events_pkey`)에 걸려도 같은 문자열이 나온다. 그러면
+    # 두 절이 **같은 제약을 두 번 재고** (e) 가 이름붙인 성질(= `(world_id,tick,sequence)`
+    # 유일성)은 한 번도 검사되지 않는다. §7b(1) 을 (e) 에 돌린 결과다.
+    # → **제약의 이름**을 본다. 이름은 DB 에서 읽는다(하드코딩하면 마이그레이션과 갈린다).
+    uniq_name = db.psql(
+        "select conname from pg_constraint "
+        "where conrelid = 'domain_events'::regclass and contype = 'u' "
+        "and pg_get_constraintdef(oid) like '%(world_id, tick, sequence)%';"
+    ).strip()
+    pk_name = db.psql(
+        "select conname from pg_constraint "
+        "where conrelid = 'domain_events'::regclass and contype = 'p';"
+    ).strip()
     dup = db.psql(insert_sql(str(uuid.uuid4()), probe_tick, 0))
     rows_after_dup = db.scalar_int("select count(*) from domain_events;")
-    unique_violated = "duplicate key" in dup.lower() or "unique" in dup.lower()
+    unique_violated = bool(uniq_name) and uniq_name in dup
+    hit_pk_instead = bool(pk_name) and pk_name in dup
     steps.append({"step": "다른 event_id + 같은 (world_id,tick,sequence)",
-                  "unique_violation": unique_violated, "rows": rows_after_dup, "output": dup})
+                  "unique_violation": unique_violated,
+                  "expected_constraint": uniq_name,
+                  "pk_constraint": pk_name,
+                  "hit_pk_instead": hit_pk_instead,
+                  "why_name_not_substring": (
+                      "문자열 `unique`/`duplicate key` 로 보면 event_id PK 위반도 참이 된다 — "
+                      "그러면 (d) 와 (e) 가 같은 제약을 두 번 재고 (e) 는 아무것도 검사하지 "
+                      "않는다(architect R19 E-1)"
+                  ),
+                  "rows": rows_after_dup, "output": dup})
 
     ok = (
         update_blocked
@@ -102,12 +128,22 @@ def run(args: argparse.Namespace) -> int:
         and rows_after_delete == before + 1
         and reinsert_noop
         and unique_violated
+        and not hit_pk_instead        # (e) 가 (d) 와 같은 제약을 잰 것이 아님을 단언한다
         and rows_after_dup == before + 1
     )
     db.emit(
         {
-            "item": "SC-11/12/13 (AC-4) append-only · 멱등 삽입 · UNIQUE",
-            "verdict": "PASS" if ok else "FAIL",
+            # **D-2 (architect R18)**: 이 라벨은 **p0-02 의 번호였다.** p1-01 계약에서 SC-11·12·13
+            # 은 전혀 다른 것을 가리키고(잔류 창 재접속 · LINGER_EXPIRED 디스폰 · SERVER_SHUTDOWN
+            # 디스폰), AC-4 도 이 슬라이스에선 적분·경계다. **라벨로 집계하면 하드 게이트 셋이
+            # 치르지 않은 PASS 를 받는다.** qa 가 리포트 12건을 훑어 **수확된 곳이 없음**을
+            # 확인했으므로 정정할 과거 PASS 는 없다 — 라벨만 고친다(12_qa_report_r12.md §4 발견 6).
+            "item": "SC-90 (AC-20) append-only · 멱등 삽입 · UNIQUE",
+            "SC-90_verdict": "PASS" if ok else "FAIL",
+            "label_history": (
+                "17차까지 이 라벨은 `SC-11/12/13 (AC-4)` 였다 — **p0-02 의 번호다.** "
+                "18차에 계약 SC-90 을 신설해 집을 줬다(계약 §9 18차)."
+            ),
             "rows_before": before,
             "probe_tick": probe_tick,
             "probe_sequence": 0,

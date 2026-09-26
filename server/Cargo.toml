@@ -42,6 +42,10 @@ serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.151"
 uuid = { version = "1.26.1", default-features = false, features = ["std", "v7", "serde"] }
 thiserror = "2.0.20"
+# `data/` 로딩 시 JSON 경로(예: `play_area.hard_boundary_radius_m`)를 얻는 데 쓴다
+# (S-R25 — 공유 `deserialize_with` 함수 이름이 아니라 실제 필드를 로그에 남기기 위해).
+# `serde_json::Deserializer` 를 감싸기만 하고 트리에 새 트랜지티브 의존성을 들이지 않는다.
+serde_path_to_error = "0.1.20"
 tracing = "0.1.41"
 tracing-subscriber = { version = "0.3.23", default-features = false, features = ["fmt", "env-filter", "json", "ansi"] }
 

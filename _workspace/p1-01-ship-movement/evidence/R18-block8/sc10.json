@@ -1,0 +1,47 @@
+{
+  "item": "SC-10 (AC-3 c) 스폰 위치의 데이터 일치와 만료 후 재스폰 결정성 — 블록 8",
+  "SC-10_verdict": "PASS",
+  "SC-10": {
+    "judgment_scope": {
+      "since_tick": 1576721,
+      "why": "`domain_events` 는 추가 전용이라 범위를 안 주면 **동시 접속 수가 다른 실행이 섞인다.** 점유가 높았던 실행에서는 `assignment_rule` 의 탐침이 **다른 지점**을 고르는 것이 정상이므로, 무범위 판정은 정상 동작을 FAIL 로 읽는다."
+    },
+    "data_file": "C:\\WorkSpace\\SpaceHistoric\\data\\world\\systems\\cradle.json",
+    "spawn_points": 12,
+    "linger_seconds": 30,
+    "linger_ticks_at_hz": {
+      "tick_hz": 20,
+      "linger_ticks": 600
+    },
+    "radial_offset_step_m": 150.0,
+    "spawns_total": 2,
+    "spawns_exactly_on_a_point": 2,
+    "spawns_not_on_a_point": 0,
+    "not_on_a_point_head": [],
+    "respawn_pairs_beyond_linger": 1,
+    "respawn_pairs_head": [
+      {
+        "actor_id": "01a0b1c2-b010-7000-8000-000000000000",
+        "first_tick": 1578525,
+        "second_tick": 1579468,
+        "gap_ticks": 943,
+        "gap_seconds": 47.15,
+        "first_pos_mm": [
+          0,
+          -250000,
+          2500000
+        ],
+        "second_pos_mm": [
+          0,
+          -250000,
+          2500000
+        ],
+        "same": true
+      }
+    ],
+    "respawn_position_mismatches": 0,
+    "respawn_mismatch_head": [],
+    "note": "**후반부(만료 후 재스폰)만 tick 차이 > linger_ticks 인 짝으로 판정한다**(계약 게이트 G-j). 30 초 안의 재접속은 재개이고 SHIP_SPAWNED 를 새로 내지도 않는다 — 그 짝을 세면 항진명제다.",
+    "occupancy_caveat": "스폰 배정은 점유 시 `radial_offset_step_m`(150.0 m) 만큼 **반경 방향으로 밀린다**(`assignment_rule`). 그러면 위치가 points_m 와 정확히 일치하지 않는 것이 **정상이다.** 따라서 이 항목의 전반부는 **점유가 낮은 실행**에서 재야 한다 — 절차서 §A-0 참조. spawns_not_on_a_point 가 0 이 아니면 FAIL 로 닫기 전에 그 실행의 동시 접속 수를 본다."
+  }
+}

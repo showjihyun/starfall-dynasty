@@ -211,7 +211,7 @@ static class Keywords
     // a C# enum would make one added value drop whole messages on older clients.
     public static readonly HashSet<string> Constraint = new(StringComparer.Ordinal)
     {
-        "pattern", "minItems", "uniqueItems", "enum",
+        "pattern", "minItems", "uniqueItems", "enum", "maxItems",
     };
 
     // The basis for integer type selection (ADR-0002 section 4).
@@ -378,7 +378,13 @@ sealed class Generator
             string status = entry.TryGetProperty("status", out var s) ? s.GetString() : "active";
             if (status == "deprecated") continue;
             if (kind is "rest" or "data")
-                throw new CodegenException($"{name}: kind '{kind}' is not supported by the generator yet");
+            {
+                // Not a failure: data tables (SHIP_CLASS/STAR_SYSTEM/SYNC_TUNING) have no DTO by
+                // design (AC-10(d)) - the client reads its data/ copy directly (ADR-0012 section 7).
+                // A silent skip is the shape p0-01 warned about, so it is one stdout line per type.
+                Console.WriteLine($"skipped {name} (kind '{kind}': no DTO is generated)");
+                continue;
+            }
 
             int schemaVersion = entry.TryGetProperty("schema_version", out var v) ? v.GetInt32() : 1;
 
@@ -503,9 +509,15 @@ sealed class Generator
                 JsonName = jsonName,
                 CsName = csName,
                 Nullable = shape.Nullable,
-                CsType = shape.Nested is not null
-                    ? shape.Nested.ClassName
-                    : shape.CsType + (shape.Nullable && IsValueType(shape.CsType) ? "?" : ""),
+                // CsType wins when both are set: an array-of-object shape carries the element's
+                // Nested class AND "ElementClassName[]" in CsType (Normalize's "array" case), and
+                // the property itself is the array, not the element. Only when CsType is absent
+                // (a bare object property) does the property take the nested class name directly.
+                // Getting this backwards is silent: WorldSnapshotMessage.Ships would compile as
+                // ShipState instead of ShipState[] (AC-10(c), SC-43).
+                CsType = shape.CsType is not null
+                    ? shape.CsType + (shape.Nullable && IsValueType(shape.CsType) ? "?" : "")
+                    : shape.Nested.ClassName,
                 RequiredMode = !isRequired ? "Default" : shape.Nullable ? "AllowNull" : "Always",
                 Doc = shape.Doc,
             };
@@ -603,6 +615,21 @@ sealed class Generator
                     Const = constant,
                     Doc = doc,
                 };
+            }
+            case "array":
+            {
+                if (!map.TryGetValue("items", out var items))
+                    throw new CodegenException($"{path}: array without 'items' has no element type");
+
+                var element = Normalize(_store.Flatten(items.Value, items.File, $"{path}/items"), $"{path}/items");
+                if (element.Const is not null)
+                    throw new CodegenException($"{path}/items: a const array element has no useful C# mapping");
+
+                string elementType = element.Nested is not null
+                    ? element.Nested.ClassName
+                    : element.CsType + (element.Nullable && IsValueType(element.CsType) ? "?" : "");
+
+                return new Shape { CsType = elementType + "[]", Nested = element.Nested, Doc = doc };
             }
             case "boolean":
                 return new Shape { CsType = "bool", Const = constant, Doc = doc };

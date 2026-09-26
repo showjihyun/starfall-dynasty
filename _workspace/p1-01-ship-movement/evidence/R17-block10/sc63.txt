@@ -1,0 +1,62 @@
+{
+  "item": "SC-63 (AC-16 c/d) 봇 2대 원시 스냅샷 대조 — 블록 10",
+  "SC-63_verdict": "PASS",
+  "contract": "13차 개정 — 판정 입력은 봇 2대의 원시 CSV. Unity 관측자 CSV 가 아니다",
+  "producer": {
+    "out_dir": "_workspace\\p1-01-ship-movement\\evidence\\R17-block10\\bots",
+    "snapshots_csv": "_workspace\\p1-01-ship-movement\\evidence\\R17-block10\\bots\\snapshots.csv",
+    "summary_json": "_workspace\\p1-01-ship-movement\\evidence\\R17-block10\\bots\\summary.json",
+    "stage": "e-fly",
+    "url": "ws://127.0.0.1:8080/ws",
+    "bots": 2,
+    "seed": 42,
+    "duration_secs": 30,
+    "sessions_json_present": true
+  },
+  "structural": {
+    "observers_in_csv": [
+      "01a0b1c2-b010-7000-8000-000000000000",
+      "01a0b1c2-b010-7000-8000-000000000001"
+    ],
+    "observer_count": 2,
+    "own_ship_ids": [
+      "01a0d778-828d-7281-9b0b-c160699881ac",
+      "01a0d778-8c1f-740e-b699-6d90c918701e"
+    ],
+    "rows_total": 1964
+  },
+  "gate_a_sampling": {
+    "pairs_compared": 920,
+    "ships_with_pairs": 4,
+    "pairs_per_ship": {
+      "01a0d778-4a7f-7547-ac98-41471799f490": 166,
+      "01a0d778-4a7f-7547-ac98-414ca8ab514d": 166,
+      "01a0d778-828d-7281-9b0b-c160699881ac": 294,
+      "01a0d778-8c1f-740e-b699-6d90c918701e": 294
+    },
+    "required_ships": [
+      "01a0d778-828d-7281-9b0b-c160699881ac",
+      "01a0d778-8c1f-740e-b699-6d90c918701e"
+    ],
+    "ships_without_pairs": [],
+    "note": "required_ships 는 summary.json 의 controlled_ship_id 둘이다. 거기 없으면 교집합의 함선 목록으로 대체하고, 그 경우 2척 미만이면 표본 없음으로 닫는다."
+  },
+  "gate_b_motion": {
+    "max_speed_mps": 140.0,
+    "ticks_with_speed_gt_0": 583
+  },
+  "gate_c_source": {
+    "nonzero_offset_rows": 0,
+    "sample": [],
+    "render_offset_deg_literals": [
+      "0"
+    ],
+    "decimal_formatted_literals": [],
+    "note": "값 게이트(전 행 0)는 **역방향 보증만 한다** — Unity 세션도 보정이 없으면 0 일 수 있다. 그래서 표기 지문을 함께 본다: `0.0000` 처럼 소수점이 있으면 client 의 `ObserverCsv.ToCsvLine()`(F4) 이 쓴 것이고 봇(`snapshot.rs` 의 상수 `,0,0`)이 아니다. 정방향 보증은 P1·P2(봇 산출물 동반·관측자 집합 일치)와 (d) 가 진다."
+  },
+  "observer_a": "01a0b1c2-b010-7000-8000-000000000000",
+  "observer_b": "01a0b1c2-b010-7000-8000-000000000001",
+  "mismatching_pairs": 0,
+  "mismatch_head": [],
+  "positive_control_one_mm_offset_mismatches": 20
+}

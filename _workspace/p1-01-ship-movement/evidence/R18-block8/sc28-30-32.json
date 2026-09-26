@@ -1,0 +1,499 @@
+{
+  "item": "SC-28 / SC-30 / SC-32 (AC-7 a/c/e) 봇 스냅샷 불변식 — 블록 8",
+  "SC-28_verdict": "PASS",
+  "SC-30_verdict": "PASS",
+  "SC-32_verdict": "미검증(표본 없음)",
+  "producer": {
+    "out_dir": "_workspace\\p1-01-ship-movement\\evidence\\R18-block8\\stage-a",
+    "snapshots_csv": "_workspace\\p1-01-ship-movement\\evidence\\R18-block8\\stage-a\\snapshots.csv",
+    "summary_json": "_workspace\\p1-01-ship-movement\\evidence\\R18-block8\\stage-a\\summary.json",
+    "stage": "a-steady",
+    "url": "ws://127.0.0.1:8080/ws",
+    "bots": 31,
+    "seed": 42,
+    "duration_secs": 60,
+    "send_hz": [
+      20.0
+    ]
+  },
+  "structural": {
+    "observers_in_csv": [
+      "01a0b1c2-b010-7000-8000-000000000000",
+      "01a0b1c2-b010-7000-8000-000000000001",
+      "01a0b1c2-b010-7000-8000-000000000002",
+      "01a0b1c2-b010-7000-8000-000000000003",
+      "01a0b1c2-b010-7000-8000-000000000004",
+      "01a0b1c2-b010-7000-8000-000000000005",
+      "01a0b1c2-b010-7000-8000-000000000006",
+      "01a0b1c2-b010-7000-8000-000000000007",
+      "01a0b1c2-b010-7000-8000-000000000008",
+      "01a0b1c2-b010-7000-8000-000000000009",
+      "01a0b1c2-b010-7000-8000-000000000010",
+      "01a0b1c2-b010-7000-8000-000000000011",
+      "01a0b1c2-b010-7000-8000-000000000012",
+      "01a0b1c2-b010-7000-8000-000000000013",
+      "01a0b1c2-b010-7000-8000-000000000014",
+      "01a0b1c2-b010-7000-8000-000000000015",
+      "01a0b1c2-b010-7000-8000-000000000016",
+      "01a0b1c2-b010-7000-8000-000000000017",
+      "01a0b1c2-b010-7000-8000-000000000018",
+      "01a0b1c2-b010-7000-8000-000000000019",
+      "01a0b1c2-b010-7000-8000-000000000020",
+      "01a0b1c2-b010-7000-8000-000000000021",
+      "01a0b1c2-b010-7000-8000-000000000022",
+      "01a0b1c2-b010-7000-8000-000000000023",
+      "01a0b1c2-b010-7000-8000-000000000024",
+      "01a0b1c2-b010-7000-8000-000000000025",
+      "01a0b1c2-b010-7000-8000-000000000026",
+      "01a0b1c2-b010-7000-8000-000000000027",
+      "01a0b1c2-b010-7000-8000-000000000028",
+      "01a0b1c2-b010-7000-8000-000000000029",
+      "01a0b1c2-b010-7000-8000-000000000030"
+    ],
+    "observer_count": 31,
+    "rows_total": 586014
+  },
+  "SC-28": {
+    "expected_interval_ticks": 2,
+    "expected_interval_source": "summary.json snapshots_per_bot[].snapshot_interval_ticks (서버가 SESSION_READY 로 알려 준 값 — 이 도구는 숫자를 지어내지 않는다)",
+    "per_observer": {
+      "01a0b1c2-b010-7000-8000-000000000000": {
+        "snapshot_ticks": 619,
+        "checked_pairs": 618,
+        "violating_pairs": 0,
+        "excluded_first_snapshots": 1
+      },
+      "01a0b1c2-b010-7000-8000-000000000001": {
+        "snapshot_ticks": 620,
+        "checked_pairs": 619,
+        "violating_pairs": 0,
+        "excluded_first_snapshots": 1
+      },
+      "01a0b1c2-b010-7000-8000-000000000002": {
+        "snapshot_ticks": 618,
+        "checked_pairs": 617,
+        "violating_pairs": 0,
+        "excluded_first_snapshots": 1
+      },
+      "01a0b1c2-b010-7000-8000-000000000003": {
+        "snapshot_ticks": 618,
+        "checked_pairs": 617,
+        "violating_pairs": 0,
+        "excluded_first_snapshots": 1
+      },
+      "01a0b1c2-b010-7000-8000-000000000004": {
+        "snapshot_ticks": 620,
+        "checked_pairs": 619,
+        "violating_pairs": 0,
+        "excluded_first_snapshots": 1
+      },
+      "01a0b1c2-b010-7000-8000-000000000005": {
+        "snapshot_ticks": 620,
+        "checked_pairs": 619,
+        "violating_pairs": 0,
+        "excluded_first_snapshots": 1
+      },
+      "01a0b1c2-b010-7000-8000-000000000006": {
+        "snapshot_ticks": 617,
+        "checked_pairs": 616,
+        "violating_pairs": 0,
+        "excluded_first_snapshots": 1
+      },
+      "01a0b1c2-b010-7000-8000-000000000007": {
+        "snapshot_ticks": 618,
+        "checked_pairs": 617,
+        "violating_pairs": 0,
+        "excluded_first_snapshots": 1
+      },
+      "01a0b1c2-b010-7000-8000-000000000008": {
+        "snapshot_ticks": 621,
+        "checked_pairs": 620,
+        "violating_pairs": 0,
+        "excluded_first_snapshots": 1
+      },
+      "01a0b1c2-b010-7000-8000-000000000009": {
+        "snapshot_ticks": 617,
+        "checked_pairs": 616,
+        "violating_pairs": 0,
+        "excluded_first_snapshots": 1
+      },
+      "01a0b1c2-b010-7000-8000-000000000010": {
+        "snapshot_ticks": 618,
+        "checked_pairs": 617,
+        "violating_pairs": 0,
+        "excluded_first_snapshots": 1
+      },
+      "01a0b1c2-b010-7000-8000-000000000011": {
+        "snapshot_ticks": 617,
+        "checked_pairs": 616,
+        "violating_pairs": 0,
+        "excluded_first_snapshots": 1
+      },
+      "01a0b1c2-b010-7000-8000-000000000012": {
+        "snapshot_ticks": 616,
+        "checked_pairs": 615,
+        "violating_pairs": 0,
+        "excluded_first_snapshots": 1
+      },
+      "01a0b1c2-b010-7000-8000-000000000013": {
+        "snapshot_ticks": 618,
+        "checked_pairs": 617,
+        "violating_pairs": 0,
+        "excluded_first_snapshots": 1
+      },
+      "01a0b1c2-b010-7000-8000-000000000014": {
+        "snapshot_ticks": 616,
+        "checked_pairs": 615,
+        "violating_pairs": 0,
+        "excluded_first_snapshots": 1
+      },
+      "01a0b1c2-b010-7000-8000-000000000015": {
+        "snapshot_ticks": 620,
+        "checked_pairs": 619,
+        "violating_pairs": 0,
+        "excluded_first_snapshots": 1
+      },
+      "01a0b1c2-b010-7000-8000-000000000016": {
+        "snapshot_ticks": 617,
+        "checked_pairs": 616,
+        "violating_pairs": 0,
+        "excluded_first_snapshots": 1
+      },
+      "01a0b1c2-b010-7000-8000-000000000017": {
+        "snapshot_ticks": 616,
+        "checked_pairs": 615,
+        "violating_pairs": 0,
+        "excluded_first_snapshots": 1
+      },
+      "01a0b1c2-b010-7000-8000-000000000018": {
+        "snapshot_ticks": 617,
+        "checked_pairs": 616,
+        "violating_pairs": 0,
+        "excluded_first_snapshots": 1
+      },
+      "01a0b1c2-b010-7000-8000-000000000019": {
+        "snapshot_ticks": 620,
+        "checked_pairs": 619,
+        "violating_pairs": 0,
+        "excluded_first_snapshots": 1
+      },
+      "01a0b1c2-b010-7000-8000-000000000020": {
+        "snapshot_ticks": 619,
+        "checked_pairs": 618,
+        "violating_pairs": 0,
+        "excluded_first_snapshots": 1
+      },
+      "01a0b1c2-b010-7000-8000-000000000021": {
+        "snapshot_ticks": 621,
+        "checked_pairs": 620,
+        "violating_pairs": 0,
+        "excluded_first_snapshots": 1
+      },
+      "01a0b1c2-b010-7000-8000-000000000022": {
+        "snapshot_ticks": 619,
+        "checked_pairs": 618,
+        "violating_pairs": 0,
+        "excluded_first_snapshots": 1
+      },
+      "01a0b1c2-b010-7000-8000-000000000023": {
+        "snapshot_ticks": 618,
+        "checked_pairs": 617,
+        "violating_pairs": 0,
+        "excluded_first_snapshots": 1
+      },
+      "01a0b1c2-b010-7000-8000-000000000024": {
+        "snapshot_ticks": 619,
+        "checked_pairs": 618,
+        "violating_pairs": 0,
+        "excluded_first_snapshots": 1
+      },
+      "01a0b1c2-b010-7000-8000-000000000025": {
+        "snapshot_ticks": 618,
+        "checked_pairs": 617,
+        "violating_pairs": 0,
+        "excluded_first_snapshots": 1
+      },
+      "01a0b1c2-b010-7000-8000-000000000026": {
+        "snapshot_ticks": 617,
+        "checked_pairs": 616,
+        "violating_pairs": 0,
+        "excluded_first_snapshots": 1
+      },
+      "01a0b1c2-b010-7000-8000-000000000027": {
+        "snapshot_ticks": 618,
+        "checked_pairs": 617,
+        "violating_pairs": 0,
+        "excluded_first_snapshots": 1
+      },
+      "01a0b1c2-b010-7000-8000-000000000028": {
+        "snapshot_ticks": 615,
+        "checked_pairs": 614,
+        "violating_pairs": 0,
+        "excluded_first_snapshots": 1
+      },
+      "01a0b1c2-b010-7000-8000-000000000029": {
+        "snapshot_ticks": 617,
+        "checked_pairs": 616,
+        "violating_pairs": 0,
+        "excluded_first_snapshots": 1
+      },
+      "01a0b1c2-b010-7000-8000-000000000030": {
+        "snapshot_ticks": 618,
+        "checked_pairs": 617,
+        "violating_pairs": 0,
+        "excluded_first_snapshots": 1
+      }
+    },
+    "checked_pairs": 19131,
+    "violating_pairs": 0,
+    "excluded_first_snapshots": 31,
+    "violations_head": [],
+    "bot_self_count_cross_check": "일치",
+    "note": "판정은 **CSV 재계산**으로 한다. summary.json 의 interval_violations 는 대조로만 싣는다 — 재는 쪽과 판정하는 쪽이 같은 출처면 대조가 항진명제다."
+  },
+  "SC-30": {
+    "per_observer": {
+      "01a0b1c2-b010-7000-8000-000000000000": {
+        "controlled_ship_id": "01a0d83b-197d-752e-85fb-c3431bedfebc",
+        "ticks_checked": 619,
+        "ticks_missing_controlled": 0,
+        "bot_reported_missing": 0
+      },
+      "01a0b1c2-b010-7000-8000-000000000001": {
+        "controlled_ship_id": "01a0d83b-1a45-7428-95ec-27b65f21ad2a",
+        "ticks_checked": 620,
+        "ticks_missing_controlled": 0,
+        "bot_reported_missing": 0
+      },
+      "01a0b1c2-b010-7000-8000-000000000002": {
+        "controlled_ship_id": "01a0d83b-1adc-7192-9e26-d559d0f73743",
+        "ticks_checked": 618,
+        "ticks_missing_controlled": 0,
+        "bot_reported_missing": 0
+      },
+      "01a0b1c2-b010-7000-8000-000000000003": {
+        "controlled_ship_id": "01a0d83b-1b71-720f-aa5c-67479192cd01",
+        "ticks_checked": 618,
+        "ticks_missing_controlled": 0,
+        "bot_reported_missing": 0
+      },
+      "01a0b1c2-b010-7000-8000-000000000004": {
+        "controlled_ship_id": "01a0d83b-1c07-776c-a740-a175bed53862",
+        "ticks_checked": 620,
+        "ticks_missing_controlled": 0,
+        "bot_reported_missing": 0
+      },
+      "01a0b1c2-b010-7000-8000-000000000005": {
+        "controlled_ship_id": "01a0d83b-1ccf-7289-999c-106c7ea4942e",
+        "ticks_checked": 620,
+        "ticks_missing_controlled": 0,
+        "bot_reported_missing": 0
+      },
+      "01a0b1c2-b010-7000-8000-000000000006": {
+        "controlled_ship_id": "01a0d83b-1d66-777c-81f7-745b334503f3",
+        "ticks_checked": 617,
+        "ticks_missing_controlled": 0,
+        "bot_reported_missing": 0
+      },
+      "01a0b1c2-b010-7000-8000-000000000007": {
+        "controlled_ship_id": "01a0d83b-1dfb-744e-b9c9-04fdaaa57a29",
+        "ticks_checked": 618,
+        "ticks_missing_controlled": 0,
+        "bot_reported_missing": 0
+      },
+      "01a0b1c2-b010-7000-8000-000000000008": {
+        "controlled_ship_id": "01a0d83b-1e92-7010-8d91-36dfcab7d11a",
+        "ticks_checked": 621,
+        "ticks_missing_controlled": 0,
+        "bot_reported_missing": 0
+      },
+      "01a0b1c2-b010-7000-8000-000000000009": {
+        "controlled_ship_id": "01a0d83b-1f59-7438-9bcc-8e9f5a362cbf",
+        "ticks_checked": 617,
+        "ticks_missing_controlled": 0,
+        "bot_reported_missing": 0
+      },
+      "01a0b1c2-b010-7000-8000-000000000010": {
+        "controlled_ship_id": "01a0d83b-1fef-710a-b424-36e3402c5be6",
+        "ticks_checked": 618,
+        "ticks_missing_controlled": 0,
+        "bot_reported_missing": 0
+      },
+      "01a0b1c2-b010-7000-8000-000000000011": {
+        "controlled_ship_id": "01a0d83b-2085-731f-91bc-a1ca6fa1e232",
+        "ticks_checked": 617,
+        "ticks_missing_controlled": 0,
+        "bot_reported_missing": 0
+      },
+      "01a0b1c2-b010-7000-8000-000000000012": {
+        "controlled_ship_id": "01a0d83b-211b-7655-823a-7e5a709ecabb",
+        "ticks_checked": 616,
+        "ticks_missing_controlled": 0,
+        "bot_reported_missing": 0
+      },
+      "01a0b1c2-b010-7000-8000-000000000013": {
+        "controlled_ship_id": "01a0d83b-21b1-71a1-851d-bb369c162e6f",
+        "ticks_checked": 618,
+        "ticks_missing_controlled": 0,
+        "bot_reported_missing": 0
+      },
+      "01a0b1c2-b010-7000-8000-000000000014": {
+        "controlled_ship_id": "01a0d83b-2279-70d6-b20b-f5cad3a7d457",
+        "ticks_checked": 616,
+        "ticks_missing_controlled": 0,
+        "bot_reported_missing": 0
+      },
+      "01a0b1c2-b010-7000-8000-000000000015": {
+        "controlled_ship_id": "01a0d83b-230f-7266-bda6-e8e5f869b7a4",
+        "ticks_checked": 620,
+        "ticks_missing_controlled": 0,
+        "bot_reported_missing": 0
+      },
+      "01a0b1c2-b010-7000-8000-000000000016": {
+        "controlled_ship_id": "01a0d83b-23a5-7603-bb8c-3ced5c664806",
+        "ticks_checked": 617,
+        "ticks_missing_controlled": 0,
+        "bot_reported_missing": 0
+      },
+      "01a0b1c2-b010-7000-8000-000000000017": {
+        "controlled_ship_id": "01a0d83b-243c-7410-864f-77f89111b2d5",
+        "ticks_checked": 616,
+        "ticks_missing_controlled": 0,
+        "bot_reported_missing": 0
+      },
+      "01a0b1c2-b010-7000-8000-000000000018": {
+        "controlled_ship_id": "01a0d83b-24d1-75a4-b8f2-d74b91123630",
+        "ticks_checked": 617,
+        "ticks_missing_controlled": 0,
+        "bot_reported_missing": 0
+      },
+      "01a0b1c2-b010-7000-8000-000000000019": {
+        "controlled_ship_id": "01a0d83b-2599-73ac-9332-fa553670f0fa",
+        "ticks_checked": 620,
+        "ticks_missing_controlled": 0,
+        "bot_reported_missing": 0
+      },
+      "01a0b1c2-b010-7000-8000-000000000020": {
+        "controlled_ship_id": "01a0d83b-262f-7208-9224-b26c4a2686f7",
+        "ticks_checked": 619,
+        "ticks_missing_controlled": 0,
+        "bot_reported_missing": 0
+      },
+      "01a0b1c2-b010-7000-8000-000000000021": {
+        "controlled_ship_id": "01a0d83b-26c5-76a1-a021-9962323558b1",
+        "ticks_checked": 621,
+        "ticks_missing_controlled": 0,
+        "bot_reported_missing": 0
+      },
+      "01a0b1c2-b010-7000-8000-000000000022": {
+        "controlled_ship_id": "01a0d83b-275b-77fd-9d4c-9bd59360b789",
+        "ticks_checked": 619,
+        "ticks_missing_controlled": 0,
+        "bot_reported_missing": 0
+      },
+      "01a0b1c2-b010-7000-8000-000000000023": {
+        "controlled_ship_id": "01a0d83b-2823-7280-9312-7dde79adcefd",
+        "ticks_checked": 618,
+        "ticks_missing_controlled": 0,
+        "bot_reported_missing": 0
+      },
+      "01a0b1c2-b010-7000-8000-000000000024": {
+        "controlled_ship_id": "01a0d83b-28b9-7045-b3f2-d293d4b410a9",
+        "ticks_checked": 619,
+        "ticks_missing_controlled": 0,
+        "bot_reported_missing": 0
+      },
+      "01a0b1c2-b010-7000-8000-000000000025": {
+        "controlled_ship_id": "01a0d83b-2950-7299-9cb8-2387ad1a2e26",
+        "ticks_checked": 618,
+        "ticks_missing_controlled": 0,
+        "bot_reported_missing": 0
+      },
+      "01a0b1c2-b010-7000-8000-000000000026": {
+        "controlled_ship_id": "01a0d83b-29e5-7109-9c79-fc6be0c87a6e",
+        "ticks_checked": 617,
+        "ticks_missing_controlled": 0,
+        "bot_reported_missing": 0
+      },
+      "01a0b1c2-b010-7000-8000-000000000027": {
+        "controlled_ship_id": "01a0d83b-2a7b-7393-8ecb-651e369a5159",
+        "ticks_checked": 618,
+        "ticks_missing_controlled": 0,
+        "bot_reported_missing": 0
+      },
+      "01a0b1c2-b010-7000-8000-000000000028": {
+        "controlled_ship_id": "01a0d83b-2b43-74a7-acfb-a98e89974357",
+        "ticks_checked": 615,
+        "ticks_missing_controlled": 0,
+        "bot_reported_missing": 0
+      },
+      "01a0b1c2-b010-7000-8000-000000000029": {
+        "controlled_ship_id": "01a0d83b-2bd9-7106-aa69-7331bff137d0",
+        "ticks_checked": 617,
+        "ticks_missing_controlled": 0,
+        "bot_reported_missing": 0
+      },
+      "01a0b1c2-b010-7000-8000-000000000030": {
+        "controlled_ship_id": "01a0d83b-2c6f-7084-93b7-da9e31aaff70",
+        "ticks_checked": 618,
+        "ticks_missing_controlled": 0,
+        "bot_reported_missing": 0
+      }
+    },
+    "ticks_checked": 19162,
+    "ticks_missing_controlled": 0,
+    "missing_head": [],
+    "note": "각 관측자의 `controlled_ship_id` 가 **그 관측자가 받은 모든 스냅샷의 ships 안에** 있는가. 판정은 CSV 재계산이고 봇의 controlled_ship_missing 은 대조로만 싣는다."
+  },
+  "SC-32": {
+    "presence_values_seen": {
+      "ACTIVE": 578198,
+      "LINGERING": 7816
+    },
+    "allowed_presence_values": [
+      "ACTIVE",
+      "LINGERING"
+    ],
+    "unexpected_presence_values": [],
+    "lingering_ships_seen": 30,
+    "despawn_events_observed": 0,
+    "despawn_head": [],
+    "reappearances_after_absence": 0,
+    "reappearance_head": [],
+    "bot_reported_lingering_seen": [
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+    ],
+    "note": "판정량은 **재등장 건수**다 — '마지막 등장 이후 안 보인다' 는 정의상 참이라 그대로 재면 항진명제다. 그리고 `despawn_events_observed == 0` 이면 **재등장 0 은 아무것도 뜻하지 않으므로** PASS 가 아니라 미검증이다.",
+    "why_not_judged": "LINGERING 관측 30척 · 디스폰 관측 0건 — 둘 다 1 이상이어야 이 항목이 무언가를 잰다. 절차서 §B 의 세션 회전을 돌렸는지 확인한다."
+  }
+}

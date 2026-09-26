@@ -1,0 +1,19 @@
+{
+  "command_id": "01a0b1c2-7a02-7c12-9e33-4f5566778899",
+  "command_type": "SET_SHIP_CONTROL",
+  "schema_version": 1,
+  "client_sent_at": null,
+  "payload": {
+    "input_seq": 4294967295,
+    "thrust_x_milli": 1000,
+    "thrust_y_milli": -1000,
+    "thrust_z_milli": -1000,
+    "roll_milli": 1000,
+    "aim_x_micro": -1000000,
+    "aim_y_micro": 0,
+    "aim_z_micro": 0,
+    "aim_w_micro": 0,
+    "brake": true,
+    "flight_assist": false
+  }
+}

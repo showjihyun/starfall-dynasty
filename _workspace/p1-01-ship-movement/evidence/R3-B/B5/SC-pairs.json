@@ -1,0 +1,20 @@
+{
+  "item": "SC-14/SC-76 (AC-3g/AC-20a) ship_id 기준 함선 이벤트 짝짓기",
+  "verdict": "PASS",
+  "pairing_key": "ship_id (correlation_id 아님 — I-41)",
+  "ships_checked": 13,
+  "spawned_total": 13,
+  "despawned_total": 13,
+  "unpaired_or_duplicated": [],
+  "actors_with_more_than_one_ship": [
+    {
+      "actor_id": "01a0b1c2-b010-7000-8000-000000000017",
+      "ships": 2
+    }
+  ],
+  "tick_window": {
+    "from_tick": 403435,
+    "to_tick": null,
+    "mode": "tick 구간 한정"
+  }
+}

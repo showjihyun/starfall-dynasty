@@ -66,7 +66,9 @@
         "SCHEMA_VERSION_UNSUPPORTED",
         "DUPLICATE_COMMAND_ID",
         "SERVER_BUSY",
-        "TOO_MANY_IN_FLIGHT"
+        "TOO_MANY_IN_FLIGHT",
+        "RATE_LIMITED",
+        "STALE_INPUT"
       ]
     }
   }

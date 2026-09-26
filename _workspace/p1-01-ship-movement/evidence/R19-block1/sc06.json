@@ -1,0 +1,188 @@
+{
+  "item": "SC-06 / AC-2(b~g) — 기동 거부 8종",
+  "server_binary": "C:\\WorkSpace\\SpaceHistoric\\server\\target\\debug\\starfall-game-server.exe",
+  "server_binary_mtime": "2026-09-23T22:01:51",
+  "cases_run": 8,
+  "passed": 8,
+  "negative_control": {
+    "what": "멀쥰한 data/ 사본 — 데이터 검증을 통과하는가 (DATABASE_URL 을 죽은 포트로 돌려 포트를 잡지 않는다)",
+    "data_load_succeeded": true,
+    "data_load_line": "2026-09-25T12:22:43.373424Z  INFO starfall_game_server: 게임 데이터 로딩 완료 data_dir=\\\\?\\C:\\Users\\CHOISOOYEON\\AppData\\Local\\Temp\\claude\\C--WorkSpace-SpaceHistoric\\84d80a95-10c8-429a-b327-e769291e85db\\scratchpad\\sc06-work2\\0-negative-control-unmodified ship_classes=1 spawn_points=12 snapshot_interval_ticks=2",
+    "data_validation_rejects": 0,
+    "exit_code": 1,
+    "timed_out": false,
+    "later_stage_error": "2026-09-25T12:22:48.378120Z ERROR starfall_game_server: 서버가 오류로 종료됐다 error=마이그레이션 적용 실패 — 마이그레이션 파일을 고쳤다면 `docker compose down -v && docker compose up -d` 가 필요하다",
+    "verdict": "PASS"
+  },
+  "verdict": "PASS",
+  "results": [
+    {
+      "case": "1-hard-radius-above-ceiling",
+      "expected_rule": "schema",
+      "expected_field": null,
+      "exit_code": 1,
+      "reject_log_lines": [
+        "2026-09-25T12:22:27.116193Z ERROR starfall_game_server: 게임 데이터 로딩 실패 error=기동 거부: 데이터 검증 실패 file=\\\\?\\C:\\Users\\CHOISOOYEON\\AppData\\Local\\Temp\\claude\\C--WorkSpace-SpaceHistoric\\84d80a95-10c8-429a-b327-e769291e85db\\scratchpad\\sc06-work2\\1-hard-radius-above-ceiling\\world\\systems\\cradle.json error=de_boundary_radius_m 는 (0 .. 20000 범위를 벗어난다 (받음: 20000.1) at line 24 column 37 rule=schema"
+      ],
+      "has_file": true,
+      "rule_matches": true,
+      "field_matches": true,
+      "log_format_tokens": {
+        "file=": true,
+        "field=": false,
+        "expected=": false,
+        "actual=": false,
+        "error=": true
+      },
+      "discriminators_missing": [],
+      "verdict": "PASS"
+    },
+    {
+      "case": "2-spawn-points-empty",
+      "expected_rule": "schema",
+      "expected_field": null,
+      "exit_code": 1,
+      "reject_log_lines": [
+        "2026-09-25T12:22:29.143502Z ERROR starfall_game_server: 게임 데이터 로딩 실패 error=기동 거부: 데이터 검증 실패 file=\\\\?\\C:\\Users\\CHOISOOYEON\\AppData\\Local\\Temp\\claude\\C--WorkSpace-SpaceHistoric\\84d80a95-10c8-429a-b327-e769291e85db\\scratchpad\\sc06-work2\\2-spawn-points-empty\\world\\systems\\cradle.json error=points_m 은 1 ..= 64 개여야 한다 (받음: 0) at line 46 column 18 rule=schema"
+      ],
+      "has_file": true,
+      "rule_matches": true,
+      "field_matches": true,
+      "log_format_tokens": {
+        "file=": true,
+        "field=": false,
+        "expected=": false,
+        "actual=": false,
+        "error=": true
+      },
+      "discriminators_missing": [],
+      "verdict": "PASS"
+    },
+    {
+      "case": "3-point-count-mismatch",
+      "expected_rule": "derived",
+      "expected_field": "spawn.point_count",
+      "exit_code": 1,
+      "reject_log_lines": [
+        "2026-09-25T12:22:31.177991Z ERROR starfall_game_server: 게임 데이터 로딩 실패 error=기동 거부: 데이터 검증 실패 file=\\\\?\\C:\\Users\\CHOISOOYEON\\AppData\\Local\\Temp\\claude\\C--WorkSpace-SpaceHistoric\\84d80a95-10c8-429a-b327-e769291e85db\\scratchpad\\sc06-work2\\3-point-count-mismatch\\world\\systems\\cradle.json field=spawn.point_count expected=points_m.len() (12) 과 같다 actual=13 rule=derived"
+      ],
+      "has_file": true,
+      "rule_matches": true,
+      "field_matches": true,
+      "log_format_tokens": {
+        "file=": true,
+        "field=": true,
+        "expected=": true,
+        "actual=": true,
+        "error=": true
+      },
+      "discriminators_missing": [],
+      "verdict": "PASS"
+    },
+    {
+      "case": "4-tick-snapshot-ratio-not-integer",
+      "expected_rule": "derived",
+      "expected_field": "snapshot.snapshot_hz",
+      "exit_code": 1,
+      "reject_log_lines": [
+        "2026-09-25T12:22:33.217516Z ERROR starfall_game_server: 게임 데이터 로딩 실패 error=기동 거부: 데이터 검증 실패 file=\\\\?\\C:\\Users\\CHOISOOYEON\\AppData\\Local\\Temp\\claude\\C--WorkSpace-SpaceHistoric\\84d80a95-10c8-429a-b327-e769291e85db\\scratchpad\\sc06-work2\\4-tick-snapshot-ratio-not-integer\\movement\\sync-tuning.json field=snapshot.snapshot_hz expected=tick_hz(20) 을 나누어떨어뜨리는 값 actual=7 rule=derived"
+      ],
+      "has_file": true,
+      "rule_matches": true,
+      "field_matches": true,
+      "log_format_tokens": {
+        "file=": true,
+        "field=": true,
+        "expected=": true,
+        "actual=": true,
+        "error=": true
+      },
+      "discriminators_missing": [],
+      "verdict": "PASS"
+    },
+    {
+      "case": "5-resume-window-above-linger",
+      "expected_rule": "derived",
+      "expected_field": "presence.reconnect_resume_window_seconds",
+      "exit_code": 1,
+      "reject_log_lines": [
+        "2026-09-25T12:22:35.251107Z ERROR starfall_game_server: 게임 데이터 로딩 실패 error=기동 거부: 데이터 검증 실패 file=\\\\?\\C:\\Users\\CHOISOOYEON\\AppData\\Local\\Temp\\claude\\C--WorkSpace-SpaceHistoric\\84d80a95-10c8-429a-b327-e769291e85db\\scratchpad\\sc06-work2\\5-resume-window-above-linger\\world\\systems\\cradle.json field=presence.reconnect_resume_window_seconds expected=<= linger_seconds (30) actual=35 rule=derived"
+      ],
+      "has_file": true,
+      "rule_matches": true,
+      "field_matches": true,
+      "log_format_tokens": {
+        "file=": true,
+        "field=": true,
+        "expected=": true,
+        "actual=": true,
+        "error=": true
+      },
+      "discriminators_missing": [],
+      "verdict": "PASS"
+    },
+    {
+      "case": "6-spawn-point-outside-hard-boundary",
+      "expected_rule": "derived",
+      "expected_field": "spawn.points_m[0]",
+      "exit_code": 1,
+      "reject_log_lines": [
+        "2026-09-25T12:22:37.282681Z ERROR starfall_game_server: 게임 데이터 로딩 실패 error=기동 거부: 데이터 검증 실패 file=\\\\?\\C:\\Users\\CHOISOOYEON\\AppData\\Local\\Temp\\claude\\C--WorkSpace-SpaceHistoric\\84d80a95-10c8-429a-b327-e769291e85db\\scratchpad\\sc06-work2\\6-spawn-point-outside-hard-boundary\\world\\systems\\cradle.json field=spawn.points_m[0] expected=원점 거리 <= hard_boundary_radius_m (12000) actual=999999.0312500307 ([999999.0, 250.0, 0.0]) rule=derived"
+      ],
+      "has_file": true,
+      "rule_matches": true,
+      "field_matches": true,
+      "log_format_tokens": {
+        "file=": true,
+        "field=": true,
+        "expected=": true,
+        "actual=": true,
+        "error=": true
+      },
+      "discriminators_missing": [],
+      "verdict": "PASS"
+    },
+    {
+      "case": "7-main-thrust-below-lateral-or-reverse",
+      "expected_rule": "derived",
+      "expected_field": "movement.main_thrust_mps2",
+      "exit_code": 1,
+      "reject_log_lines": [
+        "2026-09-25T12:22:39.314070Z ERROR starfall_game_server: 게임 데이터 로딩 실패 error=기동 거부: 데이터 검증 실패 file=\\\\?\\C:\\Users\\CHOISOOYEON\\AppData\\Local\\Temp\\claude\\C--WorkSpace-SpaceHistoric\\84d80a95-10c8-429a-b327-e769291e85db\\scratchpad\\sc06-work2\\7-main-thrust-below-lateral-or-reverse\\ships\\scout-s01.json field=movement.main_thrust_mps2 expected=>= lateral_thrust_mps2 (18) actual=0.1 rule=derived"
+      ],
+      "has_file": true,
+      "rule_matches": true,
+      "field_matches": true,
+      "log_format_tokens": {
+        "file=": true,
+        "field=": true,
+        "expected=": true,
+        "actual=": true,
+        "error=": true
+      },
+      "discriminators_missing": [],
+      "verdict": "PASS"
+    },
+    {
+      "case": "8-duplicate-ship-class-id",
+      "expected_rule": "derived",
+      "expected_field": "id",
+      "exit_code": 1,
+      "reject_log_lines": [
+        "2026-09-25T12:22:41.346554Z ERROR starfall_game_server: 게임 데이터 로딩 실패 error=기동 거부: 데이터 검증 실패 file=\\\\?\\C:\\Users\\CHOISOOYEON\\AppData\\Local\\Temp\\claude\\C--WorkSpace-SpaceHistoric\\84d80a95-10c8-429a-b327-e769291e85db\\scratchpad\\sc06-work2\\8-duplicate-ship-class-id\\ships\\zz-duplicate.json field=id expected=고유 id (이미 \\\\?\\C:\\Users\\CHOISOOYEON\\AppData\\Local\\Temp\\claude\\C--WorkSpace-SpaceHistoric\\84d80a95-10c8-429a-b327-e769291e85db\\scratchpad\\sc06-work2\\8-duplicate-ship-class-id\\ships\\scout-s01.json 에서 사용됨 — 중복 없음, S2 검산) actual=scout-s01 rule=derived"
+      ],
+      "has_file": true,
+      "rule_matches": true,
+      "field_matches": true,
+      "log_format_tokens": {
+        "file=": true,
+        "field=": true,
+        "expected=": true,
+        "actual=": true,
+        "error=": true
+      },
+      "discriminators_missing": [],
+      "verdict": "PASS"
+    }
+  ]
+}
