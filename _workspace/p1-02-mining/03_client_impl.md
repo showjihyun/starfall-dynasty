@@ -622,3 +622,77 @@ PlayMode: tests=2  failures=0 skipped=0   (_workspace/p1-02-mining/unity-tests/P
 client 몫(C1·C2·C3, task #18~20) 전부 완료. SC-65~72·110 중 client 담당 전항목이 최소 한 번씩
 실측 증거(정상 실행 + 최소 하나의 양성/음성 대조, 다수는 RED→GREEN 또는 결함 흉내 실측 포함)를
 갖췄다.
+
+## C4 — SC-68 1차 FAIL 재작업: 그레이박스 §8 표시 보강 (client-3, 2026-10-04)
+
+### 왜
+
+SC-68 사람 세션 1차 FAIL (`_workspace/p1-02-mining/evidence/sc68/notes.md`): 광맥이 3D로 안 보임
+(HUD 텍스트 목록뿐), 표면 거리·사거리·속도 표시 없음, 쿨다운 표시 없음, E 키가 채굴
+(`GreyboxMiningSession.cs:142`)과 롤(`ShipInputSampler.cs:106`)에 동시에 묶임. 사용자 결정: "고치고
+다시 세션".
+
+### 바뀐 파일
+
+| 파일 | 변경 |
+|---|---|
+| `client/Assets/_Project/Scripts/Mining/MiningRangeStatus.cs` | 신규. 표면 거리·사거리 안·속도 판정 순수 로직(`MiningRangeEvaluator.Evaluate`) + 세 줄 포맷(`FormatStatusLines`). 서버 정의(`server/crates/sim/src/mining.rs: within_mining_range`)와 경계 일치(둘 다 `<=`). |
+| `client/Assets/_Project/Scripts/Mining/DistanceLabel.cs` | 신규. m/km 포맷 순수 함수 (경계 1000). |
+| `client/Assets/_Project/Scripts/Mining/CooldownDisplay.cs` | 신규. 남은 쿨다운 초 계산(`RemainingSeconds`) + null-또는-문자열 포맷(`FormatOrNull`, 0초면 줄 자체를 안 그린다). |
+| `client/Assets/_Project/Scripts/Mining/MiningNoticeKind.cs` | 신규. `MiningNoticeKind{Yield,OwnDiscovery,SystemWideDiscovery}` + 분류(`ClassifyDiscovery`, actor_id 비교)·문구(`FormatBanner`/`FormatYieldNotice`) - 세 가지가 서로 다른 어휘를 쓰도록 분리. |
+| `client/Assets/_Project/Scripts/Mining/DepositMarkerState.cs` | `FormatLine`의 미확인 문구를 "미확인"→"미확인 광맥"(design doc §8/SC-68 절차서 리터럴 문구)으로, `FormatLineWithDistance` 신규(거리 접미사). |
+| `client/Assets/_Project/Scripts/Greybox/GreyboxMiningSession.cs` | 채굴 키 E→G(`MineKey`, `ShipInputSampler`의 E/Q 롤과 더는 안 겹침). `BuildDepositMarkers()`로 광맥마다 큐브 프리미티브(참조 표식 구체와 구분되는 모양·색) 생성. `OnGUI`에 나머지 세 요소를 추가: 가장 가까운 광맥의 표면 거리/사거리/속도 3줄, 쿨다운 줄, 산출 알림(작게)과 발견 배너(크게, 색·문구 분리, `DiscoveryBannerHoldSeconds=6`초 유지)를 별도 영역에. `DrawDepositScreenLabels`로 광맥마다 화면 투영 라벨(카메라 뒤면 숨김) + 거리. |
+| `client/Assets/_Project/Scripts/Greybox/GreyboxSession.cs` | `_chaseCamera` 필드·`ChaseCamera` 접근자 추가(스크린 투영용), `GreyboxMiningSession.Init`에 카메라 프로바이더 전달. |
+| `client/Assets/_Project/Tests/EditMode/MiningViewModelTests.cs` | 신규 13건(아래) + `using Starfall.Sim;`. |
+
+### 신규 테스트 (13건, 전부 EditMode, 경계값 포함)
+
+| 테스트 | 경계 |
+|---|---|
+| `MiningRangeEvaluator_SurfaceDistance_SubtractsRadius` | - |
+| `MiningRangeEvaluator_RangeBoundary_ExactlyAtLimit_IsInRange` | 표면 거리 == 사거리(안쪽) vs +0.0001(바깥, 음성 대조) |
+| `MiningRangeEvaluator_SpeedBoundary_ExactlyAtLimit_IsOk` | 속도 == 상한(허용) vs +0.0001(거부, 음성 대조) |
+| `MiningRangeEvaluator_ReadyToMine_RequiresBothInRangeAndSpeedOk` | 한쪽만 true인 두 케이스 |
+| `MiningRangeEvaluator_FormatStatusLines_MarksEachLineOkOrNg` | [OK]/[NG] 둘 다 |
+| `DistanceLabel_Boundary_999IsMeters_1000IsKilometers` | 999 vs 1000 |
+| `CooldownDisplay_Boundary_ElapsedEqualsCooldown_IsExactlyZero` | 경과==쿨다운 → 정확히 0 |
+| `CooldownDisplay_FormatOrNull_ZeroRemaining_IsNull_NotZeroText` | 0초 → null(줄 안 그림) |
+| `MiningNoticeClassifier_SameActorId_IsOwnDiscovery` | - |
+| `MiningNoticeClassifier_DifferentActorId_IsSystemWideDiscovery` | - |
+| `MiningNoticeClassifier_FormatBanner_OwnAndSystemWide_AreDistinctSentences` | 배너 둘 + 산출 알림 문구가 서로 다름을 단언 |
+| `DepositMarkerState_FormatLine_Unrevealed_SaysExactLiteralPhrase` | "미확인 광맥" 리터럴 |
+| `DepositMarkerState_FormatLineWithDistance_AppendsDistanceSuffix` | DistanceLabel과 같은 포맷 |
+
+### 자기 점검 표 (qa-throughput R3)
+
+| # | 항목 | 결과 |
+|---|---|---|
+| 1 | 계약 방법대로 실행, 1건 이상 돈다 | `unity test client --mode EditMode` → `_workspace/p1-02-mining/evidence/c4/EditMode-final.xml`: `tests="423" failures="0" errors="0" skipped="2"` (410 기존 + 13 신규, 회귀 없음) |
+| 2 | 구현 변이 → 테스트 실패 | `MiningRangeStatus.cs`의 `surfaceDistanceM = distanceToCenterM - depositRadiusM` → `distanceToCenterM`(반지름 안 뺌)로 변이, `--filter "MiningRangeEvaluator*"` 재실행 → `tests="5" failures="2"` (`MiningRangeEvaluator_SurfaceDistance_SubtractsRadius`: Expected 250.0 But was 300.0, `MiningRangeEvaluator_RangeBoundary_ExactlyAtLimit_IsInRange`: Expected 150.0 But was 200.0) — 변이가 실제로 겨냥한 테스트만 잡았다 |
+| 3 | 원복 증명 | 변이 전 `sha256(MiningRangeStatus.cs) = 0bbb2e2bf3b967d7450207b151991146515de694fbd0a269a9d92d87b50cb1dd`, 원복 후 같은 해시로 재확인(커밋 전 변경이라 `git diff`가 아니라 sha256으로 증명) |
+| 4 | 계약 지명 바이너리·경로 존재 | `unity test client --mode EditMode` 그대로(CLI 바이너리 변경 없음). 새 파일 4개(`MiningRangeStatus.cs`/`DistanceLabel.cs`/`CooldownDisplay.cs`/`MiningNoticeKind.cs`) 전부 `client/Assets/_Project/Scripts/Mining/`(기존 asmdef `Starfall.Mining`, 참조 변경 없음) |
+| 5 | 같은 턴 안에서 결과 확인 | 위 세 실행(정상→변이→원복) 전부 이 턴에서 완료, 알림 대기로 턴을 끝내지 않았다 |
+
+### E→G 변경 확인
+
+```
+grep -n "MineKey" client/Assets/_Project/Scripts/Greybox/GreyboxMiningSession.cs
+```
+`const Key MineKey = Key.G;` — `ShipInputSampler.cs`의 `keyboard.eKey`(롤)·`keyboard.qKey`(역방향 롤)와 더는 안 겹친다. HUD 안내 문구(`"-- mining (" + MineKey + " = mine..."`, `"[" + MineKey + "] 채굴 가능"`)도 같은 상수를 써서 키가 또 바뀌어도 한 곳만 고치면 된다.
+
+### 사람이 확인할 항목 (SC-68 재시도 — 그대로 사람에게 줄 수 있는 체크리스트)
+
+1. **접속 직후**: 광맥 8개가 **주황색 큐브**로 보인다(참조 표식은 회색 구체 - 모양·색 둘 다 다름). 각 광맥 위에 화면 라벨이 보이고(카메라가 그 쪽을 보지 않으면 사라진다), 라벨에 이름·거리(m 또는 km)가 있다. 미확인 광맥은 라벨에 "미확인 광맥"이라고 적혀 있다.
+2. **가장 가까운 광맥으로 비행**: HUD 박스(화면 좌상단, y=420 부근)에 `nearest: ...`, `표면 거리 ... m`, `[OK/NG] 사거리 안`, `[OK/NG] 속도 ...` 세 줄이 보인다. 150 m 안에서 멈추면(속도 ≤ 10 m/s) 셋 다 `[OK]`로 바뀌고 `[G] 채굴 가능`이 보인다.
+3. **G 키를 누른다** (E 키 아님 — E는 이제 롤 전용). 접수되면 `채굴 접수됨 (tick ...)` 알림, 곧이어 `쿨다운 ...s` 줄이 나타나 3초 동안 줄다가 사라진다(0이 되면 줄 자체가 사라진다 — "쿨다운 0.0s"처럼 계속 떠 있지 않는다).
+4. **산출 알림과 발견 배너가 다른 것으로 보이는가**: 채굴 성공 시 작은 글씨 `알림: 인벤토리 갱신: N종`이 HUD 박스 안에, 그와 별개로 **화면 상단 중앙에 큰 글씨 배너**가 뜬다. 내가 처음 발견했으면 **금색**("역사적 발견 — ... 이 기록은 남는다"), 다른 사람이 먼저 발견한 사건이면 **하늘색**(예: "Pilot-xxxx가 Cradle 성계에서 처음으로 ...를 발견했다"). 배너는 약 6초 뒤 사라진다.
+5. **HUD 박스 겹침**: `GreyboxSession`의 본 HUD(좌상단, y=8)와 이 박스(y=420)가 작은 창에서 겹치지 않는지 — 여전히 알려진 그레이박스 한계로 남아 있다면 사람이 창 크기를 키워서 확인.
+6. **발견 목록/인벤토리**: 광물별 kg, `발견된 광물 N / 4`가 같은 HUD 박스 하단에 겹치지 않고 보인다.
+
+### 남은 것 (이번 범위 밖)
+
+- SC-71(B) PlayMode 하네스는 이전 라운드와 동일하게 미착수 (C3 절 참고) — 이번 수정은 OnGUI/3D 표시
+  보강이라 그 범위를 넓히지 않았다.
+- 3D 큐브 마커의 실제 육안 확인(카메라 각도·겹침 등)은 여전히 사람 세션 몫이다 — 이 턴에서는
+  EditMode로 검증 가능한 순수 로직만 TDD로 확인했고, Unity Editor를 실행해 Play하지 않았다(에이전트는
+  Play 버튼을 못 누른다).

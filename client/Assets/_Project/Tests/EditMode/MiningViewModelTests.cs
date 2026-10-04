@@ -3,12 +3,18 @@
 // need PlayMode - they take DTOs/plain values in and return plain values/state, same testing
 // style as p1-01's ReconcileTickDrift/RebaseHold/etc (Starfall.Flight, pure + independently
 // tested).
+//
+// C4 (SC-68 human session, 1st attempt FAIL, 2026-10-04): added MiningRangeStatus/
+// MiningRangeEvaluator, DistanceLabel, CooldownDisplay, MiningNoticeKind/MiningNoticeClassifier,
+// and DepositMarkerState.FormatLine/FormatLineWithDistance - the pure logic behind design doc §8's
+// six greybox elements (markers+distance, range/speed traffic light, cooldown, two notice kinds).
 
 using System;
 using System.Collections.Generic;
 using NUnit.Framework;
 using Starfall.Contracts.Generated;
 using Starfall.Mining;
+using Starfall.Sim;
 
 namespace Starfall.Tests.EditMode
 {
@@ -325,6 +331,167 @@ namespace Starfall.Tests.EditMode
             // After resolution, the SAME deposit gets a FRESH id (previous attempt is done).
             Guid next = gateway.ResolveCommandIdFor("far-reach");
             Assert.That(next, Is.Not.EqualTo(mine));
+        }
+
+        // ------------------------------------------------------------------ MiningRangeEvaluator (C4, design doc §8 item 2)
+
+        [Test]
+        public void MiningRangeEvaluator_SurfaceDistance_SubtractsRadius()
+        {
+            // 중심 거리 300, 반지름 50 -> 표면 거리 250 (디자인 §4.2 #4 정의 그대로).
+            MiningRangeStatus status = MiningRangeEvaluator.Evaluate(
+                distanceToCenterM: 300.0, depositRadiusM: 50.0, shipSpeedMps: 0.0,
+                rangeFromSurfaceM: 150.0, maxSpeedMps: 10.0);
+            Assert.That(status.SurfaceDistanceM, Is.EqualTo(250.0));
+            Assert.That(status.InRange, Is.False, "표면 거리 250 > 사거리 150");
+        }
+
+        [Test]
+        public void MiningRangeEvaluator_RangeBoundary_ExactlyAtLimit_IsInRange()
+        {
+            // 서버 판정은 <=(mining.rs within_mining_range) - 경계값이 "사거리 안"이어야 서버와
+            // 클라이언트 표시가 어긋나지 않는다.
+            MiningRangeStatus atLimit = MiningRangeEvaluator.Evaluate(
+                distanceToCenterM: 200.0, depositRadiusM: 50.0, shipSpeedMps: 0.0,
+                rangeFromSurfaceM: 150.0, maxSpeedMps: 10.0);
+            Assert.That(atLimit.SurfaceDistanceM, Is.EqualTo(150.0));
+            Assert.That(atLimit.InRange, Is.True, "표면 거리 == 사거리 한계는 안쪽(<=)이어야 한다");
+
+            MiningRangeStatus justOutside = MiningRangeEvaluator.Evaluate(
+                distanceToCenterM: 200.0001, depositRadiusM: 50.0, shipSpeedMps: 0.0,
+                rangeFromSurfaceM: 150.0, maxSpeedMps: 10.0);
+            Assert.That(justOutside.InRange, Is.False, "경계 바로 바깥은 밖이어야 한다 - 음성 대조");
+        }
+
+        [Test]
+        public void MiningRangeEvaluator_SpeedBoundary_ExactlyAtLimit_IsOk()
+        {
+            MiningRangeStatus atLimit = MiningRangeEvaluator.Evaluate(
+                distanceToCenterM: 0.0, depositRadiusM: 0.0, shipSpeedMps: 10.0,
+                rangeFromSurfaceM: 150.0, maxSpeedMps: 10.0);
+            Assert.That(atLimit.SpeedOk, Is.True, "속도 == 상한은 허용(<=)이어야 한다");
+
+            MiningRangeStatus justOver = MiningRangeEvaluator.Evaluate(
+                distanceToCenterM: 0.0, depositRadiusM: 0.0, shipSpeedMps: 10.0001,
+                rangeFromSurfaceM: 150.0, maxSpeedMps: 10.0);
+            Assert.That(justOver.SpeedOk, Is.False, "경계 바로 위는 거부여야 한다 - 음성 대조");
+        }
+
+        [Test]
+        public void MiningRangeEvaluator_ReadyToMine_RequiresBothInRangeAndSpeedOk()
+        {
+            var rangeOnly = new MiningRangeStatus(10.0, inRange: true, speedOk: false);
+            var speedOnly = new MiningRangeStatus(10.0, inRange: false, speedOk: true);
+            var both = new MiningRangeStatus(10.0, inRange: true, speedOk: true);
+
+            Assert.That(rangeOnly.ReadyToMine, Is.False);
+            Assert.That(speedOnly.ReadyToMine, Is.False);
+            Assert.That(both.ReadyToMine, Is.True);
+        }
+
+        [Test]
+        public void MiningRangeEvaluator_FormatStatusLines_MarksEachLineOkOrNg()
+        {
+            MiningRangeStatus status = MiningRangeEvaluator.Evaluate(
+                distanceToCenterM: 100.0, depositRadiusM: 50.0, shipSpeedMps: 5.0,
+                rangeFromSurfaceM: 150.0, maxSpeedMps: 10.0);
+            string[] lines = MiningRangeEvaluator.FormatStatusLines(status, 5.0);
+            TestContext.WriteLine(string.Join(" | ", lines));
+
+            Assert.That(lines.Length, Is.EqualTo(3));
+            Assert.That(lines[0], Does.Contain("표면 거리"));
+            Assert.That(lines[1], Does.StartWith("[OK] "), "사거리 안이면 [OK]");
+            Assert.That(lines[2], Does.StartWith("[OK] "), "속도 5 <= 상한 10이면 [OK]");
+
+            MiningRangeStatus badStatus = MiningRangeEvaluator.Evaluate(
+                distanceToCenterM: 100.0, depositRadiusM: 0.0, shipSpeedMps: 50.0,
+                rangeFromSurfaceM: 10.0, maxSpeedMps: 10.0);
+            string[] badLines = MiningRangeEvaluator.FormatStatusLines(badStatus, 50.0);
+            Assert.That(badLines[1], Does.StartWith("[NG] "));
+            Assert.That(badLines[2], Does.StartWith("[NG] "));
+        }
+
+        // ------------------------------------------------------------------ DistanceLabel (C4)
+
+        [Test]
+        public void DistanceLabel_Boundary_999IsMeters_1000IsKilometers()
+        {
+            Assert.That(DistanceLabel.Format(999.0), Is.EqualTo("999 m"));
+            Assert.That(DistanceLabel.Format(1000.0), Is.EqualTo("1.00 km"));
+            Assert.That(DistanceLabel.Format(6263.0), Is.EqualTo("6.26 km"), "Far Reach 스폰 거리 예시(design doc §1.3)");
+        }
+
+        // ------------------------------------------------------------------ CooldownDisplay (C4, design doc §8 item 3)
+
+        [Test]
+        public void CooldownDisplay_Boundary_ElapsedEqualsCooldown_IsExactlyZero()
+        {
+            Assert.That(CooldownDisplay.RemainingSeconds(3.0, 0.0), Is.EqualTo(3.0));
+            Assert.That(CooldownDisplay.RemainingSeconds(3.0, 3.0), Is.EqualTo(0.0), "경과 == 쿨다운이면 정확히 0 (음수 아님)");
+            Assert.That(CooldownDisplay.RemainingSeconds(3.0, 10.0), Is.EqualTo(0.0), "경과가 쿨다운을 넘어도 0에서 멈춘다");
+        }
+
+        [Test]
+        public void CooldownDisplay_FormatOrNull_ZeroRemaining_IsNull_NotZeroText()
+        {
+            // 0초 쿨다운을 계속 그리면 "채굴 가능"과 구별이 안 된다(team-lead 지시) - 줄 자체가 없어야 한다.
+            Assert.That(CooldownDisplay.FormatOrNull(0.0), Is.Null);
+            Assert.That(CooldownDisplay.FormatOrNull(1.4), Is.EqualTo("쿨다운 1.4s"));
+        }
+
+        // ------------------------------------------------------------------ MiningNoticeClassifier (C4, design doc §8 item 5 / §3.4)
+
+        [Test]
+        public void MiningNoticeClassifier_SameActorId_IsOwnDiscovery()
+        {
+            Guid me = Guid.NewGuid();
+            Assert.That(MiningNoticeClassifier.ClassifyDiscovery(me, me), Is.EqualTo(MiningNoticeKind.OwnDiscovery));
+        }
+
+        [Test]
+        public void MiningNoticeClassifier_DifferentActorId_IsSystemWideDiscovery()
+        {
+            Assert.That(MiningNoticeClassifier.ClassifyDiscovery(Guid.NewGuid(), Guid.NewGuid()),
+                Is.EqualTo(MiningNoticeKind.SystemWideDiscovery));
+        }
+
+        [Test]
+        public void MiningNoticeClassifier_FormatBanner_OwnAndSystemWide_AreDistinctSentences()
+        {
+            string own = MiningNoticeClassifier.FormatBanner(MiningNoticeKind.OwnDiscovery, "Starfall Glass", "Pilot-0001", "far-reach");
+            string systemWide = MiningNoticeClassifier.FormatBanner(MiningNoticeKind.SystemWideDiscovery, "Starfall Glass", "Pilot-0001", "far-reach");
+            TestContext.WriteLine("own: " + own);
+            TestContext.WriteLine("system-wide: " + systemWide);
+
+            Assert.That(own, Is.Not.EqualTo(systemWide), "내 발견과 남의 발견 배너는 같은 사건이라도 다른 문장이어야 한다");
+            Assert.That(own, Does.Contain("역사적 발견"));
+            Assert.That(systemWide, Does.Contain("Pilot-0001"));
+
+            string yield = MiningNoticeClassifier.FormatYieldNotice("Starfall Glass", 25);
+            Assert.That(yield, Does.Not.Contain("발견"), "산출 알림은 '발견'이라는 단어를 쓰지 않는다 - 배너와 어휘로도 구별");
+            Assert.That(own, Is.Not.EqualTo(yield));
+            Assert.That(systemWide, Is.Not.EqualTo(yield));
+        }
+
+        // ------------------------------------------------------------------ DepositMarkerState (C4: "미확인 광맥" literal text, distance suffix)
+
+        [Test]
+        public void DepositMarkerState_FormatLine_Unrevealed_SaysExactLiteralPhrase()
+        {
+            var table = new DepositTableEntry { Id = "far-reach", DisplayName = "Far Reach", RadiusM = 40.0 };
+            string line = DepositMarkerState.FormatLine(table, wire: null, discovery: null, mineralDisplayName: null);
+            TestContext.WriteLine(line);
+            Assert.That(line, Does.Contain("미확인 광맥"), "design doc §8 item 1 / SC-68 절차서 문구 그대로");
+        }
+
+        [Test]
+        public void DepositMarkerState_FormatLineWithDistance_AppendsDistanceSuffix()
+        {
+            var table = new DepositTableEntry { Id = "far-reach", DisplayName = "Far Reach", RadiusM = 40.0 };
+            string line = DepositMarkerState.FormatLineWithDistance(table, wire: null, discovery: null, mineralDisplayName: null, distanceToCenterM: 6263.0);
+            TestContext.WriteLine(line);
+            Assert.That(line, Does.Contain("미확인 광맥"));
+            Assert.That(line, Does.EndWith("6.26 km"), "DistanceLabel.Format과 같은 포맷 - 같은 코드 경로");
         }
     }
 }

@@ -1,6 +1,6 @@
 # p1-02-mining: 채굴, 인벤토리, 그리고 첫 역사
 
-- 상태: **agreed** (사용자 결정 Q1~Q4 + 리더 판단 2026-09-27, designer 설계·history 검토 반영. Q5·Q6 리더 판단 — §9.1)
+- 상태: **implemented** (2026-10-05 마감 — r3 PASS 112 / FAIL 0, SC-98 CI 첫 실행 PASS(PR #5), SC-68 사람 세션 2차 확인. 사용자 결정 Q1~Q4·리더 판단 Q5·Q6, designer 설계·history 검토 반영)
 - 로드맵 Phase: p1 (코어 프로토타입) — 둘째 슬라이스
 - 근거 기획안 절: GDD §7(Resource System), GDD §8(Exploration → Historical Discovery), GDD §33(서버 판정 8단계), GDD §36(MVP-1, **핵심 테스트: "다른 플레이어가 그 행동의 흔적을 발견할 수 있는가"**), GDD §46(10,000 광물 경고), TECH §19(Transactional Outbox), TECH §26–27(경제 — 화폐 복사가 최악의 버그), HSE §9–13(Historical Event·중요도·스키마·Lifecycle), HSE §22(Truth 분리), HSE §28–34(멱등·순서·결정성·규칙 버전), HSE §88–91(MVP 범위·10종·Vertical Slice·테스트)
 - 관련 ADR: **0013**(경제 상태 영속화·지속 멱등성 — 신규, proposed), **0014**(역사 엔진 골격 — 신규, accepted). 개정: 0006 §4(역사 판정 위치), 0007 §1(기록 범위 표에 `MINERAL_MINED`). 기반: 0006 §6, 0010 §4, 0011 §7, 0012 §7
@@ -373,6 +373,7 @@ p1-01 §11 의 1~8 은 계속 참이다. 추가:
 | 2026-09-27 | **qa 계약 r0 판정 2건**: AC-11(h) 신설 — 역사 충돌(같은 키·다른 근거) = 러너 정지 + `history_conflicts_total`, 짝으로 같은 근거 재처리는 조용함(Q-3). 출처 게이트 슬라이스 표지 방식 승인(Q-1 — 스펙 변경 없음, 계약 §3.3) | qa `02_sprint_contract.md` r0 |
 | 2026-09-27 | **정지 경로 제약 표(ADR-0013 §5a) — 분모 78 제약 + 트리거 4**, ① 클라이언트 도달 예 1(`processed_commands_pkey`)·누적 1(`inventory_items_quantity_kg_check`), 둘 다 거름 장치와 테스트가 있다. **계약 변경**: `reason_code` += `CAPACITY_EXCEEDED`(판정 7단계, 넘침을 월드 정지 대신 거절로 — server 질문 1), fixture +1 → 유효 46. 디버그·릴리스 같은 경로(server 질문 2). 0002 가 `domain_events` 에 `CHECK (jsonb_typeof(payload)='object')` 추가 — JSONB `null` 이 `NOT NULL` 을 통과하던 구멍 | 리더·server |
 | 2026-09-27 | **계약 변경 1건**: `HISTORICAL_EVENT_NOTICE` producers `history` → `server`(T0 합의 — envelope tick·`message_id`·`delivery` 는 게이트웨이만 안다). `MINERAL_DISCOVERED` 는 history 유지. `registry_version` 4 그대로(같은 슬라이스 안, 미구현 상태의 태그 정정). 재실측: 유효 45 통과 / 반례 74 거부, 커버리지 errors 25 그대로. **정지 경로 전수표**를 ADR-0013 §5a 로 | history·server T0 |
+| 2026-10-05 | **implemented** — r3 PASS 112/FAIL 0 · SC-98 CI 첫 실행 PASS(PR #5) · SC-68 사람 세션 2차에서 사람 진술로 확인(스크린샷 없음, 1차 FAIL로 §8 표시 보강 C4) | 리더 마감 결정 |
 | 2026-10-03 | **§5.3 C# 열을 실측으로 확정**(거부 16 / 감지 불가 13 / 계층 없음 11, 불확실 1 건 → 거부) — r1·r2 동결 동안 미뤄 둔 기록. 그 사이 판정: ADR-0006 §4a(메시지 id 흐름 분리), ADR-0013 K2b 직접 기준 성립(r1), ADR-0014 §4-2 `detector_rule` = `rule_version`, ADR-0007 §5 마이그레이션 동결 규칙 | client-2 실측, qa r1·r2 |
 | 2026-09-30 | **`recording_lag` 정의 정정(K2b)**: "마지막 투입 − 마지막 커밋" 은 한가한 서버에서도 하트비트 간격(20)까지 커져 임계에 여유 0 — "커밋 대기 중 가장 오래된 배치의 나이" 로. 임계 20 유지 | qa 계약 외 발견(SC-104 실행) |
 | 2026-09-27 | **server ADR-0013 검토 K1~K6 + 추가 1~3 반영**: 지속 기억·PK 를 월드 범위로(`(world_id, command_id)`, AC-4(d2)), `RECORDING_BACKLOG` 판정을 `recording_lag` 로(AC-6(a2)), 비교 후 쓰기의 기대값은 sim 이 저장 표현으로 싣는다, 일시 실패 허용 목록(AC-5(f)), 정지 후 배치 커밋 금지(AC-5(e)), 모호한 커밋 카운터(AC-4(e)), 세션 기억과 지속 기억 둘 다, 기동 순서(목록을 런타임 인자로), BACKFILL 트리거 64 → 32. payload 직렬화 `null` 저장 경로(server 발견)를 AC-5(d) 에 | server `02_server_ack.md` §1 |

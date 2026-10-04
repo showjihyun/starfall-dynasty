@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites name="Starfall Dynasty" tests="5" failures="2" errors="0" skipped="0" time="0.018">
+  <testsuite name="Starfall.Tests.EditMode.MiningViewModelTests" tests="5" failures="2" errors="0" skipped="0" time="0.018">
+    <testcase name="MiningRangeEvaluator_FormatStatusLines_MarksEachLineOkOrNg" classname="Starfall.Tests.EditMode.MiningViewModelTests" time="0.013">
+      <system-out>표면 거리 100 m | [OK] 사거리 안 | [OK] 속도 5.0 m/s</system-out>
+    </testcase>
+    <testcase name="MiningRangeEvaluator_RangeBoundary_ExactlyAtLimit_IsInRange" classname="Starfall.Tests.EditMode.MiningViewModelTests" time="0.004">
+      <failure message="Expected: 150.0d&#13;&#10;  But was:  200.0d" type="Failed">at Starfall.Tests.EditMode.MiningViewModelTests.MiningRangeEvaluator_RangeBoundary_ExactlyAtLimit_IsInRange () [0x00032] in C:\WorkSpace\SpaceHistoric\client\Assets\_Project\Tests\EditMode\MiningViewModelTests.cs:357</failure>
+    </testcase>
+    <testcase name="MiningRangeEvaluator_ReadyToMine_RequiresBothInRangeAndSpeedOk" classname="Starfall.Tests.EditMode.MiningViewModelTests" time="0.000" />
+    <testcase name="MiningRangeEvaluator_SpeedBoundary_ExactlyAtLimit_IsOk" classname="Starfall.Tests.EditMode.MiningViewModelTests" time="0.000" />
+    <testcase name="MiningRangeEvaluator_SurfaceDistance_SubtractsRadius" classname="Starfall.Tests.EditMode.MiningViewModelTests" time="0.000">
+      <failure message="Expected: 250.0d&#13;&#10;  But was:  300.0d" type="Failed">at Starfall.Tests.EditMode.MiningViewModelTests.MiningRangeEvaluator_SurfaceDistance_SubtractsRadius () [0x00032] in C:\WorkSpace\SpaceHistoric\client\Assets\_Project\Tests\EditMode\MiningViewModelTests.cs:345</failure>
+      <system-out>Saving results to: C:/Users/CHOISOOYEON/AppData/LocalLow/Starfall/Starfall Dynasty\TestResults.xml</system-out>
+    </testcase>
+  </testsuite>
+</testsuites>

@@ -42,8 +42,11 @@ namespace Starfall.Mining
             string label = table.DisplayName + " (" + table.Id + ")";
 
             bool revealed = wire != null && wire.MineralId != null;
+            // Design doc §8 item 1 / SC-68 절차서 literal string: unrevealed deposits read
+            // "미확인 광맥" (not just "미확인") so a human scanning the HUD recognizes the exact
+            // phrase the spec names.
             if (!revealed)
-                return label + " - 미확인";
+                return label + " - 미확인 광맥";
 
             string mineral = mineralDisplayName ?? wire.MineralId;
             string remaining = wire.RemainingKg.HasValue ? wire.RemainingKg.Value + " kg" : "?";
@@ -53,6 +56,17 @@ namespace Starfall.Mining
                 line += " (최초 발견: " + PilotTag.From(discovery.Value.DiscovererActorId) + ")";
 
             return line;
+        }
+
+        /// <summary>C4 (SC-68 재시도): <see cref="FormatLine"/> + 함선에서 이 광맥까지의 직선
+        /// 거리(m/km, <see cref="DistanceLabel"/>). 사람이 화면 라벨만 보고 방향을 잡을 수 있게
+        /// (team-lead 지시) - 거리는 중심 거리(채굴 사거리 판정의 표면 거리와는 다른 값, 그건
+        /// <see cref="MiningRangeEvaluator"/>가 따로 계산한다).</summary>
+        public static string FormatLineWithDistance(DepositTableEntry table,
+            DepositFieldStateMessage.DepositFieldStatePayload.DepositState wire,
+            DiscoveryEntry? discovery, string mineralDisplayName, double distanceToCenterM)
+        {
+            return FormatLine(table, wire, discovery, mineralDisplayName) + " · " + DistanceLabel.Format(distanceToCenterM);
         }
     }
 }
