@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.starfall.invalid/contracts/messages/INVENTORY_STATE.schema.json",
+  "title": "InventoryStateMessage",
+  "description": "The receiving session's actor's whole inventory, as the server holds it at `tick`. Sent once right after SESSION_READY and again in every tick in which that actor's inventory changed - for MINE_RESOURCE, in the same tick as and after its COMMAND_RESULT (spec p1-02 section 5.1a). It is a full state, not a delta: a client that missed one needs nothing but the next. THE CLIENT NEVER COMPUTES AN INVENTORY (spec p1-02 I-49): what it shows is always the last INVENTORY_STATE. Inventory belongs to the actor, not the ship (ADR-0013 section 1). No capacity: there is no carry limit in p1-02 (design doc section 2.4).",
+  "allOf": [
+    {
+      "$ref": "../common/message-envelope.schema.json"
+    }
+  ],
+  "properties": {
+    "message_type": {
+      "const": "INVENTORY_STATE"
+    },
+    "schema_version": {
+      "const": 1
+    },
+    "payload": {
+      "$ref": "#/$defs/InventoryStatePayload"
+    }
+  },
+  "unevaluatedProperties": false,
+  "$defs": {
+    "InventoryStatePayload": {
+      "title": "InventoryStatePayload",
+      "type": "object",
+      "required": [
+        "actor_id",
+        "items"
+      ],
+      "properties": {
+        "actor_id": {
+          "description": "Owner. Always the receiving session's actor.",
+          "$ref": "../common/primitives.schema.json#/$defs/UuidV7"
+        },
+        "items": {
+          "description": "One entry per mineral the actor holds, in ascending mineral_id order. A mineral with 0 kg has no entry. Empty array = empty inventory.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/InventoryItem"
+          },
+          "maxItems": 64
+        }
+      },
+      "additionalProperties": false
+    },
+    "InventoryItem": {
+      "title": "InventoryItem",
+      "type": "object",
+      "required": [
+        "mineral_id",
+        "quantity_kg"
+      ],
+      "properties": {
+        "mineral_id": {
+          "$ref": "../common/primitives.schema.json#/$defs/DataId"
+        },
+        "quantity_kg": {
+          "$ref": "../common/primitives.schema.json#/$defs/MassKg",
+          "minimum": 1
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

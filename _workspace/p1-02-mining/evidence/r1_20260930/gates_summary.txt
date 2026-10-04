@@ -1,0 +1,10 @@
+== fmt
+fmt rc=0
+== clippy
+clippy rc=0
+== test
+test rc=0
+== release sim
+release rc=0
+census rc=0
+DONE

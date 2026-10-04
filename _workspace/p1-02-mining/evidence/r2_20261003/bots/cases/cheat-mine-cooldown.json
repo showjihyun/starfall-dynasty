@@ -1,0 +1,34 @@
+{
+  "case": "cheat-mine-cooldown",
+  "connect_error": null,
+  "deposit_id": "inner-belt-3",
+  "details": {
+    "accept_max": 21,
+    "accepted": 20,
+    "cooldown_active": 176,
+    "no_result": 0,
+    "open_at_end": true,
+    "rate_limited": 0,
+    "rejected_by_reason": {
+      "COOLDOWN_ACTIVE": 176
+    },
+    "sent": 196
+  },
+  "item": "[verdict] p1-02 SC-76 쿨다운보다 10 배 빠르게 60 초 → 수락 ≤ 21, 나머지 COOLDOWN_ACTIVE, 연결 유지",
+  "label": "bot-014",
+  "nav": {
+    "arrive_dist_m": 134.48777464885066,
+    "arrive_speed_mps": 0.0,
+    "arrived": true,
+    "control_frames": 703,
+    "max_speed_mps": 113.49002860604098,
+    "start_dist_m": 4128.272050640074
+  },
+  "session": {
+    "actor_id": "01a0b1c2-b010-7000-8000-000000000014",
+    "close_code": 1000,
+    "close_initiator": "client",
+    "session_id": "01a1021b-237a-7302-af4f-1aba15e6766d"
+  },
+  "verdict": "PASS"
+}

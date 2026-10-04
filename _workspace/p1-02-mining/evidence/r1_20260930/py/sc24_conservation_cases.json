@@ -1,0 +1,103 @@
+{
+  "item": "p1-02 SC-24 (AC-5a) 보존 법칙 I-55",
+  "verdict": "PASS",
+  "events_mineral_mined": 22,
+  "deposits_mined": 3,
+  "chain_links_checked": 19,
+  "minerals_with_mining": 2,
+  "min_mined_minerals": 2,
+  "deposits_with_actual_regen": 1,
+  "require_regen": false,
+  "per_mineral": [
+    {
+      "mineral_id": "cobaltine",
+      "mined_events": 0,
+      "lhs_inventory_plus_remaining": 5600,
+      "rhs_initial_plus_regen": 5600,
+      "regen_kg": 0,
+      "holds": true
+    },
+    {
+      "mineral_id": "ferrosite",
+      "mined_events": 20,
+      "lhs_inventory_plus_remaining": 33200,
+      "rhs_initial_plus_regen": 33200,
+      "regen_kg": 200,
+      "holds": true
+    },
+    {
+      "mineral_id": "glacine",
+      "mined_events": 2,
+      "lhs_inventory_plus_remaining": 20000,
+      "rhs_initial_plus_regen": 20000,
+      "regen_kg": 0,
+      "holds": true
+    },
+    {
+      "mineral_id": "starfall-glass",
+      "mined_events": 0,
+      "lhs_inventory_plus_remaining": 500,
+      "rhs_initial_plus_regen": 500,
+      "regen_kg": 0,
+      "holds": true
+    }
+  ],
+  "denominators_ok": true,
+  "problems": [],
+  "ok": true,
+  "data_values_at_run": {
+    "minerals": {
+      "cobaltine": {
+        "regen_kg": 80,
+        "regen_interval_s": 60
+      },
+      "ferrosite": {
+        "regen_kg": 200,
+        "regen_interval_s": 30
+      },
+      "glacine": {
+        "regen_kg": 150,
+        "regen_interval_s": 30
+      },
+      "starfall-glass": {
+        "regen_kg": 25,
+        "regen_interval_s": 180
+      }
+    },
+    "deposits": {
+      "inner-belt-1": {
+        "mineral_id": "ferrosite",
+        "initial_reserve_kg": 12000
+      },
+      "inner-belt-2": {
+        "mineral_id": "ferrosite",
+        "initial_reserve_kg": 9000
+      },
+      "inner-belt-3": {
+        "mineral_id": "ferrosite",
+        "initial_reserve_kg": 12000
+      },
+      "vela-orbit-1": {
+        "mineral_id": "glacine",
+        "initial_reserve_kg": 10000
+      },
+      "vela-orbit-2": {
+        "mineral_id": "glacine",
+        "initial_reserve_kg": 10000
+      },
+      "outer-field-1": {
+        "mineral_id": "cobaltine",
+        "initial_reserve_kg": 3200
+      },
+      "outer-field-2": {
+        "mineral_id": "cobaltine",
+        "initial_reserve_kg": 2400
+      },
+      "far-reach": {
+        "mineral_id": "starfall-glass",
+        "initial_reserve_kg": 500
+      }
+    }
+  },
+  "world_id": "01a0ef80-e7a3-71c1-93dd-44c36b1d8c21"
+}

@@ -1,0 +1,11 @@
+{
+  "message_id": "01a0b1c2-6c41-7122-9233-4a5b6c7d8e9f",
+  "message_type": "INVENTORY_STATE",
+  "schema_version": 1,
+  "tick": 24000,
+  "correlation_id": null,
+  "payload": {
+    "actor_id": "01a0b1c2-2c01-7a45-8b67-89abcdef0123",
+    "items": []
+  }
+}

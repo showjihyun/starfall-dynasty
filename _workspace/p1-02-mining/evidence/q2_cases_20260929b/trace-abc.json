@@ -1,0 +1,58 @@
+{
+  "a_despawn_observed_by_b": {
+    "gone_tick": 1764,
+    "seen": true
+  },
+  "a_despawned": true,
+  "coordination": {
+    "signal_timeouts_a": 0,
+    "signal_timeouts_b": 0
+  },
+  "item": "[verdict] p1-02 SC-60 · SC-80 · SC-81 · SC-99 trace-abc: A 의 최초 발견을 열린 두 세션이 LIVE 로 받고(발견자 A), B 의 같은 광물 채굴은 수락되지만 새 기록 0, 응답 항등식",
+  "items": {
+    "sc_60": {
+      "open_sessions": 2,
+      "received_live": 2,
+      "verdict": "PASS"
+    },
+    "sc_80": {
+      "a_accepted": true,
+      "actor_a": "01a0b1c2-b010-7000-8000-000000000030",
+      "discoverer_is_a": true,
+      "historical_events_before": 0,
+      "live_a": 1,
+      "live_b": 1,
+      "same_event": true,
+      "verdict": "PASS"
+    },
+    "sc_81": {
+      "accepted_mine_of_x": 2,
+      "b_accepted": true,
+      "b_inventory_increased": true,
+      "b_live_after_its_mine": 0,
+      "historical_events_after": 1,
+      "verdict": "PASS"
+    },
+    "sc_99": {
+      "a": {
+        "accepted": 1,
+        "paired": 1
+      },
+      "b": {
+        "accepted": 1,
+        "paired": 1
+      },
+      "verdict": "PASS"
+    }
+  },
+  "live_receipt_wall_ms": {
+    "a": 1790692031965,
+    "b": 1790692031965
+  },
+  "mine_command_ids": {
+    "a": "01a0ed8f-fd88-76d6-a69d-e8bb015345b8",
+    "b": "01a0ed90-0948-7345-b0ac-1c48d4be83ca"
+  },
+  "verdict": "PASS",
+  "world_id": "01a0ed8f-210a-7a2e-a399-3721bb78fd2b"
+}

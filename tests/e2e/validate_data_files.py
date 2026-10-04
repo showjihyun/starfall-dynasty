@@ -29,7 +29,15 @@ TARGETS = [
     ("data/ships/*.json", "contracts/data/ship-class.schema.json"),
     ("data/world/systems/*.json", "contracts/data/star-system.schema.json"),
     ("data/movement/sync-tuning.json", "contracts/data/sync-tuning.schema.json"),
+    # p1-02 (계약 SC-06 / AC-19 c) — designer 가 쓴 7 파일. 넣기 전에는 **틀려도 아무것도 실패하지 않았다.**
+    ("data/minerals/*.json", "contracts/data/mineral.schema.json"),
+    ("data/world/deposits/*.json", "contracts/data/deposit-field.schema.json"),
+    ("data/mining/mining-rules.json", "contracts/data/mining-rules.schema.json"),
+    ("data/history/rules/*.json", "contracts/data/significance-rule.schema.json"),
 ]
+# 계약 SC-06 이 적은 파일 수(2026-09-27). **다르면 FAIL 이 아니라 architect·designer 통지** —
+# designer 의 정상적인 추가를 막지 않는다(p1-01 계약 §9 SC-07 의 교훈). 출력에만 찍는다.
+EXPECTED_FILES_AT_CONTRACT = 10
 
 
 def build_registry(contracts: Path):
@@ -110,9 +118,12 @@ def main() -> int:
             })
 
     result = {
-        "item": "SC-07 / AC-21(d) — data/ 실제 파일의 계약 스키마 검증",
+        "item": "p1-02 SC-06 (AC-19c) — data/ 실제 파일 전부의 계약 스키마 검증",
         "verdict": "PASS" if errors_total == 0 else "FAIL",
         "files_checked": files_checked,
+        "files_expected_at_contract": EXPECTED_FILES_AT_CONTRACT,
+        "files_differ_from_contract": files_checked != EXPECTED_FILES_AT_CONTRACT,
+        "globs": len(TARGETS),
         "fields_checked": fields_total,
         "errors_total": errors_total,
         "rows": rows,

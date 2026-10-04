@@ -1,0 +1,36 @@
+{
+  "control": {
+    "exit_code": 0,
+    "halted": false,
+    "x2_accepted": true
+  },
+  "exit_code": 1,
+  "halt_line_fields": {
+    "actual_db_value": true,
+    "expected": true,
+    "key_actor": true,
+    "key_mineral": true,
+    "persist_fatal_total": true,
+    "reason_cas": true
+  },
+  "halt_log_line": "2026-09-29T22:48:05.430349Z ERROR starfall_persistence: 복구 불가 영속화 실패 — 월드를 멈춘다(ADR-0013 §5) tick=1017 events=1 persist_fatal_total=1 error=비교 후 쓰기 불일치: inventory_items(01a0b1c2-b010-7000-8000-000000000060, glacine) expected=Some(150) actual=Some(927)",
+  "handshake_timeouts": [
+    0,
+    0
+  ],
+  "item": "[verdict] p1-02 SC-25 인벤토리 SQL 변조 뒤 채굴 → 서버 스스로 정지(0 아닌 종료, 정지 로그 한 줄에 사유·키·기대값·DB 값·카운터), 그 채굴의 MINERAL_MINED 0 + 변조 없는 대조 실행은 정지 안 함",
+  "tampered_value": 927,
+  "verdict": "PASS",
+  "x1_accepted_and_committed": [
+    true,
+    1
+  ],
+  "x2_mineral_mined_rows": 0,
+  "x2_reached_commit": true,
+  "x2_results": [
+    [
+      "ACCEPTED",
+      null
+    ]
+  ]
+}

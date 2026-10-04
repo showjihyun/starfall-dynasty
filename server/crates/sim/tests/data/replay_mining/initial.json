@@ -1,0 +1,26 @@
+{
+  "tick": 0,
+  "star_system_id": "cradle-replay-mining",
+  "ships": [
+    {
+      "ship_id": "01a0b1c2-0001-73ec-8000-0000000003ec",
+      "actor_id": "01a0b1c2-0001-700a-8000-00000000000a",
+      "ship_class_id": "scout-s01",
+      "presence": "ACTIVE",
+      "position_x_mm": 2500000,
+      "position_y_mm": 250000,
+      "position_z_mm": 0,
+      "velocity_x_mm_s": 0,
+      "velocity_y_mm_s": 0,
+      "velocity_z_mm_s": 0,
+      "orientation_x_micro": 69138,
+      "orientation_y_micro": -703719,
+      "orientation_z_micro": 1228,
+      "orientation_w_micro": 707106,
+      "angular_velocity_x_mdeg_s": 0,
+      "angular_velocity_y_mdeg_s": 0,
+      "angular_velocity_z_mdeg_s": 0,
+      "angular_velocity_roll_mdeg_s": 3980
+    }
+  ]
+}

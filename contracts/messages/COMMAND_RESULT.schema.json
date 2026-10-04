@@ -58,7 +58,7 @@
     },
     "RejectReasonCode": {
       "title": "RejectReasonCode",
-      "description": "Closed set for schema_version 1. Values may be ADDED in a later version, so consumers must treat an unknown value as 'rejected for an unknown reason' and keep running, never crash or assume acceptance.",
+      "description": "Closed set for schema_version 1. Values may be ADDED in a later version, so consumers must treat an unknown value as 'rejected for an unknown reason' and keep running, never crash or assume acceptance. p1-02-mining adds six values at the same schema_version (compatible value addition, ADR-0005 section 4-2): TARGET_UNKNOWN, COOLDOWN_ACTIVE, TARGET_OUT_OF_RANGE, SHIP_TOO_FAST, RESOURCE_DEPLETED (judged by the tick in this order, spec p1-02 section 4.2) and RECORDING_BACKLOG (produced by the gateway before queueing: a state-changing command while the persistence backlog exceeds its threshold, ADR-0013 section 6). CAPACITY_EXCEEDED: the extraction would push the actor's inventory of that mineral past the representable maximum (MassKg, 2^31-1 kg); judged last, just before applying, and it keeps an integrity check from becoming a world stop (ADR-0013 section 5a). A future design carry limit reuses the same code.",
       "type": "string",
       "enum": [
         "MALFORMED_COMMAND",
@@ -68,7 +68,14 @@
         "SERVER_BUSY",
         "TOO_MANY_IN_FLIGHT",
         "RATE_LIMITED",
-        "STALE_INPUT"
+        "STALE_INPUT",
+        "TARGET_UNKNOWN",
+        "COOLDOWN_ACTIVE",
+        "TARGET_OUT_OF_RANGE",
+        "SHIP_TOO_FAST",
+        "RESOURCE_DEPLETED",
+        "RECORDING_BACKLOG",
+        "CAPACITY_EXCEEDED"
       ]
     }
   }

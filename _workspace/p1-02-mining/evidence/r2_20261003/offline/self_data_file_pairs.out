@@ -1,0 +1,9 @@
+OK   모두 짝 → PASS :: True 기대=True
+OK   json 로그 형식도 읽는다 :: True 기대=True
+OK   음성 대조: 아무도 안 읽는 unused/x.json → FAIL :: True 기대=True
+OK   음성 대조: 로그에 한 파일 빠짐 → FAIL :: False 기대=False
+OK   음성 대조: golden 테스트가 안 돌았음 → 규칙 파일 짝 없음 :: True 기대=True
+OK   cargo 로그 없으면 PASS 를 내지 않는다 :: False 기대=False
+OK   분모 0 → FAIL :: False 기대=False
+참고: 이 트리의 data/**/*.json = 10
+selftest: PASS  케이스=7

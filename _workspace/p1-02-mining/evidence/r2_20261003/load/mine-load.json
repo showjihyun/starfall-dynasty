@@ -1,0 +1,48 @@
+{
+  "item": "[verdict] p1-02 SC-87 · SC-89 · SC-99 · SC-64 mine-load: 31 연결 이동 + 쿨다운마다 채굴 10 분 — tick 초과 ≤ 0.5 %, RECORDING_BACKLOG 0, 응답 항등식, LIVE 지연 max ≤ 5 s",
+  "items": {
+    "sc_64": {
+      "distinct_records": 4,
+      "max_ms": 99,
+      "samples": 124,
+      "verdict": "PASS"
+    },
+    "sc_87": {
+      "accepted_mines": 5999,
+      "bots": 31,
+      "min_ws_connections": 31,
+      "needed_accepted": 3000,
+      "overruns": 1,
+      "tick_overrun_ratio": 0.00008326394671107411,
+      "ticks": 12010,
+      "verdict": "PASS"
+    },
+    "sc_89": {
+      "detector_alive_evidence": "같은 빌드의 backlog 케이스 PASS(RECORDING_BACKLOG 검출기 생존)를 리포트에서 인용",
+      "max_recording_lag": 8,
+      "recording_backlog_rejects": 0,
+      "verdict": "PASS"
+    },
+    "sc_99": {
+      "accepted_mines": 5999,
+      "bots_with_unpaired_responses": 0,
+      "verdict": "PASS"
+    }
+  },
+  "latency_ms": {
+    "lookup_errors": 0,
+    "max": 99,
+    "p50": 44,
+    "p95": 99
+  },
+  "results_by_reason": {
+    "ACCEPTED": 5999,
+    "COOLDOWN_ACTIVE": 1
+  },
+  "verdict": "PASS",
+  "window_ms": [
+    1791022063650,
+    1791022664140
+  ],
+  "world_id": "01a1013a-2a9c-7bca-9a32-4f276a31a0f2"
+}

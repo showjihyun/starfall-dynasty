@@ -1,0 +1,27 @@
+{
+  "item": "p1-02 SC-01 워크스페이스 게이트 + SC-114 증거 DB 불변 + testdb stale 청소 (qa 재측정 2026-09-29)",
+  "head": "e0037a43084ced7a44353f4c48b44beef6a292d8",
+  "status_porcelain_lines": 141,
+  "command": "STARFALL_DB_TESTS=required cargo test --workspace --locked --no-fail-fast (server/, .env 로드)",
+  "exit_code": 0,
+  "test_binaries": 21,
+  "passed": 261,
+  "failed": 0,
+  "ignored": 4,
+  "db_test_ran_lines": 43,
+  "evidence_db_fingerprint_before": [
+    "domain_events | 4805 | a6bd379948c6edb7f49e847e7800f21b",
+    "worlds | 2 | 33bf30ce8a6b09dbcef42b4f32aa12db",
+    "migrations | 3 | 11e690dffad1ec47409bbaa7672c870e"
+  ],
+  "evidence_db_fingerprint_after": [
+    "domain_events | 4805 | a6bd379948c6edb7f49e847e7800f21b",
+    "worlds | 2 | 33bf30ce8a6b09dbcef42b4f32aa12db",
+    "migrations | 3 | 11e690dffad1ec47409bbaa7672c870e"
+  ],
+  "evidence_db_unchanged": true,
+  "stale_test_dbs_before": 23,
+  "stale_test_dbs_before_created_utc": "2026-09-28 12:25~13:12 (모두 STALE_AGE 1h 초과)",
+  "test_dbs_after": 0,
+  "note": "clippy 는 같은 시각 server 의 S5 편집 중(stats.rs StatsBody recording_lag 누락)으로 컴파일 실패 — 이 파일은 테스트 실행만 증거한다"
+}

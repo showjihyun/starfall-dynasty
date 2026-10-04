@@ -1,0 +1,12 @@
+{
+  "command_id": "01a0ef92-5dc8-7220-9ee9-07c0dfa37b9a",
+  "inventory_after": 150,
+  "inventory_before": 0,
+  "processed_rows_after_run": 2,
+  "results": [
+    [
+      "ACCEPTED",
+      null
+    ]
+  ]
+}

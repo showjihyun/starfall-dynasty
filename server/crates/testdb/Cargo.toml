@@ -1,0 +1,17 @@
+[package]
+name = "starfall-testdb"
+description = "테스트 전용 격리 DB 헬퍼 — starfall_test_ 접두사 DB 생성·마이그레이션·정리. 증거 DB(starfall)를 구조적으로 건드리지 않는다 (T0, 02_server_ack.md §3.2, SC-114)."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+
+[lints]
+# [workspace.lints] 는 멤버가 이 줄로 옵트인해야 적용된다.
+workspace = true
+
+[dependencies]
+sqlx.workspace = true
+uuid.workspace = true
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "time"] }

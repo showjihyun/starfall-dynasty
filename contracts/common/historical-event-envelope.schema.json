@@ -1,0 +1,158 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.starfall.invalid/contracts/common/historical-event-envelope.schema.json",
+  "title": "HistoricalEventEnvelope",
+  "description": "Envelope of every Historical Event (HSE section 12, ADR-0014). A historical event is NOT a domain event: it is a record the history engine made because a significance rule judged one or more committed domain events historically significant (principle 4). It has no sequence, correlation_id or causation_id - its order and its cause are its source_event_ids. It has NO free-text narrative field: headlines and sentences are built by the presentation layer from event_type + payload (principle 2 and 6, HSE section 105). Type-specific facts ('what') live in payload; generic 'who' and 'where' live here so that later projections can query across types. Type schemas compose this with allOf and close the object with unevaluatedProperties:false.",
+  "type": "object",
+  "required": [
+    "historical_event_id",
+    "event_type",
+    "schema_version",
+    "world_id",
+    "rule_version",
+    "importance_level",
+    "tick",
+    "occurred_at",
+    "recorded_at",
+    "visibility",
+    "fact_status",
+    "source_event_ids",
+    "location",
+    "participants",
+    "payload"
+  ],
+  "properties": {
+    "historical_event_id": {
+      "description": "Deterministic id derived from the record's meaning: UUIDv5(NS_HISTORY, '{world_id}|{event_type}|{dedupe_key}') with NS_HISTORY = 29c482cc-234d-4876-a837-347b852f802d (ADR-0014 section 1). Rebuilding history from domain_events reproduces the same id, so the client's duplicate filter (LIVE vs BACKFILL) and later Claims can reference it.",
+      "$ref": "primitives.schema.json#/$defs/UuidV5"
+    },
+    "event_type": {
+      "$ref": "primitives.schema.json#/$defs/TypeName"
+    },
+    "schema_version": {
+      "$ref": "primitives.schema.json#/$defs/SchemaVersion"
+    },
+    "world_id": {
+      "$ref": "primitives.schema.json#/$defs/UuidV7"
+    },
+    "rule_version": {
+      "description": "Rule that produced this record. Never recomputed when the rule changes.",
+      "$ref": "primitives.schema.json#/$defs/RuleVersion"
+    },
+    "importance_level": {
+      "description": "HSE section 11: 1 Local, 2 Regional, 3 Political, 4 Galactic, 5 Epoch-defining. Level 0 (Ephemeral) means 'not historical' and therefore can never be stored or sent (spec p1-02 I-60). Fixed at creation by the rule; a later rise in significance is a projection, not an edit of this record.",
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 5
+    },
+    "tick": {
+      "description": "Tick of the decisive source domain event.",
+      "$ref": "primitives.schema.json#/$defs/Tick"
+    },
+    "occurred_at": {
+      "description": "Game time of the decisive source domain event.",
+      "$ref": "primitives.schema.json#/$defs/GameTime"
+    },
+    "recorded_at": {
+      "description": "Real time the history runner committed this record. Audit only; excluded from determinism comparisons.",
+      "$ref": "primitives.schema.json#/$defs/RealTime"
+    },
+    "visibility": {
+      "$ref": "#/$defs/Visibility"
+    },
+    "fact_status": {
+      "$ref": "#/$defs/FactStatus"
+    },
+    "source_event_ids": {
+      "description": "Committed domain events this record was judged from, in (tick, sequence) order. Every id exists in domain_events (spec p1-02 I-62).",
+      "type": "array",
+      "items": {
+        "$ref": "primitives.schema.json#/$defs/UuidV7"
+      },
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "location": {
+      "$ref": "#/$defs/HistoricalLocation"
+    },
+    "participants": {
+      "description": "Who took part, each with a role. Generic across event types so that a biography can later ask 'every record this actor or ship appears in' without knowing each payload.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/HistoricalParticipant"
+      },
+      "minItems": 1,
+      "maxItems": 64
+    },
+    "payload": {
+      "type": "object"
+    }
+  },
+  "$defs": {
+    "Visibility": {
+      "title": "Visibility",
+      "description": "Who may know this record exists (historical-engine skill section 5). Visibility is not the same as evidence existing. p1-02 produces only PUBLIC for events (PARTICIPANTS_ONLY appears on evidence, which is DB-only). Closed set that may grow: consumers treat an unknown value as not displayable and keep running.",
+      "type": "string",
+      "enum": [
+        "PUBLIC",
+        "FACTION_ONLY",
+        "PARTICIPANTS_ONLY",
+        "CLASSIFIED",
+        "SECRET",
+        "DISCOVERABLE"
+      ]
+    },
+    "FactStatus": {
+      "title": "FactStatus",
+      "description": "State of the FACT, never of its interpretation (HSE section 13). CONFIRMED = the server observed it directly. Locked to one value by a DB CHECK; adding a value is a migration plus an ADR (ADR-0014 section 3).",
+      "type": "string",
+      "enum": [
+        "CONFIRMED"
+      ]
+    },
+    "HistoricalLocation": {
+      "title": "HistoricalLocation",
+      "type": "object",
+      "required": [
+        "star_system_id"
+      ],
+      "properties": {
+        "star_system_id": {
+          "$ref": "primitives.schema.json#/$defs/DataId"
+        }
+      },
+      "additionalProperties": false
+    },
+    "HistoricalParticipant": {
+      "title": "HistoricalParticipant",
+      "type": "object",
+      "required": [
+        "entity_id",
+        "entity_kind",
+        "role"
+      ],
+      "properties": {
+        "entity_id": {
+          "$ref": "primitives.schema.json#/$defs/UuidV7"
+        },
+        "entity_kind": {
+          "description": "PLAYER = an actor (character; GDD section 4). SHIP = a ship entity; ships are not persisted (ADR-0011 section 7), so a SHIP participant is the only lasting trace of which hull was there. Closed set that may grow.",
+          "type": "string",
+          "enum": [
+            "PLAYER",
+            "SHIP"
+          ]
+        },
+        "role": {
+          "description": "DISCOVERER (the PLAYER who made a discovery), VESSEL (the SHIP it was made with). Closed set that may grow.",
+          "type": "string",
+          "enum": [
+            "DISCOVERER",
+            "VESSEL"
+          ]
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

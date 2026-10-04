@@ -27,6 +27,27 @@ namespace Starfall.Greybox
         }
     }
 
+    /// <summary>The three p1-02-mining data tables a greybox session needs for display, or null
+    /// where the file was missing. Deliberately does NOT include anything from the history rule
+    /// file under data/history/rules/ - that file is copied for SC-72's byte-identity check only
+    /// (Q-8, 02_client_ack.md) and nothing in gameplay code reads its values (see
+    /// GreyboxMiningDataTests.MiningRuleFile_ValuesNotConsumedByGameplay, which fails loudly if a
+    /// file under Scripts/ later names that file - this comment deliberately never spells the
+    /// literal file name so it does not trip its own guard).</summary>
+    public readonly struct GreyboxMiningData
+    {
+        public readonly DepositFieldTable Deposits;
+        public readonly MineralCatalog Minerals;
+        public readonly MiningRulesData Rules;
+
+        public GreyboxMiningData(DepositFieldTable deposits, MineralCatalog minerals, MiningRulesData rules)
+        {
+            Deposits = deposits;
+            Minerals = minerals;
+            Rules = rules;
+        }
+    }
+
     public static class GreyboxDataLoader
     {
         /// <param name="logPrefix">Prefixes the incomplete-data warning, so two callers'
@@ -51,6 +72,30 @@ namespace Starfall.Greybox
             }
 
             return new GreyboxData(shipClasses, starSystem, tuning);
+        }
+
+        /// <param name="starSystemId">Selects which data/world/deposits/{star_system_id}.json to
+        /// load - "cradle" for the vertical slice.</param>
+        public static GreyboxMiningData LoadMining(string logPrefix, string starSystemId)
+        {
+            string dataRoot = Path.Combine(Application.dataPath, "_Project", "Data");
+
+            string depositsPath = Path.Combine(dataRoot, "world", "deposits", starSystemId + ".json");
+            DepositFieldTable deposits = DepositFieldTable.LoadFromFile(depositsPath);
+
+            MineralCatalog minerals = MineralCatalog.LoadFromDirectory(Path.Combine(dataRoot, "minerals"));
+
+            string rulesPath = Path.Combine(dataRoot, "mining", "mining-rules.json");
+            MiningRulesData rules = File.Exists(rulesPath) ? MiningRulesData.FromJson(File.ReadAllText(rulesPath)) : null;
+
+            if (deposits == null || rules == null || minerals.Count == 0)
+            {
+                Debug.LogWarning(logPrefix + "mining data/ copy incomplete under " + dataRoot +
+                                 " - deposits=" + (deposits != null) +
+                                 ", minerals=" + minerals.Count + ", rules=" + (rules != null));
+            }
+
+            return new GreyboxMiningData(deposits, minerals, rules);
         }
     }
 }

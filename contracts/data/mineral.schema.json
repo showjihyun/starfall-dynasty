@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.starfall.invalid/contracts/data/mineral.schema.json",
+  "title": "MineralTable",
+  "description": "Shape of one mineral file, data/minerals/{id}.json (p1-02). THE NUMBERS BELONG TO THE DESIGNER. Only fields some code reads are allowed (design doc section 2.4: the GDD section 7.1 properties are deliberately absent until something reads them). rarity is read by the client for presentation ONLY - it is not an input of any history rule (ADR-0014 section 5). 단위 접미사 규약: 수치 필드 이름이 단위로 끝난다 (_m, _mps, _s, _kg). **_kg 필드는 정수다** — 수량은 경제 값이므로 ADR-0009 section 2 의 SI 실수 예외에 들지 않는다(primitives MassKg). _s 필드도 정수이고 tick_hz 를 곱해 정수 tick 이 되어야 한다(서버 기동 검증).",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "id",
+    "display_name",
+    "rarity",
+    "extraction",
+    "regeneration"
+  ],
+  "properties": {
+    "schema_version": {
+      "$ref": "../common/primitives.schema.json#/$defs/SchemaVersion"
+    },
+    "id": {
+      "$ref": "../common/primitives.schema.json#/$defs/DataId"
+    },
+    "display_name": {
+      "type": "string",
+      "pattern": "^[^\\u0000-\\u001f]{1,64}$"
+    },
+    "rarity": {
+      "type": "string",
+      "enum": [
+        "common",
+        "uncommon",
+        "rare"
+      ]
+    },
+    "designer_note": {
+      "type": "string",
+      "maxLength": 2000
+    },
+    "extraction": {
+      "title": "MineralExtraction",
+      "type": "object",
+      "required": [
+        "yield_per_extraction_kg"
+      ],
+      "properties": {
+        "yield_per_extraction_kg": {
+          "$ref": "../common/primitives.schema.json#/$defs/MassKg",
+          "minimum": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "regeneration": {
+      "title": "MineralRegeneration",
+      "type": "object",
+      "required": [
+        "regen_kg",
+        "regen_interval_s"
+      ],
+      "properties": {
+        "regen_kg": {
+          "$ref": "../common/primitives.schema.json#/$defs/MassKg",
+          "minimum": 1
+        },
+        "regen_interval_s": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 86400
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

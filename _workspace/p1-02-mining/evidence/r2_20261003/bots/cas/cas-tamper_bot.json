@@ -1,0 +1,59 @@
+{
+  "note": "단계 기록 — 판정은 judge 단계",
+  "phase": "run",
+  "state": {
+    "actor_id": "01a0b1c2-b010-7000-8000-000000000060",
+    "all_mines": [
+      [
+        "01a1022c-59f1-711f-863d-510dd71d5371",
+        "ACCEPTED",
+        null,
+        271
+      ],
+      [
+        "01a1022c-59f1-711f-863d-510e2cf405b9",
+        "ACCEPTED",
+        null,
+        397
+      ],
+      [
+        "01a1022c-a5b0-7448-ba2c-a8385d10960d",
+        "REJECTED",
+        "COOLDOWN_ACTIVE",
+        397
+      ],
+      [
+        "01a1022c-a5cf-714d-85e6-5ec88fc1b972",
+        "REJECTED",
+        "RECORDING_BACKLOG",
+        397
+      ],
+      [
+        "01a1022c-a5ef-76b1-9b13-3f814856bc98",
+        "REJECTED",
+        "RECORDING_BACKLOG",
+        397
+      ]
+    ],
+    "closed_by": "server",
+    "handshake_timeouts": 0,
+    "inventory_after": 300,
+    "inventory_before": 0,
+    "mineral_id": "glacine",
+    "x1": "01a1022c-59f1-711f-863d-510dd71d5371",
+    "x1_results": [
+      [
+        "ACCEPTED",
+        null
+      ]
+    ],
+    "x2": "01a1022c-59f1-711f-863d-510e2cf405b9",
+    "x2_results": [
+      [
+        "ACCEPTED",
+        null
+      ]
+    ]
+  },
+  "verdict": "PASS"
+}

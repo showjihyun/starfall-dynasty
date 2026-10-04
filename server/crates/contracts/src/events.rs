@@ -20,8 +20,8 @@
 use serde::{Deserialize, Serialize};
 
 use crate::primitives::{
-    ConstSchemaVersion, DataId, GameTime, PositionMm, QuaternionComponentMicro, RealTime, Sequence,
-    Tick, UuidV7, required_nullable,
+    ConstSchemaVersion, DataId, GameTime, MassKg, PositionMm, QuaternionComponentMicro, RealTime,
+    Sequence, Tick, UuidV7, de_positive_mass_kg, required_nullable,
 };
 
 /// 세션이 수립된 전송 수단. 닫힌 집합(현재 1종).
@@ -299,4 +299,89 @@ pub struct ShipDespawnedEvent {
     pub actor_id: UuidV7,
     /// 타입별 payload.
     pub payload: ShipDespawnedPayload,
+}
+
+// ---------------------------------------------------------------------------
+// MINERAL_MINED (p1-02)
+// ---------------------------------------------------------------------------
+
+/// `MINERAL_MINED` 의 타입 상수.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub enum MineralMinedType {
+    /// 유일한 값.
+    #[default]
+    #[serde(rename = "MINERAL_MINED")]
+    MineralMined,
+}
+
+/// `MINERAL_MINED` payload — 수락된 채굴 1건의 전후 상태.
+///
+/// **중요도 Level 0 — 역사적 사건이 아니다**(절대 원칙 4). 역사 러너가 읽고 거의 언제나
+/// 아무것도 만들지 않는다. 한 성계에서 그 광물의 **첫** 채굴만 `MINERAL_DISCOVERED` 가
+/// 된다(ADR-0014). 거부된 `MINE_RESOURCE` 는 이벤트를 만들지 않는다.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct MineralMinedPayload {
+    /// 채굴을 수행한 함선. 행위자는 소유자, 함선은 장소다.
+    pub ship_id: UuidV7,
+    /// 명령이 수락된 세션.
+    pub session_id: UuidV7,
+    /// 매장지가 속한 성계. 첫 발견 키(월드·성계·광물)의 일부.
+    pub star_system_id: DataId,
+    /// 채굴한 `DEPOSIT` 행.
+    pub deposit_id: DataId,
+    /// 얻은 `MINERAL` 행 — 서버가 매장지에서 유도했다. 클라이언트가 보낸 값이 아니다.
+    pub mineral_id: DataId,
+    /// 이번 채굴로 인벤토리에 더해진 킬로그램. 절대 0이 아니다 — 0을 낳을 채굴은
+    /// `RESOURCE_DEPLETED` 로 거부되고 이벤트를 쓰지 않는다.
+    #[serde(deserialize_with = "de_positive_mass_kg")]
+    pub quantity_kg: MassKg,
+    /// 이 채굴 전 행위자의 그 광물 인벤토리. 영속화는 저장값이 이 값과 같을 때만 쓴다
+    /// (compare-and-set, ADR-0013 §5) — 어긋나면 월드가 멈춘다.
+    pub quantity_before_kg: MassKg,
+    /// `quantity_before_kg + quantity_kg`.
+    #[serde(deserialize_with = "de_positive_mass_kg")]
+    pub quantity_after_kg: MassKg,
+    /// 이 tick까지 게으른 회복을 적용한 뒤의, 채굴 직전 매장지 잔량(ADR-0013 §1).
+    /// `quantity_before_kg` 와 같은 compare-and-set 대상이다.
+    #[serde(deserialize_with = "de_positive_mass_kg")]
+    pub deposit_remaining_before_kg: MassKg,
+    /// `deposit_remaining_before_kg - quantity_kg`. 0이면 매장지가 소진됐다(별도 이벤트도
+    /// 역사적 사건도 아니다 — 클라이언트는 `DEPOSIT_FIELD_STATE` 로 본다).
+    pub deposit_remaining_after_kg: MassKg,
+}
+
+/// `MINERAL_MINED` — 수락된 채굴 1건. 인벤토리·매장지 행과 **같은 트랜잭션**에 쓰인다
+/// (ADR-0013 §2).
+///
+/// 대응 스키마: `contracts/events/domain/MINERAL_MINED.schema.json`
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct MineralMinedEvent {
+    /// 저장·전달 멱등 키.
+    pub event_id: UuidV7,
+    /// 언제나 `MINERAL_MINED`.
+    pub event_type: MineralMinedType,
+    /// 언제나 1.
+    pub schema_version: ConstSchemaVersion<1>,
+    /// 월드(샤드) id.
+    pub world_id: UuidV7,
+    /// 발행한 tick.
+    pub tick: Tick,
+    /// 그 tick 안의 발행 순서.
+    pub sequence: Sequence,
+    /// 게임 시간.
+    pub occurred_at: GameTime,
+    /// 실제 시각. 감사 전용.
+    pub recorded_at: RealTime,
+    /// 이 채굴 명령이 속한 게임플레이 트랜잭션의 correlation.
+    pub correlation_id: UuidV7,
+    /// **좁혀졌다 — 비-null**. 이 채굴을 일으킨 `MINE_RESOURCE.command_id` — 명령이
+    /// 원인인 첫 계약이다. `processed_commands.command_id` 와 1:1(스펙 p1-02 AC-18(b)).
+    pub causation_id: UuidV7,
+    /// **좁혀졌다 — 비-null**. 인벤토리가 바뀐 행위자. 인벤토리는 함선이 아니라 행위자
+    /// 소유다(ADR-0013 §1).
+    pub actor_id: UuidV7,
+    /// 타입별 payload.
+    pub payload: MineralMinedPayload,
 }

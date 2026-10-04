@@ -29,6 +29,12 @@ pub const SESSION_READY: &str = "SESSION_READY";
 // p1-01 신규 2종.
 pub const SET_SHIP_CONTROL: &str = "SET_SHIP_CONTROL";
 pub const WORLD_SNAPSHOT: &str = "WORLD_SNAPSHOT";
+// p1-02 신규 — 레지스트리가 bots 를 생산자(MINE_RESOURCE)·소비자(나머지)로 적은 타입.
+pub const MINE_RESOURCE: &str = "MINE_RESOURCE";
+pub const INVENTORY_STATE: &str = "INVENTORY_STATE";
+pub const DEPOSIT_FIELD_STATE: &str = "DEPOSIT_FIELD_STATE";
+pub const HISTORICAL_EVENT_NOTICE: &str = "HISTORICAL_EVENT_NOTICE";
+pub const MINERAL_DISCOVERED: &str = "MINERAL_DISCOVERED";
 
 /// 명령 envelope (contracts/common/command-envelope.schema.json).
 ///
@@ -298,6 +304,178 @@ impl ShipState {
     }
 }
 
+// ── p1-02 채굴 ───────────────────────────────────────────────────────────────────
+//
+// 서버 타입을 쓰지 않고 계약 스키마에서 **독립으로** 쓴다(머리말). 정본과의 일치는
+// `tests/wire_fixtures.rs` 가 계약 fixture 왕복으로 확인한다.
+
+/// 채굴 명령 (p1-02 I-48). **payload 는 `deposit_id` 하나뿐이다** — 수량·광물·위치·actor 는
+/// 어휘에 없다. 치트 시나리오는 이 타입을 거치지 않고 계약 반례 원문을 그대로 보낸다.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct MineResourceCommand {
+    pub command_id: Uuid,
+    pub command_type: String,
+    pub schema_version: u32,
+    pub client_sent_at: Option<String>,
+    pub payload: MineResourcePayload,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct MineResourcePayload {
+    pub deposit_id: String,
+}
+
+impl MineResourceCommand {
+    pub fn new(command_id: Uuid, deposit_id: &str) -> Self {
+        Self {
+            command_id,
+            command_type: MINE_RESOURCE.to_owned(),
+            schema_version: 1,
+            client_sent_at: None,
+            payload: MineResourcePayload {
+                deposit_id: deposit_id.to_owned(),
+            },
+        }
+    }
+}
+
+/// 자기 인벤토리 전체 (수락된 채굴의 응답 — 레지스트리 `responses`).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct InventoryStateMessage {
+    pub message_id: Uuid,
+    pub message_type: String,
+    pub schema_version: u32,
+    pub tick: u64,
+    pub correlation_id: Option<Uuid>,
+    pub payload: InventoryStatePayload,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct InventoryStatePayload {
+    pub actor_id: Uuid,
+    pub items: Vec<InventoryItem>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct InventoryItem {
+    pub mineral_id: String,
+    pub quantity_kg: i64,
+}
+
+/// 광맥 동적 상태. 미확인 광맥은 네 필드가 **전부 null**(I-68). `Option` 은 키가 없어도
+/// `None` 으로 받으므로, "키가 빠졌다" 와 "null 이다" 를 가르는 누출 검사는 이 타입이 아니라
+/// **원문 프레임**으로 한다(`mining.rs`).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct DepositFieldStateMessage {
+    pub message_id: Uuid,
+    pub message_type: String,
+    pub schema_version: u32,
+    pub tick: u64,
+    pub correlation_id: Option<Uuid>,
+    pub payload: DepositFieldStatePayload,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct DepositFieldStatePayload {
+    pub star_system_id: String,
+    pub deposits: Vec<DepositState>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct DepositState {
+    pub deposit_id: String,
+    pub mineral_id: Option<String>,
+    pub initial_reserve_kg: Option<i64>,
+    pub remaining_kg: Option<i64>,
+    pub first_extracted_tick: Option<u64>,
+}
+
+impl DepositState {
+    pub fn is_revealed(&self) -> bool {
+        self.mineral_id.is_some()
+    }
+}
+
+/// 역사 기록 1건의 전달(`LIVE` | `BACKFILL`). `delivery` 는 닫힌 열거형으로 만들지 않는다.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct HistoricalEventNoticeMessage {
+    pub message_id: Uuid,
+    pub message_type: String,
+    pub schema_version: u32,
+    pub tick: u64,
+    pub correlation_id: Option<Uuid>,
+    pub payload: HistoricalEventNoticePayload,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct HistoricalEventNoticePayload {
+    pub delivery: String,
+    pub historical_event: MineralDiscoveredEvent,
+}
+
+/// 역사 envelope + `MINERAL_DISCOVERED` payload. **서사 텍스트 필드가 없다**(I-63).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct MineralDiscoveredEvent {
+    pub historical_event_id: Uuid,
+    pub event_type: String,
+    pub schema_version: u32,
+    pub world_id: Uuid,
+    pub rule_version: String,
+    pub importance_level: u8,
+    pub tick: u64,
+    pub occurred_at: String,
+    pub recorded_at: String,
+    pub visibility: String,
+    pub fact_status: String,
+    pub source_event_ids: Vec<Uuid>,
+    pub location: HistoricalLocation,
+    pub participants: Vec<HistoricalParticipant>,
+    pub payload: MineralDiscoveredPayload,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct HistoricalLocation {
+    pub star_system_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct HistoricalParticipant {
+    pub entity_id: Uuid,
+    pub entity_kind: String,
+    pub role: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct MineralDiscoveredPayload {
+    pub mineral_id: String,
+    pub deposit_id: String,
+    pub quantity_kg: i64,
+}
+
+impl MineralDiscoveredEvent {
+    /// 발견자 actor — role 이 `DISCOVERER` 인 참가자. 대조 키는 이것이다(표지 `Pilot-xxxx` 가 아니다 — 계약 §0.11).
+    pub fn discoverer(&self) -> Option<Uuid> {
+        self.participants
+            .iter()
+            .find(|p| p.role == "DISCOVERER")
+            .map(|p| p.entity_id)
+    }
+}
+
 /// 수신 프레임 1개를 해석한 결과.
 ///
 /// `Unknown` 은 **경고이지 오류가 아니다**(ADR-0005 §5 와 같은 관용). `Malformed` 는
@@ -308,6 +486,9 @@ pub enum Inbound {
     CommandResult(Box<CommandResultMessage>),
     PingReply(Box<PingReplyMessage>),
     WorldSnapshot(Box<WorldSnapshotMessage>),
+    InventoryState(Box<InventoryStateMessage>),
+    DepositFieldState(Box<DepositFieldStateMessage>),
+    HistoricalEventNotice(Box<HistoricalEventNoticeMessage>),
     Unknown { message_type: String },
     Malformed { reason: String, raw: String },
 }
@@ -357,6 +538,27 @@ pub fn parse_inbound(text: &str) -> Inbound {
             Ok(m) => Inbound::WorldSnapshot(Box::new(m)),
             Err(e) => Inbound::Malformed {
                 reason: format!("WORLD_SNAPSHOT: {e}"),
+                raw: truncate(text),
+            },
+        },
+        INVENTORY_STATE => match serde_json::from_value(value) {
+            Ok(m) => Inbound::InventoryState(Box::new(m)),
+            Err(e) => Inbound::Malformed {
+                reason: format!("INVENTORY_STATE: {e}"),
+                raw: truncate(text),
+            },
+        },
+        DEPOSIT_FIELD_STATE => match serde_json::from_value(value) {
+            Ok(m) => Inbound::DepositFieldState(Box::new(m)),
+            Err(e) => Inbound::Malformed {
+                reason: format!("DEPOSIT_FIELD_STATE: {e}"),
+                raw: truncate(text),
+            },
+        },
+        HISTORICAL_EVENT_NOTICE => match serde_json::from_value(value) {
+            Ok(m) => Inbound::HistoricalEventNotice(Box::new(m)),
+            Err(e) => Inbound::Malformed {
+                reason: format!("HISTORICAL_EVENT_NOTICE: {e}"),
                 raw: truncate(text),
             },
         },

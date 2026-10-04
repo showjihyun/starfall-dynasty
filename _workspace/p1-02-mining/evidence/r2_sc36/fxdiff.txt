@@ -1,0 +1,40 @@
+MINE_RESOURCE	actor-field-injected.json	vs basic.json	1	actor_id: '<absent>'->'01a0b1c2-2c02-7b46-9c68-9abcdef01234'
+MINE_RESOURCE	deposit-id-not-kebab.json	vs basic.json	1	payload.deposit_id: 'far-reach'->'Far_Reach'
+MINE_RESOURCE	mineral-field-injected.json	vs basic.json	1	payload.mineral_id: '<absent>'->'starfall-glass'
+MINE_RESOURCE	missing-deposit-id.json	vs basic.json	1	payload.deposit_id: 'far-reach'->'<absent>'
+MINE_RESOURCE	position-field-injected.json	vs basic.json	1	payload.position_x_mm: '<absent>'->1100000
+MINE_RESOURCE	quantity-field-injected.json	vs basic.json	1	payload.quantity_kg: '<absent>'->99999
+MINERAL_MINED	actor-id-null.json	vs first-extraction.json	1	actor_id: '01a0b1c2-2c01-7a45-8b67-89abcdef0123'->None
+MINERAL_MINED	causation-id-null.json	vs first-extraction.json	1	causation_id: '01a0b1c2-9c01-7d11-8e21-3f3140516171'->None
+MINERAL_MINED	importance-level-injected.json	vs first-extraction.json	1	importance_level: '<absent>'->2
+MINERAL_MINED	quantity-fractional.json	vs first-extraction.json	1	payload.quantity_kg: 25->25.5
+MINERAL_MINED	quantity-zero.json	vs first-extraction.json	2	payload.quantity_after_kg: 25->0; payload.quantity_kg: 25->0
+MINERAL_MINED	remaining-negative.json	vs first-extraction.json	1	payload.deposit_remaining_after_kg: 475->-25
+MINERAL_DISCOVERED	domain-envelope-field-sequence.json	vs starfall-glass.json	1	sequence: '<absent>'->0
+MINERAL_DISCOVERED	fact-status-interpretation.json	vs starfall-glass.json	1	fact_status: 'CONFIRMED'->'DISPUTED'
+MINERAL_DISCOVERED	historical-id-v7-not-derived.json	vs starfall-glass.json	1	historical_event_id: '2775a80a-2a8a-5615-a86f-859ea777901d'->'01a0b1c2-a001-7e01-8f11-505162738495'
+MINERAL_DISCOVERED	importance-level-zero.json	vs starfall-glass.json	1	importance_level: 2->0
+MINERAL_DISCOVERED	narrative-field-injected.json	vs starfall-glass.json	1	headline: '<absent>'->'A discovered Starfall Glass'
+MINERAL_DISCOVERED	participants-discoverer-only.json	vs starfall-glass.json	4	participants#len: 2->1; participants[1].entity_id: '01a0b1c2-8b01-7a11-8b22-9c33d44e55f6'->'<absent>'; participants[1].entity_kind: 'SHIP'->'<absent>'; particip
+MINERAL_DISCOVERED	rule-version-without-number.json	vs starfall-glass.json	1	rule_version: 'mineral-discovery@1'->'mineral-discovery'
+MINERAL_DISCOVERED	source-event-ids-empty.json	vs starfall-glass.json	2	source_event_ids#len: 1->0; source_event_ids[0]: '01a0b1c2-a001-7e01-8f11-505162738495'->'<absent>'
+INVENTORY_STATE	capacity-field-injected.json	vs empty.json	1	payload.capacity_kg: '<absent>'->20000
+INVENTORY_STATE	fractional-quantity.json	vs empty.json	3	payload.items#len: 0->1; payload.items[0].mineral_id: '<absent>'->'ferrosite'; payload.items[0].quantity_kg: '<absent>'->200.5
+INVENTORY_STATE	zero-quantity-item.json	vs empty.json	3	payload.items#len: 0->1; payload.items[0].mineral_id: '<absent>'->'ferrosite'; payload.items[0].quantity_kg: '<absent>'->0
+DEPOSIT_FIELD_STATE	hint-field-injected.json	vs all-unrevealed.json	1	payload.deposits[0].rarity: '<absent>'->'rare'
+DEPOSIT_FIELD_STATE	missing-mineral-key.json	vs all-unrevealed.json	1	payload.deposits[0].mineral_id: None->'<absent>'
+DEPOSIT_FIELD_STATE	remaining-negative.json	vs all-unrevealed.json	1	payload.deposits[0].remaining_kg: None->-1
+HISTORICAL_EVENT_NOTICE	nested-level-zero.json	vs live.json	1	payload.historical_event.importance_level: 2->0
+HISTORICAL_EVENT_NOTICE	sentence-injected.json	vs live.json	1	payload.headline: '<absent>'->'A discovered Starfall Glass'
+HISTORICAL_EVENT_NOTICE	unknown-delivery.json	vs live.json	1	payload.delivery: 'LIVE'->'REPLAY'
+MINERAL	regen-interval-fractional.json	vs example-uncommon.json	1	regeneration.regen_interval_s: 60->1.5
+MINERAL	unread-property.json	vs example-uncommon.json	1	density_kg_m3: '<absent>'->5200.0
+MINERAL	yield-fractional.json	vs example-uncommon.json	1	extraction.yield_per_extraction_kg: 80->80.5
+DEPOSIT_FIELD	no-deposits.json	vs example-two-deposits.json	19	deposits#len: 2->0; deposits[0].display_name: 'Belt A'->'<absent>'; deposits[0].id: 'belt-a'->'<absent>'; deposits[0].initial_reserve_kg: 3200->'<absent>'
+DEPOSIT_FIELD	position-two-components.json	vs example-two-deposits.json	4	deposits[0].position_m#len: 3->2; deposits[0].position_m[0]: -3200.0->1.0; deposits[0].position_m[1]: 150.0->2.0; deposits[0].position_m[2]: -2400.0->'<absent>'
+DEPOSIT_FIELD	reserve-fractional.json	vs example-two-deposits.json	1	deposits[0].initial_reserve_kg: 3200->3200.5
+MINING_RULES	cooldown-fractional.json	vs example.json	1	extraction.cooldown_s: 3->2.5
+MINING_RULES	range-zero.json	vs example.json	1	extraction.mining_range_from_surface_m: 150.0->0.0
+SIGNIFICANCE_RULE	foreign-input-rarity.json	vs example-mineral-discovery.json	1	rarity_weight.rare: '<absent>'->50
+SIGNIFICANCE_RULE	importance-level-zero.json	vs example-mineral-discovery.json	1	importance_level: 2->0
+SIGNIFICANCE_RULE	rule-version-malformed.json	vs example-mineral-discovery.json	1	rule_version: 'mineral-discovery@1'->'v1'

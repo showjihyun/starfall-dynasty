@@ -1,0 +1,25 @@
+{
+  "event_id": "01a0b1c2-a001-7e01-8f11-505162738495",
+  "event_type": "MINERAL_MINED",
+  "schema_version": 1,
+  "world_id": "01a0b1c2-3d4e-7f01-8a2b-9c0d1e2f3a4b",
+  "tick": 24000,
+  "sequence": 0,
+  "occurred_at": "3800-01-01T20:00:00Z",
+  "recorded_at": "2026-09-27T09:12:40.201Z",
+  "correlation_id": "01a0b1c2-4a12-7c01-8d02-1e033f044a05",
+  "causation_id": "01a0b1c2-9c01-7d11-8e21-3f3140516171",
+  "actor_id": "01a0b1c2-2c01-7a45-8b67-89abcdef0123",
+  "payload": {
+    "ship_id": "01a0b1c2-8b01-7a11-8b22-9c33d44e55f6",
+    "session_id": "01a0b1c2-4a11-7b22-9c33-0d44e55f6a77",
+    "star_system_id": "cradle",
+    "deposit_id": "far-reach",
+    "mineral_id": "starfall-glass",
+    "quantity_kg": 25.5,
+    "quantity_before_kg": 0,
+    "quantity_after_kg": 25,
+    "deposit_remaining_before_kg": 500,
+    "deposit_remaining_after_kg": 475
+  }
+}

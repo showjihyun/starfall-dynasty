@@ -1,0 +1,55 @@
+{
+  "item": "block8_invariants selftest",
+  "cases": {
+    "sc28_clean": "PASS",
+    "sc28_negative_control_gap_of_6": "FAIL",
+    "sc28_single_snapshot": "미검증(표본 없음)",
+    "sc28_bot_counter_disagrees": "FAIL",
+    "sc30_clean": "PASS",
+    "sc30_negative_control_own_ship_absent": "FAIL",
+    "sc32_no_despawn_is_not_pass": "미검증(표본 없음)",
+    "sc32_clean_with_real_despawn": "PASS",
+    "sc32_negative_control_reappears_after_despawn": "FAIL",
+    "sc32_negative_control_unknown_presence": "FAIL",
+    "p1_no_summary": "rejected(EnvironmentProblem)",
+    "p2_observer_set_mismatch": "rejected(NotImplementedYet)",
+    "sc74_clean_with_real_outage": "PASS",
+    "sc74_negative_control_db_never_stopped": "미검증(증거 요건)",
+    "sc74_negative_control_no_snapshots_in_window": "FAIL",
+    "sc74_negative_control_server_initiated_close": "FAIL",
+    "sc74_no_sessions_json_is_not_pass": "미검증(증거 요건)",
+    "sc32r_clean_despawn_observed": "PASS",
+    "sc32r_negative_control_gap_inside_linger": "미검증(표본 없음)",
+    "sc32r_no_lingering_seen": "미검증(표본 없음)",
+    "sc32r_observer_closed_eyes_first": "미검증(표본 없음)",
+    "sc32r_negative_control_reappears": "FAIL"
+  },
+  "observations": {
+    "sc28_clean_checked_pairs": 38,
+    "sc28_clean_excluded_first": 2,
+    "sc28_violating_pairs_on_that_input": 2,
+    "sc30_ticks_checked": 40,
+    "sc30_ticks_missing_on_that_input": 1,
+    "sc32_despawn_events_on_that_input": 0,
+    "sc32_despawn_events_observed": 1,
+    "sc32_lingering_ships_seen": 1,
+    "sc32_reappearances_on_that_input": 1,
+    "sc74_snapshots_in_window": {
+      "aaaa0000-0000-7000-8000-000000000001": 20,
+      "bbbb0000-0000-7000-8000-000000000002": 20
+    },
+    "sc74_server_closes_on_that_input": 1,
+    "sc32r_observer_ticks_after_vanish": 40,
+    "sc32r_reappearances_on_that_input": 1
+  },
+  "expected_mismatches": {},
+  "targeted_condition_actually_occurred": {
+    "sc28_violating_pairs_on_that_input": 2,
+    "sc30_ticks_missing_on_that_input": 1,
+    "sc32_reappearances_on_that_input": 1,
+    "sc32_despawn_events_observed": 1,
+    "sc32_despawn_events_on_no_despawn_input": 0
+  },
+  "targeted_condition_ok": true,
+  "meaning": "음성 대조가 **겨냥한 결함이 실제로 들어 있는 입력에서** FAIL 을 내야 한다 — `*_on_that_input` 이 0 이면 그 FAIL 은 아무것도 뜻하지 않는다. `sc32_no_despawn_is_not_pass` 는 반대 방향이다: **디스폰이 0 건인 입력에서 PASS 가 아니라 미검증이 나와야 한다** — 이 항목의 자명 통과가 바로 거기 있다."
+}

@@ -1,0 +1,9 @@
+참고: 현재 계약의 [DB] 테스트 이름 = 27
+OK   §1 의 [DB] 표식 2 개만 뽑는다(§1 밖·표식 없는 이름 제외)
+OK   둘 다 RAN → PASS
+OK   음성: 하나 누락 → FAIL(이름으로)
+OK   음성: 개수는 같지만 다른 이름이 채움 → FAIL
+OK   음성: SKIPPED 1 → FAIL
+OK   음성: 목록 0(파싱 사망) → FAIL
+OK   역방향: 목록 밖 RAN 은 출력된다
+selftest: PASS  케이스=7

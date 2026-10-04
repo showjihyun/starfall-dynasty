@@ -1,0 +1,9 @@
+{
+  "command_id": "01a0b1c2-9c02-7d12-9e22-4f4150617181",
+  "command_type": "MINE_RESOURCE",
+  "schema_version": 1,
+  "client_sent_at": null,
+  "payload": {
+    "deposit_id": "inner-belt-1"
+  }
+}

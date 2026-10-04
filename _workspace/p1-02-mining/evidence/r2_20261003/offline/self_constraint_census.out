@@ -1,0 +1,8 @@
+OK   실제 ADR 파싱: 경제 5 표 · 역사 소제목 읽힘 · 테이블 합 = 집계 경제 · 경제 + 역사 = 합계
+OK   domain_events 는 17(0002 후)로 읽힌다 — 16 이 아니다
+OK   요구와 같은 실측 → PASS
+OK   음성 대조: payload_is_object CHECK 가 빠진 DB(16) → FAIL
+OK   음성 대조: 트리거 3 → FAIL
+OK   음성 대조: 검토 없는 새 제약(+1) → FAIL
+OK   파싱 0 행 → 판정 불가(초록 아님)
+selftest: PASS  케이스=7

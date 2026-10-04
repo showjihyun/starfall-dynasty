@@ -5,6 +5,7 @@
 | p0-01-bootstrap | BOOT | done | 6 | r1 PASS 37/37 (기록 1) | 2026-09-18 |
 | p0-02-networking-spike | SLICE | done | 6 | r1 PASS 73 / 부분 1 / FAIL 0 | 2026-09-19 |
 | p1-01-ship-movement | SLICE | done | 6 | r21: **90 / 90 PASS** · main 병합(PR #1 `78aac7e`) | 2026-09-27 |
+| p1-02-mining | SLICE | evaluate | 5 | — (Phase 4 완료: 구현 T0·S1~S13·H1·H2·C1~C3, 봇 케이스 전부 구현·잠정 PASS. Phase 5 r1 진행 중 — 편집 동결) | 2026-09-30 |
 
 ## Phase 0 — 종료 기준 충족 (2026-09-19)
 "30명 동시 접속 + 실시간 이벤트 기록" 실증 완료: 31 연결(봇 30 + Unity 1), 명령 3,570건 손실 0, 마지막 봇 종료 후 0.242초에 전 행 DB 가시, DB 30초 중단에도 유실 0.

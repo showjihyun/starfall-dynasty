@@ -15,8 +15,8 @@
 use serde::{Deserialize, Serialize};
 
 use crate::primitives::{
-    ConstSchemaVersion, ControlAxisMilli, InputSeq, ProbeSeq, QuaternionComponentMicro, RealTime,
-    UuidV7, required_nullable,
+    ConstSchemaVersion, ControlAxisMilli, DataId, InputSeq, ProbeSeq, QuaternionComponentMicro,
+    RealTime, UuidV7, required_nullable,
 };
 
 /// `PING_SERVER` 의 타입 상수.
@@ -126,4 +126,55 @@ pub struct SetShipControlCommand {
     pub client_sent_at: Option<RealTime>,
     /// 타입별 payload.
     pub payload: SetShipControlPayload,
+}
+
+// ---------------------------------------------------------------------------
+// MINE_RESOURCE
+// ---------------------------------------------------------------------------
+
+/// `MINE_RESOURCE` 의 타입 상수.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub enum MineResourceType {
+    /// 유일한 값.
+    #[default]
+    #[serde(rename = "MINE_RESOURCE")]
+    MineResource,
+}
+
+/// `MINE_RESOURCE` payload — 매장지 하나에서 1회 채굴할 의도.
+///
+/// **어휘 전체가 `deposit_id` 하나다** — 클라이언트는 양·광물·위치·거리 어느 것도 말할 수
+/// 없다. 서버가 매장지 표에서 광물을 유도하고, 자신의 `f64` 함선 위치로 거리를 재고,
+/// 산출량을 결정적으로 계산한다(절대 원칙 1, 스펙 p1-02 I-48). 주입된 `quantity`·
+/// `mineral`·위치 필드는 무시되지 않고 스키마와 serde 양쪽에서 `MALFORMED_COMMAND` 로
+/// 거부된다(`deny_unknown_fields` + `additionalProperties: false`).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct MineResourcePayload {
+    /// 채굴할 `DEPOSIT` 데이터 표의 행. 모양은 올바르지만 이 함선의 성계에 없는 id는
+    /// `MALFORMED_COMMAND` 가 아니라 `TARGET_UNKNOWN` 으로 거부된다.
+    pub deposit_id: DataId,
+}
+
+/// `MINE_RESOURCE` — 이 세션의 행위자가 조종 중인 함선으로 매장지 하나에서 1회 채굴할 의도.
+///
+/// `command_id` 가 지속 멱등 키다(ADR-0013 §3, I-52) — 한 번 수락된 명령은 세션·재접속·
+/// 재기동을 넘어 인벤토리를 최대 한 번만 바꾼다. 응답: 언제나 `COMMAND_RESULT` 하나, 그리고
+/// **수락된 경우에만, 같은 tick 에** `INVENTORY_STATE` 하나(스펙 p1-02 §5.1a).
+///
+/// 대응 스키마: `contracts/commands/MINE_RESOURCE.schema.json`
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct MineResourceCommand {
+    /// 클라이언트가 만든 UUIDv7. 멱등 키다.
+    pub command_id: UuidV7,
+    /// 언제나 `MINE_RESOURCE`.
+    pub command_type: MineResourceType,
+    /// 언제나 1.
+    pub schema_version: ConstSchemaVersion<1>,
+    /// 전송 시점의 클라이언트 시계, 또는 null. 참고용이며 규칙에 쓰지 않는다.
+    #[serde(deserialize_with = "required_nullable")]
+    pub client_sent_at: Option<RealTime>,
+    /// 타입별 payload.
+    pub payload: MineResourcePayload,
 }

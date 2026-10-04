@@ -1,0 +1,29 @@
+{
+  "command_id": "01a0ef42-9002-763c-8256-8d00d998dd97",
+  "first": [
+    [
+      "ACCEPTED",
+      null
+    ]
+  ],
+  "inventory_changes_second_conn": 0,
+  "inventory_first_conn": [
+    0,
+    150
+  ],
+  "inventory_second_conn_end": 150,
+  "inventory_second_conn_start": 150,
+  "item": "[verdict] p1-02 SC-78 (b) 잔류 창 안 재접속(같은 함선 이어받기) 재전송 → DUPLICATE_COMMAND_ID, 산출 × 1",
+  "resend": [
+    [
+      "REJECTED",
+      "DUPLICATE_COMMAND_ID"
+    ]
+  ],
+  "resumed_same_ship": true,
+  "ship_ids": [
+    "01a0ef42-9024-741f-aeb1-71458d6be383",
+    "01a0ef42-9024-741f-aeb1-71458d6be383"
+  ],
+  "verdict": "PASS"
+}

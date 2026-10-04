@@ -1,0 +1,10 @@
+9f04593b6cbfcfee1da56688240b3aa398c17813a55abeafe25b4af3d6470276 *./history/rules/mineral-discovery.json
+5e906b10d7dbf58add20adacf306ddf84463a6a9b4807aada9f21f5a2e774577 *./minerals/cobaltine.json
+837063a33f26a76a508d0b7d7c66c204c35aa6bb26da041347303f5870324541 *./minerals/ferrosite.json
+ee3efae2cf85abbfcba1eb6238a0269f14001a0b5c41b0096ce7915ec920b4eb *./minerals/glacine.json
+5243b33d958c9f0e5bae87b2ffcfb1b97366b1a05ee1a4df28dfee2912945eb6 *./minerals/starfall-glass.json
+ded8d4c1c99c5985023cee1e22f4123d0abb48d8a1e673b97210c095127068a6 *./mining/mining-rules.json
+7fcce19d8874e4ba35eb465de579eb7be8fe0b1936d6ed2f876f99c692d84fa0 *./movement/sync-tuning.json
+5c6621c672fe38cbe4d3006535eee5a54e88d2368c951e52c4dcc00ca795f597 *./ships/scout-s01.json
+903dc4dc5c48bef9a35658edcb92918016a0ad5621aaca8a5ca65824c2837a90 *./world/deposits/cradle.json
+1dc6b94b0240976592ffe60cdc846b99cf4fbe84b765549bc0b2e5480d53160b *./world/systems/cradle.json

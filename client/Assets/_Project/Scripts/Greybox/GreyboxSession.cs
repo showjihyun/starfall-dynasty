@@ -241,7 +241,23 @@ namespace Starfall.Greybox
             _client.Register<WorldSnapshotMessage>("WORLD_SNAPSHOT", OnWorldSnapshot);
 
             _input = gameObject.AddComponent<ShipInputSampler>();
+
+            // C3 (p1-02-mining) connection point: a separate component/asmdef (Starfall.Mining)
+            // owns mining state and its own Update()/OnGUI() - kept out of this already-large
+            // class the same way ShipInputSampler is its own component. star_system_id defaults
+            // to "cradle" (this slice's only system) when data/ is incomplete.
+            gameObject.AddComponent<GreyboxMiningSession>().Init(_client, _starSystem?.Id ?? "cradle", () => ControlledShipState);
         }
+
+        /// <summary>C3 connection point: lets GreyboxMiningSession reach the transport this
+        /// session already owns, instead of connecting a second one.</summary>
+        public RealtimeClient Client => _client;
+
+        /// <summary>C3 connection point: the controlled ship's authoritative-so-far state
+        /// (position/velocity) for mining range/speed display. Null before the first
+        /// WORLD_SNAPSHOT confirms a ship (same lifecycle as _controller everywhere else in this
+        /// class).</summary>
+        public ShipSimState? ControlledShipState => _controller?.CurrentState;
 
         void OnDestroy()
         {

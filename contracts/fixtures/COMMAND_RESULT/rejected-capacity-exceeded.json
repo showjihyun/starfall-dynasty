@@ -1,0 +1,12 @@
+{
+  "message_id": "01a0b1c2-6c34-7115-9226-3d4e5f607182",
+  "message_type": "COMMAND_RESULT",
+  "schema_version": 1,
+  "tick": 1240,
+  "correlation_id": "01a0b1c2-4a12-7c01-8d02-1e033f044a05",
+  "payload": {
+    "command_id": "01a0b1c2-9c03-7d13-8e23-505162738495",
+    "status": "REJECTED",
+    "reason_code": "CAPACITY_EXCEEDED"
+  }
+}

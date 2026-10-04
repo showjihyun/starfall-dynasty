@@ -17,6 +17,12 @@ namespace Starfall.Contracts.Generated
             new Dictionary<string, Type>(StringComparer.Ordinal)
             {
                 { "COMMAND_RESULT", typeof(CommandResultMessage) },
+                { "DEPOSIT_FIELD_STATE", typeof(DepositFieldStateMessage) },
+                { "HISTORICAL_EVENT_NOTICE", typeof(HistoricalEventNoticeMessage) },
+                { "INVENTORY_STATE", typeof(InventoryStateMessage) },
+                { "MINERAL_DISCOVERED", typeof(MineralDiscoveredEvent) },
+                { "MINERAL_MINED", typeof(MineralMinedEvent) },
+                { "MINE_RESOURCE", typeof(MineResourceCommand) },
                 { "PING_REPLY", typeof(PingReplyMessage) },
                 { "PING_SERVER", typeof(PingServerCommand) },
                 { "SESSION_CLOSED", typeof(SessionClosedEvent) },
@@ -33,6 +39,12 @@ namespace Starfall.Contracts.Generated
             new Dictionary<string, int>(StringComparer.Ordinal)
             {
                 { "COMMAND_RESULT", 1 },
+                { "DEPOSIT_FIELD_STATE", 1 },
+                { "HISTORICAL_EVENT_NOTICE", 1 },
+                { "INVENTORY_STATE", 1 },
+                { "MINERAL_DISCOVERED", 1 },
+                { "MINERAL_MINED", 1 },
+                { "MINE_RESOURCE", 1 },
                 { "PING_REPLY", 1 },
                 { "PING_SERVER", 1 },
                 { "SESSION_CLOSED", 1 },

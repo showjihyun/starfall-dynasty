@@ -1,0 +1,22 @@
+{
+  "actor_id": "01a0b1c2-b010-7000-8000-000000000060",
+  "closed_by": "client",
+  "handshake_timeouts": 0,
+  "inventory_after": 300,
+  "inventory_before": 0,
+  "mineral_id": "glacine",
+  "x1": "01a0ef48-c842-7290-9013-e9cff963a911",
+  "x1_results": [
+    [
+      "ACCEPTED",
+      null
+    ]
+  ],
+  "x2": "01a0ef48-c842-7290-9013-e9d06b8138a7",
+  "x2_results": [
+    [
+      "ACCEPTED",
+      null
+    ]
+  ]
+}

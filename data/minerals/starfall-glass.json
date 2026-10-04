@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "id": "starfall-glass",
+  "display_name": "Starfall Glass",
+  "rarity": "rare",
+  "designer_note": "Impact-fused glass from one old strike in the far reach, below the ecliptic. One deposit in the whole system, small reserve, slow recovery: the contested spot that p1-04 combat will inherit. Its name is a lore hook (what fell here?) that archaeology (p2) can pay off; nothing in p1-02 reads that. Every number is a designer assumption; see docs/design/p1-02-mining-design.md.",
+  "extraction": {
+    "yield_per_extraction_kg": 25
+  },
+  "regeneration": {
+    "regen_kg": 25,
+    "regen_interval_s": 180
+  }
+}

@@ -1,0 +1,6 @@
+OK   [p1-02] 실제 트리: 10 타입 전부 행 > 0, 불일치 0
+OK   [p1-02] 변이: DepositState.mineral_id 의 deserialize_with 제거 → SC-37 불일치로 잡힌다
+OK   [p1-02] 변이: Rust InventoryItem.quantity_kg 삭제 → 잡힌다
+OK   [p1-02] 변이: C# DepositState.remaining_kg 삭제 → 잡힌다
+OK   [p1-02] 변이: MINERAL_MINED.causation_id 를 Option 으로 → 좁힘 위반으로 잡힌다
+selftest p1-02: PASS  케이스=5 (실제 행 141, required+nullable 8)

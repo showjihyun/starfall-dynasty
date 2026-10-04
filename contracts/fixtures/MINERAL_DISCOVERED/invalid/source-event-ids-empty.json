@@ -1,0 +1,34 @@
+{
+  "historical_event_id": "2775a80a-2a8a-5615-a86f-859ea777901d",
+  "event_type": "MINERAL_DISCOVERED",
+  "schema_version": 1,
+  "world_id": "01a0b1c2-3d4e-7f01-8a2b-9c0d1e2f3a4b",
+  "rule_version": "mineral-discovery@1",
+  "importance_level": 2,
+  "tick": 24000,
+  "occurred_at": "3800-01-01T20:00:00Z",
+  "recorded_at": "2026-09-27T09:12:40.734Z",
+  "visibility": "PUBLIC",
+  "fact_status": "CONFIRMED",
+  "source_event_ids": [],
+  "location": {
+    "star_system_id": "cradle"
+  },
+  "participants": [
+    {
+      "entity_id": "01a0b1c2-2c01-7a45-8b67-89abcdef0123",
+      "entity_kind": "PLAYER",
+      "role": "DISCOVERER"
+    },
+    {
+      "entity_id": "01a0b1c2-8b01-7a11-8b22-9c33d44e55f6",
+      "entity_kind": "SHIP",
+      "role": "VESSEL"
+    }
+  ],
+  "payload": {
+    "mineral_id": "starfall-glass",
+    "deposit_id": "far-reach",
+    "quantity_kg": 25
+  }
+}

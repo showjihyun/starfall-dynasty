@@ -186,6 +186,7 @@ pub async fn run(cfg: &RunConfig) -> (Clock, Vec<ConnectionOutcome>) {
             behavior,
             clock,
             live_corr: live.clone(),
+            capture_raw: false,
         };
         let cycles = if cfg.stage == Stage::Churn {
             cfg.cycles
@@ -204,6 +205,7 @@ pub async fn run(cfg: &RunConfig) -> (Clock, Vec<ConnectionOutcome>) {
                     behavior: spec.behavior.clone(),
                     clock: spec.clock,
                     live_corr: spec.live_corr.clone(),
+                    capture_raw: false,
                 };
                 outcomes.push(run_connection(this).await);
             }
@@ -252,6 +254,43 @@ pub enum ProbeCase {
     CheatPreReady,
     /// SC-24 (c)(d) 한 실행: 유효 → 범위 초과 → 유효 재개 → `aim_*` 극단값. 분석은 `range_turn`.
     CheatRangeTurn,
+    // ── p1-02 채굴 (실행·판정은 `mine_cases` — `run_probe` 를 거치지 않는다) ─────────
+    /// SC-78 (a): 같은 세션 재전송.
+    MineDup,
+    /// SC-73: 필드 주입 4 경우.
+    CheatMineInject,
+    /// SC-74: 사거리 밖.
+    CheatMineRange,
+    /// SC-75: 30 m/s 통과.
+    CheatMineFast,
+    /// SC-76: 쿨다운 10 배 60 초.
+    CheatMineCooldown,
+    /// SC-77: 없는 deposit_id.
+    CheatMineUnknown,
+    /// SC-40: 첫 채굴 전 누출 검사(원문 프레임 저장).
+    LeakScan,
+    /// A·B 최초 발견·재채굴·A 디스폰(한 프로세스). 실행·판정은 `trace`.
+    TraceAbc,
+    /// C 의 첫 접속(별도 프로세스).
+    TraceC,
+    /// 재접속·재기동 계열(실행·판정은 `restart_cases`).
+    MineDupReconnect,
+    MineDupRestart,
+    CasHalt,
+    CasReload,
+    MineDupCrossActor,
+    /// SC-104: 한가한 서버에서 60 초 채굴, RECORDING_BACKLOG 0.
+    BacklogIdle,
+    /// SC-84: 같은 tick 두 광맥 경합.
+    RaceSameTick,
+    /// SC-85: 잔량 100 에 세 봇 같은 tick.
+    LastKg,
+    /// SC-29·30·31: 채굴·이동 중 postgres 정지·재개.
+    Backlog,
+    /// SC-63: 기록 중계와 세션 열림의 겹침.
+    NoticeGap,
+    /// SC-87·89·99·64: 31 연결 10 분 채굴 부하(`bots run --stage mine-load` 가 부른다).
+    MineLoad,
 }
 
 /// 이 probe 가 계약 항목에 대해 **무엇을 주장하는가** — 출처 게이트가 산문이 아니라 이
@@ -277,6 +316,33 @@ impl std::fmt::Display for ContractRef {
 }
 
 impl ProbeCase {
+    /// p1-02 채굴 케이스인가 — `cmd_probe` 가 `mine_cases::run` 으로 보낸다.
+    pub fn is_mining(self) -> bool {
+        matches!(
+            self,
+            Self::MineDup
+                | Self::CheatMineInject
+                | Self::CheatMineRange
+                | Self::CheatMineFast
+                | Self::CheatMineCooldown
+                | Self::CheatMineUnknown
+                | Self::LeakScan
+                | Self::TraceAbc
+                | Self::TraceC
+                | Self::MineDupReconnect
+                | Self::MineDupRestart
+                | Self::CasHalt
+                | Self::CasReload
+                | Self::MineDupCrossActor
+                | Self::BacklogIdle
+                | Self::RaceSameTick
+                | Self::LastKg
+                | Self::Backlog
+                | Self::NoticeGap
+                | Self::MineLoad
+        )
+    }
+
     pub fn parse(s: &str) -> Option<Self> {
         match s.to_ascii_lowercase().as_str() {
             "auth-ok" => Some(Self::AuthOk),
@@ -296,6 +362,26 @@ impl ProbeCase {
             "tick-burst" => Some(Self::TickBurst),
             "pre-ready" => Some(Self::CheatPreReady),
             "cheat-range-turn" => Some(Self::CheatRangeTurn),
+            "mine-dup" => Some(Self::MineDup),
+            "cheat-mine-inject" => Some(Self::CheatMineInject),
+            "cheat-mine-range" => Some(Self::CheatMineRange),
+            "cheat-mine-fast" => Some(Self::CheatMineFast),
+            "cheat-mine-cooldown" => Some(Self::CheatMineCooldown),
+            "cheat-mine-unknown" => Some(Self::CheatMineUnknown),
+            "leak-scan" => Some(Self::LeakScan),
+            "trace-abc" => Some(Self::TraceAbc),
+            "trace-c" => Some(Self::TraceC),
+            "mine-dup-reconnect" => Some(Self::MineDupReconnect),
+            "mine-dup-restart" => Some(Self::MineDupRestart),
+            "cas-halt" => Some(Self::CasHalt),
+            "cas-reload" => Some(Self::CasReload),
+            "mine-dup-cross-actor" => Some(Self::MineDupCrossActor),
+            "backlog-idle" => Some(Self::BacklogIdle),
+            "race-same-tick" => Some(Self::RaceSameTick),
+            "last-kg" => Some(Self::LastKg),
+            "backlog" => Some(Self::Backlog),
+            "notice-gap" => Some(Self::NoticeGap),
+            "mine-load" => Some(Self::MineLoad),
             _ => None,
         }
     }
@@ -319,6 +405,26 @@ impl ProbeCase {
             Self::TickBurst => "tick-burst",
             Self::CheatPreReady => "pre-ready",
             Self::CheatRangeTurn => "cheat-range-turn",
+            Self::MineDup => "mine-dup",
+            Self::CheatMineInject => "cheat-mine-inject",
+            Self::CheatMineRange => "cheat-mine-range",
+            Self::CheatMineFast => "cheat-mine-fast",
+            Self::CheatMineCooldown => "cheat-mine-cooldown",
+            Self::CheatMineUnknown => "cheat-mine-unknown",
+            Self::LeakScan => "leak-scan",
+            Self::TraceAbc => "trace-abc",
+            Self::TraceC => "trace-c",
+            Self::MineDupReconnect => "mine-dup-reconnect",
+            Self::MineDupRestart => "mine-dup-restart",
+            Self::CasHalt => "cas-halt",
+            Self::CasReload => "cas-reload",
+            Self::MineDupCrossActor => "mine-dup-cross-actor",
+            Self::BacklogIdle => "backlog-idle",
+            Self::RaceSameTick => "race-same-tick",
+            Self::LastKg => "last-kg",
+            Self::Backlog => "backlog",
+            Self::NoticeGap => "notice-gap",
+            Self::MineLoad => "mine-load",
         }
     }
 
@@ -400,6 +506,66 @@ impl ProbeCase {
             // (b) 범위 초과를 실제로 돌린다는 사실은 이 주석과 아래 문구에 남긴다.
             Self::CheatRangeTurn => ContractRef::Verdict(
                 "SC-24 (c)(d) 재확인: 유효 → 범위 초과 → 유효 재개 → aim 극단값 한 실행에서, 거부 + 이월 지속과 tick 당 회전 ≤ 한도를 함께 본다",
+            ),
+            Self::MineDup => ContractRef::Verdict(
+                "p1-02 SC-78 (a) 같은 세션 재전송 → DUPLICATE_COMMAND_ID, 인벤토리 산출 × 1 (첫 전송 ACCEPTED·인벤토리 증가 선행 단언)",
+            ),
+            Self::CheatMineInject => ContractRef::Verdict(
+                "p1-02 SC-73 MINE_RESOURCE 에 quantity_kg·mineral_id·위치·actor_id 주입 → 4 경우 전부 MALFORMED_COMMAND, 인벤토리 불변",
+            ),
+            Self::CheatMineRange => ContractRef::Verdict(
+                "p1-02 SC-74 사거리 밖 반복 → TARGET_OUT_OF_RANGE (보낸 시점 거리 > 한계)",
+            ),
+            Self::CheatMineFast => ContractRef::Verdict(
+                "p1-02 SC-75 사거리 안을 30 m/s 로 지나가며 → SHIP_TOO_FAST (보낸 시점 속도 > 10 m/s)",
+            ),
+            Self::CheatMineCooldown => ContractRef::Verdict(
+                "p1-02 SC-76 쿨다운보다 10 배 빠르게 60 초 → 수락 ≤ 21, 나머지 COOLDOWN_ACTIVE, 연결 유지",
+            ),
+            Self::CheatMineUnknown => {
+                ContractRef::Verdict("p1-02 SC-77 없는 deposit_id(형식은 유효) → TARGET_UNKNOWN")
+            }
+            Self::MineDupReconnect => ContractRef::Verdict(
+                "p1-02 SC-78 (b) 잔류 창 안 재접속(같은 함선 이어받기) 재전송 → DUPLICATE_COMMAND_ID, 산출 × 1",
+            ),
+            Self::MineDupRestart => ContractRef::Verdict(
+                "p1-02 SC-78 (c) 정상 종료 → 재기동 → 재전송 → DUPLICATE_COMMAND_ID, processed_commands 행 수 불변",
+            ),
+            Self::CasHalt => ContractRef::Verdict(
+                "p1-02 SC-25 인벤토리 SQL 변조 뒤 채굴 → 서버 스스로 정지(0 아닌 종료, 정지 로그 한 줄에 사유·키·기대값·DB 값·카운터), 그 채굴의 MINERAL_MINED 0 + 변조 없는 대조 실행은 정지 안 함",
+            ),
+            Self::CasReload => ContractRef::Verdict(
+                "p1-02 SC-26 정지 뒤 재기동 → 변조 값으로 적재되고 다음 채굴이 그 위에서 수락(quantity_before_kg = 변조 값)",
+            ),
+            Self::MineDupCrossActor => ContractRef::Verdict(
+                "p1-02 SC-108 다른 actor 둘이 같은 command_id → 둘째 DUPLICATE_COMMAND_ID, 서버 생존·커밋 계속(재기동 뒤 변형 포함)",
+            ),
+            Self::MineLoad => ContractRef::Verdict(
+                "p1-02 SC-87 · SC-89 · SC-99 · SC-64 mine-load: 31 연결 이동 + 쿨다운마다 채굴 10 분 — tick 초과 ≤ 0.5 %, RECORDING_BACKLOG 0, 응답 항등식, LIVE 지연 max ≤ 5 s",
+            ),
+            Self::NoticeGap => ContractRef::Verdict(
+                "p1-02 SC-63 기록 커밋과 세션 열림이 겹치게 만든 반복에서 LIVE·BACKFILL 을 둘 다 못 받은 세션 0 (notice_open_overlap_ticks_total 델타 ≥ 1 선행 단언)",
+            ),
+            Self::Backlog => ContractRef::Verdict(
+                "p1-02 SC-29 · SC-30 · SC-31 채굴·이동 중 postgres stop → recording_lag > 20 뒤 MINE_RESOURCE 는 RECORDING_BACKLOG, 같은 구간 SET_SHIP_CONTROL 수락·스냅샷 흐름, start 뒤 백로그가 빠지고 채굴 재수락",
+            ),
+            Self::LastKg => ContractRef::Verdict(
+                "p1-02 SC-85 잔량 100 kg 광맥에 세 봇이 같은 tick → 100 / RESOURCE_DEPLETED / RESOURCE_DEPLETED, 인벤토리 합 증가 100 = 광맥 감소 (처리 tick 의 식 잔량 = 100 선행 단언)",
+            ),
+            Self::RaceSameTick => ContractRef::Verdict(
+                "p1-02 SC-84 두 봇이 같은 tick 에 같은 광물의 다른 광맥을 캠 → 발견자 = sequence 작은 쪽, 기록 1 (같은 tick 이 아닌 시도는 무효로 세고 다시)",
+            ),
+            Self::BacklogIdle => ContractRef::Verdict(
+                "p1-02 SC-104 DB 정상·한가한 서버에서 쿨다운마다 채굴 60 초 → RECORDING_BACKLOG 0 (같은 구간 persist_backlog 최대 ≥ 20 — 톱니가 실제로 있었다)",
+            ),
+            Self::TraceAbc => ContractRef::Verdict(
+                "p1-02 SC-60 · SC-80 · SC-81 · SC-99 trace-abc: A 의 최초 발견을 열린 두 세션이 LIVE 로 받고(발견자 A), B 의 같은 광물 채굴은 수락되지만 새 기록 0, 응답 항등식",
+            ),
+            Self::TraceC => ContractRef::Verdict(
+                "p1-02 SC-61 · SC-82 trace-c: A 디스폰 뒤 처음 접속한 C 가 SESSION_READY 뒤 BACKFILL 로 A 의 발견을 받고 그 광맥이 드러나 있다",
+            ),
+            Self::LeakScan => ContractRef::Verdict(
+                "p1-02 SC-40 새 월드 첫 채굴 전 받은 모든 메시지에 미확인 광맥의 mineral_id·매장량 없음 + 첫 채굴 뒤 양성 대조 적중 ≥ 1",
             ),
         }
     }
@@ -551,6 +717,31 @@ pub async fn run_probe(
             lead: Duration::from_millis(1000),
             turn_hold: Duration::from_millis(3000),
         },
+        // 채굴 케이스는 광맥 입력이 필요해 `mine_cases::run` 이 직접 연결을 연다 — `cmd_probe` 가
+        // 여기로 보내지 않는다. 잘못 오면 아무것도 하지 않고 곧 닫는 연결이 된다(판정은 `mine_cases`).
+        ProbeCase::MineDup
+        | ProbeCase::CheatMineInject
+        | ProbeCase::CheatMineRange
+        | ProbeCase::CheatMineFast
+        | ProbeCase::CheatMineCooldown
+        | ProbeCase::CheatMineUnknown
+        | ProbeCase::LeakScan
+        | ProbeCase::TraceAbc
+        | ProbeCase::TraceC
+        | ProbeCase::MineDupReconnect
+        | ProbeCase::MineDupRestart
+        | ProbeCase::CasHalt
+        | ProbeCase::CasReload
+        | ProbeCase::MineDupCrossActor
+        | ProbeCase::BacklogIdle
+        | ProbeCase::RaceSameTick
+        | ProbeCase::LastKg
+        | ProbeCase::Backlog
+        | ProbeCase::NoticeGap
+        | ProbeCase::MineLoad => Behavior::Burst {
+            pings: 0,
+            grace: Duration::ZERO,
+        },
     };
     run_connection(BotSpec {
         label: label.to_owned(),
@@ -559,6 +750,7 @@ pub async fn run_probe(
         behavior,
         clock,
         live_corr: None,
+        capture_raw: false,
     })
     .await
 }

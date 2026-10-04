@@ -1,0 +1,15 @@
+{
+  "item": "p1-02 SC-92 (AC-18b) causation_id ↔ processed_commands 양방향",
+  "verdict": "PASS",
+  "mineral_mined_rows": 22,
+  "processed_commands_rows": 22,
+  "causation_without_command": [],
+  "command_without_event": [],
+  "missing_counts": [
+    0,
+    0
+  ],
+  "duplicate_causation": 0,
+  "ok": true,
+  "world_id": "01a0ef80-e7a3-71c1-93dd-44c36b1d8c21"
+}

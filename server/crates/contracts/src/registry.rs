@@ -15,11 +15,18 @@ use serde::Serialize;
 use serde::de::DeserializeOwned;
 use serde_json::Value;
 
-use crate::commands::{PingServerCommand, SetShipControlCommand};
-use crate::data::{ShipClassTable, StarSystemTable, SyncTuningTable};
-use crate::events::{SessionClosedEvent, SessionOpenedEvent, ShipDespawnedEvent, ShipSpawnedEvent};
+use crate::commands::{MineResourceCommand, PingServerCommand, SetShipControlCommand};
+use crate::data::{
+    DepositFieldTable, MineralTable, MiningRulesTable, ShipClassTable, SignificanceRuleTable,
+    StarSystemTable, SyncTuningTable,
+};
+use crate::events::{
+    MineralMinedEvent, SessionClosedEvent, SessionOpenedEvent, ShipDespawnedEvent, ShipSpawnedEvent,
+};
+use crate::historical::MineralDiscoveredEvent;
 use crate::messages::{
-    CommandResultMessage, PingReplyMessage, SessionReadyMessage, WorldSnapshotMessage,
+    CommandResultMessage, DepositFieldStateMessage, HistoricalEventNoticeMessage,
+    InventoryStateMessage, PingReplyMessage, SessionReadyMessage, WorldSnapshotMessage,
 };
 
 /// `PING_SERVER` 레지스트리 이름.
@@ -48,6 +55,26 @@ pub const SHIP_CLASS: &str = "SHIP_CLASS";
 pub const STAR_SYSTEM: &str = "STAR_SYSTEM";
 /// `SYNC_TUNING` 레지스트리 이름.
 pub const SYNC_TUNING: &str = "SYNC_TUNING";
+/// `MINE_RESOURCE` 레지스트리 이름.
+pub const MINE_RESOURCE: &str = "MINE_RESOURCE";
+/// `MINERAL_MINED` 레지스트리 이름.
+pub const MINERAL_MINED: &str = "MINERAL_MINED";
+/// `MINERAL_DISCOVERED` 레지스트리 이름.
+pub const MINERAL_DISCOVERED: &str = "MINERAL_DISCOVERED";
+/// `DEPOSIT_FIELD_STATE` 레지스트리 이름.
+pub const DEPOSIT_FIELD_STATE: &str = "DEPOSIT_FIELD_STATE";
+/// `INVENTORY_STATE` 레지스트리 이름.
+pub const INVENTORY_STATE: &str = "INVENTORY_STATE";
+/// `HISTORICAL_EVENT_NOTICE` 레지스트리 이름.
+pub const HISTORICAL_EVENT_NOTICE: &str = "HISTORICAL_EVENT_NOTICE";
+/// `MINERAL` 레지스트리 이름.
+pub const MINERAL: &str = "MINERAL";
+/// `DEPOSIT_FIELD` 레지스트리 이름.
+pub const DEPOSIT_FIELD: &str = "DEPOSIT_FIELD";
+/// `MINING_RULES` 레지스트리 이름.
+pub const MINING_RULES: &str = "MINING_RULES";
+/// `SIGNIFICANCE_RULE` 레지스트리 이름.
+pub const SIGNIFICANCE_RULE: &str = "SIGNIFICANCE_RULE";
 
 /// JSON 값을 해당 Rust 타입으로 역직렬화한 뒤 다시 직렬화하는 함수.
 ///
@@ -78,6 +105,10 @@ pub struct ContractType {
     pub rust_type: &'static str,
     /// 역직렬화 → 재직렬화.
     pub round_trip: RoundTripFn,
+    /// 명령 타입의 기대 응답, 송신 순서대로 `(레지스트리 이름, "always"|"accepted")`
+    /// (스펙 §5.1a). 명령이 아닌 kind 는 빈 슬라이스 — "선택 필드라 없음"으로 조용히
+    /// 통과하지 않는다, SC-38 이 명령 kind 수와 이 필드가 채워진 수를 둘 다 찍어 대조한다.
+    pub responses: &'static [(&'static str, &'static str)],
 }
 
 fn round_trip_as<T>(value: &Value) -> Result<Value, String>
@@ -97,6 +128,7 @@ pub static CONTRACT_TYPES: &[ContractType] = &[
         schema_version: 1,
         rust_type: "starfall_contracts::commands::PingServerCommand",
         round_trip: round_trip_as::<PingServerCommand>,
+        responses: &[(COMMAND_RESULT, "always"), (PING_REPLY, "accepted")],
     },
     ContractType {
         name: PING_REPLY,
@@ -105,6 +137,7 @@ pub static CONTRACT_TYPES: &[ContractType] = &[
         schema_version: 1,
         rust_type: "starfall_contracts::messages::PingReplyMessage",
         round_trip: round_trip_as::<PingReplyMessage>,
+        responses: &[],
     },
     ContractType {
         name: COMMAND_RESULT,
@@ -113,6 +146,7 @@ pub static CONTRACT_TYPES: &[ContractType] = &[
         schema_version: 1,
         rust_type: "starfall_contracts::messages::CommandResultMessage",
         round_trip: round_trip_as::<CommandResultMessage>,
+        responses: &[],
     },
     ContractType {
         name: SESSION_READY,
@@ -121,6 +155,7 @@ pub static CONTRACT_TYPES: &[ContractType] = &[
         schema_version: 1,
         rust_type: "starfall_contracts::messages::SessionReadyMessage",
         round_trip: round_trip_as::<SessionReadyMessage>,
+        responses: &[],
     },
     ContractType {
         name: SESSION_OPENED,
@@ -129,6 +164,7 @@ pub static CONTRACT_TYPES: &[ContractType] = &[
         schema_version: 1,
         rust_type: "starfall_contracts::events::SessionOpenedEvent",
         round_trip: round_trip_as::<SessionOpenedEvent>,
+        responses: &[],
     },
     ContractType {
         name: SESSION_CLOSED,
@@ -137,6 +173,7 @@ pub static CONTRACT_TYPES: &[ContractType] = &[
         schema_version: 1,
         rust_type: "starfall_contracts::events::SessionClosedEvent",
         round_trip: round_trip_as::<SessionClosedEvent>,
+        responses: &[],
     },
     ContractType {
         name: SET_SHIP_CONTROL,
@@ -145,6 +182,7 @@ pub static CONTRACT_TYPES: &[ContractType] = &[
         schema_version: 1,
         rust_type: "starfall_contracts::commands::SetShipControlCommand",
         round_trip: round_trip_as::<SetShipControlCommand>,
+        responses: &[(COMMAND_RESULT, "always")],
     },
     ContractType {
         name: WORLD_SNAPSHOT,
@@ -153,6 +191,7 @@ pub static CONTRACT_TYPES: &[ContractType] = &[
         schema_version: 1,
         rust_type: "starfall_contracts::messages::WorldSnapshotMessage",
         round_trip: round_trip_as::<WorldSnapshotMessage>,
+        responses: &[],
     },
     ContractType {
         name: SHIP_SPAWNED,
@@ -161,6 +200,7 @@ pub static CONTRACT_TYPES: &[ContractType] = &[
         schema_version: 1,
         rust_type: "starfall_contracts::events::ShipSpawnedEvent",
         round_trip: round_trip_as::<ShipSpawnedEvent>,
+        responses: &[],
     },
     ContractType {
         name: SHIP_DESPAWNED,
@@ -169,6 +209,7 @@ pub static CONTRACT_TYPES: &[ContractType] = &[
         schema_version: 1,
         rust_type: "starfall_contracts::events::ShipDespawnedEvent",
         round_trip: round_trip_as::<ShipDespawnedEvent>,
+        responses: &[],
     },
     ContractType {
         name: SHIP_CLASS,
@@ -177,6 +218,7 @@ pub static CONTRACT_TYPES: &[ContractType] = &[
         schema_version: 1,
         rust_type: "starfall_contracts::data::ShipClassTable",
         round_trip: round_trip_as::<ShipClassTable>,
+        responses: &[],
     },
     ContractType {
         name: STAR_SYSTEM,
@@ -185,6 +227,7 @@ pub static CONTRACT_TYPES: &[ContractType] = &[
         schema_version: 1,
         rust_type: "starfall_contracts::data::StarSystemTable",
         round_trip: round_trip_as::<StarSystemTable>,
+        responses: &[],
     },
     ContractType {
         name: SYNC_TUNING,
@@ -193,6 +236,99 @@ pub static CONTRACT_TYPES: &[ContractType] = &[
         schema_version: 1,
         rust_type: "starfall_contracts::data::SyncTuningTable",
         round_trip: round_trip_as::<SyncTuningTable>,
+        responses: &[],
+    },
+    ContractType {
+        name: MINE_RESOURCE,
+        kind: "command",
+        schema_path: "commands/MINE_RESOURCE.schema.json",
+        schema_version: 1,
+        rust_type: "starfall_contracts::commands::MineResourceCommand",
+        round_trip: round_trip_as::<MineResourceCommand>,
+        // DEPOSIT_FIELD_STATE(월드 브로드캐스트)·HISTORICAL_EVENT_NOTICE(비동기)는
+        // 응답이 아니다(스펙 §5.1a 비고) — 여기 넣지 않는다.
+        responses: &[(COMMAND_RESULT, "always"), (INVENTORY_STATE, "accepted")],
+    },
+    ContractType {
+        name: MINERAL_MINED,
+        kind: "domain_event",
+        schema_path: "events/domain/MINERAL_MINED.schema.json",
+        schema_version: 1,
+        rust_type: "starfall_contracts::events::MineralMinedEvent",
+        round_trip: round_trip_as::<MineralMinedEvent>,
+        responses: &[],
+    },
+    ContractType {
+        name: MINERAL_DISCOVERED,
+        kind: "historical_event",
+        schema_path: "events/historical/MINERAL_DISCOVERED.schema.json",
+        schema_version: 1,
+        rust_type: "starfall_contracts::historical::MineralDiscoveredEvent",
+        round_trip: round_trip_as::<MineralDiscoveredEvent>,
+        responses: &[],
+    },
+    ContractType {
+        name: INVENTORY_STATE,
+        kind: "server_message",
+        schema_path: "messages/INVENTORY_STATE.schema.json",
+        schema_version: 1,
+        rust_type: "starfall_contracts::messages::InventoryStateMessage",
+        round_trip: round_trip_as::<InventoryStateMessage>,
+        responses: &[],
+    },
+    ContractType {
+        name: DEPOSIT_FIELD_STATE,
+        kind: "server_message",
+        schema_path: "messages/DEPOSIT_FIELD_STATE.schema.json",
+        schema_version: 1,
+        rust_type: "starfall_contracts::messages::DepositFieldStateMessage",
+        round_trip: round_trip_as::<DepositFieldStateMessage>,
+        responses: &[],
+    },
+    ContractType {
+        name: HISTORICAL_EVENT_NOTICE,
+        kind: "server_message",
+        schema_path: "messages/HISTORICAL_EVENT_NOTICE.schema.json",
+        schema_version: 1,
+        rust_type: "starfall_contracts::messages::HistoricalEventNoticeMessage",
+        round_trip: round_trip_as::<HistoricalEventNoticeMessage>,
+        responses: &[],
+    },
+    ContractType {
+        name: MINERAL,
+        kind: "data",
+        schema_path: "data/mineral.schema.json",
+        schema_version: 1,
+        rust_type: "starfall_contracts::data::MineralTable",
+        round_trip: round_trip_as::<MineralTable>,
+        responses: &[],
+    },
+    ContractType {
+        name: DEPOSIT_FIELD,
+        kind: "data",
+        schema_path: "data/deposit-field.schema.json",
+        schema_version: 1,
+        rust_type: "starfall_contracts::data::DepositFieldTable",
+        round_trip: round_trip_as::<DepositFieldTable>,
+        responses: &[],
+    },
+    ContractType {
+        name: MINING_RULES,
+        kind: "data",
+        schema_path: "data/mining-rules.schema.json",
+        schema_version: 1,
+        rust_type: "starfall_contracts::data::MiningRulesTable",
+        round_trip: round_trip_as::<MiningRulesTable>,
+        responses: &[],
+    },
+    ContractType {
+        name: SIGNIFICANCE_RULE,
+        kind: "data",
+        schema_path: "data/significance-rule.schema.json",
+        schema_version: 1,
+        rust_type: "starfall_contracts::data::SignificanceRuleTable",
+        round_trip: round_trip_as::<SignificanceRuleTable>,
+        responses: &[],
     },
 ];
 
@@ -231,10 +367,20 @@ mod tests {
             SHIP_CLASS,
             STAR_SYSTEM,
             SYNC_TUNING,
+            MINE_RESOURCE,
+            MINERAL_MINED,
+            MINERAL_DISCOVERED,
+            INVENTORY_STATE,
+            DEPOSIT_FIELD_STATE,
+            HISTORICAL_EVENT_NOTICE,
+            MINERAL,
+            DEPOSIT_FIELD,
+            MINING_RULES,
+            SIGNIFICANCE_RULE,
         ] {
             assert!(find(name).is_some(), "{name} 이 대응표에 없다");
         }
-        assert_eq!(CONTRACT_TYPES.len(), 13);
+        assert_eq!(CONTRACT_TYPES.len(), 23);
         assert!(find("NOT_A_CONTRACT_TYPE").is_none());
     }
 }

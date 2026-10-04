@@ -182,6 +182,7 @@ async fn run_bot_against(fake: &Fake, pings: u32) -> starfall_bots::conn::Connec
         },
         clock: Clock::start(),
         live_corr: None,
+        capture_raw: false,
     })
     .await
 }
@@ -298,6 +299,7 @@ async fn unreachable_server_is_reported_not_swallowed() {
         },
         clock: Clock::start(),
         live_corr: None,
+        capture_raw: false,
     })
     .await;
     assert!(outcome.connect_error.is_some());
@@ -332,6 +334,7 @@ async fn correlation_is_written_live_while_the_connection_is_still_open() {
         },
         clock: Clock::start(),
         live_corr: Some(Arc::clone(&sink)),
+        capture_raw: false,
     }));
 
     // 봇이 아직 돌고 있는 동안 파일이 채워져야 한다.
@@ -393,6 +396,7 @@ async fn thirty_concurrent_bots_are_handled_by_the_harness() {
             },
             clock,
             live_corr: None,
+            capture_raw: false,
         })));
     }
 

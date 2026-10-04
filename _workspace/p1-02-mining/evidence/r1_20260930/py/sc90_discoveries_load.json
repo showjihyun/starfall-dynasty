@@ -1,0 +1,23 @@
+{
+  "item": "p1-02 SC-90 (AC-17d) MINERAL_DISCOVERED 수 = 채굴된 광물 종류 수 ≤ 4, 고갈 ≥ 1",
+  "verdict": "PASS",
+  "mined_mineral_kinds": 4,
+  "mined_minerals": [
+    "cobaltine",
+    "ferrosite",
+    "glacine",
+    "starfall-glass"
+  ],
+  "discovered_rows": 4,
+  "discovered_minerals": [
+    "cobaltine",
+    "ferrosite",
+    "glacine",
+    "starfall-glass"
+  ],
+  "same_set": true,
+  "depleted_rows": 120,
+  "denominators_ok": true,
+  "ok": true,
+  "world_id": "01a0ef96-c9ad-7c5e-8e55-1b2afe94f0a9"
+}

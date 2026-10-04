@@ -5,11 +5,29 @@
 //! 인자 파싱과 출력만 한다.
 
 pub mod conn;
+pub mod extra_cases;
 pub mod ledger;
+pub mod mine_cases;
+pub mod mine_load;
+pub mod mine_run;
+pub mod mining;
+pub mod nav;
+pub mod notice_gap;
 pub mod range_turn;
 pub mod report;
+pub mod restart_cases;
 pub mod scenario;
 pub mod snapshot;
+pub mod sql;
 pub mod stats;
 pub mod token;
+pub mod trace;
 pub mod wire;
+
+/// `mine_run::find_deposit` 의 재수출 — 채굴 케이스가 쓰는 길 찾기 입력.
+pub fn mine_cases_site(
+    data_dir: &std::path::Path,
+    deposit_id: &str,
+) -> Result<mine_run::DepositSite, String> {
+    mine_run::find_deposit(data_dir, deposit_id)
+}

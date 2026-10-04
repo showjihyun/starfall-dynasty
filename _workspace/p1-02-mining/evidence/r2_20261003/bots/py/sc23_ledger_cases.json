@@ -1,0 +1,15 @@
+{
+  "item": "p1-02 SC-23 (AC-5a) 원장 항등식 I-54",
+  "verdict": "PASS",
+  "keys_checked": 3,
+  "keys_holding": 3,
+  "events_mineral_mined": 22,
+  "chain_links_checked": 19,
+  "inventory_rows": 3,
+  "min_keys": 2,
+  "min_events": 10,
+  "denominators_ok": true,
+  "problems": [],
+  "ok": true,
+  "world_id": "01a10218-900f-74a7-8234-49f83902790d"
+}

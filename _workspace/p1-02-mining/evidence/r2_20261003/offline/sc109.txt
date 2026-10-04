@@ -1,0 +1,16 @@
+BEGIN
+ERROR:  23514: new row for relation "domain_events" violates check constraint "domain_events_payload_is_object"
+DETAIL:  Failing row contains (01a1ffff-0000-7000-8000-000000000109, QA_PROBE, 1, 01a0b1c2-3d4e-7f01-8a2b-9c0d1e2f3a4b, 999999999, 0, 2026-10-03 14:54:16.736158+00, 2026-10-03 14:54:16.736158+00, 01a1ffff-0000-7000-8000-000000000109, null, null, null).
+SCHEMA NAME:  public
+TABLE NAME:  domain_events
+CONSTRAINT NAME:  domain_events_payload_is_object
+LOCATION:  ExecConstraints, execMain.c:2076
+ROLLBACK
+BEGIN
+INSERT 0 1
+ROLLBACK
+ count 
+-------
+     0
+(1 row)
+

@@ -1,0 +1,11 @@
+{
+  "what": "SC-87·89 r2 부하 실행 — 실행 **전** 등록(architect 조건 3, 리더 (d))",
+  "data_copy": {
+    "path": "$CLAUDE_JOB_DIR/tmp/load_data (원본 data/ 와 별도 디렉터리, STARFALL_DATA_DIR 로 지정)",
+    "changed": "world/deposits/cradle.json 의 광맥 8 곳 initial_reserve_kg ×100 — 그 외 파일 sha 원본과 동일",
+    "sha_changed_file": "903dc4dc… → 270a7917…"
+  },
+  "reachability_before_run": "수락 ≥ 3000 도달 가능성: 31 봇을 광맥 8 곳에 i%8 로 배치 → 7 곳 4 대·1 곳 3 대. 봇당 10 분 3.1 s 간격 ≤ 194 회. 광맥당 최대 채굴량 = 4 × 194 × 산출: ferrosite 200 → 155,200 kg ≤ 사본 최소 매장 900,000 · glacine 150 → 116,400 ≤ 1,000,000 · cobaltine 80 → 62,080 ≤ 240,000 · starfall-glass 25 → 19,400 ≤ 50,000 — 어느 광맥도 고갈되지 않는다. 기대 수락 ≈ 31 × 194 ≈ 6,000 ≥ 3,000",
+  "criteria_unchanged": "⊘: 31 연결 유지 + 수락 ≥ 3000. 판정: tick 초과 ≤ 0.5 %(SC-87), RECORDING_BACKLOG 0(SC-89)",
+  "when": "r2 편집 동결 안, 다른 cargo 실행 전(맨 앞) 12 분"
+}

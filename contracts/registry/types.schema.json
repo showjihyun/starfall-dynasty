@@ -31,6 +31,20 @@
         "producers": { "$ref": "#/$defs/Tags" },
         "consumers": { "$ref": "#/$defs/Tags" },
         "status": { "enum": ["active", "deprecated"] },
+        "responses": {
+          "description": "Command kinds only (spec p1-01 section 5.1a, moved into the registry by p1-02 when the third command arrived). Every message the server sends in answer to ONE command, in send order: `always` = for every adjudicated command, `accepted` = only when accepted. Broadcasts and asynchronous consequences (WORLD_SNAPSHOT, DEPOSIT_FIELD_STATE, HISTORICAL_EVENT_NOTICE) are not responses. A counter identity derived from this list must FAIL when its inputs are all zero.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["type", "when"],
+            "properties": {
+              "type": { "$ref": "../common/primitives.schema.json#/$defs/TypeName" },
+              "when": { "enum": ["always", "accepted"] }
+            },
+            "additionalProperties": false
+          },
+          "minItems": 1
+        },
         "description": { "type": "string" }
       },
       "additionalProperties": false

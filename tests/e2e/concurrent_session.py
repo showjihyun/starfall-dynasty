@@ -124,6 +124,11 @@ def cmd_check(args) -> int:
     for tag in ("A", "B"):
         s1, s2 = bot_facts(ev / f"{tag}-s1.log"), bot_facts(ev / f"{tag}-s2.log")
         actor = s1["actor_id"]
+        # coalesce(…, '') 는 없는 키를 빈 문자열로 가린다 — 해당 타입 행에 키가 있음을 먼저 단언.
+        for et, keys in (("SESSION_CLOSED", ["close_reason"]), ("SHIP_SPAWNED", ["ship_id"]),
+                         ("SHIP_DESPAWNED", ["ship_id", "despawn_reason"])):
+            db.require_payload_keys("domain_events", "payload", et, keys,
+                                    f"actor_id = '{actor}' and tick >= {int(frm)}", allow_empty=True)
         rows = db.psql_rows(
             "select tick::text, sequence::text, event_type, event_id::text, coalesce(causation_id::text,''), "
             "  correlation_id::text, coalesce(payload->>'close_reason',''), coalesce(payload->>'ship_id',''), "

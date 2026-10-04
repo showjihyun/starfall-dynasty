@@ -1,0 +1,27 @@
+{
+  "note": "단계 기록 — 판정은 judge 단계",
+  "phase": "run",
+  "state": {
+    "actor_id": "01a0b1c2-b010-7000-8000-000000000060",
+    "closed_by": "client",
+    "handshake_timeouts": 0,
+    "inventory_after": 300,
+    "inventory_before": 0,
+    "mineral_id": "glacine",
+    "x1": "01a0ef59-1e5a-7608-8055-494c924088ec",
+    "x1_results": [
+      [
+        "ACCEPTED",
+        null
+      ]
+    ],
+    "x2": "01a0ef59-1e5a-7608-8055-494d884e36c1",
+    "x2_results": [
+      [
+        "ACCEPTED",
+        null
+      ]
+    ]
+  },
+  "verdict": "PASS"
+}

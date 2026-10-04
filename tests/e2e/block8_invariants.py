@@ -533,6 +533,10 @@ def evaluate_sc10(system: str, tick_hz: int, since_tick: int | None = None) -> t
     linger_ticks = linger_seconds * tick_hz
 
     where = f"and tick >= {int(since_tick)} " if since_tick is not None else ""
+    # jsonb `->>` 는 없는 키에 NULL 을 돌려주고 아래 필터가 그 행을 조용히 버린다 — 키 존재를 먼저 단언.
+    db.require_payload_keys("domain_events", "payload", "SHIP_SPAWNED",
+                            ["position_x_mm", "position_y_mm", "position_z_mm"],
+                            where[4:] if where else "", allow_empty=True)
     rows = db.psql_rows(
         "select actor_id, tick, "
         "payload->>'position_x_mm', payload->>'position_y_mm', payload->>'position_z_mm' "

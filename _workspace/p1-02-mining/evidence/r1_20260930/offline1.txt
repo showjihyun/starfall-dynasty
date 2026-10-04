@@ -1,0 +1,47 @@
+== SC-02
+server/crates/history/Cargo.toml:20:# feature 를 여기서만 더한다(SC-02: sim/history 의 [dependencies] 에 axum/sqlx/redis/
+server/crates/history/Cargo.toml:21:# rand/chrono/tokio 가 없다 — uuid 는 그 목록에 없으므로 이 추가는 그 금지에 걸리지 않는다).
+matches=2
+== SC-03
+server/crates/history/src/core.rs:12:use std::collections::{HashMap, HashSet};
+server/crates/history/src/core.rs:60:    worlds: HashMap<UuidV7, WorldState>,
+server/crates/history/src/core.rs:71:            worlds: HashMap::new(),
+server/crates/history/src/core.rs:88:        let mut worlds = HashMap::new();
+server/crates/history/src/lib.rs:4://! `sim`·`domain` 과 같은 이유로 IO 가 없다 — 시간(`SystemTime`/`Instant`)·소켓·DB·난수는
+rc=0
+== SC-06
+  ],
+  "note": "architect 실측 2026-09-19 은 sync-tuning.json 6건 실패였다(D-1 로 해소). 여기서 0 이면 회귀 없음."
+}
+rc=0
+== SC-34
+824a6489f262367cac5662e61e2b91ec40f07838f05a308d14ffa24cbf42097f *server/crates/sim/tests/data/replay/initial.json
+c924e59ff6b19aa56ee6d6ad24bb59ad516bf0b95005767027c87acbfa11eb08 *server/crates/sim/tests/data/replay/inputs.jsonl
+3e00e527c116f2b514df3f3d950f1f891a926748bb08f76814ae32ab6daeb1fe *server/crates/sim/tests/data/replay/snapshots.jsonl
+== SC-79
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+KeyError: 'properties'
+== SC-94
+01a0c46d-412c-75c4-a72e-5eb9b6eda64b
+01a0c46d-412c-75c4-a72e-5ebab4dbe3a7
+01a0c46d-412c-75c4-a72e-5ebbfc8128c6
+01a0c46d-412c-75c4-a72e-5ebc0f2f7da9
+01a0c46d-412c-75c4-a72e-5ebd1f652604
+01a0c46d-412c-75c4-a72e-5ebe4e8056ac
+01a0c48c-6427-744b-9d9a-25dcd98df09f
+== SC-95
+server/crates\persistence\src\history.rs
+server/crates\persistence\tests\history_runner.rs
+== SC-96
+| MINING_RULES | ok | 1 | consumer:server=server/bins/game-server/src/data.rs, consumer:client=client/Assets/_Project/Scripts/Greybox/GreyboxDataLoader.cs |
+| SIGNIFICANCE_RULE | ok | 1 | consumer:history=server/crates/history/src/core.rs |
+
+RESULT: PASS
+rc=0
+== SC-107
+PASS 104 4 []
+== SC-114 fingerprint
+4805|d1904d8f18d55911ea101ff9c8435f5e
+3
+0

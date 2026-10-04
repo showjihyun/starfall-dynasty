@@ -31,6 +31,21 @@ jobs:
   server:
     name: server (rust)
     runs-on: ubuntu-latest
+    # p1-02 리더 결정 Q-2 (계약 §3.4): DB 통합 테스트는 CI 에서 **반드시** 돈다. 로컬과 같은 이미지.
+    # 테스트는 `starfall-testdb` 가 `starfall_test_<uuidv7>` 를 만들고 지운다 — 이 서비스의 `starfall`
+    # DB 는 관리 연결용일 뿐 테스트 데이터가 들어가지 않는다.
+    services:
+      postgres:
+        image: postgres:18.6-trixie
+        env:
+          POSTGRES_USER: starfall
+          POSTGRES_PASSWORD: starfall_ci_only
+          POSTGRES_DB: starfall
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U starfall -d starfall"
+          --health-interval 5s --health-timeout 5s --health-retries 12
     steps:
       # 판정 게이트는 증거 CSV(LFS)를 읽지 않는다. LFS 를 받으면 실행마다 ~109 MB 가
       # 무료 LFS 대역폭(월 1 GB)에서 빠진다.
@@ -51,13 +66,27 @@ jobs:
       - name: clippy
         working-directory: server
         run: cargo clippy --workspace --all-targets -- -D warnings
+      # --no-fail-fast: 한 크레이트의 실패가 뒤 크레이트의 실행을 0 건으로 만들지 않게 한다 — "실행 안 됐는데
+      # 안 보이는" 모양(리더 승인 2026-09-28). 실패는 여전히 단계를 빨갛게 한다(종료 코드 101).
+      # DATABASE_URL 은 **이 단계에만** 준다 — job 전체에 두면 fmt·clippy 의 컴파일이 DB 를 보게 된다.
+      # 로그를 남겨 아래 SC-113 단계가 `STARFALL_DB_TEST RAN <이름>` 을 계약 목록과 대조한다.
       - name: test
         working-directory: server
-        run: cargo test --workspace --locked
+        env:
+          STARFALL_DB_TESTS: required
+          DATABASE_URL: postgres://starfall:starfall_ci_only@localhost:5432/starfall
+        run: |
+          set -o pipefail
+          cargo test --workspace --locked --no-fail-fast 2>&1 | tee "$RUNNER_TEMP/cargo-test.log"
       # #[cfg(not(debug_assertions))] 테스트는 위 표준 게이트에서 컴파일조차 되지 않는다.
       - name: test (릴리스 전용)
         working-directory: server
-        run: cargo test -p starfall-sim --release --locked
+        run: cargo test -p starfall-sim --release --locked --no-fail-fast
+      # p1-02 SC-113 — DB 테스트가 **이름으로** 돌았는가. 계약 §1 의 ` [DB]` 표식 목록 vs RAN 줄,
+      # 누락 ≥ 1 또는 SKIPPED ≥ 1 이면 실패. 구현 전에는 목록 24 가 전부 누락이라 빨갛다 — 정상이다.
+      - name: DB 테스트 이름 대조 (p1-02 SC-113)
+        if: success() || failure()
+        run: python3 tests/e2e/db_test_census.py --contract _workspace/p1-02-mining/02_sprint_contract.md --log "$RUNNER_TEMP/cargo-test.log"
 
   bots:
     name: bots (rust)
@@ -82,7 +111,7 @@ jobs:
         run: cargo clippy --workspace --all-targets -- -D warnings
       - name: test
         working-directory: tools/bots
-        run: cargo test --workspace --locked
+        run: cargo test --workspace --locked --no-fail-fast
 
   judgment:
     name: judgment gates (python)
@@ -96,10 +125,18 @@ jobs:
           python-version: "3.12"
       - name: 의존성
         run: python -m pip install jsonschema==4.23.0 referencing==0.36.2
-      # 슬라이스가 바뀌면 이 계약 경로도 바꿔야 한다.
-      - name: 출처 게이트 (계약 p1-01)
-        run: python tests/e2e/check_item_sources.py --contract _workspace/p1-01-ship-movement/02_sprint_contract.md
+      # 슬라이스마다 SC 번호가 새로 매겨진다. 라벨의 슬라이스 표지(`p1-02 SC-nn`, 표지 없음 = p1-01)로
+      # 가르고, 각 단계는 **자기 슬라이스 라벨만** 판정한다 — 다른 슬라이스 라벨 수는 출력에 찍힌다
+      # (p1-02 계약 §3.3). 새 슬라이스는 단계를 하나 더하고 KNOWN_SLICES 에 표지를 넣는다.
+      # p1-02 단계는 봇 케이스(Q2)가 생기기 전까지 유령 지명으로 exit 1 이다 — 정상이다.
+      - name: 출처 게이트 (계약 p1-02)
+        run: python tests/e2e/check_item_sources.py --contract _workspace/p1-02-mining/02_sprint_contract.md --slice p1-02
+      # 닫힌 계약의 회귀 — 표지 없는 라벨이 나중에 깨지는 것을 잡는다.
+      - name: 출처 게이트 (계약 p1-01, 회귀)
+        if: success() || failure()
+        run: python tests/e2e/check_item_sources.py --contract _workspace/p1-01-ship-movement/02_sprint_contract.md --slice p1-01
       - name: 판정 도구 selftest
+        if: success() || failure()
         run: |
           set -e
           python tests/e2e/check_item_sources.py --selftest
@@ -110,3 +147,18 @@ jobs:
           python tests/e2e/server_boot.py selftest
           python tests/e2e/ship_events.py selftest
           python tests/e2e/two_client_view.py selftest
+          python tests/e2e/mining_ledger.py selftest
+          python tests/e2e/history_oracle.py selftest
+          python tests/e2e/new_world.py selftest
+          python tests/e2e/data_file_pairs.py selftest
+          python tests/e2e/constraint_census.py selftest
+          python tests/e2e/db_test_census.py selftest
+          python tests/e2e/interface_matrix.py selftest --slice p1-02
+      # p1-02 SC-06 — data/ 10 파일 전부가 계약 스키마를 통과한다(DB 불필요).
+      - name: data/ 스키마 (p1-02 SC-06)
+        if: success() || failure()
+        run: python tests/e2e/validate_data_files.py
+      # p1-02 SC-97 — 신규 10 타입의 스키마·Rust·C# 필드별 표(소스 정적 대조, DB·빌드 불필요).
+      - name: 경계면 필드 표 (p1-02 SC-97)
+        if: success() || failure()
+        run: python tests/e2e/interface_matrix.py --slice p1-02

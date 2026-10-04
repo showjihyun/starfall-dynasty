@@ -55,6 +55,8 @@ def run(args: argparse.Namespace) -> int:
     absent = [c for c in corr if c not in present]
 
     # SC-52 보조: 이 집합의 종료 사유 분포. 정상 상태 실행이면 전부 CLIENT_CLOSED 여야 한다.
+    db.require_payload_keys("domain_events", "payload", "SESSION_CLOSED", ["close_reason"],
+                            f"correlation_id = any('{arr}'::uuid[])", allow_empty=True)
     reasons = dict(
         (r[0], int(r[1]))
         for r in db.psql_rows(

@@ -1,0 +1,73 @@
+{
+  "case": "cheat-mine-inject",
+  "connect_error": null,
+  "deposit_id": "vela-orbit-1",
+  "details": {
+    "cases": [
+      {
+        "injected": "payload.quantity_kg",
+        "present_in_sent_frame": true,
+        "results": [
+          [
+            "REJECTED",
+            "MALFORMED_COMMAND"
+          ]
+        ]
+      },
+      {
+        "injected": "payload.mineral_id",
+        "present_in_sent_frame": true,
+        "results": [
+          [
+            "REJECTED",
+            "MALFORMED_COMMAND"
+          ]
+        ]
+      },
+      {
+        "injected": "payload.position_x_mm",
+        "present_in_sent_frame": true,
+        "results": [
+          [
+            "REJECTED",
+            "MALFORMED_COMMAND"
+          ]
+        ]
+      },
+      {
+        "injected": "actor_id",
+        "present_in_sent_frame": true,
+        "results": [
+          [
+            "REJECTED",
+            "MALFORMED_COMMAND"
+          ]
+        ]
+      }
+    ],
+    "denominator": 4,
+    "first_mine_accepted": true,
+    "injected_present": 4,
+    "inventory_after_kg": 150,
+    "inventory_before_kg": 0,
+    "inventory_changes": 1,
+    "malformed": 4
+  },
+  "item": "[verdict] p1-02 SC-73 MINE_RESOURCE 에 quantity_kg·mineral_id·위치·actor_id 주입 → 4 경우 전부 MALFORMED_COMMAND, 인벤토리 불변",
+  "label": "bot-011",
+  "nav": {
+    "arrive_dist_m": 159.7970402041286,
+    "arrive_speed_mps": 0.0,
+    "arrived": true,
+    "control_frames": 1120,
+    "max_speed_mps": 113.49561567743487,
+    "start_dist_m": 6868.2239334488795
+  },
+  "session": {
+    "actor_id": "01a0b1c2-b010-7000-8000-000000000011",
+    "close_code": 1000,
+    "close_initiator": "client",
+    "session_id": "01a10219-1516-7764-beaf-93df87d6bd12"
+  },
+  "verdict": "PASS"
+}

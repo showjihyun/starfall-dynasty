@@ -20,7 +20,8 @@
 use serde::de::Error as DeError;
 use serde::{Deserialize, Deserializer, Serialize};
 
-use crate::primitives::{DataId, SchemaVersion};
+use crate::historical::HistoricalVisibility;
+use crate::primitives::{DataId, MassKg, RuleVersion, SchemaVersion, de_positive_mass_kg};
 
 // ---------------------------------------------------------------------------
 // 범위 검증 f64 역직렬화 — 필드마다 스키마의 min/max 그대로
@@ -700,6 +701,339 @@ pub struct SyncTuningTable {
     pub input: SyncTuningInput,
     /// 예측·보정.
     pub prediction: SyncTuningPrediction,
+}
+
+// ---------------------------------------------------------------------------
+// MINERAL (p1-02)
+// ---------------------------------------------------------------------------
+
+/// 희귀도. 클라이언트가 **표시에만** 쓴다 — 역사 판정 규칙의 입력이 아니다(ADR-0014 §5).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum MineralRarity {
+    /// 흔함.
+    Common,
+    /// 드묾.
+    Uncommon,
+    /// 희귀.
+    Rare,
+}
+
+/// `1 ..= 86400` 초.
+fn de_regen_interval_s<'de, D>(deserializer: D) -> Result<i64, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let raw = i64::deserialize(deserializer)?;
+    if (1..=86_400).contains(&raw) {
+        Ok(raw)
+    } else {
+        Err(D::Error::custom(format!(
+            "regen_interval_s 는 1 ..= 86400 이어야 한다 (받음: {raw})"
+        )))
+    }
+}
+
+/// `extraction` 블록.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct MineralExtraction {
+    /// 채굴 1회당 얻는 양. 절대 0이 아니다.
+    #[serde(deserialize_with = "de_positive_mass_kg")]
+    pub yield_per_extraction_kg: MassKg,
+}
+
+/// `regeneration` 블록.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct MineralRegeneration {
+    /// 회복 간격마다 늘어나는 양. 절대 0이 아니다.
+    #[serde(deserialize_with = "de_positive_mass_kg")]
+    pub regen_kg: MassKg,
+    /// 회복 간격(초). `tick_hz` 를 곱해 정수 tick 이 되어야 한다(S2 기동 검산).
+    #[serde(deserialize_with = "de_regen_interval_s")]
+    pub regen_interval_s: i64,
+}
+
+/// `MINERAL` — 광물 파일 하나(`data/minerals/{id}.json`)의 모양.
+///
+/// **수치는 designer 소유다.** GDD §7.1 속성 중 아무 코드도 읽지 않는 것은 의도적으로
+/// 빠졌다(설계 문서 §2.4).
+///
+/// 대응 스키마: `contracts/data/mineral.schema.json`
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct MineralTable {
+    /// 데이터 파일 스키마 버전.
+    pub schema_version: SchemaVersion,
+    /// 안정적 id. `MINERAL_MINED.mineral_id` 등에 그대로 들어간다.
+    pub id: DataId,
+    /// 표시 이름.
+    pub display_name: String,
+    /// 표시 전용 희귀도.
+    pub rarity: MineralRarity,
+    /// designer 메모.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub designer_note: Option<String>,
+    /// 채굴 산출.
+    pub extraction: MineralExtraction,
+    /// 회복 규칙.
+    pub regeneration: MineralRegeneration,
+}
+
+// ---------------------------------------------------------------------------
+// DEPOSIT_FIELD (p1-02)
+// ---------------------------------------------------------------------------
+
+de_f64_range!(
+    de_deposit_radius_m,
+    min = 0.0,
+    min_excl = true,
+    max = 1_000.0
+);
+
+/// `position_m` — 3성분, 각 성분 `-20000 ..= 20000` m.
+fn de_deposit_position_m<'de, D>(deserializer: D) -> Result<Triplet, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let raw = Triplet::deserialize(deserializer)?;
+    for component in raw {
+        if !(-20_000.0..=20_000.0).contains(&component) || !component.is_finite() {
+            return Err(D::Error::custom(format!(
+                "position_m 성분은 -20000 ..= 20000 이어야 한다 (받음: {component})"
+            )));
+        }
+    }
+    Ok(raw)
+}
+
+/// 매장지 하나.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Deposit {
+    /// 안정적 id.
+    pub id: DataId,
+    /// **지역** 이름일 뿐이다 — 광물을 드러내면 안 된다(스키마 설명).
+    pub display_name: String,
+    /// **서버 전용 진실**(설계 문서 요구): 클라이언트 사본이 있어도 이 필드는 읽지 않는다
+    /// — 광물은 `DEPOSIT_FIELD_STATE` 로 드러난 뒤에만 클라이언트에 닿는다.
+    pub mineral_id: DataId,
+    /// 성계 로컬 좌표(ADR-0009 §1).
+    #[serde(deserialize_with = "de_deposit_position_m")]
+    pub position_m: Triplet,
+    /// 채굴 판정용 반지름.
+    #[serde(deserialize_with = "de_deposit_radius_m")]
+    pub radius_m: f64,
+    /// **서버 전용 진실**: 원 매장량. `mineral_id` 처럼 드러나기 전에는 클라이언트에
+    /// 닿지 않는다.
+    #[serde(deserialize_with = "de_positive_mass_kg")]
+    pub initial_reserve_kg: MassKg,
+}
+
+/// `1 ..= 64` 개.
+fn de_deposits<'de, D>(deserializer: D) -> Result<Vec<Deposit>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let deposits = Vec::<Deposit>::deserialize(deserializer)?;
+    if deposits.is_empty() || deposits.len() > 64 {
+        Err(D::Error::custom(format!(
+            "deposits 는 1 ..= 64 개여야 한다 (받음: {})",
+            deposits.len()
+        )))
+    } else {
+        Ok(deposits)
+    }
+}
+
+/// `DEPOSIT_FIELD` — 한 성계의 매장지 파일(`data/world/deposits/{star_system_id}.json`)의
+/// 모양.
+///
+/// 이 스키마가 표현하지 못하는 기동 시 검산(S2 몫, 스펙 p1-02 I-38 확장): 모든
+/// `mineral_id` 가 `data/minerals` 에 존재 / 모든 광물이 매장지 ≥1 / `star_system_id` 가
+/// 로딩된 성계와 일치 / `|position| + radius_m + mining_range_from_surface_m ≤
+/// soft_boundary_radius_m` / `regen_kg ≤ initial_reserve_kg` / id 고유 / 두 매장지의 채굴
+/// 영역이 겹치지 않음.
+///
+/// 대응 스키마: `contracts/data/deposit-field.schema.json`
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct DepositFieldTable {
+    /// 데이터 파일 스키마 버전.
+    pub schema_version: SchemaVersion,
+    /// 이 파일이 속한 성계.
+    pub star_system_id: DataId,
+    /// designer 메모.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub designer_note: Option<String>,
+    /// 매장지 목록.
+    #[serde(deserialize_with = "de_deposits")]
+    pub deposits: Vec<Deposit>,
+}
+
+// ---------------------------------------------------------------------------
+// MINING_RULES (p1-02)
+// ---------------------------------------------------------------------------
+
+de_f64_range!(
+    de_mining_range_from_surface_m,
+    min = 0.0,
+    min_excl = true,
+    max = 5_000.0
+);
+de_f64_range!(
+    de_max_ship_speed_mps,
+    min = 0.0,
+    min_excl = false,
+    max = 1_000.0
+);
+
+/// `1 ..= 3600` 초.
+fn de_cooldown_s<'de, D>(deserializer: D) -> Result<i64, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let raw = i64::deserialize(deserializer)?;
+    if (1..=3600).contains(&raw) {
+        Ok(raw)
+    } else {
+        Err(D::Error::custom(format!(
+            "cooldown_s 는 1 ..= 3600 이어야 한다 (받음: {raw})"
+        )))
+    }
+}
+
+/// `extraction` 블록 — 채굴 판정 세 수치(스펙 p1-02 §4.2). 사거리: `|ship - deposit|^2 <=
+/// (radius_m + mining_range_from_surface_m)^2`. 속도: `|velocity|^2 <=
+/// max_ship_speed_mps^2`. 둘 다 명령을 처리하는 tick **시작 시점**의 권위 `f64` 상태로 잰다.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct MiningExtractionRules {
+    /// 매장지 표면에서부터의 채굴 사거리.
+    #[serde(deserialize_with = "de_mining_range_from_surface_m")]
+    pub mining_range_from_surface_m: f64,
+    /// 채굴 허용 최대 함선 속력.
+    #[serde(deserialize_with = "de_max_ship_speed_mps")]
+    pub max_ship_speed_mps: f64,
+    /// 채굴 쿨다운(초). `tick_hz` 를 곱해 정수 tick 이 되어야 한다(기동 검산).
+    #[serde(deserialize_with = "de_cooldown_s")]
+    pub cooldown_s: i64,
+    /// 자유 문구.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub note: Option<String>,
+}
+
+/// `MINING_RULES` — `data/mining/mining-rules.json` 의 모양. 모든 채굴 판정이 참조하는
+/// 유일한 수치 출처.
+///
+/// 대응 스키마: `contracts/data/mining-rules.schema.json`
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct MiningRulesTable {
+    /// 데이터 파일 스키마 버전.
+    pub schema_version: SchemaVersion,
+    /// 안정적 id.
+    pub id: DataId,
+    /// designer 메모.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub designer_note: Option<String>,
+    /// 판정 세 수치.
+    pub extraction: MiningExtractionRules,
+}
+
+// ---------------------------------------------------------------------------
+// SIGNIFICANCE_RULE (p1-02)
+// ---------------------------------------------------------------------------
+
+/// 레지스트리 `TypeName` 패턴(`^[A-Z][A-Z0-9]*(_[A-Z0-9]+)*$`)을 손으로 검사한다. 이
+/// 파일에서만 쓰여서(`produces_event_type`) 전용 primitive 타입을 만들지 않았다 —
+/// `event_type`/`message_type`/`command_type` 예약어와 겹치지 않는 필드 이름이라는 점이
+/// 스키마 설명의 요지이지, 재사용 폭이 아니다.
+fn de_type_name<'de, D>(deserializer: D) -> Result<String, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let raw = String::deserialize(deserializer)?;
+    let mut chars = raw.bytes();
+    let valid = match chars.next() {
+        Some(head) if head.is_ascii_uppercase() => {
+            chars.all(|b| b.is_ascii_uppercase() || b.is_ascii_digit() || b == b'_')
+                && !raw.contains("__")
+                && !raw.ends_with('_')
+        }
+        _ => false,
+    };
+    if valid {
+        Ok(raw)
+    } else {
+        Err(D::Error::custom(format!(
+            "produces_event_type 은 SCREAMING_SNAKE_CASE 여야 한다 (받음: {raw})"
+        )))
+    }
+}
+
+/// HSE 증거 종류. p1-02는 `SHIP_LOG` 하나뿐(닫힌 집합이지만 규칙이 늘면 커진다).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum EvidenceType {
+    /// 함선 항법 일지 — 자동 생성 증거.
+    ShipLog,
+}
+
+/// `evidence` 블록 — 판정 통과 시 자동으로 만드는 증거의 종류·가시성.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SignificanceRuleEvidence {
+    /// 증거 종류.
+    pub evidence_type: EvidenceType,
+    /// 증거 자체의 가시성(기록 가시성과 다를 수 있다).
+    pub visibility: HistoricalVisibility,
+}
+
+/// `1 ..= 5`.
+fn de_rule_importance_level<'de, D>(deserializer: D) -> Result<u8, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let raw = u8::deserialize(deserializer)?;
+    if (1..=5).contains(&raw) {
+        Ok(raw)
+    } else {
+        Err(D::Error::custom(format!(
+            "importance_level 은 1 ..= 5 여야 한다 (받음: {raw})"
+        )))
+    }
+}
+
+/// `SIGNIFICANCE_RULE` — 역사 판정 규칙 파일 하나(`data/history/rules/{rule_id}.json`)의
+/// 모양. **규칙 하나당 파일 하나** — 규칙을 추가해도 기존 규칙 파일의 해시가 바뀌지 않는다
+/// (ADR-0014 §5). 판정 **조건**은 Rust 코드다(HSE §33) — 이 파일은 규칙의 정체성과 산출
+/// 상수만 싣는다. `rarity` 같은 다른 데이터 표의 입력을 실어서는 안 된다.
+///
+/// 대응 스키마: `contracts/data/significance-rule.schema.json`
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SignificanceRuleTable {
+    /// 데이터 파일 스키마 버전.
+    pub schema_version: SchemaVersion,
+    /// 안정적 규칙 id.
+    pub rule_id: DataId,
+    /// 규칙 버전. 기동 검산: `rule_id + "@"` 로 시작해야 한다.
+    pub rule_version: RuleVersion,
+    /// 이 규칙이 만드는 역사 이벤트 타입.
+    #[serde(deserialize_with = "de_type_name")]
+    pub produces_event_type: String,
+    /// HSE §11 중요도.
+    #[serde(deserialize_with = "de_rule_importance_level")]
+    pub importance_level: u8,
+    /// 이 규칙이 만드는 기록의 가시성.
+    pub visibility: HistoricalVisibility,
+    /// designer 메모.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub designer_note: Option<String>,
+    /// 자동 생성 증거.
+    pub evidence: SignificanceRuleEvidence,
 }
 
 // ---------------------------------------------------------------------------

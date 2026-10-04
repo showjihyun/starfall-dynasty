@@ -11,9 +11,23 @@ publish.workspace = true
 # [workspace.lints] 는 멤버가 이 줄로 옵트인해야 적용된다.
 workspace = true
 
+[features]
+# DB 통합 테스트 전용 주입점(`src/lib.rs` 의 `test_hooks` 모듈, SC-27·SC-101·SC-103).
+# `cargo build -p starfall-game-server`(단독) · 릴리스 빌드에는 이 feature 가 켜지지
+# 않는다. **하지만 `cargo test --workspace`/`--all-targets` 뒤에는 Cargo 의 feature
+# 통합 때문에 같은 debug 프로파일의 `bins/game-server` 실행 파일에도 섞인다**(qa
+# 실측, 2026-09-29 — `src/lib.rs` 의 `test_hooks` 모듈 문서와 `03_server_impl.md` S6
+# 절 참고). 증거용 실서버는 반드시 `cargo build -p starfall-game-server` 단독으로
+# 다시 빌드한다(qa `server_boot.py` 가 기동 전 문자열 검사로 강제한다).
+test-hooks = []
+
 [dependencies]
 starfall-contracts.workspace = true
 starfall-sim.workspace = true
+# 커밋 알림 → 러너, 역사 상태 적재(§4 T0 합의: persistence → history(코어) + contracts).
+# `mod history;`(이 크레이트의 `src/history.rs`)만 이 의존을 쓴다 — 경제 상태 코드는
+# 여전히 history 를 모른다.
+starfall-history.workspace = true
 
 serde.workspace = true
 serde_json.workspace = true
@@ -24,6 +38,20 @@ serde_json.workspace = true
 #     `$n::timestamptz` 로 캐스팅해 넣는다 — 시계 출처가 호스트 하나로 고정된다.
 sqlx.workspace = true
 thiserror.workspace = true
-tokio = { workspace = true, features = ["sync", "time"] }
+# `rt-multi-thread` 는 `bin/history-replay.rs`(SC-59, H2) 전용 — 그 바이너리가
+# 자기 tokio 런타임을 직접 만들어야 한다(라이브러리 코드는 여전히 호출자의 런타임
+# 위에서만 돈다). `[dev-dependencies]` 의 같은 feature 와 트리에 새 크레이트를
+# 더하지 않는다(합집합일 뿐).
+tokio = { workspace = true, features = ["sync", "time", "rt-multi-thread"] }
 tracing.workspace = true
 uuid.workspace = true
+
+[dev-dependencies]
+# DB 통합 테스트 전용 격리 DB 헬퍼(T0, Q-2). 증거 DB(`starfall`)를 건드리지 않는다.
+starfall-testdb.workspace = true
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+# 자기 참조 — 이 크레이트 자신의 테스트 빌드에서 `test-hooks` 를 켠다(위 [features]
+# 주석 참고). `bins/game-server`의 `Cargo.toml` 의존 선언에는 나타나지 않지만, 워크
+# 스페이스를 한 `cargo` 호출로 같이 빌드하면(`cargo test --workspace` 등) Cargo 의
+# feature 통합 때문에 그 실행 파일에도 이 feature 가 켜진 채로 다시 빌드된다.
+starfall-persistence = { path = ".", features = ["test-hooks"] }

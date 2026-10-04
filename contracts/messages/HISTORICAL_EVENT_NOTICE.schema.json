@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.starfall.invalid/contracts/messages/HISTORICAL_EVENT_NOTICE.schema.json",
+  "title": "HistoricalEventNoticeMessage",
+  "description": "One historical record delivered to a player (ADR-0014 section 6). The history runner produces the record; the gateway/tick driver wraps it into this message (it alone knows the send tick, the message_id and whether the delivery is LIVE or BACKFILL). LIVE: sent after the history runner COMMITTED the record, to every open session allowed to see it. BACKFILL: sent when a session opens (after SESSION_READY), once per existing record that session may see, in ascending tick order. Never sent before commit. A session may receive the same record both as LIVE and as BACKFILL; the client shows it once, keyed by historical_event.historical_event_id (spec p1-02 I-65). The envelope tick is the gateway's current tick at send time, not the record's tick. Not a response to any command. Contains no sentence and no display name: the client builds the text. KNOWN EXPIRY: historical_event references MINERAL_DISCOVERED directly because it is the only historical type; the slice that adds the second historical type must turn this field into a discriminated union (schema_version 2 or a codegen extension).",
+  "allOf": [
+    {
+      "$ref": "../common/message-envelope.schema.json"
+    }
+  ],
+  "properties": {
+    "message_type": {
+      "const": "HISTORICAL_EVENT_NOTICE"
+    },
+    "schema_version": {
+      "const": 1
+    },
+    "payload": {
+      "$ref": "#/$defs/HistoricalEventNoticePayload"
+    }
+  },
+  "unevaluatedProperties": false,
+  "$defs": {
+    "HistoricalEventNoticePayload": {
+      "title": "HistoricalEventNoticePayload",
+      "type": "object",
+      "required": [
+        "delivery",
+        "historical_event"
+      ],
+      "properties": {
+        "delivery": {
+          "description": "LIVE = it just happened. BACKFILL = it happened before this session opened. Closed set.",
+          "type": "string",
+          "enum": [
+            "LIVE",
+            "BACKFILL"
+          ]
+        },
+        "historical_event": {
+          "$ref": "../events/historical/MINERAL_DISCOVERED.schema.json"
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

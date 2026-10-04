@@ -1,0 +1,71 @@
+{
+  "item": "p1-02 SC-113 (Q-2) CI DB 테스트 RAN 이름 대조 — 누락 0 · SKIPPED 0",
+  "verdict": "FAIL",
+  "expected": 24,
+  "ran_lines": 19,
+  "expected_and_ran": 15,
+  "missing": [
+    {
+      "name": "ambiguous_commit_retry_counts_once",
+      "sc": [
+        20
+      ]
+    },
+    {
+      "name": "cross_world_same_command_id_accepted",
+      "sc": [
+        100
+      ]
+    },
+    {
+      "name": "dup_across_restart",
+      "sc": [
+        18
+      ]
+    },
+    {
+      "name": "dup_cross_actor_no_halt",
+      "sc": [
+        100
+      ]
+    },
+    {
+      "name": "dup_reaching_db_halts",
+      "sc": [
+        21
+      ]
+    },
+    {
+      "name": "no_commit_after_fatal",
+      "sc": [
+        102
+      ]
+    },
+    {
+      "name": "payload_serialize_failure_fails_batch",
+      "sc": [
+        101
+      ]
+    },
+    {
+      "name": "recorded_at_failure_fails_batch",
+      "sc": [
+        27
+      ]
+    },
+    {
+      "name": "terminated_backend_is_retried",
+      "sc": [
+        112
+      ]
+    }
+  ],
+  "skipped": [],
+  "ran_but_not_in_contract": [
+    "accepted_mine_commits_events_and_state",
+    "error_classification",
+    "missing_world_row_halts_instead_of_panicking",
+    "testdb::smoke::creates_migrates_and_drops_an_isolated_database"
+  ],
+  "ok": false
+}

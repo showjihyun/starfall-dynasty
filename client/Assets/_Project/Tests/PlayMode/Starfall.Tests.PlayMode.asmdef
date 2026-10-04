@@ -1,0 +1,28 @@
+{
+    "name": "Starfall.Tests.PlayMode",
+    "rootNamespace": "Starfall.Tests.PlayMode",
+    "references": [
+        "Starfall.Contracts",
+        "Starfall.Net",
+        "Starfall.Sim",
+        "Starfall.Flight",
+        "Starfall.Remote",
+        "Starfall.Greybox",
+        "Starfall.Mining",
+        "UnityEngine.TestRunner"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": true,
+    "precompiledReferences": [
+        "nunit.framework.dll",
+        "Newtonsoft.Json.dll"
+    ],
+    "autoReferenced": false,
+    "defineConstraints": [
+        "UNITY_INCLUDE_TESTS"
+    ],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

@@ -1,16 +1,23 @@
 //! 레지스트리 주도 계약 테스트 9종 (ADR-0002 §3).
 //!
-//! | ADR 테스트 | 이 파일의 테스트 함수 | 스프린트 계약 |
+//! | ADR 테스트 | 이 파일의 테스트 함수 | p1-02 스프린트 계약 |
 //! |-----------|---------------------|--------------|
-//! | 1 메타스키마 유효 + `$ref` 해석 (오프라인) | `schemas_valid_offline` | SC-12 |
-//! | 2 유효 fixture 왕복 + 재검증 | `fixtures_roundtrip` | SC-13 |
-//! | 3 반례의 스키마 거부 | `invalid_rejected_by_schema` | SC-14 |
-//! | 6 반례의 serde 거부 (운영 경로) | `invalid_serde_matrix` | SC-15 |
-//! | 5 `server` 태그 타입의 대응표 존재 | `registry_server_types_mapped` | SC-16 |
-//! | 4 레지스트리·스키마·fixture 상수 일치 | `registry_consistency` | SC-17 |
-//! | 8 레지스트리 자체 검증 + `$id` 정합 | `registry_file_validates_against_schema`, `schema_ids_match_paths` | SC-17 |
-//! | 7 `required` 변이 거부 | `required_field_mutations` | SC-18 |
-//! | 9 정수 상한 위반 거부 | `integer_bounds_rejected` | (SC-15 보강) |
+//! | 1 메타스키마 유효 + `$ref` 해석 (오프라인) | `schemas_valid_offline` | SC-35 |
+//! | 2 유효 fixture 왕복 + 재검증 | `fixtures_roundtrip` | SC-35 |
+//! | 3 반례의 스키마 거부 | `invalid_rejected_by_schema` | SC-35 |
+//! | 6 반례의 serde 거부 (운영 경로) | `invalid_serde_matrix` | SC-36 |
+//! | 5 `server` 태그 타입의 대응표 존재 | `registry_server_types_mapped` | (계약 밖 — 레지스트리 자체 검증) |
+//! | 4 레지스트리·스키마·fixture 상수 일치 | `registry_consistency` | SC-35 |
+//! | 8 레지스트리 자체 검증 + `$id` 정합 | `registry_file_validates_against_schema`, `schema_ids_match_paths` | (계약 밖 — 레지스트리 자체 검증) |
+//! | 7 `required` 변이 거부 | `required_field_mutations` | SC-37 |
+//! | 9 정수 상한 위반 거부 | `integer_bounds_rejected` | (SC-36 보강) |
+//! | (신설) 명령 → 기대 응답 | `registry_responses` | SC-38 |
+//! | (신설) ADR-0002 §1a 예약 판별자 키 | `reserved_discriminator_keys_are_exclusive` | (계약 밖 — architect 요청) |
+//!
+//! **주의**: 이 표의 SC 번호는 p1-02-mining 계약(`_workspace/p1-02-mining/02_sprint_contract.md`)
+//! 기준이다. p0-02 시절 이 파일의 `println!` 라벨이 `[SC-12]`~`[SC-18]`이었는데, 그 번호는
+//! p0-02 계약의 것이라 p1-02 리포트에 인용하면 엉뚱한 항목(예: p1-02 SC-12 는 부분
+//! 산출)을 가리킨다 — qa 지적(2026-09-27)으로 `[p1-02 SC-nn]` 표지로 바꿨다.
 //!
 //! # 빈 순회는 실패다
 //!
@@ -34,11 +41,18 @@ const SCHEMA_ID_PREFIX: &str = "https://schemas.starfall.invalid/contracts/";
 ///
 /// p1-01-ship-movement 가 6타입(`SET_SHIP_CONTROL`·`WORLD_SNAPSHOT`·`SHIP_SPAWNED`·
 /// `SHIP_DESPAWNED`·`SHIP_CLASS`·`STAR_SYSTEM`·`SYNC_TUNING` — 7종)을 더했다(스펙 §5.3).
-const EXPECTED_SCHEMA_COUNT: usize = 18;
+/// p1-02-mining 이 10종(신규 Rust 타입 10개와 같다 — `MINE_RESOURCE`·`MINERAL_MINED`·
+/// `MINERAL_DISCOVERED`·`INVENTORY_STATE`·`DEPOSIT_FIELD_STATE`·
+/// `HISTORICAL_EVENT_NOTICE`·`MINERAL`·`DEPOSIT_FIELD`·`MINING_RULES`·
+/// `SIGNIFICANCE_RULE`) + 공통 스키마 1개(`historical-event-envelope.schema.json`)를
+/// 더했다(01_architect_tasks.md T0/S1). 18 → 29.
+const EXPECTED_SCHEMA_COUNT: usize = 29;
 // R4 S-6: `SESSION_CLOSED.close_reason` 에 `SUPERSEDED` 가 추가되며 유효 fixture 가
 // `superseded.json` 1건 늘었다(architect 계약 변경, 사용자 결정 5). 26 → 27.
-const EXPECTED_VALID_FIXTURES: usize = 27;
-const EXPECTED_INVALID_FIXTURES: usize = 34;
+// p1-02-mining S1: 레지스트리 23 타입 실측대로 유효 46 / 반례 74(01_architect_tasks.md
+// "레지스트리 13 → 23, fixture 27/34 → 46/74"). 27 → 46, 34 → 74.
+const EXPECTED_VALID_FIXTURES: usize = 46;
+const EXPECTED_INVALID_FIXTURES: usize = 74;
 
 // ---------------------------------------------------------------------------
 // 경로 해석 — 실패하면 명확히 죽는다
@@ -162,6 +176,8 @@ struct RegistryEntry {
     producers: Vec<String>,
     consumers: Vec<String>,
     status: String,
+    /// `responses: [{type, when}]`(스펙 §5.1a) — 선택 필드, 없으면 빈 목록. SC-38.
+    responses: Vec<(String, String)>,
 }
 
 fn registry_entries() -> Vec<RegistryEntry> {
@@ -193,10 +209,35 @@ fn registry_entries() -> Vec<RegistryEntry> {
                 .as_str()
                 .expect("status 가 문자열이 아니다")
                 .to_owned(),
+            responses: response_list(&entry["responses"]),
         })
         .collect();
     assert!(!entries.is_empty(), "레지스트리가 비어 있다");
     entries
+}
+
+/// `responses: [{type, when}]` — 선택 필드. 없으면 빈 목록(SC-38 이 "선택 필드라 없음"
+/// 으로 조용히 통과하지 않도록, 명령 kind 수와 이 목록이 채워진 수를 둘 다 센다).
+fn response_list(value: &Value) -> Vec<(String, String)> {
+    value
+        .as_array()
+        .map(|items| {
+            items
+                .iter()
+                .map(|item| {
+                    let response_type = item["type"]
+                        .as_str()
+                        .expect("responses[].type 이 문자열이 아니다")
+                        .to_owned();
+                    let when = item["when"]
+                        .as_str()
+                        .expect("responses[].when 이 문자열이 아니다")
+                        .to_owned();
+                    (response_type, when)
+                })
+                .collect()
+        })
+        .unwrap_or_default()
 }
 
 fn string_list(value: &Value) -> Vec<String> {
@@ -291,7 +332,7 @@ fn schemas_valid_offline() {
         let _ = validator_for(&registry, &expected_schema_id(path));
     }
 
-    println!("[SC-12] 오프라인 검증한 스키마: {}건", files.len());
+    println!("[p1-02 SC-35] 오프라인 검증한 스키마: {}건", files.len());
     for path in &files {
         println!("  - {}", file_name(path));
     }
@@ -349,7 +390,10 @@ fn fixtures_roundtrip() {
         }
     }
 
-    println!("[SC-13] 왕복 검증한 유효 fixture: {}건", checked.len());
+    println!(
+        "[p1-02 SC-35] 왕복 검증한 유효 fixture: {}건",
+        checked.len()
+    );
     for name in &checked {
         println!("  - {name}");
     }
@@ -384,7 +428,7 @@ fn invalid_rejected_by_schema() {
         }
     }
 
-    println!("[SC-14] 스키마가 거부한 반례: {}건", checked.len());
+    println!("[p1-02 SC-35] 스키마가 거부한 반례: {}건", checked.len());
     for name in &checked {
         println!("  - {name}");
     }
@@ -436,10 +480,49 @@ const SERDE_REJECTION_TABLE: &[(&str, bool)] = &[
     ("angular-velocity-roll-missing.json", true), // ShipState 의 필수 필드
     ("ship-missing-orientation-w.json", true), // ShipState 의 필수 필드
     ("unknown-presence.json", true),        // ShipPresence 닫힌 열거형
+    // p1-02-mining 신규 — 34건(고유 파일명 기준. `actor-field-injected.json`·
+    // `position-field-injected.json`·`actor-id-null.json`·`causation-id-null.json` 은
+    // 위 p0/p1-01 행이 이미 덮는다. `remaining-negative.json`(MINERAL_MINED·
+    // DEPOSIT_FIELD_STATE 공유)·`importance-level-zero.json`(MINERAL_DISCOVERED·
+    // SIGNIFICANCE_RULE 공유)도 한 행으로 both 를 덮는다).
+    ("deposit-id-not-kebab.json", true),           // DataId 패턴
+    ("mineral-field-injected.json", true),         // MineResourcePayload deny_unknown_fields — I-48
+    ("missing-deposit-id.json", true),             // 필수 필드
+    ("quantity-field-injected.json", true),        // MineResourcePayload deny_unknown_fields — I-48
+    ("importance-level-injected.json", true),      // MineralMinedEvent envelope deny_unknown_fields
+    ("quantity-fractional.json", true),            // MassKg 는 정수
+    ("quantity-zero.json", true),                  // de_positive_mass_kg — 0 은 채굴로 나올 수 없다
+    ("remaining-negative.json", true),             // MassKg 음수 불가
+    ("domain-envelope-field-sequence.json", true), // 역사 envelope 에 sequence 가 없다
+    ("fact-status-interpretation.json", true),     // FactStatus 닫힌 열거형(CONFIRMED 뿐)
+    ("historical-id-v7-not-derived.json", true),   // historical_event_id 는 UuidV5 여야 한다
+    ("importance-level-zero.json", true),          // de_importance_level·de_rule_importance_level
+    ("narrative-field-injected.json", true),       // MineralDiscoveredEvent deny_unknown_fields
+    ("participants-discoverer-only.json", true),   // de_exactly_two_participants
+    ("rule-version-without-number.json", true),    // RuleVersion 패턴
+    ("source-event-ids-empty.json", true),         // de_exactly_one_source_event
+    ("capacity-field-injected.json", true), // InventoryStatePayload deny_unknown_fields — I-49
+    ("fractional-quantity.json", true),     // MassKg 는 정수
+    ("zero-quantity-item.json", true),      // de_positive_mass_kg
+    ("hint-field-injected.json", true),     // DepositState deny_unknown_fields — I-68
+    ("missing-mineral-key.json", true),     // required_nullable — 키 자체가 필수
+    ("nested-level-zero.json", true),       // 중첩된 MineralDiscoveredEvent 의 importance_level
+    ("sentence-injected.json", true),       // HistoricalEventNoticePayload deny_unknown_fields
+    ("unknown-delivery.json", true),        // HistoricalDelivery 닫힌 열거형
+    ("regen-interval-fractional.json", true), // regen_interval_s 는 정수
+    ("unread-property.json", true),         // MineralTable deny_unknown_fields — GDD 필드 배제
+    ("yield-fractional.json", true),        // MassKg 는 정수
+    ("no-deposits.json", true),             // de_deposits — 1개 이상
+    ("position-two-components.json", true), // Triplet = [f64; 3] 고정 길이
+    ("reserve-fractional.json", true),      // MassKg 는 정수
+    ("cooldown-fractional.json", true),     // cooldown_s 는 정수
+    ("range-zero.json", true),              // exclusiveMinimum 0 범위 newtype
+    ("foreign-input-rarity.json", true), // SignificanceRuleTable deny_unknown_fields — ADR-0014 §5
+    ("rule-version-malformed.json", true), // RuleVersion 패턴
 ];
 
 #[test]
-fn invalid_serde_matrix() {
+fn invalid_fixtures_layered() {
     let mut observed = Vec::new();
 
     for contract in CONTRACT_TYPES {
@@ -481,7 +564,10 @@ fn invalid_serde_matrix() {
         }
     }
 
-    println!("[SC-15] serde 매트릭스 검사한 반례: {}건", observed.len());
+    println!(
+        "[p1-02 SC-36] serde 매트릭스 검사한 반례: {}건",
+        observed.len()
+    );
     assert_eq!(observed.len(), EXPECTED_INVALID_FIXTURES);
 }
 
@@ -525,7 +611,7 @@ fn registry_server_types_mapped() {
     }
 
     println!(
-        "[SC-16] server 태그 타입 {}건이 대응표에 있다",
+        "[p1-02 계약 — server 태그 대응표] server 태그 타입 {}건이 대응표에 있다",
         server_types.len()
     );
     for name in &server_types {
@@ -631,7 +717,7 @@ fn registry_consistency() {
     }
 
     println!(
-        "[SC-17] 레지스트리 항목 {}건, 대조한 fixture {checked}건",
+        "[p1-02 SC-35] 레지스트리 항목 {}건, 대조한 fixture {checked}건",
         entries.len()
     );
     assert_eq!(checked, EXPECTED_VALID_FIXTURES);
@@ -655,7 +741,9 @@ fn registry_file_validates_against_schema() {
     if let Err(error) = validator.validate(&document) {
         panic!("registry/types.json 이 자기 스키마 검증에 실패했다: {error}");
     }
-    println!("[SC-17] registry/types.json 이 types.schema.json 검증을 통과했다");
+    println!(
+        "[p1-02 계약 — 레지스트리 자체 검증] registry/types.json 이 types.schema.json 검증을 통과했다"
+    );
 }
 
 #[test]
@@ -676,7 +764,7 @@ fn schema_ids_match_paths() {
         );
     }
     println!(
-        "[SC-17] $id 가 경로 규칙과 일치하는 스키마: {}건",
+        "[p1-02 계약 — 레지스트리 $id 정합] $id 가 경로 규칙과 일치하는 스키마: {}건",
         files.len()
     );
     assert_eq!(files.len(), EXPECTED_SCHEMA_COUNT);
@@ -725,7 +813,7 @@ fn payload_required(type_schema: &Value) -> Vec<String> {
 }
 
 #[test]
-fn required_field_mutations() {
+fn required_removal_mutations() {
     let mut mutations = 0usize;
 
     for contract in CONTRACT_TYPES {
@@ -786,7 +874,7 @@ fn required_field_mutations() {
         }
     }
 
-    println!("[SC-18] required 변이 {mutations}건이 모두 역직렬화에 실패했다");
+    println!("[p1-02 SC-37] required 변이 {mutations}건이 모두 역직렬화에 실패했다");
     assert!(mutations >= 20, "변이 개수가 너무 적다: {mutations}");
 }
 
@@ -868,4 +956,156 @@ fn integer_bounds_rejected() {
         fractional_form_checks > 0,
         "정수 소수 형태 검사가 0건이다 — 아무것도 검사하지 않고 조용히 통과했을 수 있다"
     );
+}
+
+// ---------------------------------------------------------------------------
+// 테스트 10 (architect 요청, ADR-0002 §1a) — 예약 판별자 키는 배타적이다
+// ---------------------------------------------------------------------------
+//
+// `command_type`·`message_type`·`event_type` 은 계약 객체의 최상위 판별자 전용이다.
+// `data`(그 밖에 판별자가 없는 kind)의 스키마가 이 이름 중 하나를 필드로 쓰면, 범용
+// 디스패치 코드가 그 데이터 파일을 메시지로 오독한다(client 실측, p1-02 —
+// `SIGNIFICANCE_RULE` 이 원래 `event_type` 을 쓰려다 `produces_event_type` 으로 바뀐 사유).
+
+/// `kind` 에서 기대하는 최상위 판별자 키. 판별자가 없는 kind(`data` 등)는 `None`.
+fn expected_discriminator_key(kind: &str) -> Option<&'static str> {
+    match kind {
+        "command" => Some("command_type"),
+        "server_message" => Some("message_type"),
+        "domain_event" | "historical_event" => Some("event_type"),
+        _ => None,
+    }
+}
+
+const RESERVED_DISCRIMINATOR_KEYS: [&str; 3] = ["command_type", "message_type", "event_type"];
+
+/// 스키마의 최상위 `properties` 가 예약 판별자 키를 올바르게 쓰는가 — 판별자를 가지면
+/// **자기 것 하나만**, 판별자가 없는 kind 는 **셋 다 없어야** 한다.
+fn discriminator_keys_are_exclusive(schema: &Value, expected: Option<&str>) -> bool {
+    let properties = schema
+        .get("properties")
+        .and_then(Value::as_object)
+        .cloned()
+        .unwrap_or_default();
+    let present: Vec<&str> = RESERVED_DISCRIMINATOR_KEYS
+        .iter()
+        .copied()
+        .filter(|key| properties.contains_key(*key))
+        .collect();
+    match expected {
+        Some(key) => present == [key],
+        None => present.is_empty(),
+    }
+}
+
+#[test]
+fn reserved_discriminator_keys_are_exclusive() {
+    // 음성 대조 — 검사 함수 자체가 죽어 있지 않은지 먼저 확인한다.
+    let fake_data_schema_with_event_type = json!({
+        "type": "object",
+        "properties": {
+            "id": {"type": "string"},
+            "event_type": {"const": "NOT_ALLOWED_HERE"}
+        }
+    });
+    assert!(
+        !discriminator_keys_are_exclusive(&fake_data_schema_with_event_type, None),
+        "음성 대조 실패 — data 스키마에 event_type 을 얹었는데 검사가 통과시켰다"
+    );
+    let fake_command_schema_with_two_discriminators = json!({
+        "type": "object",
+        "properties": {
+            "command_type": {"const": "X"},
+            "event_type": {"const": "Y"}
+        }
+    });
+    assert!(
+        !discriminator_keys_are_exclusive(
+            &fake_command_schema_with_two_discriminators,
+            Some("command_type")
+        ),
+        "음성 대조 실패 — 판별자 둘을 가진 스키마가 통과했다"
+    );
+    let fake_command_schema_missing_its_own = json!({
+        "type": "object",
+        "properties": { "id": {"type": "string"} }
+    });
+    assert!(
+        !discriminator_keys_are_exclusive(
+            &fake_command_schema_missing_its_own,
+            Some("command_type")
+        ),
+        "음성 대조 실패 — 자기 판별자가 없는데 통과했다"
+    );
+
+    let mut checked = 0usize;
+    for entry in registry_entries() {
+        let schema_path = contracts_dir().join(&entry.schema);
+        let schema = read_json(&schema_path);
+        let expected = expected_discriminator_key(&entry.kind);
+        assert!(
+            discriminator_keys_are_exclusive(&schema, expected),
+            "{}({}): 최상위 properties 의 예약 판별자 키가 기대(kind={:?} -> {:?})와 다르다 \
+             (ADR-0002 §1a)",
+            entry.name,
+            schema_path.display(),
+            entry.kind,
+            expected
+        );
+        checked += 1;
+    }
+
+    println!("[ADR-0002 §1a] 예약 판별자 키 배타성 확인: {checked}건");
+    assert!(checked > 0, "레지스트리를 한 건도 확인하지 않았다");
+}
+
+// ---------------------------------------------------------------------------
+// 테스트 11 (SC-38, 스펙 §5.1a) — 명령 → 기대 응답은 레지스트리가 정본이다
+// ---------------------------------------------------------------------------
+
+#[test]
+fn registry_responses() {
+    let entries = registry_entries();
+    let command_entries: Vec<&RegistryEntry> = entries
+        .iter()
+        .filter(|entry| entry.kind == "command")
+        .collect();
+
+    // ⊘ 방지 — "responses 가 없는 명령을 선택 필드라 없음으로 통과"시키지 않는다: 명령
+    // kind 인 타입 수와 responses 가 채워진 수를 **둘 다** 찍고 같은지 확인한다.
+    let with_responses = command_entries
+        .iter()
+        .filter(|entry| !entry.responses.is_empty())
+        .count();
+    println!(
+        "[p1-02 SC-38] 명령 kind 타입 {}건, responses 가 채워진 타입 {}건",
+        command_entries.len(),
+        with_responses
+    );
+    assert_eq!(
+        command_entries.len(),
+        3,
+        "명령 kind 가 3종(PING_SERVER·SET_SHIP_CONTROL·MINE_RESOURCE)이어야 한다"
+    );
+    assert_eq!(
+        with_responses,
+        command_entries.len(),
+        "명령 kind 전부가 responses 를 채워야 한다 — 비어 있는 것이 있으면 그 명령의 \
+         기대 응답이 계약에 없다는 뜻이다"
+    );
+
+    for entry in &command_entries {
+        let contract = starfall_contracts::registry::find(&entry.name)
+            .unwrap_or_else(|| panic!("{} 가 CONTRACT_TYPES 에 없다", entry.name));
+        let rust_responses: Vec<(String, String)> = contract
+            .responses
+            .iter()
+            .map(|(response_type, when)| ((*response_type).to_owned(), (*when).to_owned()))
+            .collect();
+        assert_eq!(
+            rust_responses, entry.responses,
+            "{}: Rust registry.rs 의 responses 가 registry/types.json(스펙 §5.1a 표)과 다르다",
+            entry.name
+        );
+    }
 }

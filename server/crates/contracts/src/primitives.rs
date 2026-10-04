@@ -117,6 +117,88 @@ impl<'de> Deserialize<'de> for UuidV7 {
 }
 
 // ---------------------------------------------------------------------------
+// UuidV5
+// ---------------------------------------------------------------------------
+
+/// 정규 소문자 하이픈 표기의 UUIDv5(이름 기반, RFC 9562).
+///
+/// `UuidV7`과 검증 규칙이 같다(버전 니블 + 정규 표기) — 버전만 5다. **오직** 의미에서
+/// 재현 가능해야 하는 id에만 쓴다: `historical_event_id =
+/// UUIDv5(NS_HISTORY, "{world_id}|{event_type}|{dedupe_key}")`(ADR-0014 §1). SHA-1은
+/// 여기서 id를 유도하는 데만 쓰이고 보안 용도가 아니다.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct UuidV5(Uuid);
+
+impl UuidV5 {
+    /// 이름 기반으로 UUIDv5를 만든다. 같은 `namespace`·`name`이면 언제나 같은 값이다
+    /// (결정성 — H1이 이것으로 재현 가능한 `historical_event_id`를 만든다).
+    #[must_use]
+    pub fn new_v5(namespace: &Uuid, name: &[u8]) -> Self {
+        Self(Uuid::new_v5(namespace, name))
+    }
+
+    /// 내부 UUID.
+    #[must_use]
+    pub const fn get(self) -> Uuid {
+        self.0
+    }
+
+    /// UUID가 v5이면 감싼다.
+    #[must_use]
+    pub fn from_uuid(uuid: Uuid) -> Option<Self> {
+        (uuid.get_version_num() == 5).then_some(Self(uuid))
+    }
+
+    /// 정규 소문자 하이픈 표기의 UUIDv5 문자열을 감싼다.
+    #[must_use]
+    pub fn parse(value: &str) -> Option<Self> {
+        let uuid = Uuid::parse_str(value).ok()?;
+        if uuid.get_version_num() != 5 {
+            return None;
+        }
+        let mut buf = [0u8; uuid::fmt::Hyphenated::LENGTH];
+        (uuid.as_hyphenated().encode_lower(&mut buf) == value).then_some(Self(uuid))
+    }
+}
+
+impl fmt::Display for UuidV5 {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0.as_hyphenated())
+    }
+}
+
+impl Serialize for UuidV5 {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.collect_str(self.0.as_hyphenated())
+    }
+}
+
+impl<'de> Deserialize<'de> for UuidV5 {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let raw = String::deserialize(deserializer)?;
+        let uuid = Uuid::parse_str(&raw)
+            .map_err(|_| D::Error::invalid_value(Unexpected::Str(&raw), &"UUID"))?;
+
+        if uuid.get_version_num() != 5 {
+            return Err(D::Error::custom(format!(
+                "UuidV5 는 버전 5이어야 한다 (받은 값의 버전: {}, 값: {raw})",
+                uuid.get_version_num()
+            )));
+        }
+
+        let mut buf = [0u8; uuid::fmt::Hyphenated::LENGTH];
+        let canonical: &str = uuid.as_hyphenated().encode_lower(&mut buf);
+        if raw != canonical {
+            return Err(D::Error::custom(format!(
+                "UuidV5 는 정규 소문자 하이픈 표기여야 한다 (기대: {canonical}, 받음: {raw})"
+            )));
+        }
+
+        Ok(Self(uuid))
+    }
+}
+
+// ---------------------------------------------------------------------------
 // 타임스탬프 문자열
 // ---------------------------------------------------------------------------
 
@@ -623,6 +705,51 @@ bounded_int_newtype!(
     "ControlAxisMilli"
 );
 bounded_int_newtype!(InputSeq, u32, 1u32, u32::MAX, "InputSeq");
+// 정수 킬로그램 자원량 — 인벤토리 보유량·광맥 잔량·1회 채굴량(p1-02). 0.5kg 같은 소수
+// kg을 금지하는 이유는 부동소수점 화폐를 금지하는 이유와 같다 — 반올림 지점은 질량이
+// 조용히 생기거나 사라지는 자리다. 상한은 32비트 부호 있는 정수 하나로 모든 소비자가
+// 들 수 있게 `2^31-1`(매크로가 문서를 만들지 않으므로 일반 주석으로 남긴다).
+bounded_int_newtype!(MassKg, i32, 0i32, i32::MAX, "MassKg");
+
+/// `MassKg` 인데 그 자리에서 **0을 추가로 금지**하는 필드용(스키마의 `$ref MassKg` +
+/// 형제 `"minimum": 1`, 예: `MINERAL_MINED.quantity_kg`). 0을 낳는 채굴은 애초에
+/// `RESOURCE_DEPLETED` 로 거부되고 이벤트를 쓰지 않는다는 불변식을 타입 경계에서도 지킨다.
+///
+/// # Errors
+///
+/// 값이 0이거나 `MassKg` 범위 밖이면 실패한다.
+pub fn de_positive_mass_kg<'de, D>(deserializer: D) -> Result<MassKg, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let value = MassKg::deserialize(deserializer)?;
+    if value.get() >= 1 {
+        Ok(value)
+    } else {
+        Err(DeError::custom(
+            "MassKg 는 이 필드에서 0일 수 없다 (최소 1)",
+        ))
+    }
+}
+
+/// [`de_positive_mass_kg`] 의 `Option` 버전 — 키는 항상 있고 값이 `null` 이거나 양의
+/// `MassKg` 인 필드용(예: `DEPOSIT_FIELD_STATE.deposits[].initial_reserve_kg`).
+///
+/// # Errors
+///
+/// 값이 `null`도 아니고 1 이상의 `MassKg`도 아니면 실패한다.
+pub fn de_optional_positive_mass_kg<'de, D>(deserializer: D) -> Result<Option<MassKg>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    match Option::<MassKg>::deserialize(deserializer)? {
+        None => Ok(None),
+        Some(value) if value.get() >= 1 => Ok(Some(value)),
+        Some(_) => Err(DeError::custom(
+            "MassKg 는 이 필드에서 0일 수 없다 (최소 1)",
+        )),
+    }
+}
 
 // ---------------------------------------------------------------------------
 // DataId — data/ 테이블 `id` 필드와 글자 그대로 같은 문자열 (ADR-0009 §2)
@@ -695,6 +822,67 @@ impl<'de> Deserialize<'de> for DataId {
         let raw = String::deserialize(deserializer)?;
         Self::parse(raw.clone())
             .ok_or_else(|| D::Error::custom(format!("DataId 패턴에 맞지 않는다: {raw}")))
+    }
+}
+
+// ---------------------------------------------------------------------------
+// RuleVersion — `{rule-name}@{n}` (ADR-0014 §5)
+// ---------------------------------------------------------------------------
+
+/// 역사 판정 규칙 버전. `{rule-name}@{n}`(예: `mineral-discovery@1`). 규칙이 바뀌면
+/// 버전이 오르고, **과거 기록은 다시 계산하지 않는다**(절대 원칙 5·9). 매 역사 기록에
+/// 영원히 저장된다.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct RuleVersion(String);
+
+/// `^[a-z][a-z0-9]*(-[a-z0-9]+)*@[1-9][0-9]*$` 를 손으로 검사한다.
+fn is_rule_version(value: &str) -> bool {
+    let Some((name, number)) = value.split_once('@') else {
+        return false;
+    };
+    if !is_lower_kebab(name) {
+        return false;
+    }
+    let mut digits = number.bytes();
+    let Some(head) = digits.next() else {
+        return false;
+    };
+    // 선행 0 금지: `[1-9][0-9]*`.
+    head.is_ascii_digit() && head != b'0' && digits.all(|b| b.is_ascii_digit())
+}
+
+impl RuleVersion {
+    /// 패턴을 만족하면 감싼다.
+    #[must_use]
+    pub fn parse(value: impl Into<String>) -> Option<Self> {
+        let value = value.into();
+        is_rule_version(&value).then_some(Self(value))
+    }
+
+    /// 원본 문자열.
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl fmt::Display for RuleVersion {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+
+impl Serialize for RuleVersion {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_str(&self.0)
+    }
+}
+
+impl<'de> Deserialize<'de> for RuleVersion {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let raw = String::deserialize(deserializer)?;
+        Self::parse(raw.clone())
+            .ok_or_else(|| D::Error::custom(format!("RuleVersion 패턴에 맞지 않는다: {raw}")))
     }
 }
 
@@ -881,6 +1069,37 @@ mod tests {
                 "정규 표기가 아닌 값이 통과했다: {raw}"
             );
         }
+    }
+
+    #[test]
+    fn uuid_v5_accepts_canonical_lowercase_and_rejects_v7() {
+        let namespace = Uuid::parse_str("29c482cc-234d-4876-a837-347b852f802d").unwrap();
+        let value = UuidV5::new_v5(&namespace, b"world|MINERAL_DISCOVERED|dedupe");
+        let json = serde_json::to_string(&value).unwrap();
+        let round_tripped: UuidV5 = serde_json::from_str(&json).unwrap();
+        assert_eq!(round_tripped, value);
+
+        let err =
+            serde_json::from_str::<UuidV5>("\"01a0afaf-7e83-7f49-adfa-58ba04c2fd5a\"").unwrap_err();
+        assert!(err.to_string().contains("버전 5"), "{err}");
+    }
+
+    #[test]
+    fn mass_kg_rejects_negative_and_above_i32_max() {
+        assert!(serde_json::from_str::<MassKg>("0").is_ok());
+        assert!(serde_json::from_str::<MassKg>("2147483647").is_ok());
+        assert!(serde_json::from_str::<MassKg>("-1").is_err());
+        assert!(serde_json::from_str::<MassKg>("2147483648").is_err());
+    }
+
+    #[test]
+    fn rule_version_accepts_named_pattern_and_rejects_leading_zero() {
+        let value: RuleVersion = serde_json::from_str("\"mineral-discovery@1\"").unwrap();
+        assert_eq!(value.as_str(), "mineral-discovery@1");
+        assert!(serde_json::from_str::<RuleVersion>("\"mineral-discovery@01\"").is_err());
+        assert!(serde_json::from_str::<RuleVersion>("\"mineral-discovery@0\"").is_err());
+        assert!(serde_json::from_str::<RuleVersion>("\"Mineral-Discovery@1\"").is_err());
+        assert!(serde_json::from_str::<RuleVersion>("\"mineral-discovery\"").is_err());
     }
 
     #[test]

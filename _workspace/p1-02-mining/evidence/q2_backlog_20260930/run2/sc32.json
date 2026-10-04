@@ -1,0 +1,13 @@
+{
+  "item": "p1-02 SC-32 (AC-6d) 수락된 채굴이 전부 DB 에",
+  "verdict": "PASS",
+  "bot_accepted": 17,
+  "missing_in_processed_commands": [],
+  "missing_in_mineral_mined": [],
+  "missing_counts": [
+    0,
+    0
+  ],
+  "ok": true,
+  "world_id": "01a0ef62-b2e9-7105-99f6-4d1a6cd43af0"
+}

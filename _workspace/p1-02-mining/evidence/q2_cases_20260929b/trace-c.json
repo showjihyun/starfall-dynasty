@@ -1,0 +1,27 @@
+{
+  "item": "[verdict] p1-02 SC-61 · SC-82 trace-c: A 디스폰 뒤 처음 접속한 C 가 SESSION_READY 뒤 BACKFILL 로 A 의 발견을 받고 그 광맥이 드러나 있다",
+  "items": {
+    "sc_61": {
+      "all_after_ready": true,
+      "backfill_count": 1,
+      "backfill_frame_seqs": [
+        3
+      ],
+      "session_ready_frame_seq": 0,
+      "verdict": "PASS"
+    },
+    "sc_82": {
+      "actor_a": "01a0b1c2-b010-7000-8000-000000000030",
+      "backfill_has_a_discovery": true,
+      "deposit_revealed_in_field_state": true,
+      "precondition_a_linger_expired_rows": {
+        "Ok": 1
+      },
+      "precondition_c_prior_sessions": {
+        "Ok": 0
+      },
+      "verdict": "PASS"
+    }
+  },
+  "verdict": "PASS"
+}

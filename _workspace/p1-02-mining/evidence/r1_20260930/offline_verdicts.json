@@ -1,0 +1,17 @@
+{
+ "SC-02": "PASS — sim [dependencies]=starfall-contracts 만, history=contracts·serde·serde_json·uuid(v5)·thiserror. grep 2 적중은 history/Cargo.toml:20-21 주석(금지 목록을 설명하는 문장)",
+ "SC-03": "PASS — SystemTime·Instant 호출 0(lib.rs:4 는 문서 주석). HashMap 은 core.rs:60·71·88-89·114 — insert·entry 조회만, 순회 없음(출력 순서 무관)",
+ "SC-06": "PASS — validate_data_files rc 0",
+ "SC-34": "PASS — golden 세 파일 sha 기준선(824a…/c924…/3e00…)과 같음, git 변경 없음, 워크스페이스 ac8 재생 테스트 ok",
+ "SC-79": "PASS(스키마 절) — MINE_RESOURCE payload properties = {deposit_id}, additionalProperties false. 봇 cheat-mine-inject 절은 봇 결과로",
+ "SC-94": "PASS — causation_id = event_id 7 행이 p1-01 장부(01_architect_decisions.md:767~)와 같다",
+ "SC-95": "PASS — INSERT INTO 역사 3 표: 운영 코드는 persistence/src/history.rs 하나(나머지 tests/history_runner.rs 는 테스트 코드 — 계약상 제외)",
+ "SC-96": "PASS — check_contract_coverage --strict RESULT PASS rc 0",
+ "SC-97": "PASS — interface_matrix 10 타입 141 행 불일치 0(required+nullable 8)",
+ "SC-107": "PASS — 104 제약 + 트리거 4, 표별 일치",
+ "SC-109": "PASS — 모든 NOT NULL 을 채운 행에 payload 'null' → domain_events_payload_is_object 위반(check_violation). 대조: 같은 행 payload {\"x\":1} 은 INSERT 0 1(롤백). 두 시도 모두 롤백, 남은 행 0. 1차 시도는 schema_version 누락으로 다른 이유에 막혀 무효(⊘ 그대로)",
+ "SC-113": "PASS — census 27/27 RAN, 누락 0, SKIPPED 0",
+ "SC-114": "PASS — spike 4805·md5 d1904d8f…·migrations 3 = r1 전(백로그 실행 때 지문)과 같음, 테스트 DB 잔여 0, tests::refuses_non_test_database ok",
+ "SC-65": "PASS — 생성기 2회, 17 파일 sha 실행 전·1회·2회 동일(unchanged), 신규 DTO 6 파일 존재",
+ "SC-01": "PASS — fmt rc0, clippy rc0, workspace test 290 passed 0 failed 6 ignored, release sim 78 passed; 반복 10/10 초록(편집 창 0), ws_integration 매회 25/25"
+}

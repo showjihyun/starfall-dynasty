@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "id": "glacine",
+  "display_name": "Glacine",
+  "rarity": "common",
+  "designer_note": "Volatile ice crystals held in Vela's orbit. Gives the one planet of MVP-1 a reason to be visited. Every number is a designer assumption; see docs/design/p1-02-mining-design.md.",
+  "extraction": {
+    "yield_per_extraction_kg": 150
+  },
+  "regeneration": {
+    "regen_kg": 150,
+    "regen_interval_s": 30
+  }
+}

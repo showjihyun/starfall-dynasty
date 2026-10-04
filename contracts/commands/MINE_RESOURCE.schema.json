@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.starfall.invalid/contracts/commands/MINE_RESOURCE.schema.json",
+  "title": "MineResourceCommand",
+  "description": "Intent to perform ONE extraction at a deposit with the ship this session's actor is flying. The whole vocabulary is the deposit id: THE CLIENT CANNOT SAY HOW MUCH, WHICH MINERAL, FROM WHERE OR HOW FAR - the server derives the mineral from the deposit table, measures the distance from its own f64 ship position, and computes the yield deterministically (CLAUDE.md principle 1, spec p1-02 I-48). An injected quantity, mineral or position field is rejected by the schema and by serde as MALFORMED_COMMAND, not ignored. One accepted command changes the inventory at most once, across sessions, reconnects and server restarts: command_id is the durable idempotency key (ADR-0013 section 3, I-52). Judgement order and reject reasons: spec p1-02 section 4.2. Responses: exactly one COMMAND_RESULT, then - only when accepted, in the same tick - one INVENTORY_STATE (spec p1-02 section 5.1a).",
+  "allOf": [
+    {
+      "$ref": "../common/command-envelope.schema.json"
+    }
+  ],
+  "properties": {
+    "command_type": {
+      "const": "MINE_RESOURCE"
+    },
+    "schema_version": {
+      "const": 1
+    },
+    "payload": {
+      "$ref": "#/$defs/MineResourcePayload"
+    }
+  },
+  "unevaluatedProperties": false,
+  "$defs": {
+    "MineResourcePayload": {
+      "title": "MineResourcePayload",
+      "type": "object",
+      "required": [
+        "deposit_id"
+      ],
+      "properties": {
+        "deposit_id": {
+          "description": "Row of the DEPOSIT data table to extract from. A well-formed id that names no deposit in the ship's star system is rejected with TARGET_UNKNOWN, not MALFORMED_COMMAND: the shape is valid, the target is not.",
+          "$ref": "../common/primitives.schema.json#/$defs/DataId"
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

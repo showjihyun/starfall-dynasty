@@ -1,5 +1,5 @@
 {
-  "registry_version": 3,
+  "registry_version": 4,
   "types": [
     {
       "name": "PING_SERVER",
@@ -9,6 +9,10 @@
       "producers": ["client", "bots"],
       "consumers": ["server"],
       "status": "active",
+      "responses": [
+        {"type": "COMMAND_RESULT", "when": "always"},
+        {"type": "PING_REPLY", "when": "accepted"}
+      ],
       "description": "Connection and command-path probe. No game state change, no domain event. Introduced by p0-01-bootstrap; p0-02 sends it over the realtime connection to measure the command round trip through the tick loop."
     },
     {
@@ -29,7 +33,7 @@
       "producers": ["server"],
       "consumers": ["client", "bots"],
       "status": "active",
-      "description": "Adjudication result of one command: ACCEPTED (taken into the simulation on the envelope tick) or REJECTED with a reason code. Accepted is not completed. Introduced by p0-02-networking-spike; p1-01-ship-movement adds the RATE_LIMITED and STALE_INPUT reason codes, compatible value additions at the same schema_version."
+      "description": "Adjudication result of one command: ACCEPTED (taken into the simulation on the envelope tick) or REJECTED with a reason code. Accepted is not completed. Introduced by p0-02-networking-spike; p1-01-ship-movement adds the RATE_LIMITED and STALE_INPUT reason codes, compatible value additions at the same schema_version. p1-02-mining adds TARGET_UNKNOWN, COOLDOWN_ACTIVE, TARGET_OUT_OF_RANGE, SHIP_TOO_FAST, RESOURCE_DEPLETED, RECORDING_BACKLOG and CAPACITY_EXCEEDED, again a compatible value addition at the same schema_version."
     },
     {
       "name": "SESSION_READY",
@@ -69,6 +73,9 @@
       "producers": ["client", "bots"],
       "consumers": ["server"],
       "status": "active",
+      "responses": [
+        {"type": "COMMAND_RESULT", "when": "always"}
+      ],
       "description": "One tick of control intent (thrust and turn) for the ship the session's actor is flying. Carries no position, velocity or orientation: the client cannot describe where its ship is, only what it is trying to do (principle 1, I-26). The server consumes at most one input per tick per session, so sending faster buys no extra movement. Introduced by p1-01-ship-movement."
     },
     {
@@ -130,6 +137,110 @@
       "consumers": ["server", "client"],
       "status": "active",
       "description": "Shape of data/movement/sync-tuning.json: the networking values that are FELT - snapshot rate, input pacing, remote interpolation delay and the reconciliation thresholds - kept out of code literals so that tuning never means editing Rust or C#. Deliberately excludes tick_hz (a world constant, I-19), the quantisation scales (ADR-0009) and the integrator identity (ADR-0010): those are laws, not tunables. Introduced by p1-01-ship-movement."
+    },
+    {
+      "name": "MINE_RESOURCE",
+      "kind": "command",
+      "schema": "commands/MINE_RESOURCE.schema.json",
+      "schema_version": 1,
+      "producers": ["client", "bots"],
+      "consumers": ["server"],
+      "status": "active",
+      "responses": [
+        {"type": "COMMAND_RESULT", "when": "always"},
+        {"type": "INVENTORY_STATE", "when": "accepted"}
+      ],
+      "description": "Intent to perform one extraction at a deposit. The payload is the deposit id and nothing else: no quantity, mineral, position or distance (principle 1, spec p1-02 I-48). The first state-changing command of the project: command_id is a durable idempotency key across sessions, reconnects and restarts (ADR-0013 section 3). Introduced by p1-02-mining."
+    },
+    {
+      "name": "MINERAL_MINED",
+      "kind": "domain_event",
+      "schema": "events/domain/MINERAL_MINED.schema.json",
+      "schema_version": 1,
+      "producers": ["server"],
+      "consumers": ["server", "history"],
+      "status": "active",
+      "description": "One accepted extraction, written in the same transaction as the inventory, deposit and processed_commands rows (ADR-0013). The only explanation an inventory quantity has. causation_id is the MINE_RESOURCE command_id - the first command-caused event. Importance level 0: NOT historical by itself; the history runner turns only the first one per (world, star system, mineral) into MINERAL_DISCOVERED (ADR-0014). Introduced by p1-02-mining."
+    },
+    {
+      "name": "MINERAL_DISCOVERED",
+      "kind": "historical_event",
+      "schema": "events/historical/MINERAL_DISCOVERED.schema.json",
+      "schema_version": 1,
+      "producers": ["history"],
+      "consumers": ["client", "bots"],
+      "status": "active",
+      "description": "The first Historical Event type of the project (HSE section 89 #1), Level 2 Regional, rule mineral-discovery@1: the smallest-(tick, sequence) MINERAL_MINED of a (world, star system, mineral). At most one per key; deterministic UUIDv5 id. Reaches clients only inside HISTORICAL_EVENT_NOTICE. Introduced by p1-02-mining."
+    },
+    {
+      "name": "INVENTORY_STATE",
+      "kind": "server_message",
+      "schema": "messages/INVENTORY_STATE.schema.json",
+      "schema_version": 1,
+      "producers": ["server"],
+      "consumers": ["client", "bots"],
+      "status": "active",
+      "description": "The receiving actor's full inventory: after SESSION_READY and in every tick it changed (after the COMMAND_RESULT of an accepted MINE_RESOURCE). The client never computes inventory (spec p1-02 I-49). Introduced by p1-02-mining."
+    },
+    {
+      "name": "DEPOSIT_FIELD_STATE",
+      "kind": "server_message",
+      "schema": "messages/DEPOSIT_FIELD_STATE.schema.json",
+      "schema_version": 1,
+      "producers": ["server"],
+      "consumers": ["client", "bots"],
+      "status": "active",
+      "description": "Dynamic state of every deposit of the star system, broadcast after SESSION_READY and in every tick a deposit's visible state changed. An unrevealed deposit carries null mineral, reserve, remainder and reveal tick so nothing leaks before the first extraction (spec p1-02 I-68). Introduced by p1-02-mining."
+    },
+    {
+      "name": "HISTORICAL_EVENT_NOTICE",
+      "kind": "server_message",
+      "schema": "messages/HISTORICAL_EVENT_NOTICE.schema.json",
+      "schema_version": 1,
+      "producers": ["server"],
+      "consumers": ["client", "bots"],
+      "status": "active",
+      "description": "One historical record for a player: LIVE after the history runner commits it, BACKFILL for every existing visible record when a session opens. Never before commit. The history runner produces the record (MINERAL_DISCOVERED); the tick driver/gateway wraps it into this message - envelope tick, message_id and delivery are known only there (ADR-0014 section 6, T0 agreement). Producer is therefore server. Introduced by p1-02-mining."
+    },
+    {
+      "name": "MINERAL",
+      "kind": "data",
+      "schema": "data/mineral.schema.json",
+      "schema_version": 1,
+      "producers": [],
+      "consumers": ["server", "client"],
+      "status": "active",
+      "description": "Shape of data/minerals/{id}.json: display name, rarity (presentation only), yield per extraction and regeneration, integer kilograms. Introduced by p1-02-mining."
+    },
+    {
+      "name": "DEPOSIT_FIELD",
+      "kind": "data",
+      "schema": "data/deposit-field.schema.json",
+      "schema_version": 1,
+      "producers": [],
+      "consumers": ["server", "client"],
+      "status": "active",
+      "description": "Shape of data/world/deposits/{star_system_id}.json: deposit positions, radii and names (read by both) plus mineral and initial reserve (server-side truth; the client must not read them from its copy - DEPOSIT_FIELD_STATE is the only way they reach a player). Introduced by p1-02-mining."
+    },
+    {
+      "name": "MINING_RULES",
+      "kind": "data",
+      "schema": "data/mining-rules.schema.json",
+      "schema_version": 1,
+      "producers": [],
+      "consumers": ["server", "client"],
+      "status": "active",
+      "description": "Shape of data/mining/mining-rules.json: range from deposit surface, maximum ship speed and cooldown. The server judges with them; the client only displays whether they are met. Introduced by p1-02-mining."
+    },
+    {
+      "name": "SIGNIFICANCE_RULE",
+      "kind": "data",
+      "schema": "data/significance-rule.schema.json",
+      "schema_version": 1,
+      "producers": [],
+      "consumers": ["history"],
+      "status": "active",
+      "description": "Shape of one history rule file, data/history/rules/{rule_id}.json: rule identity, rule_version and output constants (level, visibility, evidence). The condition is Rust code. A golden test binds rule_version to this file's content (ADR-0014 section 5). Introduced by p1-02-mining."
     }
   ]
 }

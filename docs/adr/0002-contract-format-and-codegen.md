@@ -29,6 +29,15 @@
 - 명령 envelope에는 `player_id`/`actor_id`를 두지 않는다. 행위자는 세션에서 서버가 정한다(CLAUDE.md 원칙 1).
 - 서버 메시지 envelope(`message-envelope`)을 새로 정의한다. 스킬에 명시된 명령·이벤트 envelope만으로는 WebSocket 서버 메시지의 `message_type`·`tick` 자리가 없다.
 
+### 1a. 예약된 최상위 키 — 판별자 이름은 판별자만 쓴다 (p1-02 추가, 2026-09-27)
+
+`command_type`·`message_type`·`event_type` 은 계약 객체의 **최상위 판별자**다. 수신 코드는 이 키 중 하나가 문자열이면 그것을 "이 메시지의 타입" 으로 읽는다(클라이언트 `ContractDispatch.TryGetTypeName`, QA 커버리지 스크립트의 `TYPE_KEYS` 도 같은 방식). 그러므로:
+
+- **판별자가 아닌 최상위 필드에 이 세 이름을 쓰지 않는다.** 특히 `data` kind 스키마는 판별자가 없으므로 셋 다 쓸 수 없다. 역사 envelope 의 `event_type` 은 그 객체 자신의 판별자이므로 허용이다.
+- 중첩 객체 안(payload 등)은 대상이 아니다 — 판별은 최상위만 본다.
+- **발견 경위**: `SIGNIFICANCE_RULE` 가 "이 규칙이 만드는 역사 타입" 을 `event_type` 으로 적어, 그 데이터 파일을 디스패치에 넣으면 `MINERAL_DISCOVERED` 메시지로 오인됐다(client, p1-02 `03_client_impl.md` §5). 실전 경로(WS)로는 오지 않아 영향은 없었지만, 데이터 배포 경로 ADR(p1-03 착수 전 만기)이 데이터 표를 와이어로 보내는 순간 실제 오인이 된다. **코드가 아직 그 필드를 읽지 않는 지금** `produces_event_type` 으로 바꿨다(`schema_version` 1 유지 — 같은 슬라이스 안, 소비 코드 0).
+- **기계 검사**: `starfall-contracts` 의 레지스트리 테스트가 `kind` 가 자기 판별자를 갖지 않는 모든 스키마(`data`·`rest`)의 최상위 `properties` 에 세 이름이 없음을, 그리고 판별자를 갖는 스키마는 자기 판별자 하나만 가짐을 단언한다. 음성 대조: 그 검사에 `event_type` 을 가진 가짜 data 스키마를 주면 실패한다.
+
 ### 2. fixture: 정상 + 거부되어야 할 예시
 
 - `contracts/fixtures/{NAME}/*.json` = 유효 예시. 타입마다 최소 1개, 경계값(널 가능 필드 null, 정수 상한)을 포함한다.

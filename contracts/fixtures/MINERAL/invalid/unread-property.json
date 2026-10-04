@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "id": "example-ore",
+  "display_name": "Example Ore",
+  "rarity": "uncommon",
+  "extraction": {
+    "yield_per_extraction_kg": 80
+  },
+  "regeneration": {
+    "regen_kg": 80,
+    "regen_interval_s": 60
+  },
+  "density_kg_m3": 5200.0
+}

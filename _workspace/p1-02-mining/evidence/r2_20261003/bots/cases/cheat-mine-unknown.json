@@ -1,0 +1,36 @@
+{
+  "case": "cheat-mine-unknown",
+  "connect_error": null,
+  "deposit_id": "inner-belt-3",
+  "details": {
+    "condition_held_at_send": 1,
+    "exact_reason": 1,
+    "expected_reason": "TARGET_UNKNOWN",
+    "rows": [
+      {
+        "condition_at_send": true,
+        "deposit_id": "qa-no-such-deposit",
+        "dist_m": 6492.303237226061,
+        "results": [
+          [
+            "REJECTED",
+            "TARGET_UNKNOWN"
+          ]
+        ],
+        "speed_mps": 0.0
+      }
+    ],
+    "sent": 1,
+    "unknown_id_is_kebab": true
+  },
+  "item": "[verdict] p1-02 SC-77 없는 deposit_id(형식은 유효) → TARGET_UNKNOWN",
+  "label": "bot-015",
+  "nav": null,
+  "session": {
+    "actor_id": "01a0b1c2-b010-7000-8000-000000000015",
+    "close_code": 1000,
+    "close_initiator": "client",
+    "session_id": "01a1021b-16f2-73dd-b3ef-a376eb9979df"
+  },
+  "verdict": "PASS"
+}

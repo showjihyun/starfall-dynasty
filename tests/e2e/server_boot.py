@@ -58,6 +58,101 @@ def http_json(url: str, timeout: float = 3.0):
         return json.loads(r.read().decode("utf-8"))
 
 
+MIGRATIONS_DIR = REPO / "server" / "migrations"
+
+
+FREEZE_DECL = re.compile(r"^\s*[-*]?\s*frozen:\s*(\d{4})\s*[—–-]+\s*([^,\s][^,]*?)\s*,\s*(\d{4}-\d{2}-\d{2})\s*$")
+FREEZE_FILE_GLOB = "_workspace/*/migration_freeze.md"   # 슬라이스 폴더마다 하나(리더 2026-09-29)
+
+
+def find_freeze_declarations(root: Path) -> dict[int, str]:
+    """소유자의 동결 선언을 **추적 파일**에서 찾는다(architect 제안 2026-09-29).
+
+    형식: `_workspace/<slice>/migration_freeze.md` 의 한 줄 `frozen: 0004 — <소유자>, <YYYY-MM-DD>`
+    (리더 2026-09-29 — 파일 위치를 한 곳으로 고정해 선언이 문서 곳곳에 흩어지지 않게). 환경 변수 선언은 기동하는
+    사람이 스스로 만들 수 있어 "소유자가 선언" 이 실행 기록에 남지 않는다 — 파일 줄은 반증 가능하다.
+    반환: {version: "경로:줄 — 원문"}.
+    """
+    found: dict[int, str] = {}
+    for f in sorted(root.glob(FREEZE_FILE_GLOB)):
+        try:
+            lines = f.read_text(encoding="utf-8").splitlines()
+        except (OSError, UnicodeDecodeError):
+            continue
+        for n, line in enumerate(lines, 1):
+            m = FREEZE_DECL.match(line)
+            if m:
+                found.setdefault(int(m.group(1)),
+                                 f"{f.relative_to(root).as_posix()}:{n} — {line.strip()}")
+    return found
+
+
+def judge_migration_freeze(file_versions: list[int], applied: list[int], decls: dict[int, str]) -> dict:
+    """마이그레이션 동결 선행 확인(ADR-0007 §5, 리더 규칙 2026-09-28) — 순수 판정.
+
+    증거 DB `starfall` 로 서버를 띄우면 서버가 **아직 적용 안 된 마이그레이션을 적용한다**. 적용된
+    파일은 동결이다(고치면 다음 기동이 체크섬 불일치로 막힌다). 그래서 기동 **전에**
+    `_sqlx_migrations` 와 `server/migrations/` 파일 목록을 대조한다: 미적용 파일은 추적 파일에
+    소유자의 동결 선언 줄([`find_freeze_declarations`])이 있을 때만 허용하고, 그 위치를 증거에 남긴다.
+    ⊘: 파일 목록이 비면(경로 오류) "미적용 0" 으로 자명 통과한다 → 파일 0 은 판정 불가.
+    """
+    files, done = set(file_versions), set(applied)
+    if not files:
+        return {"ok": False, "reason": "migrations/ 에서 .sql 을 하나도 못 읽었다 — 경로 오류로 본다"}
+    unapplied = sorted(files - done)
+    undeclared = [v for v in unapplied if v not in decls]
+    missing_file = sorted(done - files)
+    ok = not undeclared and not missing_file
+    reason = ("" if ok else
+              (f"미적용 마이그레이션 {undeclared} 에 소유자 동결 선언 줄이 없다"
+               "(`_workspace/<slice>/migration_freeze.md` 에 `frozen: NNNN — <소유자>, <YYYY-MM-DD>`)"
+               " — 이 기동이 증거 DB 에 적용해 버린다"
+               if undeclared else f"증거 DB 에 적용된 {missing_file} 의 파일이 없다"))
+    return {"ok": ok, "files": sorted(files), "applied": sorted(done), "unapplied": unapplied,
+            "declarations": {v: decls[v] for v in unapplied if v in decls}, "reason": reason}
+
+
+HOOK_MARKERS = ["test-hooks 주입".encode(), "test-hooks 전용".encode()]
+
+
+def binary_has_test_hooks(data: bytes) -> bool:
+    """persistence `test-hooks` 주입점이 바이너리에 들어 있는가 — 순수 판정.
+
+    `cargo test --workspace`·`cargo build --workspace --all-targets` 는 feature 통합으로
+    `target/debug/starfall-game-server.exe` 를 **훅이 켜진 채** 다시 만든다(qa 실측 2026-09-29 —
+    `cargo build -p starfall-game-server` 와 `--release` 는 깨끗하다). 실서버 증거는 그 exe 를 쓰므로,
+    마지막 빌드 명령에 따라 주입점이 든 바이너리로 판정하게 된다. 그래서 기동 전에 거른다.
+    """
+    return any(m in data for m in HOOK_MARKERS)
+
+
+def preflight_binary_clean() -> None:
+    if binary_has_test_hooks(EXE.read_bytes()):
+        print("기동 중단: " + str(EXE) + " 에 test-hooks 주입점이 들어 있다(워크스페이스 테스트 빌드의 feature 통합)"
+              " — `cargo build -p starfall-game-server` 로 다시 빌드한 뒤 실행한다", file=sys.stderr)
+        raise SystemExit(4)
+
+
+LAST_PREFLIGHT: dict | None = None  # 마지막 spawn 의 동결 대조 — 증거에 싣는다
+
+
+def preflight_migration_freeze() -> dict:
+    import db as _db  # tests/e2e/db.py — 증거 DB 에 읽기 전용 질의 하나
+    versions = []
+    for f in sorted(MIGRATIONS_DIR.glob("*.sql")):
+        m = re.match(r"(\d+)_", f.name)
+        if m:
+            versions.append(int(m.group(1)))
+    applied = [int(v) for (v,) in _db.psql_rows_strict("select version from _sqlx_migrations where success;")]
+    res = judge_migration_freeze(versions, applied, find_freeze_declarations(REPO))
+    if not res["ok"]:
+        print("기동 중단(마이그레이션 동결 선행 확인, ADR-0007 §5): " + res["reason"], file=sys.stderr)
+        raise SystemExit(4)
+    print(f"마이그레이션 동결 확인: 파일 {res['files']} · 적용 {res['applied']} · 미적용 {res['unapplied']}"
+          f" · 선언 {res['declarations']}", file=sys.stderr)
+    return res
+
+
 def spawn(env: dict[str, str]) -> tuple[subprocess.Popen, list[str]]:
     """서버를 띄우고 **stdout 을 즉시 드레인하는 스레드**를 함께 건다.
 
@@ -74,6 +169,10 @@ def spawn(env: dict[str, str]) -> tuple[subprocess.Popen, list[str]]:
 
     반환하는 리스트는 **살아 있는 버퍼**다: 호출자는 프로세스가 끝난 뒤 `"".join(buf)` 로 전문을 얻는다.
     """
+    # 모든 spawn 은 .env 의 증거 DB 로 뜬다 — 기동 전에 동결을 확인한다(음성 대조는 spawn 을 쓰지 않는다).
+    global LAST_PREFLIGHT
+    preflight_binary_clean()
+    LAST_PREFLIGHT = preflight_migration_freeze()
     proc = subprocess.Popen(
         [str(EXE)], cwd=str(REPO), env=env,
         stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
@@ -165,6 +264,68 @@ def cmd_stats(args) -> int:
             json.dumps({"stats": stats, "shutdown_exit_code": rc, "log": boot_log},
                        indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     return 0 if rc == 0 else 1
+
+
+def cmd_p1_02_boot(args) -> int:
+    """p1-02 SC-04 (AC-2a) — **새 월드**로 실제 `data/` 를 띄워 `/debug/stats` 의 광물·광맥 수와
+    `rule_version` 이 파일과 같은지 본다. 같은 기동 로그를 SC-07(`data_file_pairs.py --boot-log`)이 쓴다.
+
+    기대값은 **같은 실행에서 파일을 세어** 만든다(계약 SC-04 방법 칸). ⊘: stats 에 필드가 없으면
+    파서 기본값끼리 비교가 된다 → 세 필드의 **존재**를 먼저 단언하고, 기대값이 0 이 아님을 찍는다.
+    """
+    env = load_dotenv()
+    if not re.fullmatch(r"[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}", args.world or ""):
+        print("사용법: --world <new_world.py 가 만든 UUIDv7>", file=sys.stderr)
+        return 2
+    env["STARFALL_WORLD_ID"] = args.world
+    addr = env.get("STARFALL_HTTP_ADDR", "127.0.0.1:8080")
+    if not EXE.is_file():
+        print(f"미검증(환경): {EXE} 가 없다 — cargo build -p starfall-game-server", file=sys.stderr)
+        return 2
+    minerals = len(list((REPO / "data/minerals").glob("*.json")))
+    deposits = sum(len(json.loads(p.read_text(encoding="utf-8"))["deposits"])
+                   for p in (REPO / "data/world/deposits").glob("*.json"))
+    rules = [json.loads(p.read_text(encoding="utf-8"))["rule_version"]
+             for p in sorted((REPO / "data/history/rules").glob("*.json"))]
+
+    proc, log_buf = spawn(env)
+    stats = None
+    deadline = time.monotonic() + args.timeout
+    try:
+        while time.monotonic() < deadline and proc.poll() is None:
+            try:
+                stats = http_json(f"http://{addr}/debug/stats")
+                break
+            except (urllib.error.URLError, OSError, TimeoutError):
+                time.sleep(0.25)
+        rc = graceful_shutdown(proc) if proc.poll() is None else proc.returncode
+    finally:
+        if proc.poll() is None:
+            proc.kill()
+    _drain_settle(proc)
+    log = "".join(log_buf).splitlines()
+    if args.log:
+        Path(args.log).write_text("\n".join(log) + "\n", encoding="utf-8")
+
+    present = {k: (stats is not None and k in stats) for k in ("minerals_loaded", "deposits_loaded", "rule_version")}
+    got = {k: (stats or {}).get(k) for k in present}
+    rule_ok = got["rule_version"] in rules or got["rule_version"] == (rules[0] if len(rules) == 1 else None)
+    ok = (all(present.values()) and minerals > 0 and deposits > 0 and len(rules) >= 1
+          and got["minerals_loaded"] == minerals and got["deposits_loaded"] == deposits and rule_ok and rc == 0)
+    out = {
+        "item": "p1-02 SC-04 (AC-2a) 정상 data/ 기동 — /debug/stats 광물·광맥·rule_version 이 파일과 일치",
+        "verdict": "PASS" if ok else ("FAIL(stats 에 필드 없음)" if not all(present.values()) else "FAIL"),
+        "world_id": args.world,
+        "expected_from_files": {"minerals": minerals, "deposits": deposits, "rule_versions": rules},
+        "stats_fields_present": present, "stats_values": got,
+        "shutdown_exit_code": rc, "hard_kill": False,
+        "boot_log_lines": len(log), "provenance": source_provenance(), "migration_freeze": LAST_PREFLIGHT,
+    }
+    text = json.dumps(out, indent=2, ensure_ascii=False)
+    print(text)
+    if args.evidence:
+        Path(args.evidence).write_text(text + "\n", encoding="utf-8")
+    return 0 if ok else 1
 
 
 def mutate(doc, key: str, value):
@@ -612,6 +773,87 @@ def cmd_reject(args) -> int:
     return code
 
 
+# p1-02 SC-05 실바이너리판 — 스펙 §4.7 의 ①·⑦·⑪ (계약 SC-05 방법 칸). (케이스, 대상 파일, 원문, 치환, 로그에 나와야 할 필드)
+P102_CASES = [
+    # (케이스, 대상 파일, 원문, 치환, field= 토큰이 끝나야 할 이름들, 줄 어딘가에 있어야 할 주입 필드)
+    ("c01-deposit-unknown-mineral", "world/deposits/cradle.json",
+     '"mineral_id": "ferrosite"', '"mineral_id": "unobtainium"', ("mineral_id",), "mineral_id"),
+    # 7 은 두 필드의 관계 위반이다 — 서버가 어느 쪽을 field= 에 걸든 받되, 주입한 regen_kg 는 줄에 있어야 한다.
+    ("c07-regen-exceeds-initial-reserve", "minerals/starfall-glass.json",
+     '"regen_kg": ', None, ("regen_kg", "initial_reserve_kg"), "regen_kg"),
+    ("c11-rule-version-wrong-prefix", "history/rules/mineral-discovery.json",
+     '"rule_version": "mineral-discovery@1"', '"rule_version": "other-rule@1"', ("rule_version",), "rule_version"),
+]
+
+
+def cmd_p1_02_reject(args) -> int:
+    """p1-02 SC-05 — 임시 `data/` 사본에서 한 조건만 깨고 실바이너리가 **기동 실패**하는지, 로그에
+    **주입한 필드 이름**이 나오는지 본다. 음성 대조(무변경 사본은 데이터 검증을 통과)를 같은 실행에서.
+    레포의 `data/` 원본은 건드리지 않는다(designer 소유)."""
+    env0 = load_dotenv()
+    if not EXE.is_file():
+        print("미검증(환경): " + str(EXE) + " 가 없다", file=sys.stderr)
+        return 2
+    preflight_binary_clean()   # DB 를 안 쓰는 경로라 동결 대조는 없다 — 바이너리만 거른다
+    work = Path(args.workdir).resolve()
+    results = []
+    for name, rel, old, new, field_ends, injected in P102_CASES:
+        case_dir = work / ("p102-" + name)
+        if case_dir.exists():
+            shutil.rmtree(case_dir)
+        shutil.copytree(REPO / "data", case_dir)
+        target = case_dir / rel
+        text = target.read_text(encoding="utf-8")
+        if old not in text:
+            results.append({"case": name, "verdict": "FAIL(변형 지점을 못 찾음 — 데이터 모양이 바뀌었나)"})
+            continue
+        if new is None:
+            # 숫자만 바꾼다 — 키를 건드리면 스키마 위반이 먼저 걸려 관계 검사까지 가지 않는다.
+            import re as _re
+            text = _re.sub(r'"regen_kg":\s*\d+', '"regen_kg": 999999', text, count=1)
+        else:
+            text = text.replace(old, new, 1)
+        target.write_text(text, encoding="utf-8")
+        env = dict(env0)
+        env["STARFALL_DATA_DIR"] = str(case_dir)
+        proc = subprocess.run([str(EXE)], cwd=str(REPO), env=env, input="",
+                              capture_output=True, text=True, encoding="utf-8",
+                              errors="replace", timeout=args.timeout)
+        log = (proc.stdout or "") + (proc.stderr or "")
+        refused = [l for l in log.splitlines() if "기동 거부" in l or "데이터 검증 실패" in l]
+        import re as _re
+        named = [m.group(1) for l in refused for m in [_re.search(r"field=(\S+)", l)] if m]
+        hit = [l for l in refused
+               if (m := _re.search(r"field=(\S+)", l)) and m.group(1).endswith(field_ends) and injected in l]
+        ok = proc.returncode not in (0, None) and bool(hit)
+        results.append({"case": name, "verdict": "PASS" if ok else "FAIL", "exit_code": proc.returncode,
+                        "accepted_field_tokens": list(field_ends), "injected_field": injected,
+                        "field_tokens_seen": named[:3], "refusal_lines": refused[:3]})
+    clean = work / "p102-0-negative-control-unmodified"
+    if clean.exists():
+        shutil.rmtree(clean)
+    shutil.copytree(REPO / "data", clean)
+    neg = negative_control(env0, clean, args.timeout)
+    passed = sum(1 for r in results if r["verdict"] == "PASS")
+    if neg["verdict"] != "PASS":
+        verdict, code = "미검증(증거 요건: 음성 대조 실패)", 4
+    elif passed == len(P102_CASES) == len(results):
+        verdict, code = "PASS", 0
+    else:
+        verdict, code = "FAIL", 1
+    out = {
+        "item": "p1-02 SC-05 (AC-2b) 실바이너리 기동 거부 3 경우(①·⑦·⑪) — 로그에 주입 필드",
+        "verdict": verdict, "cases_run": len(results), "passed": passed,
+        "scope_note": "16 경우 중 실바이너리 3 (①·⑦·⑪). 나머지 13 은 cargo data::tests::reject_c* 몫",
+        "negative_control": neg, "results": results, "source_provenance": source_provenance(),
+    }
+    text = json.dumps(out, indent=2, ensure_ascii=False)
+    print(text)
+    if args.evidence:
+        Path(args.evidence).write_text(text + "\n", encoding="utf-8")
+    return code
+
+
 def cmd_rejudge(args) -> int:
     """이미 남긴 거부 로그를 **새 판정 기준으로 다시 판정한다** — 서버를 다시 돌리지 않는다.
 
@@ -745,11 +987,47 @@ def cmd_selftest(args) -> int:
         failures += 0 if ok else 1
         print(("ok   " if ok else "FAIL ") + label + ": 기대 " + want + " / 실제 " + got)
 
-    total = len(cases) + len(schema_cases) + len(neg_cases)
+    # --- 마이그레이션 동결 선행 확인 (ADR-0007 §5) ---------------------------
+    D4 = {4: "_workspace/x/migration_freeze.md:9 — frozen: 0004 — server, 2026-09-29"}
+    mig_cases = [
+        ("양성: 파일 = 적용", [1, 2, 3], [1, 2, 3], {}, True),
+        ("음성: 미적용 0004, 선언 줄 없음 → 기동 중단", [1, 2, 3, 4], [1, 2, 3], {}, False),
+        ("양성: 미적용 0004, 추적 파일에 소유자 선언", [1, 2, 3, 4], [1, 2, 3], D4, True),
+        ("음성: 다른 번호만 선언(0005) — 0004 는 여전히 미선언", [1, 2, 3, 4], [1, 2, 3],
+         {5: "x.md:1 — frozen: 0005 — server, 2026-09-29"}, False),
+        ("음성: 파일 0 개(경로 오류) — 자명 통과 금지", [], [1, 2, 3], {}, False),
+        ("음성: 적용된 0003 의 파일이 사라졌다", [1, 2], [1, 2, 3], {}, False),
+    ]
+    for label, blob, want in [
+        ("바이너리 훅 검사: 주입 문자열 있음 → 거부", b"xx" + "test-hooks 주입".encode() + b"yy", True),
+        ("바이너리 훅 검사: 없음 → 통과", b"plain release bytes", False),
+    ]:
+        mig_cases.append((label, None, None, None, binary_has_test_hooks(blob) == want))
+    for label, line, want in [
+        ("선언 줄 파싱: 정형", "- frozen: 0004 — server, 2026-09-29", 4),
+        ("선언 줄 파싱: 소유자·날짜 없는 줄은 선언이 아니다", "frozen: 0004", None),
+        ("선언 줄 파싱: 날짜 없는 줄은 선언이 아니다", "frozen: 0004 — server,", None),
+        ("선언 줄 파싱: 본문 속 언급은 선언이 아니다", "0004 는 아직 frozen: 0004 — 아님, 2026-09-29", None),
+        ("선언 줄 파싱: 날짜 뒤 덧붙임은 선언이 아니다", "frozen: 0004 — server, 2026-09-29 예정", None),
+    ]:
+        m = FREEZE_DECL.match(line)
+        got_v = int(m.group(1)) if m else None
+        mig_cases.append((label, None, None, None, got_v == want))
+    for label, files, applied, ack, want in mig_cases:
+        if files is None:
+            got = want
+            want = True
+        else:
+            got = judge_migration_freeze(files, applied, ack)["ok"]
+        ok = got == want
+        failures += 0 if ok else 1
+        print(("ok   " if ok else "FAIL ") + label + ": 기대 " + str(want) + " / 실제 " + str(got))
+
+    total = len(cases) + len(schema_cases) + len(neg_cases) + len(mig_cases)
     print("\n" + str(total - failures) + "/" + str(total) + " 케이스 통과"
           + " (judge_case " + str(len(cases)) + " · schema 필드 특정 "
           + str(len(schema_cases)) + " · judge_negative_control "
-          + str(len(neg_cases)) + ")")
+          + str(len(neg_cases)) + " · 마이그레이션 동결 " + str(len(mig_cases)) + ")")
     return 0 if failures == 0 else 1
 
 
@@ -760,6 +1038,8 @@ def cmd_serve(args) -> int:
     (하드 킬 금지 — 계약 §0.1). 배경 프로세스로 띄워도 stdin 을 잡고 있는 주체가 있어야 그게 된다.
     """
     env = load_dotenv()
+    if getattr(args, "world", None):
+        env["STARFALL_WORLD_ID"] = args.world
     addr = env.get("STARFALL_HTTP_ADDR", "127.0.0.1:8080")
     if not EXE.is_file():
         print(f"미검증(환경): {EXE} 가 없다", file=sys.stderr)
@@ -826,6 +1106,17 @@ def main() -> int:
     rj.add_argument("--evidence-in", required=True)
     rj.add_argument("--evidence")
     rj.set_defaults(func=cmd_rejudge)
+    pb = sub.add_parser("p1-02-boot", help="p1-02 SC-04: 새 월드로 띄워 stats·기동 로그를 남긴다")
+    pb.add_argument("--world", required=True)
+    pb.add_argument("--timeout", type=float, default=40.0)
+    pb.add_argument("--log", help="기동 로그 전문 — SC-07 data_file_pairs.py --boot-log 입력")
+    pb.add_argument("--evidence")
+    pb.set_defaults(func=cmd_p1_02_boot)
+    pr = sub.add_parser("p1-02-reject", help="p1-02 SC-05: 실바이너리 기동 거부 ①⑦⑪ + 음성 대조")
+    pr.add_argument("--workdir", required=True)
+    pr.add_argument("--timeout", type=float, default=60.0)
+    pr.add_argument("--evidence")
+    pr.set_defaults(func=cmd_p1_02_reject)
     st = sub.add_parser("selftest", help="judge_case 를 합성 로그로 건다 (양성·음성 대조)")
     st.set_defaults(func=cmd_selftest)
     v = sub.add_parser("serve", help="서버를 띄우고 중지 파일이 생길 때까지 붙잡는다 (블록 3~5)")
@@ -834,6 +1125,7 @@ def main() -> int:
     v.add_argument("--log")
     v.add_argument("--ready-timeout", type=float, default=40.0)
     v.add_argument("--max-seconds", type=float, default=900.0)
+    v.add_argument("--world", help="p1-02: 새 월드 id(없으면 .env 의 월드)")
     v.set_defaults(func=cmd_serve)
     args = ap.parse_args()
     return args.func(args)

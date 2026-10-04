@@ -1,0 +1,20 @@
+{
+    "name": "Starfall.Mining",
+    "rootNamespace": "Starfall.Mining",
+    "references": [
+        "Starfall.Contracts",
+        "Starfall.Net",
+        "Starfall.Sim"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": true,
+    "precompiledReferences": [
+        "Newtonsoft.Json.dll"
+    ],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": true
+}

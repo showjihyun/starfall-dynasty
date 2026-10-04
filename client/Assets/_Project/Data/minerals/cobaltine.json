@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "id": "cobaltine",
+  "display_name": "Cobaltine",
+  "rarity": "uncommon",
+  "designer_note": "Blue conductive ore of the outer field, 30+ s from any spawn point. Every number is a designer assumption; see docs/design/p1-02-mining-design.md.",
+  "extraction": {
+    "yield_per_extraction_kg": 80
+  },
+  "regeneration": {
+    "regen_kg": 80,
+    "regen_interval_s": 60
+  }
+}
