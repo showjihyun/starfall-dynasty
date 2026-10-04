@@ -1,0 +1,14 @@
+{
+  "item": "[verdict] p1-02 SC-104 DB 정상·한가한 서버에서 쿨다운마다 채굴 60 초 → RECORDING_BACKLOG 0 (같은 구간 persist_backlog 최대 ≥ 20 — 톱니가 실제로 있었다)",
+  "max_persist_backlog": 20,
+  "max_recording_lag": 20,
+  "persist_backlog_limit": 600,
+  "recording_lag_limit": 20,
+  "results_by": {
+    "ACCEPTED": 20
+  },
+  "sent": 20,
+  "stats_errors": 0,
+  "stats_samples": 2315,
+  "verdict": "PASS"
+}

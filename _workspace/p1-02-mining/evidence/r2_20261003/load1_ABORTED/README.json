@@ -1,0 +1,6 @@
+{
+  "what": "SC-87·89 r2 부하 1차 — 중단·무효. 판정에 쓰지 않는다",
+  "why": "동결 시작(10:03:25Z) 뒤 client-2 가 클라이언트 소스 변이·원복(DiscoveryFeedState.cs mtime 19:04:07 KST, PilotTag.cs 19:03:22)과 Unity EditMode 실행(xml 19:02:57·19:04:01·19:04:30 KST)을 했다. 부하 실행 시작(19:04 KST) 첫 ~30 s 와 겹친다 — tick 초과 비율을 재는 실행에 CPU 경쟁. 동결 규칙(소스 편집과 겹친 실행은 무효)",
+  "how_stopped": "qa 가 bots.exe(자기 도구)만 종료, 서버는 stop 파일로 정상 종료(SHUTDOWN exit=0) — 서버 하드 킬 없음",
+  "source_sha_effect": "src_sha_start.txt 의 세 클라이언트 파일 해시는 변이 전 값(cfbf4fe8…·236eece6…·be77624d…)과 같다 — r2 끝 재대조에서 다시 확인"
+}

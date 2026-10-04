@@ -1,0 +1,114 @@
+SC-01 [server] `cargo fmt --all --check` · `cargo clippy --workspace --all-targets -- -D warnin || 네 명령 그대로. 크레이트별 `N passed` 를 증거에
+SC-02 [server] `starfall-sim`·`starfall-history` 의 `Cargo.toml` `[dependencies]` 에 `axum`·`sqlx || `grep -nE "axum\|sqlx\|redis\|rand\|chrono\|tokio" server/crates/sim/Cargo.toml server/crates/history/Cargo.toml` → 0 매칭. 두 `[dependencies]` 전문을 증거에
+SC-03 [server] `starfall-history` 소스에 `SystemTime`·`Instant` 호출 0, `HashMap` 순회 결과를 출력 순서로 쓰는 곳 || `grep -rnE "SystemTime\|Instant::\|HashMap" server/crates/history/src` → `SystemTime`·`Instant` 0. `HashMap` 이 나오면 그 줄마다 순회 여부를 파일:라인으로 설명
+SC-04 [server] 정상 `data/` 로 기동 → `/debug/stats` 에 **광물 4 · 광맥 8 · `rule_version = mineral-disco || 새 월드(§0.2)로 실서버 기동 — `python tests/e2e/server_boot.py p1-02-boot --world <id> --log <기동 로그>`(stats 수집 + stdin `shutdown`, 기동 로그는 SC-07 입력), `/debug/st
+SC-05 [server · qa] 스펙 §4.7 의 조건을 **하나씩** 깨뜨린 `STARFALL_DATA_DIR` 에서 **전부 기동 실패**, 로그에 **파일과 필드**. 경 || server: `cargo test -p game-server data::reject_c` — `data::reject_c01_deposit_unknown_mineral` … `data::reject_c16_*`(경우 번호가 이름에) + 양성 대조 `data::acce
+SC-06 [qa] 실제 `data/` 의 **10 파일 전부**가 스키마를 통과하고 `validate_data_files.py` `TARGETS` 가 신규 4 경 || `python tests/e2e/validate_data_files.py` → 종료 코드 0, `files_checked = 10`
+SC-07 [qa] **읽히지 않는 데이터 파일 0.** `data/**/*.json` 각 파일마다 ① 기동 시 읽는 코드 — **서버 기동 로그에 그 파일의 해석 || `python tests/e2e/data_file_pairs.py --boot-log <SC-04 의 서버 로그>` → 파일별 (로그 줄, 게이트) 표와 `짝 있음 N / 파일 M`. 종료 코드 0 ⇔ N == M
+SC-08 [server] 모든 조건 충족 → **수락**, 인벤토리 = 정확히 산출, `MINERAL_MINED` **1건**, `causation_id = comman || `cargo test -p starfall-sim mining::accept_*`
+SC-09 [server] §4.2 표 사유 **2~7 각각**(`TARGET_UNKNOWN`·`COOLDOWN_ACTIVE`·`TARGET_OUT_OF_RANGE`·`S || `cargo test -p starfall-sim mining::reject_*` (사유당 1개, 6개). 7 은 `commands_rejected_total{CAPACITY_EXCEEDED}` +1 도 단언. **디버그·릴리스 두 프로필에서** 같은 결과(`cargo
+SC-10 [server] 두 사유가 동시에 성립하면 **표 순서의 앞 사유**. 필수 쌍: 쿨다운 중 + 사거리 밖 → `COOLDOWN_ACTIVE`(스펙 명시). I || `cargo test -p starfall-sim mining::reject_order_*`
+SC-11 [server] 거부는 쿨다운을 시작하지 않는다: 쿨다운 외 사유(예: 사거리 밖)로 거부 → 그 직후 tick 에 조건을 만족시키면 **수락** || `cargo test -p starfall-sim mining::reject_does_not_start_cooldown`
+SC-12 [server] 잔량 < 산출량이면 **부분 산출**(= 잔량), 다음 명령은 `RESOURCE_DEPLETED` (S-3 단위판) || `cargo test -p starfall-sim mining::partial_then_depleted` + fixture `MINERAL_MINED/partial-last-kg-depletes.json`
+SC-13 [server] 같은 tick 의 두 채굴은 **제출 순서**대로 처리된다 — 제출 순서를 바꾸면 **결과가 바뀐다** (`ship_id` 순이 아니다, I-7 || `cargo test -p starfall-sim mining::same_tick_submission_order` — 잔량이 한 번 분량뿐인 광맥에 두 함선
+SC-14 [server] 회복: 소진된 광맥이 `regen_interval` 배수 tick 을 지나면 `regen_kg` 만큼, 초기값 상한 — **닫힌 식(I-69)과 || `cargo test -p starfall-sim mining::regen_closed_form_matches_stepwise`
+SC-15 [server] 사거리·속도 판정은 **tick 시작 시점(이번 tick 적분 전)** 의 서버 `f64` 상태로 한다 — 이번 tick 적분 뒤에야 사거리에  || `cargo test -p starfall-sim mining::range_uses_pre_integration_state`
+SC-16 [server] 한 세션에서 같은 명령 2회 → 둘째 `DUPLICATE_COMMAND_ID`, 인벤토리 산출 × 1 || `cargo test -p starfall-sim mining::dup_same_session`
+SC-17 [server] 끊고 **잔류 창 안** 재접속(새 세션, 같은 actor) → 같은 명령 → `DUPLICATE_COMMAND_ID` || `cargo test -p starfall-sim mining::dup_across_reconnect` (세션 교체를 sim 수준에서)
+SC-18 [server] **정상 종료(stdin `shutdown`) → 재기동 → 같은 actor 접속 → 같은 명령** → `DUPLICATE_COMMAND_ID` || server: DB 통합 테스트(`cargo test -p starfall-persistence restart_reloads_economic_state_so_cas_succeeds_and_duplicates_are_rejected` [DB] — 적재 → sim 기억 주
+SC-19 [server] 같은 actor 의 두 연결(넘겨받기, p1-01 I-29)이 **같은 tick 에** 같은 `command_id` → 수락 1, 중복 1 || `cargo test -p starfall-sim mining::dup_two_sessions_same_tick`
+SC-20 [server] **이미 커밋된 tick 배치를 영속화에 다시 넣음** → 모든 테이블 행 변화 0, 에러 없음, 둘째 커밋의 반환값이 **`AlreadyCom || `cargo test -p starfall-persistence batch_recommit_is_noop` [DB] — 재시도 루프 진입점을 두 번 호출(반환값·카운터 +1). **둘째 줄** `ambiguous_commit_retry_counts_once` [DB] 
+SC-21 [server] sim 의 기억을 우회해 중복이 DB 에 도달 → **PK `(world_id, command_id)` 위반 → 정지 경로**(둘째 배치 `Er || `cargo test -p starfall-persistence dup_reaching_db_halts` [DB]. 재기동을 넘는 같은 방어선: `cargo test -p starfall-persistence dup_across_restart` [DB](sim 기억 없
+SC-100 [server] **다른 actor**(토큰 둘)가 같은 `command_id` → 수락 1, `DUPLICATE_COMMAND_ID` 1, **서버가 멈추지  || `cargo test -p starfall-sim duplicate_command_id_across_different_sessions_is_rejected`(actor id(1)·id(3) — r2 이름 정정, server 제안: 파일의 다른 sim 테스트와 같은 서술
+SC-22 [server] 세션 안에서 **거절된** 명령의 재전송 → `DUPLICATE_COMMAND_ID`(그 사이 조건이 풀렸어도). 재접속 뒤의 거절 명령 재전송 || `cargo test -p starfall-sim mining::rejected_resend_*` (두 갈래)
+SC-23 [qa] **원장 항등식(I-54)**: 각 `(world, actor, mineral)` 에 인벤토리 행 = `Σ quantity_kg` = 최신 `q || 봇 ≥ 2 × 채굴 N 회 뒤 `python tests/e2e/mining_ledger.py --world <id> ledger`
+SC-24 [qa] **보존 법칙(I-55)**: 각 `(world, mineral)` 에 `Σ 인벤토리 + Σ 광맥 잔량 = Σ 초기 매장량 + Σ 실제 회복량` || `python tests/e2e/mining_ledger.py --world <id> conservation` (초기 매장량·회복 매개변수는 그 시점 `data/` 값 — 증거에 함께)
+SC-25 [server · qa] 서버가 떠 있는 동안 **한 actor 의 인벤토리 행을 SQL 로 바꾼 뒤** 그 actor 가 채굴 → 서버가 **스스로 정지**: 0 아닌 || qa 절차: 새 월드 → `bots probe --case cas-halt`(채굴 1 회 → psql 로 커밋 확인 → qa 가 `UPDATE inventory ...` → 채굴) → 종료 코드·로그 수집. server 가 같은 경로의 DB 통합 테스트(`cargo t
+SC-26 [server · qa] 재기동하면 DB 값(변조된 값)으로 적재되고 다음 채굴이 **그 위에서** 수락된다(DB 가 정본) || SC-25 직후 같은 월드로 재기동 → `bots probe --case cas-reload` 로 채굴 → psql 로 새 `MINERAL_MINED.quantity_before_kg` = 변조 값. DB 층(server): `cargo test -p starfall-
+SC-27 [server] `recorded_at` 생성 실패 주입 시 이벤트를 **건너뛰지 않고** 배치가 실패 → 정지 경로(ADR-0013 §5 가 고치라고 한 `c || `cargo test -p starfall-persistence recorded_at_failure_fails_batch` [DB] — **시계 주입점을 둔 DB 통합 테스트**(실서버는 호스트 시계라 주입 불가 — server)
+SC-101 [server] **payload 직렬화 실패** 주입 시 JSONB `null` 을 저장하지 않고 배치가 실패 → 정지(현재 `extract_payload`  || `cargo test -p starfall-persistence payload_serialize_failure_fails_batch` [DB](payload 생성 함수의 주입점 — 계약 타입 직렬화는 사실상 실패하지 않으므로) + `payload_null_rejecte
+SC-102 [server] 정지가 결정된 뒤 **종료 스윕의 `SESSION_CLOSED` 가 커밋되지 않는다**(정지 후 배치 커밋 금지, K5) || `cargo test -p starfall-persistence no_commit_after_fatal` [DB] — fatal 뒤에 배치 2개(일반 1 + `SESSION_CLOSED` ≥ 1 을 담은 스윕 모양 1)를 넣고 행 변화 0. **스윕이 실제로 돌았다는 
+SC-103 [server] **일시 실패 분류 (a) 단위**: SQLSTATE `57P01` 을 주입하면 **재시도**이고 정지가 아니다. 짝: 허용 목록 밖 SQLST || `cargo test -p starfall-persistence admin_shutdown_is_transient` — `DatabaseError` 를 구현한 가짜 오류, 재시도 루프 commit 주입점으로 첫 시도만 실패
+SC-112 [server] **일시 실패 분류 (b) 실제 DB**: `pg_terminate_backend` 로 영속화 연결을 끊는다 → 재시도, 같은 배치 커밋, 정지 || `cargo test -p starfall-persistence terminated_backend_is_retried` [DB]
+SC-28 [server] 게이트웨이 단위: **`recording_lag`**(넣었지만 미커밋 tick, ADR-0013 §6 K2) **21** tick 에서 `MIN || `cargo test -p starfall-gateway recording_lag_boundary_*` + `recording_halted_rejects_state_change`
+SC-29 [qa] 실서버: 봇이 채굴·이동 중 `docker compose stop postgres` → `recording_lag > 20` 이 된 뒤의 `MI || `bots probe --case backlog` + qa 가 `stop`/`start` 를 절차서대로
+SC-30 [qa] 같은 구간 `SET_SHIP_CONTROL` 은 수락되고 스냅샷이 흐른다 || `bots probe --case backlog` 같은 실행의 봇 로그: 구간 내 `SET_SHIP_CONTROL` 수락 수, 받은 `WORLD_SNAPSHOT` 수
+SC-31 [qa] `docker compose start postgres` 후 백로그가 빠지고 채굴이 **다시 수락**된다 || `bots probe --case backlog` 같은 실행: 재개 후 `recording_lag`(`/debug/stats`)가 20 이하로 내려간 시점 이후 수락 ≥ 1
+SC-32 [qa] 정지 전·중에 **수락된** 채굴이 **전부** DB 에 있고 항등식(SC-23·24)이 성립 || 봇이 기록한 수락 `command_id` 집합 ⊆ `processed_commands` 와 `MINERAL_MINED.causation_id` 를 `mining_ledger.py --world <id> accepted --from <봇 로그>` 로
+SC-104 [qa] **DB 가 살아 있는 한가한 서버에서 60 초 동안 `RECORDING_BACKLOG` 0 건**(하트비트 톱니에 걸리지 않는다 — K2 의  || `bots probe --case backlog-idle`: 봇 1대가 쿨다운마다 채굴만 한다(이동 없음, 다른 연결 없음)
+SC-33 [server] 채굴을 포함한 기록된 입력열(함선 2척, 광맥 2곳, 쿨다운·사거리 밖·속도 초과·부분 산출·소진·회복 경계 포함. **`CAPACITY_EXC || `cargo test -p starfall-sim --test mining_replay` (자식 프로세스 2개, p1-01 AC-8 방식)
+SC-34 [server] **기존 이동 golden 이 재생성 없이 통과**하고 세 파일 sha256 이 §0.7 기준선과 같다 || `cargo test -p starfall-sim` 의 이동 재생 테스트 + `sha256sum server/crates/sim/tests/data/replay/*` 를 작업 후 다시
+SC-35 [server] `cargo test -p starfall-contracts --locked` 가 **타입 23 전부**를 덮는다: 유효 fixture **46 || 그 명령. 테스트가 **검사 건수를 출력**한다
+SC-36 [server] 신규 반례 40건의 serde 결과가 §0.5 표 ② 열과 일치 || `cargo test -p starfall-contracts invalid_fixtures_layered` — 반례별 결과를 표로 출력
+SC-37 [server] 신규 10 타입의 `required` 필드를 하나씩 제거한 변이가 **실패**한다 || `cargo test -p starfall-contracts required_removal_mutations` — "required + nullable" 필드(`DEPOSIT_FIELD_STATE` 의 넷 등)는 기존 `required_nullable` `deseria
+SC-38 [server] 레지스트리 `responses` 가 명령 3종(`PING_SERVER`·`SET_SHIP_CONTROL`·`MINE_RESOURCE`)에 있고  || `cargo test -p starfall-contracts registry_responses`
+SC-39 [server] sim 이 만드는 `DEPOSIT_FIELD_STATE`: 미확인 광맥은 `mineral_id`·`initial_reserve_kg`·`rema || `cargo test -p starfall-sim mining::deposit_field_state_reveal`
+SC-40 [qa] 실서버·새 월드: 첫 채굴 **전** 세션이 받은 **모든** 메시지에 미확인 광맥의 `mineral_id` 값·매장량이 없다. **양성 대조* || `bots probe --case leak-scan` — 받은 원문 프레임 전부를 저장하고, 광맥 표의 8 `mineral_id` 문자열·매장량 수치를 원문에서 검색. **그리고 구조 검사**: 첫 채굴 전 `DEPOSIT_FIELD_STATE` 의 모든 항목이 네 필
+SC-41 [history] 첫 채굴 → 기록 **1건**: Level 2, `rule_version = mineral-discovery@1`, 근거 = 그 이벤트, 참가자 || `cargo test -p starfall-history first_extraction_discovers` (입력 `MINERAL_MINED/first-extraction.json`, 기대 `evidence_id` 는 `server/crates/history/tests
+SC-42 [history] 같은 광물 두 번째 채굴 → **0 건** || `cargo test -p starfall-history second_extraction_is_silent`
+SC-43 [history] 다른 광물 → **1 건** 추가(총 2) || `cargo test -p starfall-history other_mineral_discovers`
+SC-44 [history] 같은 tick 두 actor → `sequence` 작은 쪽이 단독 발견자(H-04). fixture 의 `event_id` 순서는 `seque || `cargo test -p starfall-history same_tick_lower_sequence_wins` (+ `MINERAL_DISCOVERED/glacine-seq-nonzero.json`)
+SC-45 [history] 멱등: 같은 입력을 k ∈ {2, 3, 5} 회 처리 → 1 회와 같은 결과(기록·증거·근거·참가자 수 1·1·1·2) (H-01) || `cargo test -p starfall-history reprocessing_is_idempotent`
+SC-46 [history] 배치 경계 불변: 정렬된 입력을 **무작위 지점**에서 잘라 처리 → 같은 결과. **시드를 출력**한다 || `cargo test -p starfall-history batch_boundary_invariance`
+SC-47 [history] **러너 정렬 경로**: 같은 채굴 로그(광물 ≥ 2 × 채굴자 ≥ 3, 같은 tick 충돌 포함)를 새 테스트 DB 마다 `domain_eve || `cargo test -p starfall-persistence history_runner_ordering_permutations` [DB] — history r0 검토: 코어에 **정렬한 입력**을 넣는 형태는 `(tick, sequence)` 가 유일해 정렬 후 입
+SC-48 [history] **비정렬 입력은 거부**된다(역행 입력 — ADR-0014 §1) || `cargo test -p starfall-history out_of_order_input_rejected`
+SC-49 [history] Level 0 타입만의 입력(`SESSION_*`·`SHIP_*`) → **0 건**. 채굴 N 건·서로 다른 (성계, 광물) K 개(K ≥ 2 || `cargo test -p starfall-history level0_filter`
+SC-50 [history] golden: `rule_version` 에 규칙 파일 **정규화 해시**와 고정 입력의 출력이 묶여 있다(`server/crates/histo || `cargo test -p starfall-history rule_golden` + 음성 대조 테스트 `rule_golden_detects_value_change_without_version_bump`
+SC-51 [history] 첫 채굴 커밋 뒤 `historical_events`·`historical_event_sources`·`evidence` **각 1행**, 커서 || `cargo test -p starfall-persistence history_first_discovery_rows` [DB]
+SC-52 [history] 역사 3 테이블에 UPDATE / DELETE → **전부 거부**(6 시도) || `cargo test -p starfall-persistence history_tables_append_only` [DB]
+SC-53 [history] 같은 `dedupe_key` 로 두 번째 행을 **SQL 로 직접** INSERT → UNIQUE 위반 || `cargo test -p starfall-persistence history_dedupe_unique` [DB]
+SC-54 [history] 커밋 직전 장애 주입 → 재시작 → 기록 1, 커서가 그 이벤트 뒤 (H-02) || `cargo test -p starfall-persistence history_crash_before_commit` [DB]
+SC-55 [history] 판정 불가 `MINERAL_MINED` 를 발견 후보 **앞에** 끼움 → 러너 정지, 커서가 그 앞, 뒤 후보로 기록 없음, `history_ || `cargo test -p starfall-persistence history_fail_stop` [DB]
+SC-56 [history] `last_tick` 보다 큰 tick 의 행은 판정되지 않는다(워터마크) || `cargo test -p starfall-persistence history_watermark` [DB]
+SC-57 [history] 재기동: 발견 2건이 있는 월드에서 정상 종료·재기동 → 기록 여전히 **2**, 재기동 뒤 첫 신규 광물 채굴이 **1건 추가**(3) (S- || `cargo test -p starfall-persistence history_restart_rebuild` [DB]
+SC-105 [history] **AC-11(h)(ii) 다른 근거 충돌 = 러너 정지**: 판정 상태를 비운 러너가 두 번째 채굴을 "최초" 로 판정하게 주입 → `ON C || `cargo test -p starfall-persistence history_conflict_halts_runner_only` [DB] — SC-106·SC-111 과 **한 테스트 파일, 같은 실행**
+SC-106 [history] **AC-11(h)(i) 재배달 = 조용함**(SC-105·111 의 양성 대조 — "무조건 멈추는 버그" 배제): `history_cursor || `cargo test -p starfall-persistence history_redelivery_is_silent` [DB] — SC-105·111 과 같은 실행
+SC-111 [history] **AC-11(h)(iii) 같은 근거·다른 내용 = 러너 정지**: 러너가 처리하기 **전에** 같은 id·`dedupe_key`·근거에 ** || `cargo test -p starfall-persistence history_same_source_different_content_halts` [DB] — SC-105·106 과 같은 실행
+SC-58 [qa] 실서버 + 봇 채굴 세션 뒤 SQL 오라클(§0.10)과 역사의 발견 집합이 **양방향 차집합 0** (H-12) || `python tests/e2e/history_oracle.py --world <id>`
+SC-59 [history · qa] 그 월드의 `domain_events` 를 **읽기 전용**으로 빈 판정 상태 코어에 재생 → 저장된 기록과 **evidence 행**이 **i || `cargo run -p starfall-persistence --bin history-replay -- --world <id> --read-only` (재생 도구, H2)
+SC-60 [qa] 러너 커밋 뒤 **열린 모든 세션**이 `LIVE` 1건을 받는다 || `bots probe --case trace-abc` 의 (a) 단계 — 열린 세션 수와 받은 세션 수
+SC-61 [qa] 이후 접속한 세션이 `SESSION_READY` **뒤** `BACKFILL` 로 받는다 || `bots probe --case trace-c` 의 수신 순서 (`trace-abc` 실행의 (c) 단계)
+SC-62 [history] **커밋 전 송신이 없다**: 러너 커밋을 실패시키는 주입에서 NOTICE **0** 건 || `cargo test -p starfall-persistence history_notice_after_commit_only` [DB] (러너 → 채널 경계)
+SC-63 [server · qa] **누락 틈 없음**: 커밋과 세션 열림이 겹치게 만든 반복에서 LIVE·BACKFILL 을 **둘 다 못 받은 세션 0** || server: `cargo test -p starfall-gateway notice_no_gap_same_tick`(겹침 tick 을 강제로 만들고 새 세션이 그 기록을 LIVE 로 **정확히 1회** 받음 + 카운터 1). qa: `bots probe --case n
+SC-64 [qa] `MINERAL_MINED` 커밋 → LIVE 수신 지연 p50/p95/max. **max ≤ 5 초**(판정). p95 ≤ 1 초는 **기록* || `bots probe --case trace-abc` + `bots run --stage mine-load` 에서 커밋 시각(psql `recorded_at`)과 봇 수신 시각
+SC-65 [client] 생성기: 신규 DTO **6** 생성(`MineResourceCommand`·`MineralMinedEvent`·`MineralDiscovere || `dotnet run ContractsCodegen.cs` 2회 + 파일별 sha256 전후 비교
+SC-66 [client] EditMode: 유효 fixture **발견 수·왕복 수를 상수로 단언**(예측 46 / 36 — 실측으로 확정). 테스트가 fixture 디 || `unity test client --mode EditMode` → `test-results.xml` 스위트별. 반례 40 건의 C# 3층 분류(거부·감지 불가·계층 없음)를 같은 테스트가 실측해 §0.5 ③ 열에
+SC-67 [client] `Runtime` 프로필에서 **모르는 값**에 죽지 않는다: `reason_code`·`delivery`·`visibility`·`entity || `unity test client --mode EditMode` 의 `UnknownClosedValue_*` 5 케이스
+SC-68 [client(사람)] 사람이 그레이박스에서 디자인 §8 의 **여섯 요소**를 확인하고 스크린샷 — 특히 **산출 알림과 발견 배너가 다른 것으로 읽히는가**, 배너 || 도구 없음(사람 관찰) — 스크린샷 6장 + 한 줄 소감. 에이전트는 Play 를 누를 수 없다
+SC-69 [client] 인벤토리 패널이 **서버 응답 뒤에만** 바뀐다(I-49) || EditMode `InventoryPanel_ChangesOnlyOnInventoryState` + 소스 검사 `grep -rnE "quantity_kg\s*[+\-]=\|QuantityKg\s*[+\-]=" client/Assets/_Project/Scripts` →
+SC-70 [client] 같은 기록을 LIVE·BACKFILL 로 **둘 다** 받아도 **한 번만** 표시 || `unity test client --mode PlayMode` 의 FakeTransport 시나리오 `DiscoveryFeed_DedupesByHistoricalEventId` — 같은 id 를 LIVE 뒤 BACKFILL 로 재생(fixture 둘은 id 가 달라 
+SC-110 [client] `Pilot-xxxx` 표지 = **`actor_id` 문자열 끝 4 글자**(I-66, architect 확정) — 그리고 **표지는 표시 전 || EditMode `PilotLabel_LastFourChars` + `DiscoveryList_KeysByActorIdNotLabel`(충돌 쌍 입력)
+SC-71 [client] **광맥 표식의 광물 이름은 `DEPOSIT_FIELD_STATE` 에서만 온다** — 사본의 `mineral_id`·`initial_reser || (A) EditMode 리플렉션 테스트 `DepositTableEntry_HasNoServerOnlyFields`(타입의 필드·프로퍼티 이름에 두 이름이 없음) (B) `unity test client --mode PlayMode` `DepositMarker_Follo
+SC-72 [client] 클라이언트 사본 `client/Assets/_Project/Data` 가 `data/` 10 파일을 전부 포함하고 `ClientDataCopy_ || `unity test client --mode EditMode` → 결과 파일을 `_workspace/p1-02-mining/evidence/editmode-<date>.xml` 로
+SC-73 [qa] `MINE_RESOURCE` 에 `quantity_kg`·`mineral_id`·위치·`actor_id` 주입 → **4 경우 전부** `MAL || `bots probe --case cheat-mine-inject`
+SC-74 [qa] 사거리 밖 반복 → `TARGET_OUT_OF_RANGE` || `bots probe --case cheat-mine-range`
+SC-75 [qa] 속도 30 m/s 로 지나가며 → `SHIP_TOO_FAST` || `bots probe --case cheat-mine-fast`
+SC-76 [qa] 쿨다운보다 10 배 빠르게 60 초 → 수락 ≤ ⌈60 / 3⌉ + 1 = **21**, 나머지 `COOLDOWN_ACTIVE`, **연결 유지 || `bots probe --case cheat-mine-cooldown`
+SC-77 [qa] 없는 `deposit_id` → `TARGET_UNKNOWN` || `bots probe --case cheat-mine-unknown`
+SC-78 [qa] AC-4 (a)~(c) 를 봇으로: 같은 세션 재전송 · 잔류 창 안 재접속 재전송 · **정상 종료 → 재기동 → 재전송** → 전부 `DUP || `bots probe --case mine-dup` · `bots probe --case mine-dup-reconnect` · `bots probe --case mine-dup-restart`
+SC-108 [qa] **클라이언트가 고를 수 있는 값으로 월드를 멈출 수 없다**(ADR-0013 §5a — ① 도달 "예" 1 건 `processed_comman || `bots probe --case mine-dup-cross-actor` + `/debug/stats`
+SC-79 [qa] 남의 인벤토리에 넣기는 **어휘에 없어 시도 불가** || `MINE_RESOURCE.schema.json` 의 `properties` 키 집합 = `{deposit_id}` 이고 `additionalProperties: false` 임을 `jq` 로 찍는다 + `bots probe --case cheat-mine-inject
+SC-80 [qa] A·B 접속, A 가 광물 X 를 처음 캠 → **A·B 모두** `LIVE` 수신, 발견자 = A || `bots probe --case trace-abc` (a) 단계
+SC-81 [qa] B 가 X 를 캠 → **수락**됐고 인벤토리가 늘었는데 새 역사 기록 **0** 건 || `trace-abc` (b) 단계 + SQL 행 수
+SC-82 [qa] A 가 접속을 끊고 **A 의 함선이 디스폰된 것을 단언**한 뒤, C 가 **처음** 접속 → `BACKFILL` 로 A 의 발견 + `DEP || `trace-abc` (c) 단계 — **C 는 별도 프로세스**(`bots probe --case trace-c` 를 따로 실행)
+SC-83 [qa] DB: X 에 대한 `MINERAL_DISCOVERED` **정확히 1 행**, 근거 = A 의 **첫** `MINERAL_MINED`, 증거  || `python tests/e2e/history_oracle.py --world <id> --mineral <X>`
+SC-84 [qa] S-2: 두 봇이 같은 목표 tick 에 같은 광물의 **다른 광맥**을 캠 → 발견자 = `sequence` 작은 쪽, 기록 1 || `bots probe --case race-same-tick`
+SC-85 [qa] S-3: 잔량 100 kg 광맥에 세 봇이 같은 tick → **100 / `RESOURCE_DEPLETED` / `RESOURCE_DEPLET || `bots probe --case last-kg` (잔량 100 을 만드는 선행 채굴 포함)
+SC-86 [qa] S-8: 보존 법칙이 **모든 광물**에 대해 성립(광물별 좌·우변과 채굴 수 출력), **회복이 실제로 일어난 광맥 ≥ 1** || 부하 실행(SC-87) 뒤 `mining_ledger.py --world <id> conservation --require-regen`
+SC-87 [qa] 31 연결(봇 30 + Unity 1 또는 봇 31)이 이동 + 쿨다운마다 채굴 **10 분**: **tick 초과 비율 ≤ 0.5 %** || `bots run --stage mine-load` + `/debug/stats` 델타(`stats_delta.py`)
+SC-88 [qa] 같은 부하 실행 뒤 원장·보존 항등식 성립 || `mining_ledger.py --world <id> ledger` · `conservation`
+SC-89 [qa] 정상 부하에서 **`RECORDING_BACKLOG` 거부 0** || `bots run --stage mine-load` 의 사유별 집계 + `recording_lag` 최대값(`/debug/stats`)
+SC-90 [qa] `MINERAL_DISCOVERED` 수 = 채굴된 광물 종류 수 ≤ 4, **고갈 발생 ≥ 1** || SQL: 광물 distinct 수(`MINERAL_MINED`) vs 역사 행 수, `deposit_remaining_after_kg = 0` 행 수 — 이 SQL 을 `mining_ledger.py --world <id> discoveries` 가 실행한다
+SC-91 [qa] 이번 실행 월드의 `event_type` distinct 가 **기대 집합**(`SESSION_OPENED`·`SESSION_CLOSED`·`S || SQL `SELECT event_type, count(*) FROM domain_events WHERE world_id = '<id>' GROUP BY 1`
+SC-92 [qa] 모든 `MINERAL_MINED.causation_id` 가 `processed_commands.command_id` 에 있고 **그 역도**  || `mining_ledger.py --world <id> causation`
+SC-93 [qa] `(world_id, tick)` 별 `sequence` 빈틈 없음 || `python tests/e2e/check_sequence_gaps.py --world <id>` (p1-01 도구에 `--world` 추가)
+SC-94 [qa] p1-01 §11-8 의 **자기 참조 결함 장부 7 건이 그대로** 있다 — 기본 월드 `causation_id = event_id` 집합이  || SQL `SELECT event_id FROM domain_events WHERE causation_id = event_id ORDER BY 1` 을 장부와 비교
+SC-95 [qa] 역사 테이블 쓰기(INSERT) 코드 위치가 **러너 모듈 하나**다 (H-14) || `rg -U --pcre2 'INSERT\s+INTO\s+(historical_events\|historical_event_sources\|evidence)\b' server/` — **여러 줄 패턴**(sqlx 쿼리는 `INSERT INTO` 와 표 이름 사이에 줄바
+SC-107 [qa] **정지 경로 제약 분모 대조**: 0002·0003 이 적용된 DB 에서 테이블별 `pg_constraint` 행 수가 ADR-0013 §5a || `python tests/e2e/constraint_census.py` — ADR 표에서 읽은 요구 수와 psql `pg_constraint`·`pg_trigger` 실측을 테이블별로 나란히
+SC-109 [qa] **"제약이 있다 ≠ 막는다"**: 0002 가 추가한 `domain_events` `CHECK (jsonb_typeof(payload) = ' || psql 로 qa 탐침 월드에 `payload = 'null'::jsonb` 행 INSERT → `check_violation`(23514)
+SC-113 [qa] **CI 의 DB 테스트가 실제로 돈다**(리더 결정 Q-2): `server (rust)` job 에 `postgres:18.6-trixie` || `python tests/e2e/db_test_census.py --contract <이 문서> --log <cargo test 로그>` (CI `server (rust)` job 의 한 단계)
+SC-114 [qa · server] **DB 테스트는 증거 DB 를 건드리지 않는다**: 로컬에서 `STARFALL_DB_TESTS=required cargo test --work || psql `SELECT count(*) FROM domain_events` 전·후 + 같은 실행 로그의 RAN 수 + server 단위 테스트 `cargo test -p starfall-testdb refuses_non_test_database`(`starfall` 이
+SC-96 [qa] `check_contract_coverage.py --strict` **종료 코드 0** (기준선 errors 25) || `python .claude/skills/integration-qa/scripts/check_contract_coverage.py --strict`
+SC-97 [qa] 신규 타입의 스키마·Rust·C# **필드별 표**, 불일치 0 — §4 의 고정 대상 전부 || qa 가 세 파일을 **함께 읽어** 표를 쓴다(`python tests/e2e/interface_matrix.py --slice p1-02` 가 필드 목록을 뽑고 사람이 대조)
+SC-98 [qa] `.github/workflows/gates.yml` 의 출처 게이트가 **이 계약**을 가리키고 PR 에서 초록이며, 그 게이트가 찍은 **항 || PR 의 `judgment gates (python)` job 로그에서 `python tests/e2e/check_item_sources.py --contract _workspace/p1-02-mining/02_sprint_contract.md --slice p1-02
+SC-99 [qa] 스펙 §5.1a 의 `responses` 유도 항등식: **수락된 `MINE_RESOURCE` 수 == 그 결과 뒤 같은 tick 의 `INVE || 봇 공통 집계 — `bots probe --case trace-abc` 와 `bots run --stage mine-load` 실행마다 요약 줄

@@ -25,7 +25,12 @@ use std::time::{Duration, Instant};
 
 use starfall_contracts::UuidV7;
 use starfall_contracts::events::SessionCloseReason;
-use starfall_contracts::messages::RejectReasonCode;
+use starfall_contracts::historical::MineralDiscoveredEvent;
+use starfall_contracts::messages::{
+    HistoricalDelivery, HistoricalEventNoticeMessage, HistoricalEventNoticePayload,
+    HistoricalEventNoticeType, RejectReasonCode,
+};
+use starfall_contracts::primitives::{ConstSchemaVersion, Tick};
 use starfall_sim::{
     DomainEventBody, IdSource, InboundCommand, PersistBatch, ServerMessage, Simulation, Submission,
 };
@@ -348,6 +353,7 @@ impl IdSource for SystemIds {
 /// tick 루프를 전용 OS 스레드에서 돌린다.
 ///
 /// 반환된 핸들을 join 하면 **종료 스윕과 영속화 flush 가 끝난 뒤**에 돌아온다 (AC-8d).
+#[allow(clippy::too_many_arguments)]
 pub fn spawn_tick_thread(
     mut sim: Simulation,
     mut control_rx: mpsc::UnboundedReceiver<Control>,
@@ -356,6 +362,8 @@ pub fn spawn_tick_thread(
     stats: Stats,
     tick_period: Duration,
     shutdown: Arc<AtomicBool>,
+    initial_backfill: Vec<MineralDiscoveredEvent>,
+    mut history_live_rx: mpsc::Receiver<MineralDiscoveredEvent>,
 ) -> std::thread::JoinHandle<()> {
     std::thread::Builder::new()
         .name("starfall-tick".to_owned())
@@ -364,16 +372,39 @@ pub fn spawn_tick_thread(
             let mut routes: HashMap<UuidV7, SessionRoute> = HashMap::new();
             let mut deferred: VecDeque<PersistBatch> = VecDeque::new();
             let mut carry: Vec<Submission> = Vec::new();
+            // p1-02(S5, ADR-0013 §6, AC-13) — 이 월드의 지금까지 PUBLIC 역사 기록 전부.
+            // 새 세션이 열릴 때 이 그대로를 BACKFILL로 보낸다. 러너가 커밋한 새 기록은
+            // LIVE 로 방금 열려 있던 세션에 보내는 동시에 여기 추가된다 — 그래야 그
+            // 기록보다 **나중에** 열리는 세션도 BACKFILL로 놓치지 않는다(I-65).
+            let mut history_backfill: Vec<MineralDiscoveredEvent> = initial_backfill;
 
             let period_nanos = u64::try_from(tick_period.as_nanos()).unwrap_or(50_000_000);
             let loop_start = Instant::now();
             let mut executed: u64 = 0;
 
-            while !shutdown.load(Ordering::Acquire) {
+            // p1-02(S10, qa SC-25 발견) — 영속화가 회복 불가로 정지하면(K5,
+            // ADR-0013 §5) `stats.persist_halted()` 가 true 로 바뀐다. 예전에는 이
+            // 루프가 `shutdown`(stdin/Ctrl-C) 만 보고 있어, 사람이 수동으로 끄기 전까지
+            // 계속 돌며 새 명령을 ACCEPT 했다 — 영속화 태스크는 이미 배치 소비를
+            // 끝냈으므로(`persistence::run`) 그 판정은 DB에 영영 남지 않는다("서버가
+            // 그렇다고 답했지만 기록되지 않는" 창). `shutdown` 과 같은 조건으로 묶어
+            // 두면, 정지가 나면 **다음 tick 안에**(최대 한 주기) 이 루프가 끝나고
+            // 아래 종료 스윕(§ SC-25)이 그대로 재사용된다 — `accepting`을 내리고
+            // 세션을 닫고 마지막 배치를 시도한다(영속화 쪽은 이미 채널을 닫았으므로
+            // `blocking_send` 는 `Closed` 로 조용히 끝난다 — 기존 처리 그대로).
+            while !shutdown.load(Ordering::Acquire) && !stats.persist_halted() {
                 let body_start = Instant::now();
+
+                // 이번 tick **이전부터** 열려 있던 세션 — LIVE 브로드캐스트 대상(아래).
+                // 이번 tick에 막 열리는 세션은 제외한다: 그 세션의 첫 메시지는
+                // SESSION_READY 여야 하는데(ADR-0005 §3), LIVE를 먼저 큐에 넣으면 그
+                // 순서가 깨진다 — 대신 새 세션은 곧바로 전체 backfill(방금 커밋된 것
+                // 포함)을 받는다.
+                let sessions_open_before_this_tick: Vec<UuidV7> = routes.keys().copied().collect();
 
                 // ── 1. 제출 수집 ──────────────────────────────────────────────
                 let mut submissions = std::mem::take(&mut carry);
+                let mut newly_opened_sessions: Vec<UuidV7> = Vec::new();
                 while let Ok(control) = control_rx.try_recv() {
                     match control {
                         Control::Open {
@@ -383,6 +414,7 @@ pub fn spawn_tick_thread(
                             route,
                         } => {
                             routes.insert(session_id, route);
+                            newly_opened_sessions.push(session_id);
                             submissions.push(Submission::OpenSession {
                                 seq,
                                 session_id,
@@ -414,6 +446,60 @@ pub fn spawn_tick_thread(
 
                 // ── 7. 세션별 송신 큐로 ───────────────────────────────────────
                 route_outbound(&mut routes, &outcome.outbound, &stats, &mut carry);
+
+                // p1-02(S5, ADR-0013 §6, AC-13) — 역사 기록 중계. sim 은 이 판정을
+                // 모른다(러너가 별도 비동기 태스크에서 만든다) — 여기서 받아 NOTICE로
+                // 포장한다. 커밋 뒤에만 오므로(러너가 커밋 트랜잭션 뒤에만 보낸다,
+                // I-65) "커밋 전 송신 없음"은 이 채널의 생산자 쪽이 보장한다.
+                let Some(notice_tick) = Tick::new(outcome.tick) else {
+                    // tick 이 계약 상한을 넘었다 — sim 도 이 tick 에 아무 일도 안 했다
+                    // (위 `Tick::new(tick_number)` 가드와 같은 자리). 새 기록이 있어도
+                    // 이번 tick 에는 보낼 수 없다 — 다음 tick 에 다시 시도된다(채널에
+                    // 남아 있으므로 유실 없음).
+                    continue;
+                };
+                // p1-02(S12, SC-63, `02_server_ack.md` §4 Q-6 약속) — 이번 tick에
+                // LIVE 기록을 하나라도 받았는지 기억해 둔다. 아래에서
+                // `newly_opened_sessions`와 겹치면(새 세션은 LIVE를 못 받고 대신
+                // BACKFILL만 받는다 — 위 주석대로 정확히 한 번) 그 사실을 관측
+                // 가능하게 만든다.
+                let mut received_live_record_this_tick = false;
+                while let Ok(record) = history_live_rx.try_recv() {
+                    received_live_record_this_tick = true;
+                    history_backfill.push(record.clone());
+                    for &session_id in &sessions_open_before_this_tick {
+                        send_history_notice(
+                            &mut routes,
+                            session_id,
+                            notice_tick,
+                            HistoricalDelivery::Live,
+                            record.clone(),
+                            &stats,
+                        );
+                    }
+                }
+                if received_live_record_this_tick && !newly_opened_sessions.is_empty() {
+                    // 새 세션은 위 LIVE 루프의 대상(`sessions_open_before_this_tick`)이
+                    // 아니었다 — 아래 BACKFILL 루프가 방금 push된 기록까지 포함해 정확히
+                    // 한 번만 보낸다. 이 카운터는 "그 겹침이 실제로 일어났다"를 판정
+                    // 장치가 확인하는 자리다.
+                    stats.add_notice_open_overlap_tick();
+                }
+                for &session_id in &newly_opened_sessions {
+                    // `history_backfill`를 빌린 채로 `routes`를 가변 대여하면 안 되니
+                    // 먼저 이 세션이 받을 전체 목록을 복제한다(세션당 한 번, 보통
+                    // 수십~수백 건 — 이 슬라이스 규모에서는 비용이 작다).
+                    for record in history_backfill.clone() {
+                        send_history_notice(
+                            &mut routes,
+                            session_id,
+                            notice_tick,
+                            HistoricalDelivery::Backfill,
+                            record,
+                            &stats,
+                        );
+                    }
+                }
 
                 // R4 S-6 (ADR-0011 §6.3): SUPERSEDED 로 닫힌 세션은 그 연결이 아직
                 // 살아 있고 스스로는 아무것도 모른다 — `SLOW_CONSUMER` 와 같은 경로로
@@ -460,9 +546,10 @@ pub fn spawn_tick_thread(
                     deferred.push_back(PersistBatch {
                         tick: outcome.tick,
                         events: outcome.events,
+                        state_writes: outcome.state_writes,
                     });
                 }
-                drain_deferred(&mut deferred, &persist_tx);
+                drain_deferred(&mut deferred, &persist_tx, &stats);
 
                 // ── 계측: tick **본문** 소요. 루프 주기가 아니다 (ADR-0006 §2.2). ──
                 let body = body_start.elapsed();
@@ -505,16 +592,33 @@ pub fn spawn_tick_thread(
             }
             stats.add_sessions(0, closed);
             stats.set_ws_connections(0);
-            if !final_outcome.events.is_empty() {
-                deferred.push_back(PersistBatch {
-                    tick: final_outcome.tick,
-                    events: final_outcome.events,
-                });
-            }
+            // p1-02(S7, qa SC-04 발견) — **항상** 마지막 tick의 배치를 보낸다. 예전에는
+            // `final_outcome.events`가 비면 배치를 아예 안 만들었다 — 종료 tick이
+            // 하트비트 배수(`HEARTBEAT_TICKS`)가 아니고 이벤트도 없으면(흔한 경우다,
+            // 정상 종료는 임의의 tick에서 일어난다) `worlds.last_tick`이 그 실행의
+            // 실제 마지막 tick보다 뒤처진 채 남았다. 그러면 (a) 종료 로그가 "tick=N
+            // 까지 커밋 완료"라고 거짓을 말하고 (b) 다음 기동의 `resume_tick`이 그
+            // 뒤처진 워터마크+1부터 다시 시작해 **이미 실행됐던 tick 번호를 재사용**
+            // 한다(감사 기록 관점에서 같은 world의 같은 tick 번호가 서로 다른 실행을
+            // 가리키게 될 위험). 이벤트·state_writes가 비어도 배치 자체(빈 하트비트와
+            // 같은 모양)는 보낸다 — `commit()`이 이미 하트비트로 이 모양을 처리한다
+            // (빈 배치도 `worlds.last_tick`을 갱신한다, K1 배치 멱등이 중복 전송도
+            // 안전하게 만든다).
+            deferred.push_back(PersistBatch {
+                tick: final_outcome.tick,
+                events: final_outcome.events,
+                state_writes: final_outcome.state_writes,
+            });
+            // p1-02(S10) — 정지로 끝났는지 정상 종료 신호로 끝났는지를 로그에 남긴다.
+            // `main.rs` 가 최종 exit code/로그 문구를 정하는 데 이 값을 다시 읽는다
+            // (`stats.persist_halted()`, 여기서 store 하는 게 아니라 이미 K5가 세운 값을
+            // 읽기만 한다 — 원인은 항상 영속화 태스크).
+            let persist_halted = stats.persist_halted();
             tracing::info!(
                 tick = final_outcome.tick,
                 sessions_closed = closed,
                 pending_batches = deferred.len(),
+                persist_halted,
                 "tick 루프 종료 — SERVER_SHUTDOWN 스윕 후 영속화 flush"
             );
             // 남은 배치를 **기다려서** 전부 넘긴다. 여기서 버리면 AC-8(d) 가 거짓이 된다.
@@ -580,6 +684,51 @@ const SEND_QUEUE_AVERAGE_MESSAGE_BYTES: u64 = 2_048;
 
 fn send_queue_bytes_estimate(routes: &HashMap<UuidV7, SessionRoute>) -> u64 {
     send_queue_depth(routes).saturating_mul(SEND_QUEUE_AVERAGE_MESSAGE_BYTES)
+}
+
+/// `HISTORICAL_EVENT_NOTICE` 하나를 만들어 한 세션에 보낸다(p1-02 S5, ADR-0013 §6).
+/// `route_outbound`와 같은 느린 소비자 처리를 쓴다 — 다른 채널이지만 규율은 같아야
+/// 한다(I-22, ADR-0006 §5).
+fn send_history_notice(
+    routes: &mut HashMap<UuidV7, SessionRoute>,
+    session_id: UuidV7,
+    tick: Tick,
+    delivery: HistoricalDelivery,
+    record: MineralDiscoveredEvent,
+    stats: &Stats,
+) {
+    let Some(route) = routes.get(&session_id) else {
+        return;
+    };
+    let message = ServerMessage::HistoricalEventNotice(Box::new(HistoricalEventNoticeMessage {
+        message_id: UuidV7::new_v7(),
+        message_type: HistoricalEventNoticeType::HistoricalEventNotice,
+        schema_version: ConstSchemaVersion,
+        tick,
+        correlation_id: None,
+        payload: HistoricalEventNoticePayload {
+            delivery,
+            historical_event: record,
+        },
+    }));
+    let type_name = message.type_name();
+    match route.outbound.try_send(message) {
+        Ok(()) => stats.record_message_enqueued(type_name),
+        Err(mpsc::error::TrySendError::Full(_)) => {
+            route
+                .close_state
+                .set_if_unset(SessionCloseReason::SlowConsumer);
+            route.finish.notify_one();
+            // 여기서 바로 지운다(route_outbound처럼 뒤로 미루지 않는다) — 이 함수는
+            // 세션당 최대 한 tick에 여러 번 불릴 수 있고(BACKFILL이 여러 건), 이미
+            // 느려진 세션에 계속 시도할 이유가 없다. 다음 route_outbound가 CloseSession
+            // 제출을 알아서 만든다(읽기 태스크가 close_state를 보고 스스로 닫는다).
+            routes.remove(&session_id);
+        }
+        Err(mpsc::error::TrySendError::Closed(_)) => {
+            // 송신 태스크가 이미 끝났다.
+        }
+    }
 }
 
 fn route_outbound(
@@ -653,10 +802,18 @@ fn route_outbound(
     }
 }
 
-fn drain_deferred(deferred: &mut VecDeque<PersistBatch>, persist_tx: &mpsc::Sender<PersistBatch>) {
+fn drain_deferred(
+    deferred: &mut VecDeque<PersistBatch>,
+    persist_tx: &mpsc::Sender<PersistBatch>,
+    stats: &Stats,
+) {
     while let Some(batch) = deferred.pop_front() {
+        let tick = batch.tick;
         match persist_tx.try_send(batch) {
-            Ok(()) => {}
+            Ok(()) => {
+                // p1-02(S5, ADR-0013 §6 K2) — "영속화 채널에 넣었다"는 정확히 이 순간이다.
+                stats.set_last_enqueued_tick(tick);
+            }
             Err(mpsc::error::TrySendError::Full(batch)) => {
                 // **버리지 않는다** (I-22). 미뤄 두면 persist_backlog 가 자라고,
                 // 임계를 넘으면 게이트웨이가 새 연결을 거절한다.
@@ -670,12 +827,15 @@ fn drain_deferred(deferred: &mut VecDeque<PersistBatch>, persist_tx: &mpsc::Send
 
 /// 제출 경로와 tick 스레드를 함께 만든다.
 #[must_use]
+#[allow(clippy::too_many_arguments)]
 pub fn build(
     sim: Simulation,
     persist_tx: mpsc::Sender<PersistBatch>,
     stats: Stats,
     tick_period: Duration,
     shutdown: Arc<AtomicBool>,
+    initial_backfill: Vec<MineralDiscoveredEvent>,
+    history_live_rx: mpsc::Receiver<MineralDiscoveredEvent>,
 ) -> (SubmitHandle, std::thread::JoinHandle<()>) {
     let (control_tx, control_rx) = mpsc::unbounded_channel();
     let (command_tx, command_rx) = mpsc::channel(COMMAND_QUEUE_CAPACITY);
@@ -694,6 +854,8 @@ pub fn build(
         stats,
         tick_period,
         shutdown,
+        initial_backfill,
+        history_live_rx,
     );
     (handle, thread)
 }

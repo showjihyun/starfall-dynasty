@@ -68,17 +68,22 @@ fn read_invalid_fixtures(type_name: &str) -> Vec<(String, String)> {
 #[test]
 fn server_message_fixtures_round_trip() {
     let mut checked = 0usize;
-    for type_name in [
-        "SESSION_READY",
-        "COMMAND_RESULT",
-        "PING_REPLY",
-        "WORLD_SNAPSHOT",
+    // 타입별 기대 수 — 계약 fixture 가 늘면 **여기서 빨간불**이 켜진다(조용히 따라가지 않는다).
+    // p1-02: COMMAND_RESULT 2 → 5(거부 사유 3건), 채굴·역사 메시지 3종 × 2.
+    for (type_name, expected) in [
+        ("SESSION_READY", 2usize),
+        ("COMMAND_RESULT", 5),
+        ("PING_REPLY", 2),
+        ("WORLD_SNAPSHOT", 2),
+        ("INVENTORY_STATE", 2),
+        ("DEPOSIT_FIELD_STATE", 2),
+        ("HISTORICAL_EVENT_NOTICE", 2),
     ] {
         let fixtures = read_valid_fixtures(type_name);
         assert_eq!(
             fixtures.len(),
-            2,
-            "{type_name}: 유효 fixture 가 2건이어야 한다 (계약 §5.3). 수가 바뀌었으면 \
+            expected,
+            "{type_name}: 유효 fixture 가 {expected}건이어야 한다. 수가 바뀌었으면 \
              architect 에게 알리고 이 상수를 함께 고친다"
         );
         for (name, text) in fixtures {
@@ -90,6 +95,9 @@ fn server_message_fixtures_round_trip() {
                 Inbound::CommandResult(m) => serde_json::to_value(&*m),
                 Inbound::PingReply(m) => serde_json::to_value(&*m),
                 Inbound::WorldSnapshot(m) => serde_json::to_value(&*m),
+                Inbound::InventoryState(m) => serde_json::to_value(&*m),
+                Inbound::DepositFieldState(m) => serde_json::to_value(&*m),
+                Inbound::HistoricalEventNotice(m) => serde_json::to_value(&*m),
                 Inbound::Unknown { message_type } => {
                     panic!("{name}: 모르는 타입으로 읽혔다: {message_type}")
                 }
@@ -106,8 +114,8 @@ fn server_message_fixtures_round_trip() {
         }
     }
     assert_eq!(
-        checked, 8,
-        "서버 메시지 유효 fixture 8건을 전부 검사해야 한다 (p1-01 의 WORLD_SNAPSHOT 2건 포함)"
+        checked, 17,
+        "서버 메시지 유효 fixture 17건을 전부 검사해야 한다 (p1-02 채굴·역사 6건, 거부 사유 3건 포함)"
     );
     eprintln!("checked {checked} valid server-message fixtures");
 }
@@ -206,6 +214,69 @@ fn contract_type_literals_are_present() {
     assert_eq!(wire::PING_REPLY, "PING_REPLY");
     assert_eq!(wire::COMMAND_RESULT, "COMMAND_RESULT");
     assert_eq!(wire::SESSION_READY, "SESSION_READY");
+    assert_eq!(wire::MINE_RESOURCE, "MINE_RESOURCE");
+    assert_eq!(wire::INVENTORY_STATE, "INVENTORY_STATE");
+    assert_eq!(wire::DEPOSIT_FIELD_STATE, "DEPOSIT_FIELD_STATE");
+    assert_eq!(wire::HISTORICAL_EVENT_NOTICE, "HISTORICAL_EVENT_NOTICE");
+    assert_eq!(wire::MINERAL_DISCOVERED, "MINERAL_DISCOVERED");
+}
+
+/// p1-02: 봇이 **보내는** 채굴 명령이 계약 fixture 와 같은 모양인가.
+#[test]
+fn mine_resource_fixtures_round_trip() {
+    let fixtures = read_valid_fixtures("MINE_RESOURCE");
+    assert_eq!(fixtures.len(), 2, "MINE_RESOURCE 유효 fixture 는 2건이다");
+    for (name, text) in &fixtures {
+        let original: serde_json::Value =
+            serde_json::from_str(text).unwrap_or_else(|e| panic!("{name}: {e}"));
+        let cmd: wire::MineResourceCommand =
+            serde_json::from_str(text).unwrap_or_else(|e| panic!("{name}: 봇이 읽지 못한다: {e}"));
+        let back = serde_json::to_value(&cmd).unwrap_or_else(|e| panic!("{name}: {e}"));
+        assert_eq!(back, original, "{name}: 왕복 결과가 원본과 다르다");
+    }
+    // 봇이 만드는 명령도 같은 키 집합이다(client_sent_at 키가 null 로 존재, payload 는 deposit_id 뿐).
+    let generated = serde_json::to_value(wire::MineResourceCommand::new(
+        uuid::Uuid::now_v7(),
+        "far-reach",
+    ))
+    .unwrap_or_else(|e| panic!("{e}"));
+    let payload_keys: Vec<&String> = generated["payload"]
+        .as_object()
+        .unwrap_or_else(|| panic!("payload 가 객체가 아니다"))
+        .keys()
+        .collect();
+    assert_eq!(
+        payload_keys,
+        vec!["deposit_id"],
+        "I-48: payload 는 deposit_id 하나뿐"
+    );
+    assert!(generated.get("client_sent_at").is_some_and(|v| v.is_null()));
+    eprintln!(
+        "checked {} valid MINE_RESOURCE fixtures + 1 generated",
+        fixtures.len()
+    );
+}
+
+/// **I-48 의 계약 수준 방어**: 수량·광물·위치·actor 가 주입된 채굴 명령을 봇 타입이 거부한다.
+/// 봇이 받아들이면 치트 시나리오(p1-02 SC-73)가 "어휘에 없다" 를 시험하지 못한다 — 그래서 치트는
+/// 이 타입을 거치지 않고 반례 원문을 보낸다. 반례 수를 세어 빈 순회를 막는다.
+#[test]
+fn injected_mine_resource_fields_are_rejected_by_the_bot_type() {
+    let invalid = read_invalid_fixtures("MINE_RESOURCE");
+    let injected: Vec<_> = invalid
+        .iter()
+        .filter(|(n, _)| n.ends_with("-injected.json"))
+        .collect();
+    assert_eq!(
+        injected.len(),
+        4,
+        "주입 반례 4건(quantity·mineral·position·actor)이 있어야 한다: {:?}",
+        invalid.iter().map(|(n, _)| n).collect::<Vec<_>>()
+    );
+    for (name, text) in injected {
+        let r: Result<wire::MineResourceCommand, _> = serde_json::from_str(text);
+        assert!(r.is_err(), "{name}: 봇 타입이 주입 필드를 받아들였다");
+    }
 }
 
 /// p1-01: 봇이 **보내는** 조작 명령이 계약 fixture 와 같은 모양인가.

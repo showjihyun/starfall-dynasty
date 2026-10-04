@@ -1,0 +1,56 @@
+# server 트랜스크립트(agent-aserver-65b2…)에서 2026-10-03T15:00Z 이후 Edit 호출 — 현재 파일에서 new_string 위치(테스트 모듈 시작: simulation.rs:1850, ws.rs:786)
+2026-10-03T15:01:59.762Z Edit simulation.rs line 3741 TEST '            assert_eq!(\n                sim.actor_last_mine_'
+2026-10-03T15:02:10.424Z Edit simulation.rs line 3884 TEST '                for _ in 0..60 {\n                    sim.ste'
+2026-10-03T15:02:45.892Z Edit simulation.rs line None notfound(reverted?) '            // 사유 7 — CAPACITY_EXCEEDED. `capacity_exceeded_'
+2026-10-03T15:03:47.627Z Edit simulation.rs line 3971 TEST '                // qa r2 FAIL 보강 — 광맥 상태는 60 tick 대기 **뒤**(회'
+2026-10-03T15:05:37.208Z Edit ws_integration.rs line None - '/// 다음 `WORLD_SNAPSHOT` 을 받는다 (다른 메시지는 건너뛴다).'
+2026-10-03T15:06:30.191Z Edit ws_integration.rs line None - 'fn world_with_capacity_exceeded_deposit() -> WorldConstants '
+2026-10-03T15:06:35.801Z Edit ws_integration.rs line None - '    // 쿨다운(60 tick)이 끝나고 회복(5kg/10 tick)이 쌓일 시간을 준다 — tick 간'
+2026-10-03T15:06:57.980Z Edit runtime.rs line None - '                stats.record_message_enqueued(type_name);\n  '
+2026-10-03T15:07:15.896Z Edit runtime.rs line None - '                stats.record_message_enqueued(type_name);\n  '
+2026-10-03T15:07:59.831Z Edit simulation.rs line None notfound(reverted?) '        fn cooldown_before_range_in_judgement_order() {\n    '
+2026-10-03T15:08:06.537Z Edit simulation.rs line 3231 TEST '            {\n                let mut ids = SeqIds(0);\n     '
+2026-10-03T15:08:31.188Z Edit simulation.rs line 3191 TEST '            let mut far_world = far_deposit_world();'
+2026-10-03T15:09:38.370Z Edit simulation.rs line None notfound(reverted?) '        fn adjacent_reject_reason_pairs_pick_the_earlier_one'
+2026-10-03T15:10:03.288Z Edit simulation.rs line 4113 TEST '            // 7 단독 — 이미 capacity_exceeded_rejects_without_p'
+2026-10-03T15:10:28.205Z Edit simulation.rs line None notfound(reverted?) '                let resend_original = mine(&mut sim, &mut id'
+2026-10-03T15:10:39.354Z Edit simulation.rs line 4672 TEST '                    Some(payload.quantity_kg.get()),\n       '
+2026-10-03T15:11:18.586Z Edit ws.rs line 994 TEST '        // p1-02(S11, ADR-0013 §6 K2b) — recording_lag = 현재 '
+2026-10-03T15:11:34.136Z Edit ws.rs line 1136 TEST '        assert_eq!(outcome, FrameOutcome::Handled);\n        '
+2026-10-03T15:11:56.143Z Edit simulation.rs line 3426 TEST '        fn duplicate_command_id_across_reconnect_within_ling'
+2026-10-03T15:12:00.649Z Edit simulation.rs line 4496 TEST '        fn same_actor_two_sessions_same_tick_duplicate() {'
+2026-10-03T15:12:28.307Z Edit simulation.rs line 4022 TEST '        fn adjacent_reject_reason_pairs_pick_the_earlier_one'
+2026-10-03T15:12:31.876Z Edit simulation.rs line 4570 TEST '        fn rejected_command_resend_branches() {'
+2026-10-03T15:12:35.863Z Edit ws.rs line 984 TEST '    fn mine_resource_is_rejected_with_recording_backlog_when'
+2026-10-03T15:15:28.174Z Edit simulation.rs line None notfound(reverted?) '        if !mining::within_speed_limit(ship_velocity, self.w'
+2026-10-03T15:15:39.998Z Edit simulation.rs line 1221 NONTEST '            self.actor_last_mine_tick.insert(actor_id, tick_'
+2026-10-03T15:15:51.093Z Edit simulation.rs line None notfound(reverted?) '        self.inventories\n            .entry(actor_id)\n      '
+2026-10-03T15:16:02.605Z Edit simulation.rs line 1303 NONTEST '        self.inventories\n            .entry(actor_id)\n      '
+
+# 비테스트 편집 4건 = 변이 2쌍(15:15:28→15:15:39, 15:15:51→15:16:02). 쌍 대칭 확인:
+2026-10-03T15:15:28.174Z \simulation.rs
+2026-10-03T15:15:39.998Z \simulation.rs
+2026-10-03T15:15:51.093Z \simulation.rs
+2026-10-03T15:16:02.605Z \simulation.rs
+0 1 False
+2 3 True
+--- 0
+OLD>>         if !mining::within_speed_limit(ship_velocity, self.world.mining_rules.max_ship_speed_mps) {
+            reject(outcome, ids, RejectReasonCode::ShipTooFast);
+            return;
+        }
+NEW>>         if !mining::within_speed_limit(ship_velocity, self.world.mining_rules.max_ship_speed_mps) {
+            self.actor_last_mine_tick.insert(actor_id, tick_number); // 🔴 구현 변이(R2-S 자기점검) — 거부인데 쿨다운 기준을 건드림
+            reject(outcome, ids, RejectReasonCode::ShipTooFast);
+            return;
+        }
+--- 1
+OLD>>             self.actor_last_mine_tick.insert(actor_id, tick_number); // 🔴 구현 변이(R2-S 자기점검) — 거부인데 쿨다운 기준을 건드림
+            reject(outcome, ids, RejectReasonCode::ShipTooFast);
+            return;
+        }
+NEW>>             reject(outcome, ids, RejectReasonCode::ShipTooFast);
+            return;
+        }
+
+# 다른 에이전트(server-db·history·client-2·리더) 같은 기간 해당 파일 편집: 0

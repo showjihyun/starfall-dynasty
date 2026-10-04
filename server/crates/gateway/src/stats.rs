@@ -41,6 +41,11 @@ const BUCKET_BOUNDS_US: [u64; 15] = [
 /// tick 초과 판정 기준 (마이크로초). ADR-0006 §7 — **`run_tick()` 본문 소요**다.
 pub const TICK_OVERRUN_US: u64 = 50_000;
 
+/// `RECORDING_BACKLOG` 판정 임계(tick, K2 잠정값 — ADR-0013 §6). 상태 변경 명령
+/// (p1-02: `MINE_RESOURCE`)이 이 값을 넘는 `recording_lag`에서 거부된다. 이동 명령은
+/// 이 거부를 받지 않는다(이동은 DB에 의존하지 않는다, p1-01 I-31).
+pub const RECORDING_BACKLOG_LIMIT: u64 = 20;
+
 /// 메시지 타입 라벨. 고정 배열 색인과 순서가 같아야 한다.
 const MESSAGE_TYPES: [&str; 4] = [
     "SESSION_READY",
@@ -60,8 +65,12 @@ const UPGRADE_REJECTIONS: [&str; 6] = [
 ];
 /// 거부 사유 라벨. 고정 배열 색인과 순서가 같아야 한다. p1-01 이 `RATE_LIMITED`·
 /// `STALE_INPUT` 2개를 더해 8라벨이 됐다 — 순서는 계약 스키마의 `enum` 순서 그대로다
-/// (스프린트 계약 §1-④).
-const REJECT_REASONS: [&str; 8] = [
+/// (스프린트 계약 §1-④). p1-02-mining(S1)이 채굴 거부 사유 7개(`TARGET_UNKNOWN`·
+/// `COOLDOWN_ACTIVE`·`TARGET_OUT_OF_RANGE`·`SHIP_TOO_FAST`·`RESOURCE_DEPLETED`·
+/// `RECORDING_BACKLOG`·`CAPACITY_EXCEEDED`)를 더해 15라벨이 됐다 — 계약 enum(S1)에 맞춰
+/// 매핑만 늘렸다. `RECORDING_BACKLOG`·`CAPACITY_EXCEEDED` 카운터 값을 판정 로직에서
+/// 실제로 올리는 것은 S3·S5의 몫이다.
+const REJECT_REASONS: [&str; 15] = [
     "MALFORMED_COMMAND",
     "UNKNOWN_COMMAND_TYPE",
     "SCHEMA_VERSION_UNSUPPORTED",
@@ -70,6 +79,13 @@ const REJECT_REASONS: [&str; 8] = [
     "TOO_MANY_IN_FLIGHT",
     "RATE_LIMITED",
     "STALE_INPUT",
+    "TARGET_UNKNOWN",
+    "COOLDOWN_ACTIVE",
+    "TARGET_OUT_OF_RANGE",
+    "SHIP_TOO_FAST",
+    "RESOURCE_DEPLETED",
+    "RECORDING_BACKLOG",
+    "CAPACITY_EXCEEDED",
 ];
 
 /// 메시지 타입 → 고정 배열 색인.
@@ -93,6 +109,13 @@ pub const fn reason_index(reason: RejectReasonCode) -> usize {
         RejectReasonCode::TooManyInFlight => 5,
         RejectReasonCode::RateLimited => 6,
         RejectReasonCode::StaleInput => 7,
+        RejectReasonCode::TargetUnknown => 8,
+        RejectReasonCode::CooldownActive => 9,
+        RejectReasonCode::TargetOutOfRange => 10,
+        RejectReasonCode::ShipTooFast => 11,
+        RejectReasonCode::ResourceDepleted => 12,
+        RejectReasonCode::RecordingBacklog => 13,
+        RejectReasonCode::CapacityExceeded => 14,
     }
 }
 
@@ -191,11 +214,55 @@ struct Inner {
     persisted_total: Arc<AtomicU64>,
     persist_failed_total: Arc<AtomicU64>,
     last_committed_tick: Arc<AtomicU64>,
+    // p1-02(S4) — ADR-0013 §5 정지 경로. `persist_halted`가 true면 영속화 태스크가
+    // 더 이상 아무 배치도 커밋하지 않는다(K5). 게이트웨이는 이 값을 보고 상태 변경
+    // 명령을 즉시 RECORDING_BACKLOG로 거부한다(S5가 배선한다 — 이 값 자체는 S4가
+    // 올바로 채운다).
+    persist_halted: Arc<AtomicBool>,
+    /// 배치 멱등(I-57) 재시도가 "이미 커밋됨"으로 건너뛴 횟수(K6). `persisted_total`이
+    /// DB 행 수와 어긋나지 않는다는 항등식의 증거 — 이 카운터가 0인데 재시도가 있었다면
+    /// "건너뛴 게 아니라 아무 것도 안 한 것"일 수 있다는 CLAUDE.md 검증 규율.
+    persist_ambiguous_commits_total: Arc<AtomicU64>,
+    // p1-02(S5, ADR-0013 §6 K2) — "영속화 **채널에 넣은**" 마지막 tick. tick 드라이버가
+    // `persist_tx.try_send`가 성공할 때마다 그 배치의 tick으로 갱신한다.
+    //
+    // **정정(S11, qa 계약 외 발견)**: 아래 원래 주석은 "하트비트가 이 값도 밀어
+    // 올리므로 한가한 서버에서는 recording_lag가 대부분 0"이라고 주장했는데
+    // **실측이 반대였다** — `last_enqueued_tick − last_committed_tick`(옛 정의)는
+    // 하트비트가 나간 직후, 커밋이 아직 안 끝난 짧은 창에는 정확히
+    // `HEARTBEAT_TICKS`(20)를 찍어 `RECORDING_BACKLOG_LIMIT`(20)에 여유 0으로
+    // 붙었다 — `persist_backlog`의 0→20 톱니와 똑같은 모양이었다. `recording_lag()`
+    // 를 "커밋 대기 중인 가장 오래된 배치의 나이"로 재정의해 고쳤다(아래
+    // `pending_batch_ticks` 참고) — 이 필드(`last_enqueued_tick`) 자체는 그대로
+    // 두고 진단용으로만 남긴다.
+    //
+    // 원문(틀렸음, 삭제하지 않고 정정 표시만 남긴다): "하트비트 배치(이벤트 0건이어도
+    // HEARTBEAT_TICKS마다 나간다)가 이 값도 밀어 올리므로, 한가한 서버에서는
+    // recording_lag가 대부분 0이다 — persist_backlog(현재 tick − 마지막 커밋
+    // tick)는 하트비트 자체의 주기 때문에 한가할 때도 0→20 톱니를 그려 그 꼭대기가
+    // RECORDING_BACKLOG 임계(20)와 같아진다."
+    last_enqueued_tick: Arc<AtomicU64>,
+    // p1-02(S11, ADR-0013 §6 K2b — architect 재정의) — "채널에 넣었지만 아직
+    // 커밋되지 않은" 배치들의 tick을 순서대로 담는다(FIFO — 영속화 태스크가
+    // `mpsc::Receiver` 하나로 순서대로 소비하므로 가장 먼저 넣은 것이 가장 먼저
+    // 커밋된다). `recording_lag()`가 앞에서부터 `last_committed_tick` 이하인
+    // 항목을 지우고 남은 첫 항목(= 아직 커밋 안 된 것 중 가장 오래된 배치)의
+    // 나이를 잰다.
+    pending_batch_ticks: Mutex<std::collections::VecDeque<u64>>,
     // p1-01 — data/ 로딩 결과(기동 시 한 번 쓰고 다시 바뀌지 않는다, SC-05).
     data_dir: RwLock<String>,
     ship_classes_loaded: AtomicU64,
     spawn_points_loaded: AtomicU64,
     snapshot_interval_ticks: AtomicU64,
+    // p1-02(S2) — 광물·광맥 수·역사 규칙 버전(SC-04). 기동 시 한 번 쓰고 다시 바뀌지
+    // 않는다(위 셋과 같은 수명).
+    minerals_loaded: AtomicU64,
+    deposits_loaded: AtomicU64,
+    rule_version: RwLock<String>,
+    /// SC-06/SC-07(server-db 요청) — `data/**/*.json` 전체 중 실제로 읽어 들인 파일
+    /// 수(`GameData::loaded_files.len()`). 실서버에서 "10개 전부 읽었다"를 한눈에
+    /// 보려는 용도 — 파일별 상세는 기동 로그의 `데이터 파일 적재 data_file=…` 줄이 낸다.
+    loaded_files_count: AtomicU64,
     /// `WORLD_SNAPSHOT.ships` 의 계약 상한(`max_entities_per_snapshot`, `1..=64`) — `GET /ws`
     /// 가 이 값에 도달하면 새 연결을 `503 world_full` 로 막는다(architect 결정, 스폰을
     /// 거부하는 대신 입장에서 막는다 — 함선 없는 세션이 생기면 I-29 가 깨진다).
@@ -212,6 +279,14 @@ struct Inner {
     ships_lingering: AtomicU64,
     snapshot_build_us: Histogram,
     snapshot_over_capacity_total: AtomicU64,
+    /// p1-02(S12, `02_server_ack.md` §4 Q-6 약속, SC-63) — 같은 tick에 (a) 새 세션이
+    /// 열리고 (b) 역사 러너가 새 기록을 LIVE로 커밋한 경우의 수. tick 드라이버의
+    /// LIVE/BACKFILL 분기(ADR-0013 §6 I-65)는 이 겹침에서 새 세션에 LIVE 대신
+    /// BACKFILL만 보내 중복을 막는다 — 이 카운터는 그 분기가 **실제로 시험됐는지**
+    /// 를 판정 장치(qa notice-gap 봇)가 확인하는 자리다: 델타가 0이면 "겹침이 한
+    /// 번도 없었다"이지 "겹침에서 안전했다"가 아니다(CLAUDE.md 검증 규율 — 빈
+    /// 집합에 대한 전칭명제).
+    notice_open_overlap_ticks_total: AtomicU64,
     /// 지금 함선을 가진 actor 집합(활성 + 잔류) — `world_full` 게이트의 재개 면제(I-44,
     /// S9)에 쓴다. tick 드라이버가 매 tick `Simulation::actors_with_ships()` 로 통째로
     /// 덮어쓴다(`ws_connections` 와 같은 취급 — 카운터가 아니라 실제 집합의 스냅샷).
@@ -235,6 +310,16 @@ struct Inner {
     ship_reservations:
         Mutex<std::collections::HashMap<starfall_contracts::primitives::UuidV7, u32>>,
 }
+
+/// [`Stats::persist_handles`] 가 돌려주는 묶음: `(persisted_total, failed_total,
+/// last_committed_tick, halted, ambiguous_commits_total)`(S4, ADR-0013 §5).
+pub type PersistHandleAtomics = (
+    Arc<AtomicU64>,
+    Arc<AtomicU64>,
+    Arc<AtomicU64>,
+    Arc<AtomicBool>,
+    Arc<AtomicU64>,
+);
 
 /// 서버 전체의 관측 값. 싸게 clone 된다.
 #[derive(Debug, Clone)]
@@ -281,10 +366,18 @@ impl Stats {
                 persisted_total: Arc::new(AtomicU64::new(0)),
                 persist_failed_total: Arc::new(AtomicU64::new(0)),
                 last_committed_tick: Arc::new(AtomicU64::new(0)),
+                persist_halted: Arc::new(AtomicBool::new(false)),
+                persist_ambiguous_commits_total: Arc::new(AtomicU64::new(0)),
+                last_enqueued_tick: Arc::new(AtomicU64::new(0)),
+                pending_batch_ticks: Mutex::new(std::collections::VecDeque::new()),
                 data_dir: RwLock::new(String::new()),
                 ship_classes_loaded: AtomicU64::new(0),
                 spawn_points_loaded: AtomicU64::new(0),
                 snapshot_interval_ticks: AtomicU64::new(0),
+                minerals_loaded: AtomicU64::new(0),
+                deposits_loaded: AtomicU64::new(0),
+                rule_version: RwLock::new(String::new()),
+                loaded_files_count: AtomicU64::new(0),
                 world_capacity: AtomicU64::new(u64::MAX),
                 snapshots_sent_total: AtomicU64::new(0),
                 snapshot_bytes_total: AtomicU64::new(0),
@@ -297,13 +390,15 @@ impl Stats {
                 ships_lingering: AtomicU64::new(0),
                 snapshot_build_us: Histogram::default(),
                 snapshot_over_capacity_total: AtomicU64::new(0),
+                notice_open_overlap_ticks_total: AtomicU64::new(0),
                 actors_with_ships: RwLock::new(std::collections::HashSet::new()),
                 ship_reservations: Mutex::new(std::collections::HashMap::new()),
             }),
         }
     }
 
-    /// 기동 시 `data/` 로딩 결과를 한 번 기록한다(SC-05). 그 뒤로는 바뀌지 않는다.
+    /// 기동 시 `data/` 로딩 결과를 한 번 기록한다(SC-05·SC-04). 그 뒤로는 바뀌지 않는다.
+    #[allow(clippy::too_many_arguments)]
     pub fn set_data_loaded(
         &self,
         data_dir: &str,
@@ -311,6 +406,10 @@ impl Stats {
         spawn_points: u64,
         snapshot_interval_ticks: u64,
         world_capacity: u64,
+        minerals: u64,
+        deposits: u64,
+        rule_version: &str,
+        loaded_files: u64,
     ) {
         if let Ok(mut guard) = self.inner.data_dir.write() {
             *guard = data_dir.to_owned();
@@ -327,6 +426,18 @@ impl Stats {
         self.inner
             .world_capacity
             .store(world_capacity, Ordering::Relaxed);
+        self.inner
+            .minerals_loaded
+            .store(minerals, Ordering::Relaxed);
+        self.inner
+            .deposits_loaded
+            .store(deposits, Ordering::Relaxed);
+        if let Ok(mut guard) = self.inner.rule_version.write() {
+            *guard = rule_version.to_owned();
+        }
+        self.inner
+            .loaded_files_count
+            .store(loaded_files, Ordering::Relaxed);
     }
 
     /// 지금 세계에 있는 함선 수(활성 + 잔류) **더하기** tick 이 아직 반영하지 못한
@@ -418,14 +529,24 @@ impl Stats {
             .store(start_tick.saturating_sub(1), Ordering::Relaxed);
     }
 
-    /// 영속화 태스크에 넘길 원자값 묶음.
+    /// 영속화 태스크에 넘길 원자값 묶음: `(persisted_total, failed_total,
+    /// last_committed_tick, halted, ambiguous_commits_total)`(S4, ADR-0013 §5).
     #[must_use]
-    pub fn persist_handles(&self) -> (Arc<AtomicU64>, Arc<AtomicU64>, Arc<AtomicU64>) {
+    pub fn persist_handles(&self) -> PersistHandleAtomics {
         (
             Arc::clone(&self.inner.persisted_total),
             Arc::clone(&self.inner.persist_failed_total),
             Arc::clone(&self.inner.last_committed_tick),
+            Arc::clone(&self.inner.persist_halted),
+            Arc::clone(&self.inner.persist_ambiguous_commits_total),
         )
+    }
+
+    /// 영속화가 정지했는가(K5, ADR-0013 §5) — 정지 뒤에는 어떤 배치도 커밋되지 않는다.
+    /// S5가 이 값을 보고 상태 변경 명령을 `RECORDING_BACKLOG`로 즉시 거부한다.
+    #[must_use]
+    pub fn persist_halted(&self) -> bool {
+        self.inner.persist_halted.load(Ordering::Acquire)
     }
 
     /// tick 1회의 결과를 기록한다.
@@ -460,11 +581,71 @@ impl Stats {
             .unwrap_or_else(|| self.inner.start_tick.load(Ordering::Relaxed))
     }
 
-    /// 영속화 백로그 = 현재 tick − 마지막 커밋 tick (ADR-0007 §4).
+    /// 영속화 백로그 = 현재 tick − 마지막 커밋 tick (ADR-0007 §4). 연결 거부(600 tick)
+    /// 판정 전용 — `RECORDING_BACKLOG`(명령 거부)는 아래 [`Self::recording_lag`]를
+    /// 쓴다(K2, 서로 다른 목적).
     #[must_use]
     pub fn persist_backlog(&self) -> u64 {
         self.current_tick()
             .saturating_sub(self.inner.last_committed_tick.load(Ordering::Acquire))
+    }
+
+    /// tick 드라이버가 배치를 영속화 채널에 **성공적으로 넣을 때마다** 그 tick으로
+    /// 갱신한다(`runtime.rs::drain_deferred`). p1-02(S11) — 대기 큐(아래
+    /// [`Self::recording_lag`])에도 같은 tick을 넣는다.
+    pub fn set_last_enqueued_tick(&self, tick: u64) {
+        self.inner
+            .last_enqueued_tick
+            .fetch_max(tick, Ordering::Relaxed);
+        // 다른 락(위 `apply_state_write` 류)과 같은 정책: poison 이어도 죽지 않고
+        // 안의 값을 그대로 계속 쓴다(짧은 스코프, IO 없음 — 잃을 불변식이 없다).
+        self.inner
+            .pending_batch_ticks
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .push_back(tick);
+    }
+
+    /// `recording_lag` = **커밋 대기 중인 가장 오래된 배치의 나이**(현재 tick − 그
+    /// 배치가 채널에 들어간 tick, ADR-0013 §6 K2b — architect 재정의, qa 계약 외
+    /// 발견). `RECORDING_BACKLOG` 판정 전용.
+    ///
+    /// # 왜 재정의했는가
+    ///
+    /// 옛 정의(`last_enqueued_tick − last_committed_tick`)는 하트비트 간격
+    /// (`HEARTBEAT_TICKS=20`) 자체를 재고 있었다: 이벤트가 없어도 tick 20마다 배치가
+    /// 나가므로, 커밋이 끝나기 전 그 짧은 창에는 항상 정확히 20이 나와 한가한
+    /// 서버에서도 `RECORDING_BACKLOG_LIMIT`(20)에 여유 0으로 붙었다(qa 실측) —
+    /// "실제로 얼마나 오래 기다렸는가"가 아니라 "하트비트가 막 지나갔는가"를 재는
+    /// 값이었다. 새 정의는 아직 커밋되지 않은 배치 중 가장 오래된 것의 나이만
+    /// 잰다 — 커밋이 한 tick 안에 끝나는 정상 상태라면 대부분 0~1이다.
+    #[must_use]
+    pub fn recording_lag(&self) -> u64 {
+        match self.oldest_pending_tick() {
+            Some(oldest_pending) => self.current_tick().saturating_sub(oldest_pending),
+            None => 0,
+        }
+    }
+
+    /// p1-02(S13, architect 요청 — ADR-0013 §6 K2b 직접 기준 "첫 대기 배치부터
+    /// 21 tick 안에 lag > 20"을 재는 데 필요) — 커밋 대기 중인 배치 중 가장
+    /// 오래된 것의 tick. 대기 중인 배치가 없으면 `None`(`/debug/stats`에서는
+    /// `null`).
+    ///
+    /// [`Self::recording_lag`]가 쓰는 것과 같은 가지치기(이미 커밋된 앞쪽
+    /// 항목 제거)를 공유한다 — 두 값이 서로 다른 시점의 큐를 보는 일이 없다.
+    #[must_use]
+    pub fn oldest_pending_tick(&self) -> Option<u64> {
+        let committed = self.inner.last_committed_tick.load(Ordering::Acquire);
+        let mut queue = self
+            .inner
+            .pending_batch_ticks
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        while matches!(queue.front(), Some(&front) if front <= committed) {
+            queue.pop_front();
+        }
+        queue.front().copied()
     }
 
     /// 세션 레지스트리의 **실제 길이**를 기록한다 (I-25).
@@ -647,6 +828,14 @@ impl Stats {
         }
     }
 
+    /// p1-02(S12, SC-63) — 이번 tick에 새 세션 열림과 새 LIVE 역사 기록이 겹쳤다고
+    /// tick 드라이버가 판단하면 호출한다(`runtime.rs` — tick당 최대 한 번).
+    pub fn add_notice_open_overlap_tick(&self) {
+        self.inner
+            .notice_open_overlap_ticks_total
+            .fetch_add(1, Ordering::Relaxed);
+    }
+
     /// 송신 큐 점유 슬롯 합 (채널 상태에서 읽은 값 — 카운터 뺄셈이 아니다).
     pub fn set_send_queue_depth(&self, depth: u64) {
         self.inner.send_queue_depth.store(depth, Ordering::Relaxed);
@@ -753,7 +942,13 @@ impl Stats {
             domain_events_persist_failed_total: inner.persist_failed_total.load(Ordering::Relaxed),
             last_committed_tick: inner.last_committed_tick.load(Ordering::Acquire),
             persist_backlog: self.persist_backlog(),
+            recording_lag: self.recording_lag(),
+            recording_lag_limit: RECORDING_BACKLOG_LIMIT,
             persist_backlog_limit: crate::runtime::PERSIST_BACKLOG_LIMIT,
+            persist_halted: self.persist_halted(),
+            persist_ambiguous_commits_total: inner
+                .persist_ambiguous_commits_total
+                .load(Ordering::Relaxed),
             accepting_connections: self.is_accepting(),
             data_dir: inner
                 .data_dir
@@ -763,6 +958,14 @@ impl Stats {
             ship_classes_loaded: inner.ship_classes_loaded.load(Ordering::Relaxed),
             spawn_points_loaded: inner.spawn_points_loaded.load(Ordering::Relaxed),
             snapshot_interval_ticks: inner.snapshot_interval_ticks.load(Ordering::Relaxed),
+            minerals_loaded: inner.minerals_loaded.load(Ordering::Relaxed),
+            deposits_loaded: inner.deposits_loaded.load(Ordering::Relaxed),
+            rule_version: inner
+                .rule_version
+                .read()
+                .map(|guard| guard.clone())
+                .unwrap_or_default(),
+            loaded_files_count: inner.loaded_files_count.load(Ordering::Relaxed),
             snapshots_sent_total: inner.snapshots_sent_total.load(Ordering::Relaxed),
             snapshot_bytes_total: inner.snapshot_bytes_total.load(Ordering::Relaxed),
             send_queue_bytes: inner.send_queue_bytes.load(Ordering::Relaxed),
@@ -776,6 +979,10 @@ impl Stats {
             snapshot_over_capacity_total: inner
                 .snapshot_over_capacity_total
                 .load(Ordering::Relaxed),
+            notice_open_overlap_ticks_total: inner
+                .notice_open_overlap_ticks_total
+                .load(Ordering::Relaxed),
+            oldest_pending_tick: self.oldest_pending_tick(),
         }
     }
 }
@@ -927,6 +1134,17 @@ pub struct StatsBody {
     pub persist_backlog: u64,
     /// 이 값을 넘으면 새 연결을 거절한다.
     pub persist_backlog_limit: u64,
+    /// 영속화가 정지했는가(K5, ADR-0013 §5) — true면 이후 어떤 배치도 커밋되지 않는다.
+    pub persist_halted: bool,
+    /// 배치 멱등(I-57) 재시도가 "이미 커밋됨"으로 건너뛴 누적 횟수(K6).
+    pub persist_ambiguous_commits_total: u64,
+    /// 커밋 대기 중인 가장 오래된 배치의 나이(ADR-0013 §6 K2b, S11 재정의) —
+    /// `RECORDING_BACKLOG` 판정 전용. `persist_backlog`과 달리 하트비트 톱니에
+    /// 걸리지 않는다(p1-02 SC-63) — 옛 정의는 걸렸다(qa 계약 외 발견, `Stats::
+    /// recording_lag` 문서 참고).
+    pub recording_lag: u64,
+    /// `RECORDING_BACKLOG` 판정 임계(tick). 20 고정(ADR-0013 §6 K2).
+    pub recording_lag_limit: u64,
     /// 새 연결을 받는 중인가.
     pub accepting_connections: bool,
     /// 해석된 `data/` 절대 경로(p1-01 SC-05·SC-06).
@@ -937,6 +1155,16 @@ pub struct StatsBody {
     pub spawn_points_loaded: u64,
     /// 유도된 `snapshot_interval_ticks`(`tick_hz / snapshot_hz`).
     pub snapshot_interval_ticks: u64,
+    /// 로드된 광물 수(p1-02 SC-04).
+    pub minerals_loaded: u64,
+    /// 로드된 광맥 수(p1-02 SC-04).
+    pub deposits_loaded: u64,
+    /// 로드된 (유일한) 역사 규칙의 `rule_version`(p1-02 SC-04). 규칙이 정확히 1개가
+    /// 아니면 빈 문자열(`GameData::sole_rule_version`).
+    pub rule_version: String,
+    /// `data/**/*.json` 중 실제로 읽어 들인 파일 수(SC-06/SC-07 — `GameData::
+    /// loaded_files.len()`). 지금 10개다.
+    pub loaded_files_count: u64,
     /// 소켓에 쓴 `WORLD_SNAPSHOT` 수 — `messages_written_total` 의 `WORLD_SNAPSHOT` 라벨과
     /// 같은 수여야 한다(교차 검증용 중복, SC-33).
     pub snapshots_sent_total: u64,
@@ -960,6 +1188,15 @@ pub struct StatsBody {
     pub snapshot_build_us: HistogramBody,
     /// `WORLD_SNAPSHOT.ships` 가 계약 상한을 넘은 tick 누적. **0이어야 한다.**
     pub snapshot_over_capacity_total: u64,
+    /// p1-02(S12, SC-63) — 새 세션 열림과 새 LIVE 역사 기록이 같은 tick에 겹친
+    /// 누적 횟수. qa notice-gap 봇은 이 값이 델타 > 0 일 때만 그 판정을 유효로
+    /// 본다(겹침을 실제로 만들었다는 증거 — CLAUDE.md 검증 규율).
+    pub notice_open_overlap_ticks_total: u64,
+    /// p1-02(S13, architect 요청) — 커밋 대기 중인 배치 중 가장 오래된 것의
+    /// tick. 대기 중인 배치가 없으면 `null`. `recording_lag`(= 현재 tick − 이
+    /// 값)와 짝 — ADR-0013 §6 K2b의 직접 기준("첫 대기 배치부터 21 tick 안에
+    /// lag > 20")을 재려면 이 값 자체(현재 tick과 별개로)가 필요하다.
+    pub oldest_pending_tick: Option<u64>,
 }
 
 /// `/debug/stats` 핸들러.
@@ -991,6 +1228,111 @@ mod tests {
         );
     }
 
+    /// p1-02(S11, ADR-0013 §6 K2b — architect 재정의, qa 계약 외 발견) — 한가한
+    /// 서버에서 옛 정의(`last_enqueued_tick − last_committed_tick`)는 하트비트
+    /// 간격(`HEARTBEAT_TICKS=20`) 자체를 재고 있었다: 이벤트가 없어도 tick 20마다
+    /// 배치가 나가므로, 커밋이 끝나기 전 그 짧은 창에는 항상 `20 − 0 = 20` 이
+    /// 나와 `RECORDING_BACKLOG_LIMIT`(20)에 여유 0으로 붙었다 — 실제 커밋 지연이
+    /// 아니라 "하트비트 몇 번째냐"를 재는 것이었다. 새 정의는 "커밋 대기 중인
+    /// 가장 오래된 배치의 나이"(현재 tick − 그 배치의 tick)다.
+    #[test]
+    fn recording_lag_is_the_age_of_the_oldest_uncommitted_batch_not_the_heartbeat_interval() {
+        let stats = Stats::new();
+        stats.set_start_tick(0);
+        stats.record_tick(0, 0, 0);
+
+        // architect 예시(ADR-0013 §6 K2b 판정) 그대로: H(=0)에 커밋 → 18 tick
+        // 공백 → H+20(=20)에 배치가 나간다(하트비트, `runtime.rs`
+        // `HEARTBEAT_TICKS`). 커밋이 아직 안 끝난 사이(흔한 한 tick 창) tick
+        // 21이 됐다.
+        let last_committed_tick = 0u64; // = H
+        let last_enqueued_tick = 20u64; // = H + HEARTBEAT_TICKS
+        stats.set_last_enqueued_tick(last_enqueued_tick);
+        stats.record_tick(21, 0, 0);
+
+        // 옛 정의(`last_enqueued_tick − last_committed_tick`, S5)를 같은 상태에서
+        // 손으로 재현한다 — 이 필드 자체는 이제 진단용으로만 남아 값을 재는
+        // 함수가 없으므로, 그 식을 여기서 그대로 계산해 대조한다(규칙 6 — 고친
+        // 이유가 실제로 재현되는 대조).
+        let old_definition = last_enqueued_tick.saturating_sub(last_committed_tick);
+        assert_eq!(old_definition, 20, "옛 식은 하트비트 간격 자체를 낸다");
+
+        assert_eq!(
+            stats.recording_lag(),
+            1,
+            "새 정의는 '아직 커밋 안 된 가장 오래된 배치의 나이'(21 − 20 = 1) —\
+             옛 식({old_definition})과 달리 하트비트 간격이 아니다"
+        );
+
+        // 커밋이 끝나면(last_committed_tick 이 그 배치의 tick으로 전진) 지연 없는
+        // 상태로 돌아온다.
+        let (_, _, last_committed, _, _) = stats.persist_handles();
+        last_committed.store(20, Ordering::Release);
+        assert_eq!(stats.recording_lag(), 0);
+    }
+
+    /// p1-02(S13, architect 요청) — `oldest_pending_tick`이 `recording_lag`과
+    /// 같은 가지치기를 공유하면서 대기 배치가 없을 때 `None`, 있을 때 그 배치의
+    /// tick 을 그대로 낸다. ADR-0013 §6 K2b의 직접 기준("첫 대기 배치부터 21
+    /// tick 안에 lag > 20")은 이 값(현재 tick 과 별개)이 있어야 잴 수 있다.
+    #[test]
+    fn oldest_pending_tick_is_none_when_idle_and_the_batch_tick_when_pending() {
+        let stats = Stats::new();
+        stats.set_start_tick(0);
+        stats.record_tick(0, 0, 0);
+        assert_eq!(
+            stats.oldest_pending_tick(),
+            None,
+            "대기 배치가 없으면 None(/debug/stats 에서는 null)"
+        );
+
+        stats.set_last_enqueued_tick(20);
+        assert_eq!(
+            stats.oldest_pending_tick(),
+            Some(20),
+            "커밋 전에는 방금 넣은 배치의 tick 그대로다"
+        );
+
+        let (_, _, last_committed, _, _) = stats.persist_handles();
+        last_committed.store(20, Ordering::Release);
+        assert_eq!(
+            stats.oldest_pending_tick(),
+            None,
+            "커밋되면 다시 None — recording_lag()과 같은 가지치기를 공유한다"
+        );
+    }
+
+    /// p1-02(S13, 팀 리더 지시 — 대기 배치가 하나가 아니라 **여러 개 밀려 있을
+    /// 때**도 "가장 오래된 것"을 정확히 가리키는지). 배치 두 개(tick 5, tick 9)를
+    /// 넣고 앞(tick 5)만 커밋하면, 두 번째(tick 9)가 새 최전선이어야 한다 —
+    /// 큐에서 하나만 지우고 멈추는지, 큐가 아예 비워지는지를 가른다.
+    #[test]
+    fn oldest_pending_tick_advances_to_the_second_batch_after_the_first_commits() {
+        let stats = Stats::new();
+        stats.set_start_tick(0);
+        stats.record_tick(0, 0, 0);
+
+        stats.set_last_enqueued_tick(5);
+        stats.set_last_enqueued_tick(9);
+        assert_eq!(
+            stats.oldest_pending_tick(),
+            Some(5),
+            "둘 다 대기 중이면 더 오래된(먼저 넣은) tick 5가 최전선이다"
+        );
+
+        let (_, _, last_committed, _, _) = stats.persist_handles();
+        last_committed.store(5, Ordering::Release);
+        assert_eq!(
+            stats.oldest_pending_tick(),
+            Some(9),
+            "tick 5 만 커밋되면 tick 9가 새 최전선이다 — 큐가 통째로 비워지면 \
+             안 된다"
+        );
+
+        last_committed.store(9, Ordering::Release);
+        assert_eq!(stats.oldest_pending_tick(), None, "둘 다 커밋되면 None");
+    }
+
     #[test]
     fn overrun_counts_only_body_time_above_threshold() {
         let stats = Stats::new();
@@ -1019,7 +1361,7 @@ mod tests {
         assert_eq!(stats.persist_backlog(), 1, "start 직후 = tick − (start−1)");
         stats.record_tick(700, 100, 0);
         assert_eq!(stats.persist_backlog(), 601);
-        let (_, _, last) = stats.persist_handles();
+        let (_, _, last, _, _) = stats.persist_handles();
         last.store(700, Ordering::Release);
         assert_eq!(stats.persist_backlog(), 0);
     }

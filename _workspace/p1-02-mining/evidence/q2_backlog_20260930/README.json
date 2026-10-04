@@ -1,0 +1,11 @@
+{
+  "what": "backlog(SC-29·30·31) 봇 판정 + SC-32(mining_ledger accepted) — S11 뒤, 두 실행",
+  "run1": "SC-29·30·31 PASS. 정지 중 수락 0 으로 셈 — 봇이 그 채굴을 stop 명령 **전**에 보내 정지 전 수락(4)에 섞였다(ms 반올림). 봇 수정",
+  "run2": {
+    "sc29_30_31": "PASS(거부 8, 거부 시점 lag 65~536, 구간 26.9 s 조작 수락 253·스냅샷 269, 재개 뒤 수락 13)",
+    "sc32": "mining_ledger accepted PASS — 봇 수락 17 = processed_commands·MINERAL_MINED 에 모두(누락 0,0)",
+    "sc32_precondition_in_outage_accept": "성립 — 단 봇 JSON 은 0 으로 셌다(분류기 결함: 단조→벽시계 환산 ms 와 strict >). DB 사실: tick 748 채굴의 command_id(UUIDv7) ms = 1790722657630 = stop_done_ms, recorded_at 1790722685237 > start_done 1790722684444 — 정지 중 수락되어 재개 뒤 커밋됐다(mineral_mined_recorded_at.txt). 분류기는 UUID ms·≥ 로 고쳤고 Phase 5 재실행에서 봇 JSON 으로도 확인한다",
+    "evidence_db_fingerprint": "전후 동일 4805|d1904d8f…|3",
+    "s11_architect_criterion": "정지 후 21 tick 안 20 초과 — run1 42, run2 32 tick → 기준 불충족(관측 전 등록 기준). 이동 조작은 도메인 이벤트를 안 만들어 대기 배치가 다음 하트비트(≤20 tick)까지 생기지 않는 것으로 추정 — architect 판단 대상"
+  }
+}

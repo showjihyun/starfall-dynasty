@@ -1,0 +1,61 @@
+[14:08:35] SC-04 boot
+[14:08:40] sc04 exit=0
+[14:08:40] SC-05 reject
+[14:08:46] sc05 exit=0
+[14:08:46] SC-07 pairs
+[14:08:46] sc07 exit=0
+[14:08:46] cheats + mine-dup
+world=01a10218-900f-74a7-8234-49f83902790d
+mine-dup exit=0
+cheat-mine-inject exit=0
+cheat-mine-range exit=0
+cheat-mine-fast exit=0
+cheat-mine-unknown exit=0
+cheat-mine-cooldown exit=0
+SHUTDOWN exit=0
+[14:13:19] leak-scan
+world=01a1021c-ba42-7d5d-b634-90996c181e55
+leak-scan exit=0
+SHUTDOWN exit=0
+[14:14:05] trace
+world=01a1021d-6cd4-7c83-886f-c15ec2b8395d
+trace-abc exit=0
+trace-c exit=0
+SHUTDOWN exit=0
+[14:15:41] race
+world=01a1021e-e5b9-7650-bf50-61ca9a73897f
+race-same-tick exit=0
+SHUTDOWN exit=0
+[14:16:28] last-kg
+world=01a1021f-9d82-754b-95e7-a77bd957e3f9
+last-kg exit=0
+SHUTDOWN exit=0
+[14:18:32] backlog-idle
+world=01a10221-833e-7156-acee-2af69ea4037f
+backlog-idle exit=0
+SHUTDOWN exit=0
+[14:20:31] notice-gap
+world=01a10223-5299-7786-9d3d-20c05eea57c1
+notice-gap exit=4
+SHUTDOWN exit=0
+[14:26:25] restart dup
+마이그레이션 동결 확인: 파일 [1, 2, 3] · 적용 [1, 2, 3] · 미적용 [] · 선언 {}
+  mine-dup-reconnect: exit=0 verdict=PASS
+  mine-dup-restart.run: exit=0 verdict=PASS
+  mine-dup-cross-actor.run: exit=0 verdict=PASS
+마이그레이션 동결 확인: 파일 [1, 2, 3] · 적용 [1, 2, 3] · 미적용 [] · 선언 {}
+  mine-dup-restart.resume: exit=0 verdict=PASS
+  mine-dup-cross-actor.resume: exit=0 verdict=PASS
+{"mine-dup-reconnect": "PASS", "mine-dup-restart.run": "PASS", "mine-dup-cross-actor.run": "PASS", "mine-dup-restart.resume": "PASS", "mine-dup-cross-actor.resume": "PASS"}
+[14:29:13] restart cas
+마이그레이션 동결 확인: 파일 [1, 2, 3] · 적용 [1, 2, 3] · 미적용 [] · 선언 {}
+마이그레이션 동결 확인: 파일 [1, 2, 3] · 적용 [1, 2, 3] · 미적용 [] · 선언 {}
+  cas-halt.judge: exit=0 verdict=PASS
+마이그레이션 동결 확인: 파일 [1, 2, 3] · 적용 [1, 2, 3] · 미적용 [] · 선언 {}
+  cas-reload: exit=0 verdict=PASS
+{"cas-halt": "PASS", "cas-reload": "PASS"}
+[14:31:00] mine-load 600s
+world=01a1022c-eba9-70e7-9904-9935cdd6f39b
+mine-load exit=4
+SHUTDOWN exit=0
+[14:43:00] DONE

@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.starfall.invalid/contracts/events/domain/MINERAL_MINED.schema.json",
+  "title": "MineralMinedEvent",
+  "description": "One accepted extraction: the actor's inventory of this mineral went from quantity_before_kg to quantity_after_kg, and the deposit's remainder went from deposit_remaining_before_kg (after lazy regeneration, ADR-0013 section 1) down by the same amount. Written in the SAME transaction as the inventory row, the deposit row and the processed_commands row (ADR-0013 section 2), so this event is the only explanation an inventory quantity has: for every (world, actor, mineral), inventory = sum(quantity_kg) = the newest quantity_after_kg (spec p1-02 I-54). IMPORTANCE LEVEL 0 - THIS IS NOT A HISTORICAL EVENT (principle 4). The history runner reads it and almost always produces nothing; only the first extraction of a mineral in a star system becomes MINERAL_DISCOVERED (ADR-0014). Rejected MINE_RESOURCE commands produce no event. The schema cannot express quantity_after_kg = quantity_before_kg + quantity_kg or the deposit arithmetic; the server enforces them and QA's ledger identity checks them. actor_id and causation_id are narrowed to non-null.",
+  "allOf": [
+    {
+      "$ref": "../../common/event-envelope.schema.json"
+    }
+  ],
+  "properties": {
+    "event_type": {
+      "const": "MINERAL_MINED"
+    },
+    "schema_version": {
+      "const": 1
+    },
+    "actor_id": {
+      "description": "Narrowed from the envelope: the actor whose inventory changed. Inventory is owned by the actor, not the ship (ADR-0013 section 1).",
+      "$ref": "../../common/primitives.schema.json#/$defs/UuidV7"
+    },
+    "causation_id": {
+      "description": "Narrowed from the envelope: the command_id of the MINE_RESOURCE that caused this extraction. The first contract whose cause is a COMMAND rather than an event. It equals exactly one processed_commands.command_id and vice versa (spec p1-02 AC-18(b)).",
+      "$ref": "../../common/primitives.schema.json#/$defs/UuidV7"
+    },
+    "payload": {
+      "$ref": "#/$defs/MineralMinedPayload"
+    }
+  },
+  "unevaluatedProperties": false,
+  "$defs": {
+    "MineralMinedPayload": {
+      "title": "MineralMinedPayload",
+      "type": "object",
+      "required": [
+        "ship_id",
+        "session_id",
+        "star_system_id",
+        "deposit_id",
+        "mineral_id",
+        "quantity_kg",
+        "quantity_before_kg",
+        "quantity_after_kg",
+        "deposit_remaining_before_kg",
+        "deposit_remaining_after_kg"
+      ],
+      "properties": {
+        "ship_id": {
+          "description": "Ship that performed the extraction. Joins to SHIP_SPAWNED.ship_id. The ship is where it happened; the actor is who owns the result.",
+          "$ref": "../../common/primitives.schema.json#/$defs/UuidV7"
+        },
+        "session_id": {
+          "description": "Session whose command was accepted.",
+          "$ref": "../../common/primitives.schema.json#/$defs/UuidV7"
+        },
+        "star_system_id": {
+          "description": "Star system of the deposit. Part of the first-discovery key (world, star_system, mineral).",
+          "$ref": "../../common/primitives.schema.json#/$defs/DataId"
+        },
+        "deposit_id": {
+          "description": "DEPOSIT row extracted from.",
+          "$ref": "../../common/primitives.schema.json#/$defs/DataId"
+        },
+        "mineral_id": {
+          "description": "MINERAL row obtained, derived by the server from the deposit - never sent by the client.",
+          "$ref": "../../common/primitives.schema.json#/$defs/DataId"
+        },
+        "quantity_kg": {
+          "description": "Kilograms added to the inventory by this extraction: min(the mineral's yield_per_extraction_kg, deposit_remaining_before_kg). Never 0: an extraction that would yield nothing is rejected (RESOURCE_DEPLETED) and writes no event. The history rule's 'actually mined' condition rests on this minimum.",
+          "$ref": "../../common/primitives.schema.json#/$defs/MassKg",
+          "minimum": 1
+        },
+        "quantity_before_kg": {
+          "description": "The actor's inventory of mineral_id as the server saw it before this extraction. The persistence layer writes the inventory row only if the stored value still equals this (compare-and-set, ADR-0013 section 5); a mismatch stops the world.",
+          "$ref": "../../common/primitives.schema.json#/$defs/MassKg"
+        },
+        "quantity_after_kg": {
+          "description": "quantity_before_kg + quantity_kg.",
+          "$ref": "../../common/primitives.schema.json#/$defs/MassKg",
+          "minimum": 1
+        },
+        "deposit_remaining_before_kg": {
+          "description": "The deposit's remainder just before this extraction, AFTER applying the lazy regeneration rule up to this tick (ADR-0013 section 1). Compare-and-set like quantity_before_kg: the stored (remaining, as_of_tick) regenerated to this tick must equal this value.",
+          "$ref": "../../common/primitives.schema.json#/$defs/MassKg",
+          "minimum": 1
+        },
+        "deposit_remaining_after_kg": {
+          "description": "deposit_remaining_before_kg - quantity_kg. 0 means the deposit is now depleted (a fact the client sees through DEPOSIT_FIELD_STATE; depletion is not a separate event and not historical - design doc section 4.2).",
+          "$ref": "../../common/primitives.schema.json#/$defs/MassKg"
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

@@ -1,0 +1,2 @@
+cd /c/WorkSpace/SpaceHistoric
+docker compose exec -T postgres psql -U starfall -d starfall -At -c "select (select count(*) from domain_events where world_id='01a0b1c2-3d4e-7f01-8a2b-9c0d1e2f3a4b') ||'|'|| (select md5(string_agg(event_id::text, ',' order by event_id)) from domain_events where world_id='01a0b1c2-3d4e-7f01-8a2b-9c0d1e2f3a4b') ||'|'|| (select count(*) from _sqlx_migrations) ||'|'|| (select count(*) from pg_database where datname like '%test%');"

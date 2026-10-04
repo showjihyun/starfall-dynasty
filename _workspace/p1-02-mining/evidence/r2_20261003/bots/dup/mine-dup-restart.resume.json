@@ -1,0 +1,29 @@
+{
+  "command_id": "01a10229-7e0d-7153-a1a9-e43809b329c5",
+  "inventory_after_restart_end": 150,
+  "inventory_after_restart_start": 150,
+  "inventory_changes": 0,
+  "item": "[verdict] p1-02 SC-78 (c) 정상 종료 → 재기동 → 재전송 → DUPLICATE_COMMAND_ID, processed_commands 행 수 불변",
+  "processed_rows_after_resend": 3,
+  "processed_rows_before_resend": 3,
+  "resend": [
+    [
+      "REJECTED",
+      "DUPLICATE_COMMAND_ID"
+    ]
+  ],
+  "restart_log_line": "2026-10-03T14:28:56.213050Z  INFO starfall_game_server: 월드 확인 — tick 을 이어서 시작한다 (ADR-0006 §2.3) world_id=01a10228-b95a-7454-9810-833950f8b7a8 tick_hz=20 calendar_epoch=3800-01-01T00:00:00Z calendar_scale=60 last_tick=Some(2966) start_tick=2967",
+  "run_state": {
+    "command_id": "01a10229-7e0d-7153-a1a9-e43809b329c5",
+    "inventory_after": 150,
+    "inventory_before": 0,
+    "processed_rows_after_run": 2,
+    "results": [
+      [
+        "ACCEPTED",
+        null
+      ]
+    ]
+  },
+  "verdict": "PASS"
+}

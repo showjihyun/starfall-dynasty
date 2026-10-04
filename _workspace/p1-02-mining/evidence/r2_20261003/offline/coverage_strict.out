@@ -1,0 +1,33 @@
+# Contract coverage
+
+- types: 23
+- errors: 0
+- warnings: 0 (strict: counted as errors)
+
+| type | schema | fixtures | code |
+|------|--------|----------|------|
+| PING_SERVER | ok | 2 | producer:client=client/Assets/_Project/Scripts/Contracts/Generated/ContractTypes.cs, producer:bots=tools/bots/src/conn.rs, consumer:server=server/crates/contracts/src/commands.rs |
+| PING_REPLY | ok | 2 | producer:server=server/crates/contracts/src/lib.rs, consumer:client=client/Assets/_Project/Scripts/Contracts/Generated/ContractTypes.cs, consumer:bots=tools/bots/src/conn.rs |
+| COMMAND_RESULT | ok | 5 | producer:server=server/crates/contracts/src/commands.rs, consumer:client=client/Assets/_Project/Scripts/Contracts/Generated/CommandResultMessage.cs, consumer:bots=tools/bots/src/conn.rs |
+| SESSION_READY | ok | 2 | producer:server=server/bins/game-server/src/logsink.rs, consumer:client=client/Assets/_Project/Scripts/Contracts/Generated/ContractTypes.cs, consumer:bots=tools/bots/src/conn.rs |
+| SESSION_OPENED | ok | 2 | producer:server=server/crates/contracts/src/events.rs, consumer:server=server/crates/contracts/src/events.rs |
+| SESSION_CLOSED | ok | 3 | producer:server=server/bins/game-server/src/main.rs, consumer:server=server/bins/game-server/src/main.rs |
+| SET_SHIP_CONTROL | ok | 2 | producer:client=client/Assets/_Project/Scripts/Contracts/Generated/ContractTypes.cs, producer:bots=tools/bots/src/conn.rs, consumer:server=server/crates/contracts/src/commands.rs |
+| WORLD_SNAPSHOT | ok | 2 | producer:server=server/crates/contracts/src/commands.rs, consumer:client=client/Assets/_Project/Scripts/Contracts/ContractDispatch.cs, consumer:bots=tools/bots/src/conn.rs |
+| SHIP_SPAWNED | ok | 2 | producer:server=server/crates/contracts/src/data.rs, consumer:server=server/crates/contracts/src/data.rs |
+| SHIP_DESPAWNED | ok | 2 | producer:server=server/crates/contracts/src/events.rs, consumer:server=server/crates/contracts/src/events.rs |
+| SHIP_CLASS | ok | 2 | consumer:server=server/bins/game-server/src/data.rs |
+| STAR_SYSTEM | ok | 2 | consumer:server=server/bins/game-server/src/data.rs |
+| SYNC_TUNING | ok | 2 | consumer:server=server/bins/game-server/src/data.rs, consumer:client=client/Assets/_Project/Scripts/Flight/PredictedShipController.cs |
+| MINE_RESOURCE | ok | 2 | producer:client=client/Assets/_Project/Scripts/Contracts/Generated/ContractTypes.cs, producer:bots=tools/bots/src/conn.rs, consumer:server=server/crates/contracts/src/commands.rs |
+| MINERAL_MINED | ok | 2 | producer:server=server/crates/contracts/src/data.rs, consumer:server=server/crates/contracts/src/data.rs, consumer:history=server/crates/history/src/core.rs |
+| MINERAL_DISCOVERED | ok | 2 | producer:history=server/crates/history/src/core.rs, consumer:client=client/Assets/_Project/Scripts/Contracts/Generated/ContractTypes.cs, consumer:bots=tools/bots/src/wire.rs |
+| INVENTORY_STATE | ok | 2 | producer:server=server/crates/contracts/src/commands.rs, consumer:client=client/Assets/_Project/Scripts/Contracts/Generated/ContractTypes.cs, consumer:bots=tools/bots/src/conn.rs |
+| DEPOSIT_FIELD_STATE | ok | 2 | producer:server=server/crates/contracts/src/data.rs, consumer:client=client/Assets/_Project/Scripts/Contracts/Generated/ContractTypes.cs, consumer:bots=tools/bots/src/conn.rs |
+| HISTORICAL_EVENT_NOTICE | ok | 2 | producer:server=server/crates/contracts/src/lib.rs, consumer:client=client/Assets/_Project/Scripts/Contracts/Generated/ContractTypes.cs, consumer:bots=tools/bots/src/conn.rs |
+| MINERAL | ok | 1 | consumer:server=server/bins/game-server/src/data.rs, consumer:client=client/Assets/_Project/Scripts/Contracts/Generated/ContractTypes.cs |
+| DEPOSIT_FIELD | ok | 1 | consumer:server=server/bins/game-server/src/data.rs, consumer:client=client/Assets/_Project/Scripts/Contracts/Generated/ContractTypes.cs |
+| MINING_RULES | ok | 1 | consumer:server=server/bins/game-server/src/data.rs, consumer:client=client/Assets/_Project/Scripts/Greybox/GreyboxDataLoader.cs |
+| SIGNIFICANCE_RULE | ok | 1 | consumer:history=server/crates/history/src/core.rs |
+
+RESULT: PASS

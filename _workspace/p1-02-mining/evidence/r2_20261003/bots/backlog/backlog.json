@@ -1,0 +1,232 @@
+{
+  "arrived": true,
+  "compose_error": null,
+  "evidence_db_fingerprint": {
+    "after": "4805|d1904d8f18d55911ea101ff9c8435f5e|3",
+    "before": "4805|d1904d8f18d55911ea101ff9c8435f5e|3",
+    "same": true
+  },
+  "item": "[verdict] p1-02 SC-29 · SC-30 · SC-31 채굴·이동 중 postgres stop → recording_lag > 20 뒤 MINE_RESOURCE 는 RECORDING_BACKLOG, 같은 구간 SET_SHIP_CONTROL 수락·스냅샷 흐름, start 뒤 백로그가 빠지고 채굴 재수락",
+  "items": {
+    "sc_29": true,
+    "sc_30": true,
+    "sc_31": true
+  },
+  "k2b_direct_criterion": {
+    "delta_ticks": 22,
+    "first_pending_tick": 900,
+    "holds": true,
+    "onset_sample_lag": 22,
+    "onset_sample_oldest_pending": 900,
+    "onset_sample_tick": 922,
+    "sampling_gap_ticks": 2
+  },
+  "k2b_optional_assertions": {
+    "identity": {
+      "holds": true,
+      "samples_after_stop": 680,
+      "samples_with_pending": 253,
+      "violations": 0
+    },
+    "no_early_crossing": {
+      "holds": true,
+      "violations": 0
+    }
+  },
+  "marks": {
+    "fingerprint_after": {
+      "Ok": "4805|d1904d8f18d55911ea101ff9c8435f5e|3"
+    },
+    "fingerprint_before": {
+      "Ok": "4805|d1904d8f18d55911ea101ff9c8435f5e|3"
+    },
+    "start_begin_ms": 1791038696823,
+    "start_done_ms": 1791038697184,
+    "stop_begin_ms": 1791038669840,
+    "stop_done_ms": 1791038670355
+  },
+  "mines": [
+    [
+      "01a10239-1c73-775f-8b13-e42ff781277f",
+      1791038659699,
+      "ACCEPTED",
+      null
+    ],
+    [
+      "01a10239-295c-7431-9e49-30de453c55a2",
+      1791038663004,
+      "ACCEPTED",
+      null
+    ],
+    [
+      "01a10239-3642-702c-9ee4-2fe43eb68cf7",
+      1791038666306,
+      "ACCEPTED",
+      null
+    ],
+    [
+      "01a10239-4613-72ab-8219-f61809946baf",
+      1791038670355,
+      "ACCEPTED",
+      null
+    ],
+    [
+      "01a10239-52fe-704c-8591-1b1c22ede08c",
+      1791038673662,
+      "REJECTED",
+      "RECORDING_BACKLOG"
+    ],
+    [
+      "01a10239-5ff2-75fa-b71a-02f0e39bb798",
+      1791038676978,
+      "REJECTED",
+      "RECORDING_BACKLOG"
+    ],
+    [
+      "01a10239-6cdb-7059-9d8a-13818e74175d",
+      1791038680283,
+      "REJECTED",
+      "RECORDING_BACKLOG"
+    ],
+    [
+      "01a10239-79c6-77b1-a040-e00e7d83f439",
+      1791038683590,
+      "REJECTED",
+      "RECORDING_BACKLOG"
+    ],
+    [
+      "01a10239-86b6-7291-921a-d781e13ef89e",
+      1791038686902,
+      "REJECTED",
+      "RECORDING_BACKLOG"
+    ],
+    [
+      "01a10239-93a5-7505-a9a1-995e1fa7ccb4",
+      1791038690213,
+      "REJECTED",
+      "RECORDING_BACKLOG"
+    ],
+    [
+      "01a10239-a092-70f7-9833-50a2ae85b177",
+      1791038693522,
+      "REJECTED",
+      "RECORDING_BACKLOG"
+    ],
+    [
+      "01a10239-aee0-76cc-bb2c-018d7d289000",
+      1791038697184,
+      "REJECTED",
+      "RECORDING_BACKLOG"
+    ],
+    [
+      "01a10239-bbcb-7243-ae3d-a3f21eb995a4",
+      1791038700491,
+      "ACCEPTED",
+      null
+    ],
+    [
+      "01a10239-c8b5-7010-9708-89a652e65ad3",
+      1791038703797,
+      "ACCEPTED",
+      null
+    ],
+    [
+      "01a10239-d5a9-7773-b0ad-ffda568c5f06",
+      1791038707113,
+      "ACCEPTED",
+      null
+    ],
+    [
+      "01a10239-e28f-752d-a4e4-4419e3b474c2",
+      1791038710415,
+      "ACCEPTED",
+      null
+    ],
+    [
+      "01a10239-ef78-7113-968a-8d8669283662",
+      1791038713720,
+      "ACCEPTED",
+      null
+    ],
+    [
+      "01a10239-fc69-7283-b85f-99e19924e846",
+      1791038717033,
+      "ACCEPTED",
+      null
+    ],
+    [
+      "01a1023a-0955-762f-b85b-acd2f6ce82f4",
+      1791038720341,
+      "ACCEPTED",
+      null
+    ],
+    [
+      "01a1023a-163a-730d-a204-927f4b5ef9d5",
+      1791038723642,
+      "ACCEPTED",
+      null
+    ],
+    [
+      "01a1023a-232c-70cf-b256-119e9134a0b0",
+      1791038726956,
+      "ACCEPTED",
+      null
+    ],
+    [
+      "01a1023a-3016-72f1-bddc-37f489311900",
+      1791038730262,
+      "ACCEPTED",
+      null
+    ],
+    [
+      "01a1023a-3d06-77b8-9d5b-594129c1154f",
+      1791038733574,
+      "ACCEPTED",
+      null
+    ],
+    [
+      "01a1023a-49ea-72b9-8415-9c5797d8d301",
+      1791038736874,
+      "ACCEPTED",
+      null
+    ],
+    [
+      "01a1023a-56d1-704f-83e7-3585cd1f55d2",
+      1791038740177,
+      "ACCEPTED",
+      null
+    ]
+  ],
+  "mines_total": 25,
+  "sc_29": {
+    "all_lag_over_20": true,
+    "lag_at_rejects": [
+      67,
+      133,
+      199,
+      265,
+      331,
+      398,
+      464,
+      536
+    ],
+    "max_lag_in_window": 536,
+    "pre_stop_accepted": 3,
+    "recording_backlog_rejects": 8
+  },
+  "sc_30": {
+    "controls_accepted_in_window": 245,
+    "snapshots_in_window": 270
+  },
+  "sc_31": {
+    "accepted_after_recovery": 13,
+    "recovered_at_ms": 1791038697700
+  },
+  "sc_32_input": {
+    "accepted_during_outage": 1,
+    "accepted_total": 17
+  },
+  "stats_samples": 773,
+  "verdict": "PASS",
+  "window_seconds": 26.983
+}

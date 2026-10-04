@@ -1,0 +1,25 @@
+{
+  "event_id": "01a0b1c2-a002-7e02-9f12-6061728394a5",
+  "event_type": "MINERAL_MINED",
+  "schema_version": 1,
+  "world_id": "01a0b1c2-3d4e-7f01-8a2b-9c0d1e2f3a4b",
+  "tick": 91234,
+  "sequence": 3,
+  "occurred_at": "3800-01-04T04:01:00Z",
+  "recorded_at": "2026-09-27T09:12:40.201Z",
+  "correlation_id": "01a0b1c2-4a22-7c11-9d12-2e134f154a15",
+  "causation_id": "01a0b1c2-9c02-7d12-9e22-4f4150617181",
+  "actor_id": "01a0b1c2-2c02-7b46-9c68-9abcdef01234",
+  "payload": {
+    "ship_id": "01a0b1c2-8b02-7a12-9b23-ac34d55e66f7",
+    "session_id": "01a0b1c2-4a21-7b32-8c43-1d54e65f7a87",
+    "star_system_id": "cradle",
+    "deposit_id": "vela-orbit-1",
+    "mineral_id": "glacine",
+    "quantity_kg": 100,
+    "quantity_before_kg": 3000,
+    "quantity_after_kg": 3100,
+    "deposit_remaining_before_kg": 100,
+    "deposit_remaining_after_kg": 0
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "id": "p1-02-default",
+  "designer_note": "Rules every extraction is judged by. All server-decidable: squared-distance and squared-speed comparisons, integer tick cooldown. cooldown_s * tick_hz and every regen_interval_s * tick_hz must be integers (at 20 Hz: 60 and 600/1200/3600 ticks). See docs/design/p1-02-mining-design.md section 2.",
+  "extraction": {
+    "mining_range_from_surface_m": 150.0,
+    "max_ship_speed_mps": 10.0,
+    "cooldown_s": 3,
+    "note": "In range iff |ship.position - deposit.position|^2 <= (deposit.radius_m + mining_range_from_surface_m)^2. Slow enough iff |ship.velocity|^2 <= max_ship_speed_mps^2. Both evaluated on the authoritative state at the START of the tick the command is processed in (before this tick's movement integration). 150 m is about one second of travel at the 140 m/s top speed, and less than the 196 m it takes to brake from it: a player who arrives at full speed overshoots, which is the point. 10 m/s means 'stopped enough to be working', not 'drifting past'."
+  }
+}

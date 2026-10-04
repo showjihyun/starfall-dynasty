@@ -1,0 +1,63 @@
+{
+  "arrived": true,
+  "compose_error": null,
+  "evidence_db_fingerprint": {
+    "after": "4805|d1904d8f18d55911ea101ff9c8435f5e|3",
+    "before": "4805|d1904d8f18d55911ea101ff9c8435f5e|3",
+    "same": true
+  },
+  "item": "[verdict] p1-02 SC-29 · SC-30 · SC-31 채굴·이동 중 postgres stop → recording_lag > 20 뒤 MINE_RESOURCE 는 RECORDING_BACKLOG, 같은 구간 SET_SHIP_CONTROL 수락·스냅샷 흐름, start 뒤 백로그가 빠지고 채굴 재수락",
+  "items": {
+    "sc_29": true,
+    "sc_30": true,
+    "sc_31": true
+  },
+  "marks": {
+    "fingerprint_after": {
+      "Ok": "4805|d1904d8f18d55911ea101ff9c8435f5e|3"
+    },
+    "fingerprint_before": {
+      "Ok": "4805|d1904d8f18d55911ea101ff9c8435f5e|3"
+    },
+    "start_begin_ms": 1790722684082,
+    "start_done_ms": 1790722684444,
+    "stop_begin_ms": 1790722657174,
+    "stop_done_ms": 1790722657630
+  },
+  "mines_total": 25,
+  "s11_criterion_onset_within_21_ticks": {
+    "holds": false,
+    "onset_ticks_after_stop": 32
+  },
+  "sc_29": {
+    "all_lag_over_20": true,
+    "lag_at_rejects": [
+      65,
+      131,
+      197,
+      263,
+      329,
+      395,
+      461,
+      536
+    ],
+    "max_lag_in_window": 533,
+    "pre_stop_accepted": 3,
+    "recording_backlog_rejects": 8
+  },
+  "sc_30": {
+    "controls_accepted_in_window": 253,
+    "snapshots_in_window": 269
+  },
+  "sc_31": {
+    "accepted_after_recovery": 13,
+    "recovered_at_ms": 1790722685432
+  },
+  "sc_32_input": {
+    "accepted_during_outage": 0,
+    "accepted_total": 17
+  },
+  "stats_samples": 801,
+  "verdict": "PASS",
+  "window_seconds": 26.908
+}

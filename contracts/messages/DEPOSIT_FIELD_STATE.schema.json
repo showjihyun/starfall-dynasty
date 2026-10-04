@@ -1,0 +1,108 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.starfall.invalid/contracts/messages/DEPOSIT_FIELD_STATE.schema.json",
+  "title": "DepositFieldStateMessage",
+  "description": "Dynamic state of every deposit in the star system, the same for every player. Sent once right after SESSION_READY and, to every session of the world, in every tick in which any deposit's visible state changed (an extraction, or a regeneration step of a revealed, not-full deposit). Always the full list in ascending deposit_id order. Positions, radii and names are static and come from the client's copy of the deposit table; THE CLIENT MUST NOT READ A DEPOSIT'S MINERAL FROM THAT COPY - only from this message (design doc section 3.2). A deposit nobody has extracted from yet is UNREVEALED: mineral_id, initial_reserve_kg, remaining_kg and first_extracted_tick are ALL null, so the message cannot leak what it holds (spec p1-02 I-68). A revealed deposit has all four non-null and stays revealed forever, even when regeneration refills it. The schema cannot express 'all four null together'; the server enforces it and QA checks it with a positive control. Not a response to any command.",
+  "allOf": [
+    {
+      "$ref": "../common/message-envelope.schema.json"
+    }
+  ],
+  "properties": {
+    "message_type": {
+      "const": "DEPOSIT_FIELD_STATE"
+    },
+    "schema_version": {
+      "const": 1
+    },
+    "payload": {
+      "$ref": "#/$defs/DepositFieldStatePayload"
+    }
+  },
+  "unevaluatedProperties": false,
+  "$defs": {
+    "DepositFieldStatePayload": {
+      "title": "DepositFieldStatePayload",
+      "type": "object",
+      "required": [
+        "star_system_id",
+        "deposits"
+      ],
+      "properties": {
+        "star_system_id": {
+          "$ref": "../common/primitives.schema.json#/$defs/DataId"
+        },
+        "deposits": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/DepositState"
+          },
+          "maxItems": 64
+        }
+      },
+      "additionalProperties": false
+    },
+    "DepositState": {
+      "title": "DepositState",
+      "type": "object",
+      "required": [
+        "deposit_id",
+        "mineral_id",
+        "initial_reserve_kg",
+        "remaining_kg",
+        "first_extracted_tick"
+      ],
+      "properties": {
+        "deposit_id": {
+          "$ref": "../common/primitives.schema.json#/$defs/DataId"
+        },
+        "mineral_id": {
+          "description": "Null until the first extraction reveals the deposit.",
+          "anyOf": [
+            {
+              "$ref": "../common/primitives.schema.json#/$defs/DataId"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "initial_reserve_kg": {
+          "description": "Null while unrevealed (the reserve size would give the mineral away).",
+          "anyOf": [
+            {
+              "$ref": "../common/primitives.schema.json#/$defs/MassKg",
+              "minimum": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "remaining_kg": {
+          "description": "Remainder at this tick after lazy regeneration (ADR-0013 section 1). Null while unrevealed. 0 = depleted.",
+          "anyOf": [
+            {
+              "$ref": "../common/primitives.schema.json#/$defs/MassKg"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "first_extracted_tick": {
+          "description": "Tick of the extraction that revealed the deposit. Null while unrevealed.",
+          "anyOf": [
+            {
+              "$ref": "../common/primitives.schema.json#/$defs/Tick"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

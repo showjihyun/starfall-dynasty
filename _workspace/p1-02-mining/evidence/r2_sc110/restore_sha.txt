@@ -1,0 +1,8 @@
+# SC-110 redcheck 원복 확인 (qa, 2026-10-03T10:02:22Z) — 세 파일 모두 미추적이라 git diff 대신 sha256
+# 변이 전 qa 기록(2026-10-03 사전): DiscoveryFeedState.cs cfbf4fe8c203c931… PilotTag.cs 236eece6c7e8908d…
+# 원복 후:
+cfbf4fe8c203c931000364c2a3cdb1a2431ddc16d38ba86d53b191fdc34a3c91 *client/Assets/_Project/Scripts/Mining/DiscoveryFeedState.cs
+236eece6c7e8908d56efd21fd8be323e7ebb95ea6aad93463bcaf08f38abd614 *client/Assets/_Project/Scripts/Mining/PilotTag.cs
+be77624de407436bb496698aa6921b04ff61d5a0646c1693142cdf781808fd92 *client/Assets/_Project/Tests/EditMode/MiningViewModelTests.cs
+# MiningViewModelTests.cs mtime (변이 작업 전후 불변 — 테스트 코드 미수정):
+2026-09-30 21:54:27.319647300 +0900 client/Assets/_Project/Tests/EditMode/MiningViewModelTests.cs

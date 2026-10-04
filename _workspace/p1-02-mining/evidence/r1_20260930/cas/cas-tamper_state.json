@@ -1,0 +1,48 @@
+{
+  "actor_id": "01a0b1c2-b010-7000-8000-000000000060",
+  "all_mines": [
+    [
+      "01a0ef94-fd2e-77c6-9468-5184391d5d0d",
+      "ACCEPTED",
+      null,
+      1080
+    ],
+    [
+      "01a0ef94-fd2e-77c6-9468-51856d939ef4",
+      "ACCEPTED",
+      null,
+      1205
+    ],
+    [
+      "01a0ef95-e6d4-71ff-96db-47ad62961012",
+      "REJECTED",
+      "COOLDOWN_ACTIVE",
+      1205
+    ],
+    [
+      "01a0ef95-e6f2-705e-8450-5bfe62da5003",
+      "REJECTED",
+      "RECORDING_BACKLOG",
+      1205
+    ]
+  ],
+  "closed_by": "server",
+  "handshake_timeouts": 0,
+  "inventory_after": 300,
+  "inventory_before": 0,
+  "mineral_id": "glacine",
+  "x1": "01a0ef94-fd2e-77c6-9468-5184391d5d0d",
+  "x1_results": [
+    [
+      "ACCEPTED",
+      null
+    ]
+  ],
+  "x2": "01a0ef94-fd2e-77c6-9468-51856d939ef4",
+  "x2_results": [
+    [
+      "ACCEPTED",
+      null
+    ]
+  ]
+}

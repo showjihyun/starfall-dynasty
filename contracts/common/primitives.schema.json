@@ -16,6 +16,12 @@
       "format": "uuid",
       "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
     },
+    "UuidV5": {
+      "description": "Canonical lowercase hyphenated UUID version 5 (RFC 9562, SHA-1 name-based). Used ONLY for ids that must be derivable from their meaning so that rebuilding a record reproduces the same id: historical_event_id = UUIDv5(NS_HISTORY, '{world_id}|{event_type}|{dedupe_key}') (ADR-0014 section 1). SHA-1 here derives an id; it is not a security primitive.",
+      "type": "string",
+      "format": "uuid",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
     "TypeName": {
       "description": "Registry type name in SCREAMING_SNAKE_CASE.",
       "type": "string",
@@ -95,6 +101,17 @@
       "type": "integer",
       "minimum": -1000,
       "maximum": 1000
+    },
+    "MassKg": {
+      "description": "Mass of a resource in integer kilograms - an inventory amount, a deposit remainder or one extraction's yield (p1-02). 1 kg is the smallest unit of every mineral. Fractional kilograms are forbidden for the same reason floating-point money is: a rounding step is a place where mass is created or destroyed without a record. This is the one physical quantity whose data-table fields are ALSO integers (the *_kg suffix; ADR-0009 section 2 lets other data-table fields be SI floats). Range stops at 2^31-1 so every consumer holds it in a 32-bit signed integer; a field that must never be 0 narrows this with a sibling minimum.",
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 2147483647
+    },
+    "RuleVersion": {
+      "description": "Version of the historical judgement rule that produced a record, as '{rule-name}@{n}' (e.g. mineral-discovery@1). Stored on every historical record forever: when a rule changes its version goes up and PAST RECORDS ARE NOT RECOMPUTED (principle 5 and 9, ADR-0014 section 5).",
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*@[1-9][0-9]*$"
     },
     "InputSeq": {
       "description": "Per-session control input counter chosen by the client, starting at 1 and increasing by 1 per input. One input carries the WHOLE control intent for one tick; it is absolute state, not a delta, so a superseded input is harmless (ADR-0011 section 4). A reconnect starts a new session and the counter restarts at 1. It is not an ordering authority - the tick loop orders by gateway submission sequence (I-11).",

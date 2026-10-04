@@ -102,6 +102,9 @@ namespace Starfall.Greybox
         GameObject _localShipView;
         ShipInputSampler _input;
         Transform _chaseCameraTransform;
+        Camera _chaseCamera; // C4 (SC-68 재시도): GreyboxMiningSession의 3D 광맥 라벨이 화면
+                              // 투영(WorldToScreenPoint)에 쓴다 - BuildCamera()가 만드는 바로
+                              // 그 카메라(태그 MainCamera 없음, Camera.main으로 못 찾는다).
 
         double _lastPositionErrorM;
         double _lastOrientationErrorDeg;
@@ -241,7 +244,29 @@ namespace Starfall.Greybox
             _client.Register<WorldSnapshotMessage>("WORLD_SNAPSHOT", OnWorldSnapshot);
 
             _input = gameObject.AddComponent<ShipInputSampler>();
+
+            // C3 (p1-02-mining) connection point: a separate component/asmdef (Starfall.Mining)
+            // owns mining state and its own Update()/OnGUI() - kept out of this already-large
+            // class the same way ShipInputSampler is its own component. star_system_id defaults
+            // to "cradle" (this slice's only system) when data/ is incomplete.
+            gameObject.AddComponent<GreyboxMiningSession>().Init(_client, _starSystem?.Id ?? "cradle", () => ControlledShipState, cameraProvider: () => ChaseCamera);
         }
+
+        /// <summary>C3 connection point: lets GreyboxMiningSession reach the transport this
+        /// session already owns, instead of connecting a second one.</summary>
+        public RealtimeClient Client => _client;
+
+        /// <summary>C3 connection point: the controlled ship's authoritative-so-far state
+        /// (position/velocity) for mining range/speed display. Null before the first
+        /// WORLD_SNAPSHOT confirms a ship (same lifecycle as _controller everywhere else in this
+        /// class).</summary>
+        public ShipSimState? ControlledShipState => _controller?.CurrentState;
+
+        /// <summary>C4 connection point (SC-68 재시도): the greybox chase camera, for
+        /// GreyboxMiningSession's screen-space deposit labels (WorldToScreenPoint). Null until
+        /// BuildCamera() runs in Awake() - by the time GreyboxMiningSession.Init() is called
+        /// (same Awake, right after BuildCamera()) this is already set.</summary>
+        public Camera ChaseCamera => _chaseCamera;
 
         void OnDestroy()
         {
@@ -338,6 +363,7 @@ namespace Starfall.Greybox
             cam.nearClipPlane = 0.3f;
             cam.farClipPlane = 50_000f; // play area hard boundary is 12,000 m (ADR-0009 section 3)
             _chaseCameraTransform = camGo.transform;
+            _chaseCamera = cam;
         }
 
         // ------------------------------------------------------------------ session lifecycle

@@ -1,0 +1,9 @@
+{
+  "what": "SC-87·89 r2 부하 (리더 결정 (d)) — 유효 실행. 1차(load1_ABORTED)는 동결 위반과 겹쳐 무효",
+  "window": "2026-10-03T10:05:50Z ~ 10:17:47Z, 봇 10 분(STARFALL_MINE_LOAD_SECS=600)",
+  "data_copy": "$CLAUDE_JOB_DIR/tmp/load_data (STARFALL_DATA_DIR). world/deposits/cradle.json 의 initial_reserve_kg 만 ×100 (903dc4dc… → 270a7917…), 나머지 9 파일 sha 원본과 동일 (load_data_sha.txt vs orig_data_sha_before.txt). 원본 data/ 는 실행 뒤에도 sha 불변",
+  "load_line": "게임 데이터 로딩 완료 data_dir=…\tmp\load_data … loaded_files=10 — 사본이 기동 검증을 통과한 상태로 떴다(architect 조건 ②)",
+  "reachability_before_run": "README 사전 등록(r2_load_enlarged_PREREG): 기대 수락 ≈ 31 × 194 ≈ 6,000, 어느 광맥도 고갈 안 됨",
+  "result": "⊘ 발생: 31 연결 유지(min_ws_connections 31) · 수락 5999 ≥ 3000. SC-87 tick 초과 1/12010 = 0.0083 % ≤ 0.5 %. SC-89 RECORDING_BACKLOG 0, recording_lag 최대 8. 사유별: ACCEPTED 5999 · COOLDOWN_ACTIVE 1. SHUTDOWN exit=0",
+  "freeze_watch": "실행 중 15 s 간격 감시: Unity·cargo·rustc 프로세스 0, 실행 시작 뒤 수정된 소스 파일 0"
+}

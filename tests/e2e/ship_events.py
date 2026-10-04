@@ -33,6 +33,16 @@ SESSION_EVENTS = ("SESSION_OPENED", "SESSION_CLOSED")
 SLICE_EVENT_TYPES = set(SESSION_EVENTS) | set(SHIP_EVENTS)
 
 
+def require_ship_event_keys(where_sql: str = "") -> dict[str, int]:
+    """이 도구가 `->>` 로 꺼내는 키가 대상 행 전부에 있음을 단언한다(없으면 `QueryError`).
+    `where_sql` 은 하위 명령의 추가 조건(선두 `and` 없이)."""
+    out = {}
+    for et, keys in (("SHIP_SPAWNED", ["ship_id"]), ("SHIP_DESPAWNED", ["ship_id", "despawn_reason"]),
+                     ("SESSION_CLOSED", ["close_reason"])):
+        out[et] = db.require_payload_keys("domain_events", "payload", et, keys, where_sql, allow_empty=True)
+    return out
+
+
 def ship_id_expr() -> str:
     """두 함선 이벤트에서 `ship_id` 를 꺼내는 식. 스폰·디스폰 모두 payload 에 있다."""
     return "payload->>'ship_id'"
@@ -41,6 +51,7 @@ def ship_id_expr() -> str:
 # ─────────────────────────────────────────────────────────────── pairs
 def cmd_pairs(args: argparse.Namespace) -> int:
     db.require_tables("domain_events")
+    require_ship_event_keys()
     sid = ship_id_expr()
     where = tick_window(args)
 
@@ -85,6 +96,7 @@ def cmd_pairs(args: argparse.Namespace) -> int:
 # ─────────────────────────────────────────────────────────── causation
 def cmd_causation(args: argparse.Namespace) -> int:
     db.require_tables("domain_events")
+    require_ship_event_keys()
     where = tick_window(args, alias="e")
 
     # 모든 SHIP_* 의 causation_id 가 비-null 이고 실제 이벤트를 가리키는가 (SC-81)
@@ -228,6 +240,7 @@ def causation_defects(where: str, cte: str = "") -> list[dict]:
 def cmd_ledger(args: argparse.Namespace) -> int:
     """SC-81 — (b) 표 전체 결함 집합 == 장부, (c) 지정 구간 결함 0. 구간을 주면 (c) 만 본다."""
     db.require_tables("domain_events")
+    require_ship_event_keys()
     where = tick_window(args, alias="e")
     checked = db.scalar_int(f"select count(*) from domain_events e where e.event_type in {SHIP_EVENTS} {where};")
     checked_sessions = db.scalar_int(
@@ -335,6 +348,7 @@ def cmd_overlap(args: argparse.Namespace) -> int:
     디스폰이 없는 함선은 구간 끝을 열어 둔다(아직 살아 있다).
     """
     db.require_tables("domain_events")
+    require_ship_event_keys()
     sid = ship_id_expr()
     where = tick_window(args)
     rows = db.psql_rows(
@@ -378,6 +392,7 @@ def cmd_shutdown(args: argparse.Namespace) -> int:
     **둘 다 1건 이상이어야 판정한다**(계약 §7a — 한쪽이 0이면 그 경로는 타지 않은 것이다).
     """
     db.require_tables("domain_events")
+    require_ship_event_keys()
     where = tick_window(args, alias="d")
     rows = db.psql_rows(
         "select d.payload->>'ship_id', d.tick::text, d.sequence::text, c.event_type, c.tick::text, "
@@ -416,6 +431,7 @@ def cmd_shutdown(args: argparse.Namespace) -> int:
 def cmd_resume(args: argparse.Namespace) -> int:
     """재개된 함선: **세션 쌍은 2개 이상인데 스폰은 1건**(I-29·I-41)."""
     db.require_tables("domain_events")
+    require_ship_event_keys()
     sid = ship_id_expr()
     where = tick_window(args)
 
@@ -459,6 +475,7 @@ def cmd_resume(args: argparse.Namespace) -> int:
 def cmd_types(args: argparse.Namespace) -> int:
     """SC-80: 이동은 도메인 이벤트를 만들지 않는다(I-31). **위치 시계열이 없다**."""
     db.require_tables("domain_events")
+    require_ship_event_keys()
     where = tick_window(args)
     rows = db.psql_rows(
         f"select event_type, count(*) from domain_events where true {where} group by 1 order by 1;"

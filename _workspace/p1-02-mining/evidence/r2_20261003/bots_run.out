@@ -1,0 +1,17 @@
+[14:08:35] SC-04 boot
+[14:08:40] sc04 exit=0
+[14:08:40] SC-05 reject
+[14:08:46] sc05 exit=0
+[14:08:46] SC-07 pairs
+[14:08:46] sc07 exit=0
+[14:08:46] cheats + mine-dup
+[14:13:19] leak-scan
+[14:14:05] trace
+[14:15:41] race
+[14:16:28] last-kg
+[14:18:32] backlog-idle
+[14:20:31] notice-gap
+[14:26:25] restart dup
+[14:29:13] restart cas
+[14:31:00] mine-load 600s
+[14:43:00] DONE

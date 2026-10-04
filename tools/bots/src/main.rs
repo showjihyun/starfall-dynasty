@@ -73,6 +73,7 @@ async fn main() -> ExitCode {
     match args[0].as_str() {
         "run" => cmd_run(&args[1..]).await,
         "probe" => cmd_probe(&args[1..]).await,
+        "mine" => cmd_mine(&args[1..]).await,
         "resume" => cmd_resume(&args[1..]).await,
         "token" => cmd_token(&args[1..]),
         // client 의 `02_client_ack.md` 가 `identities --count 30` 으로 적었다. 그 명령이
@@ -201,6 +202,16 @@ fn parse_send_hz(raw: &str) -> Result<Vec<f64>, String> {
 }
 
 async fn cmd_run(raw: &[String]) -> ExitCode {
+    // 계약 §3.1 은 채굴 부하를 `bots run --stage mine-load` 로 적었다 — p1-01 의 `--scenario` 단계와
+    // 다른 축이라 probe 케이스(`mine-load`)로 보낸다. 나머지 옵션은 probe 가 읽는다.
+    if let Some(i) = raw.iter().position(|a| a == "--stage")
+        && raw.get(i + 1).map(String::as_str) == Some("mine-load")
+    {
+        let mut rest: Vec<String> = raw[..i].to_vec();
+        rest.extend_from_slice(&raw[i + 2..]);
+        rest.extend(["--case".to_owned(), "mine-load".to_owned()]);
+        return cmd_probe(&rest).await;
+    }
     let args = match Args::parse(raw) {
         Ok(a) => a,
         Err(e) => return usage_error(&e),
@@ -401,6 +412,313 @@ fn print_run_summary(rep: &report::RunReport, out: &std::path::Path) {
     );
 }
 
+/// `bots mine --deposit <id> [--label bot-000] [--mines 3] [--gap-ms 3200] [--resend-last 0|1]
+/// [--stop-from-surface-m 90] [--arrive-timeout-s 180] [--data data] [--out <json>]`
+///
+/// 관측 도구 — verdict 를 내지 않는다(`mine_run` 모듈 문서).
+async fn cmd_mine(raw: &[String]) -> ExitCode {
+    let args = match Args::parse(raw) {
+        Ok(a) => a,
+        Err(e) => return usage_error(&e),
+    };
+    let secret = match token::secret_from_env() {
+        Ok(s) => s,
+        Err(e) => return usage_error(&e),
+    };
+    let deposit = match args.req("deposit") {
+        Ok(v) => v,
+        Err(e) => return usage_error(&e),
+    };
+    let data_dir = args.str_or("data", "data");
+    let site =
+        match starfall_bots::mine_run::find_deposit(std::path::Path::new(&data_dir), &deposit) {
+            Ok(s) => s,
+            Err(e) => return usage_error(&e),
+        };
+    let parsed = (|| -> Result<_, String> {
+        Ok((
+            args.num_or("mines", 3u32)?,
+            args.num_or("gap-ms", 3200u64)?,
+            args.num_or("resend-last", 0u8)?,
+            args.num_or("stop-from-surface-m", 90.0f64)?,
+            args.num_or("arrive-timeout-s", 180u64)?,
+        ))
+    })();
+    let (mines, gap_ms, resend, stop, arrive_s) = match parsed {
+        Ok(v) => v,
+        Err(e) => return usage_error(&e),
+    };
+    let cfg = starfall_bots::mine_run::MineRun {
+        url: args.str_or("url", DEFAULT_URL),
+        label: args.str_or("label", "bot-000"),
+        site,
+        stop_from_surface_m: stop,
+        mines,
+        gap: Duration::from_millis(gap_ms),
+        resend_last: resend != 0,
+        arrive_timeout: Duration::from_secs(arrive_s),
+        capture_raw: false,
+    };
+    let out = args.str_or("out", "");
+    if let Err(e) = args.reject_unused() {
+        return usage_error(&e);
+    }
+    let outcome = starfall_bots::mine_run::run(&cfg, &secret).await;
+    let v = starfall_bots::mine_run::summary(&cfg, &outcome);
+    let text = serde_json::to_string_pretty(&v).unwrap_or_default();
+    println!("{text}");
+    if !out.is_empty()
+        && let Err(e) = std::fs::write(&out, format!("{text}\n"))
+    {
+        eprintln!("--out 쓰기 실패: {e}");
+        return ExitCode::from(2);
+    }
+    ExitCode::SUCCESS
+}
+
+/// p1-02 채굴 케이스 — `--deposit <id> [--data data] [--contracts contracts] [--out <json>]`.
+async fn probe_mining(
+    case: ProbeCase,
+    args: &Args,
+    url: &str,
+    secret: &str,
+    label: &str,
+) -> ExitCode {
+    let deposit = match args.req("deposit") {
+        Ok(v) => v,
+        Err(e) => return usage_error(&e),
+    };
+    let data_dir = args.str_or("data", "data");
+    let contracts_dir = args.str_or("contracts", "contracts");
+    let out = args.str_or("out", "");
+    // trace 전용 — 읽힌 키로 등록해야 `reject_unused` 가 오탐하지 않는다. 케이스별 필수 여부는 아래.
+    let world = args.str_or("world", "");
+    let label_b = args.str_or("label-b", "");
+    let discoverer = args.str_or("discoverer-label", "");
+    // 재기동 계열(restart_cases) — 오케스트레이터가 넘긴다.
+    let num_opt = |k: &str| -> Result<Option<i64>, String> {
+        let v = args.str_or(k, "");
+        if v.is_empty() {
+            Ok(None)
+        } else {
+            v.parse::<i64>()
+                .map(Some)
+                .map_err(|_| format!("--{k} 값이 숫자가 아니다: {v}"))
+        }
+    };
+    use starfall_bots::restart_cases::opt_path;
+    let pa = starfall_bots::restart_cases::PhaseArgs {
+        phase: args.str_or("phase", ""),
+        state: opt_path(&args.str_or("state", "")),
+        world: world.clone(),
+        restart_log: opt_path(&args.str_or("restart-log", "")),
+        server_log: opt_path(&args.str_or("server-log", "")),
+        exit_code: match num_opt("exit-code") {
+            Ok(v) => v.map(|x| x as i32),
+            Err(e) => return usage_error(&e),
+        },
+        control_state: opt_path(&args.str_or("control-state", "")),
+        control_log: opt_path(&args.str_or("control-log", "")),
+        control_exit_code: match num_opt("control-exit-code") {
+            Ok(v) => v.map(|x| x as i32),
+            Err(e) => return usage_error(&e),
+        },
+        ready_file: opt_path(&args.str_or("ready-file", "")),
+        tampered_file: opt_path(&args.str_or("tampered-file", "")),
+        halt_state: opt_path(&args.str_or("halt-state", "")),
+        tampered_value: match num_opt("tampered-value") {
+            Ok(v) => v,
+            Err(e) => return usage_error(&e),
+        },
+        label_b: label_b.clone(),
+    };
+    if let Err(e) = args.reject_unused() {
+        return usage_error(&e);
+    }
+    let need = |v: &str, k: &str| -> Result<(), String> {
+        if v.is_empty() {
+            Err(format!("--{k} 가 필요하다"))
+        } else {
+            Ok(())
+        }
+    };
+    let site = match starfall_bots::mine_cases_site(std::path::Path::new(&data_dir), &deposit) {
+        Ok(s) => s,
+        Err(e) => return usage_error(&e),
+    };
+    let (verdict, v) = match case {
+        ProbeCase::TraceAbc => {
+            if let Err(e) = need(&label_b, "label-b").and(need(&world, "world")) {
+                return usage_error(&e);
+            }
+            let (vd, mut js) =
+                starfall_bots::trace::run_abc(&site, url, secret, label, &label_b, Some(&world))
+                    .await;
+            js["item"] = serde_json::json!(case.contract_item().to_string());
+            js["verdict"] = serde_json::json!(vd.as_str());
+            (vd, js)
+        }
+        ProbeCase::TraceC => {
+            if let Err(e) = need(&discoverer, "discoverer-label").and(need(&world, "world")) {
+                return usage_error(&e);
+            }
+            let (vd, mut js) =
+                starfall_bots::trace::run_c(&site, url, secret, label, &discoverer, Some(&world))
+                    .await;
+            js["item"] = serde_json::json!(case.contract_item().to_string());
+            js["verdict"] = serde_json::json!(vd.as_str());
+            (vd, js)
+        }
+        ProbeCase::MineLoad => {
+            if let Err(e) = need(&world, "world") {
+                return usage_error(&e);
+            }
+            let base: u32 = label.trim_start_matches("bot-").parse().unwrap_or(500);
+            let secs: u64 = std::env::var("STARFALL_MINE_LOAD_SECS")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(600);
+            let bots: usize = std::env::var("STARFALL_MINE_LOAD_BOTS")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(31);
+            let cfg = starfall_bots::mine_load::LoadCfg {
+                bots,
+                duration: Duration::from_secs(secs),
+                label_base: base,
+                world: world.clone(),
+            };
+            let (vd, mut js) = starfall_bots::mine_load::run_mine_load(
+                std::path::Path::new(&data_dir),
+                url,
+                secret,
+                &cfg,
+            )
+            .await;
+            js["item"] = serde_json::json!(case.contract_item().to_string());
+            js["verdict"] = serde_json::json!(vd.as_str());
+            (vd, js)
+        }
+        ProbeCase::NoticeGap => {
+            let base: u32 = label.trim_start_matches("bot-").parse().unwrap_or(300);
+            let (vd, mut js) = starfall_bots::notice_gap::run_notice_gap(
+                std::path::Path::new(&data_dir),
+                url,
+                secret,
+                base,
+            )
+            .await;
+            js["item"] = serde_json::json!(case.contract_item().to_string());
+            js["verdict"] = serde_json::json!(vd.as_str());
+            (vd, js)
+        }
+        ProbeCase::Backlog => {
+            // SC-32 는 mining_ledger.py 가 판정한다 — 그 입력(수락 id 한 줄 하나)을 --state 경로에 쓴다.
+            let (vd, mut js) = starfall_bots::extra_cases::run_backlog(
+                &site,
+                url,
+                secret,
+                label,
+                pa.state.as_deref(),
+            )
+            .await;
+            js["item"] = serde_json::json!(case.contract_item().to_string());
+            js["verdict"] = serde_json::json!(vd.as_str());
+            (vd, js)
+        }
+        ProbeCase::LastKg => {
+            if let Err(e) = need(&world, "world") {
+                return usage_error(&e);
+            }
+            // 봇 11 대(준비 8 + 사수 3) — --label 번호부터 연속.
+            let base: u32 = label.trim_start_matches("bot-").parse().unwrap_or(200);
+            let (vd, mut js) = starfall_bots::extra_cases::run_last_kg(
+                std::path::Path::new(&data_dir),
+                url,
+                secret,
+                base,
+                &world,
+            )
+            .await;
+            js["item"] = serde_json::json!(case.contract_item().to_string());
+            js["verdict"] = serde_json::json!(vd.as_str());
+            (vd, js)
+        }
+        ProbeCase::RaceSameTick => {
+            if let Err(e) = need(&world, "world") {
+                return usage_error(&e);
+            }
+            // 시도마다 새 신원 둘 — --label 의 번호에서 시작한다(bot-080 → 080·081, 082·083 …).
+            let base: u32 = label.trim_start_matches("bot-").parse().unwrap_or(100);
+            let (vd, mut js) = starfall_bots::extra_cases::run_race(
+                std::path::Path::new(&data_dir),
+                url,
+                secret,
+                base,
+                &world,
+            )
+            .await;
+            js["item"] = serde_json::json!(case.contract_item().to_string());
+            js["verdict"] = serde_json::json!(vd.as_str());
+            (vd, js)
+        }
+        ProbeCase::BacklogIdle => {
+            let (vd, mut js) =
+                starfall_bots::extra_cases::run_backlog_idle(&site, url, secret, label).await;
+            js["item"] = serde_json::json!(case.contract_item().to_string());
+            js["verdict"] = serde_json::json!(vd.as_str());
+            (vd, js)
+        }
+        ProbeCase::MineDupReconnect
+        | ProbeCase::MineDupRestart
+        | ProbeCase::CasHalt
+        | ProbeCase::CasReload
+        | ProbeCase::MineDupCrossActor => {
+            use starfall_bots::restart_cases as rc;
+            let (vd, mut js) = match case {
+                ProbeCase::MineDupReconnect => rc::run_reconnect(&site, url, secret, label).await,
+                ProbeCase::MineDupRestart => rc::run_restart(&site, url, secret, label, &pa).await,
+                ProbeCase::CasHalt => rc::run_cas_halt(&site, url, secret, label, &pa).await,
+                ProbeCase::CasReload => rc::run_cas_reload(&site, url, secret, label, &pa).await,
+                _ => rc::run_cross_actor(&site, url, secret, label, &pa).await,
+            };
+            // 단계 기록(run 단계)은 판정이 아니다 — 라벨은 판정 단계에만 붙인다.
+            if js.get("phase").and_then(|p| p.as_str()) != Some("run") {
+                js["item"] = serde_json::json!(case.contract_item().to_string());
+            }
+            js["verdict"] = serde_json::json!(vd.as_str());
+            (vd, js)
+        }
+        _ => {
+            starfall_bots::mine_cases::run(
+                case,
+                &site,
+                url,
+                secret,
+                label,
+                std::path::Path::new(&contracts_dir),
+                std::path::Path::new(&data_dir),
+            )
+            .await
+        }
+    };
+    let text = serde_json::to_string_pretty(&v).unwrap_or_default();
+    println!("{text}");
+    if !out.is_empty()
+        && let Err(e) = std::fs::write(
+            &out,
+            format!(
+                "{text}
+"
+            ),
+        )
+    {
+        eprintln!("--out 쓰기 실패: {e}");
+        return ExitCode::from(2);
+    }
+    ExitCode::from(verdict.exit_code())
+}
+
 async fn cmd_probe(raw: &[String]) -> ExitCode {
     let args = match Args::parse(raw) {
         Ok(a) => a,
@@ -420,6 +738,9 @@ async fn cmd_probe(raw: &[String]) -> ExitCode {
     let url = args.str_or("url", DEFAULT_URL);
     // 판정에 쓰는 신원은 언제나 server 정본의 `bot-NNN` 이다(§3.3 정렬).
     let label = args.str_or("label", "bot-000");
+    if case.is_mining() {
+        return probe_mining(case, &args, &url, &secret, &label).await;
+    }
     let count: u32 = match args.num_or("count", 10u32) {
         Ok(v) => v,
         Err(e) => return usage_error(&e),
@@ -575,6 +896,7 @@ async fn cmd_resume(raw: &[String]) -> ExitCode {
         behavior,
         clock,
         live_corr: None,
+        capture_raw: false,
     };
     // 관측자가 먼저 붙고, 재개 2구간이 끝날 때까지 남는다.
     let observe_for = fly + settle + gap + listen + Duration::from_secs(3);

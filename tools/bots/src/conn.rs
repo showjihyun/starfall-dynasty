@@ -13,8 +13,12 @@ use tokio_tungstenite::{MaybeTlsStream, WebSocketStream};
 use uuid::Uuid;
 
 use crate::ledger::{Ledger, SessionRecord};
+use crate::mining::{MiningObs, NavTrace, Observed, ObservedResult, SentMine};
+use crate::nav;
 use crate::snapshot::SnapshotLedger;
-use crate::wire::{self, Inbound, PingServerCommand, SetShipControlCommand};
+use crate::wire::{
+    self, Inbound, MineResourceCommand, PingServerCommand, SetShipControlCommand, ShipState,
+};
 
 type Ws = WebSocketStream<MaybeTlsStream<TcpStream>>;
 
@@ -58,6 +62,29 @@ impl Clock {
 /// 이 연결이 무엇을 하는가.
 #[derive(Debug, Clone)]
 pub enum Behavior {
+    /// p1-02 계약 채굴 케이스: 비행 방식 하나 + 단계 목록(`mine_cases` 가 조립한다).
+    MineScript {
+        deposit_id: String,
+        target_m: [f64; 3],
+        /// 정지·통과 판정 반경(광맥 중심에서, m).
+        stop_radius_m: f64,
+        fly: FlyMode,
+        steps: Vec<MineStep>,
+        grace: Duration,
+    },
+    /// p1-02: 광맥 사거리 안으로 날아가 멈춘 뒤 `MINE_RESOURCE` 를 `mines` 회(간격 `gap`) 보낸다.
+    /// 목표 좌표는 호출자가 준다(봇은 `data/` 의 광맥 위치를 **길 찾기**에만 쓴다 — 기대값이 아니다).
+    MineAt {
+        deposit_id: String,
+        target_m: [f64; 3],
+        stop_radius_m: f64,
+        arrive_timeout: Duration,
+        mines: u32,
+        gap: Duration,
+        /// 마지막 채굴의 `command_id` 를 한 번 더 보낸다(같은 세션 재전송, SC-78 (a) 경로).
+        resend_last: bool,
+        grace: Duration,
+    },
     /// A·D 단계: `interval` 마다 ping, `duration` 동안. 정상 Close 로 끝낸다.
     Steady {
         interval: Duration,
@@ -139,10 +166,78 @@ pub enum Behavior {
     },
 }
 
+/// 채굴 케이스의 비행 방식.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum FlyMode {
+    /// 스폰 자리에 머문다(첫 스냅샷만 기다린다).
+    Stay,
+    /// 광맥 반경 안으로 가서 멈춘다(`fly_to`). 도착 못 하면 단계를 실행하지 않는다.
+    Stop { timeout: Duration },
+    /// 멈추지 않고 광맥 쪽으로 `speed_mps` 로 날다가, 반경 안에 **들어온 순간** 단계를 실행한다.
+    PassThrough { speed_mps: f64, timeout: Duration },
+}
+
+/// 채굴 케이스의 한 단계.
+#[derive(Debug, Clone)]
+pub enum MineStep {
+    /// 새 `command_id` 로 이 광맥에 `MINE_RESOURCE`.
+    Mine,
+    /// `k` 번째로 보낸 채굴(0 부터)의 `command_id` 를 그대로 다시 보낸다.
+    Resend(usize),
+    /// 다른 `deposit_id` 로(새 id).
+    MineOther(String),
+    /// 원문 프레임 그대로. `{COMMAND_ID}` 는 새 id 로 바꿔 보낸다.
+    Raw(String),
+    Wait(Duration),
+    /// `every` 간격으로 `total` 동안 새 id 채굴을 보낸다.
+    Burst {
+        every: Duration,
+        total: Duration,
+    },
+    /// 같은 프로세스의 다른 봇에게 신호(허가 1 개를 남긴다 — 먼저 와도 잃지 않는다).
+    Signal(std::sync::Arc<tokio::sync::Notify>),
+    /// 신호를 기다린다. 기다리는 동안에도 받은 메시지는 처리한다.
+    WaitSignal {
+        notify: std::sync::Arc<tokio::sync::Notify>,
+        timeout: Duration,
+    },
+    /// 스냅샷에서 그 actor 의 함선이 **보였다가 사라질 때까지** 기다린다(잔류 만료 디스폰 관측).
+    WaitActorGone {
+        actor: Uuid,
+        timeout: Duration,
+    },
+    /// 정해 둔 `command_id` 로 채굴(재접속·재기동을 넘는 재전송 — 연결 밖에서 id 를 들고 온다).
+    MineId(Uuid),
+    /// 오케스트레이터와의 손잡기: 파일을 만든다 / 파일이 생길 때까지 기다린다(그동안 메시지 처리).
+    TouchFile(std::path::PathBuf),
+    WaitFile {
+        path: std::path::PathBuf,
+        timeout: Duration,
+    },
+    /// 코디네이터가 보내는 명령을 받아 그때그때 채굴한다(`Stop` 이나 채널 닫힘에서 끝).
+    /// 기다리는 동안에도 받은 메시지를 처리한다.
+    Remote(RemoteRx),
+}
+
+/// 원격 조종 명령(`MineStep::Remote`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RemoteCmd {
+    Mine,
+    /// 제자리 유지 조작 한 프레임(브레이크) — 기록 지연 중에도 이동 명령이 수락되는지(SC-30).
+    Control,
+    Stop,
+}
+
+/// 원격 조종 수신단 — 한 봇만 소비한다.
+pub type RemoteRx =
+    std::sync::Arc<tokio::sync::Mutex<tokio::sync::mpsc::UnboundedReceiver<RemoteCmd>>>;
+
 #[derive(Debug)]
 pub struct ConnectionOutcome {
     pub ledger: Ledger,
     pub snapshots: SnapshotLedger,
+    /// p1-02: 채굴·역사 메시지 관측(수신 순번 포함).
+    pub mining: MiningObs,
     pub connect_ms: f64,
     pub ready_ms: Option<f64>,
     /// 서버가 업그레이드를 거절했을 때의 원인 문자열(클라이언트는 상태 코드를 구분할 수 없다 —
@@ -187,6 +282,8 @@ pub struct BotSpec {
     pub clock: Clock,
     /// 있으면 `SESSION_READY` 수신 즉시 correlation 을 덧붙인다 (SC-61 용).
     pub live_corr: Option<std::sync::Arc<LiveCorrelationSink>>,
+    /// p1-02 누출 검사(SC-40): 받은 텍스트 프레임 원문을 전부 저장한다.
+    pub capture_raw: bool,
 }
 
 impl std::fmt::Debug for BotSpec {
@@ -211,6 +308,7 @@ pub async fn run_connection(spec: BotSpec) -> ConnectionOutcome {
             return ConnectionOutcome {
                 ledger,
                 snapshots: SnapshotLedger::new(None),
+                mining: MiningObs::default(),
                 connect_ms: 0.0,
                 ready_ms: None,
                 connect_error: Some(format!("bad url: {e}")),
@@ -234,6 +332,7 @@ pub async fn run_connection(spec: BotSpec) -> ConnectionOutcome {
             return ConnectionOutcome {
                 ledger,
                 snapshots: SnapshotLedger::new(None),
+                mining: MiningObs::default(),
                 connect_ms: (spec.clock.us() - t_connect_start) as f64 / 1000.0,
                 ready_ms: None,
                 connect_error: Some(msg),
@@ -248,12 +347,21 @@ pub async fn run_connection(spec: BotSpec) -> ConnectionOutcome {
         stream,
         ledger,
         snapshots: SnapshotLedger::new(None),
+        mining: if spec.capture_raw {
+            MiningObs::with_raw_capture()
+        } else {
+            MiningObs::default()
+        },
+        frame_seq: 0,
         clock: spec.clock,
         live_corr: spec.live_corr.clone(),
         next_seq: 0,
         connected_at_us: connect_us,
         ready_at_us: None,
         closed: false,
+        own: None,
+        last_actors: std::collections::BTreeSet::new(),
+        last_actors_tick: None,
     };
 
     // SESSION_READY 는 그 연결의 첫 계약 메시지다(ADR-0005 §3). 읽지 않는 행동이라도
@@ -298,6 +406,39 @@ pub async fn run_connection(spec: BotSpec) -> ConnectionOutcome {
             grace,
         } => conn.run_tick_burst(per_tick, rounds, gap, grace).await,
         Behavior::Listen { listen, seq1_after } => conn.run_listen(listen, seq1_after).await,
+        Behavior::MineScript {
+            deposit_id,
+            target_m,
+            stop_radius_m,
+            fly,
+            steps,
+            grace,
+        } => {
+            conn.run_mine_script(&deposit_id, target_m, stop_radius_m, fly, &steps, grace)
+                .await
+        }
+        Behavior::MineAt {
+            deposit_id,
+            target_m,
+            stop_radius_m,
+            arrive_timeout,
+            mines,
+            gap,
+            resend_last,
+            grace,
+        } => {
+            conn.run_mine_at(
+                &deposit_id,
+                target_m,
+                stop_radius_m,
+                arrive_timeout,
+                mines,
+                gap,
+                resend_last,
+                grace,
+            )
+            .await
+        }
     }
 
     let ready_ms = conn
@@ -306,6 +447,7 @@ pub async fn run_connection(spec: BotSpec) -> ConnectionOutcome {
     ConnectionOutcome {
         ledger: conn.ledger,
         snapshots: conn.snapshots,
+        mining: conn.mining,
         connect_ms: (connect_us - t_connect_start) as f64 / 1000.0,
         ready_ms,
         connect_error: None,
@@ -318,12 +460,21 @@ struct Conn {
     ledger: Ledger,
     /// p1-01: `WORLD_SNAPSHOT` 관측 계측. 명령 원장과 **분리**한다 — 두 축은 서로 다른 것을 잰다.
     pub snapshots: SnapshotLedger,
+    /// p1-02: 채굴·역사 관측.
+    mining: MiningObs,
+    /// 이 연결에서 받은 텍스트 프레임 순번 — 채굴 관측과 명령 결과의 순서를 잇는다.
+    frame_seq: u64,
     clock: Clock,
     live_corr: Option<std::sync::Arc<LiveCorrelationSink>>,
     next_seq: u32,
     connected_at_us: u64,
     ready_at_us: Option<u64>,
     closed: bool,
+    /// p1-02 비행용 — 마지막 스냅샷의 자기 함선과 그 tick.
+    own: Option<(u64, ShipState)>,
+    /// 마지막 스냅샷에 함선이 있던 actor 들과 그 tick(디스폰 관측).
+    last_actors: std::collections::BTreeSet<Uuid>,
+    last_actors_tick: Option<u64>,
 }
 
 impl Conn {
@@ -364,10 +515,14 @@ impl Conn {
         let at = self.clock.us();
         match msg {
             Message::Text(text) => {
+                let frame_seq = self.frame_seq;
+                self.frame_seq += 1;
+                self.mining.capture_raw(frame_seq, text.as_str());
                 match wire::parse_inbound(text.as_str()) {
                     Inbound::SessionReady(m) => {
                         if self.ready_at_us.is_none() {
                             self.ready_at_us = Some(at);
+                            self.mining.session_ready_frame_seq = Some(frame_seq);
                             self.snapshots.set_observer(m.payload.actor_id);
                             self.ledger.on_session_ready(SessionRecord {
                                 bot: self.ledger.bot.clone(),
@@ -433,6 +588,37 @@ impl Conn {
                             at,
                             m.tick,
                         );
+                        self.mining.results.push(ObservedResult {
+                            frame_seq,
+                            tick: m.tick,
+                            command_id: m.payload.command_id,
+                            status: m.payload.status.clone(),
+                            reason_code: m.payload.reason_code.clone(),
+                        });
+                    }
+                    Inbound::InventoryState(m) => {
+                        self.mining.inventory.push(Observed {
+                            frame_seq,
+                            at_us: at,
+                            tick: m.tick,
+                            msg: *m,
+                        });
+                    }
+                    Inbound::DepositFieldState(m) => {
+                        self.mining.deposits.push(Observed {
+                            frame_seq,
+                            at_us: at,
+                            tick: m.tick,
+                            msg: *m,
+                        });
+                    }
+                    Inbound::HistoricalEventNotice(m) => {
+                        self.mining.notices.push(Observed {
+                            frame_seq,
+                            at_us: at,
+                            tick: m.tick,
+                            msg: *m,
+                        });
                     }
                     Inbound::WorldSnapshot(m) => {
                         if self.ready_at_us.is_none() {
@@ -442,6 +628,15 @@ impl Conn {
                             );
                         }
                         self.snapshots.on_snapshot(&m, text.len());
+                        self.last_actors = m.payload.ships.iter().map(|s| s.actor_id).collect();
+                        self.last_actors_tick = Some(m.tick);
+                        self.mining.snapshot_at_us.push(at);
+                        if let Some(c) = m.payload.controlled_ship_id
+                            && let Some(ship) = m.payload.ships.iter().find(|s| s.ship_id == c)
+                        {
+                            self.own = Some((m.tick, ship.clone()));
+                            self.mining.own_ship_id = Some(ship.ship_id);
+                        }
                     }
                     Inbound::PingReply(m) => {
                         if self.ready_at_us.is_none() {
@@ -662,6 +857,423 @@ impl Conn {
                 self.ledger.on_error(format!("send failed: {e}"));
                 self.closed = true;
             }
+        }
+    }
+
+    async fn send_mine(&mut self, command_id: Uuid, deposit_id: &str, target_m: [f64; 3]) {
+        let cmd = MineResourceCommand::new(command_id, deposit_id);
+        let text = match serde_json::to_string(&cmd) {
+            Ok(t) => t,
+            Err(e) => {
+                self.ledger.on_error(format!("serialize failed: {e}"));
+                return;
+            }
+        };
+        let (tick, dist, speed) = match &self.own {
+            Some((t, s)) => (
+                Some(*t),
+                Some(dist_m(own_pos_m(s), target_m)),
+                Some(s.speed_mm_s() / 1000.0),
+            ),
+            None => (None, None, None),
+        };
+        let seq = self.next_seq;
+        self.next_seq = self.next_seq.wrapping_add(1);
+        let at = self.clock.us();
+        match self.sink.send(Message::text(text)).await {
+            Ok(()) => {
+                self.ledger.on_sent_no_reply(command_id, seq, at);
+                self.mining.mine_sent.push(SentMine {
+                    command_id,
+                    deposit_id: deposit_id.to_owned(),
+                    at_us: at,
+                    frame_seq_at_send: self.frame_seq,
+                    last_snapshot_tick: tick,
+                    dist_m: dist,
+                    speed_mps: speed,
+                });
+            }
+            Err(e) => {
+                self.ledger.on_error(format!("send failed: {e}"));
+                self.closed = true;
+            }
+        }
+    }
+
+    /// 광맥으로 날아가 멈춘다. 도착하면 `true`. 조작 간격 50 ms, 판단은 마지막 스냅샷으로.
+    async fn fly_to(
+        &mut self,
+        deposit_id: &str,
+        target_m: [f64; 3],
+        stop_radius_m: f64,
+        timeout: Duration,
+    ) -> bool {
+        let tuning = nav::NavTuning::default();
+        let mut trace = NavTrace {
+            deposit_id: deposit_id.to_owned(),
+            ..NavTrace::default()
+        };
+        let deadline = tokio::time::Instant::now() + timeout;
+        let mut seq: u64 = 0;
+        // 첫 스냅샷을 기다린다.
+        while self.own.is_none() && !self.closed && tokio::time::Instant::now() < deadline {
+            self.pump_for(Duration::from_millis(100)).await;
+        }
+        let mut arrived = false;
+        while !self.closed && tokio::time::Instant::now() < deadline {
+            let Some((_, ship)) = self.own.clone() else {
+                break;
+            };
+            let p = own_pos_m(&ship);
+            let v = [
+                f64::from(ship.velocity_x_mm_s) / 1000.0,
+                f64::from(ship.velocity_y_mm_s) / 1000.0,
+                f64::from(ship.velocity_z_mm_s) / 1000.0,
+            ];
+            let q = [
+                f64::from(ship.orientation_x_micro) / 1e6,
+                f64::from(ship.orientation_y_micro) / 1e6,
+                f64::from(ship.orientation_z_micro) / 1e6,
+                f64::from(ship.orientation_w_micro) / 1e6,
+            ];
+            let dist = dist_m(p, target_m);
+            let speed = ship.speed_mm_s() / 1000.0;
+            if trace.start_dist_m.is_none() {
+                trace.start_dist_m = Some(dist);
+            }
+            trace.max_speed_mps = trace.max_speed_mps.max(speed);
+            let cmd = nav::plan(p, v, q, target_m, stop_radius_m, &tuning);
+            if cmd.arrived {
+                trace.arrived_at_us = Some(self.clock.us());
+                trace.arrive_dist_m = Some(dist);
+                trace.arrive_speed_mps = Some(speed);
+                arrived = true;
+            }
+            seq += 1;
+            let [ax, ay, az, aw] = cmd.aim_micro;
+            let ctl = SetShipControlCommand::new(Uuid::now_v7(), seq)
+                .with_thrust(0, 0, cmd.thrust_z_milli)
+                .with_brake(cmd.brake || arrived)
+                .with_aim(ax, ay, az, aw);
+            self.send_control(ctl).await;
+            trace.control_frames += 1;
+            if arrived {
+                break;
+            }
+            self.pump_for(Duration::from_millis(50)).await;
+        }
+        self.mining.nav = Some(trace);
+        arrived
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    async fn run_mine_at(
+        &mut self,
+        deposit_id: &str,
+        target_m: [f64; 3],
+        stop_radius_m: f64,
+        arrive_timeout: Duration,
+        mines: u32,
+        gap: Duration,
+        resend_last: bool,
+        grace: Duration,
+    ) {
+        if self
+            .fly_to(deposit_id, target_m, stop_radius_m, arrive_timeout)
+            .await
+        {
+            // 도착 뒤 한 박자 — 브레이크가 적용된 상태의 스냅샷을 한 장 더 받는다.
+            self.pump_for(Duration::from_millis(300)).await;
+            let mut last = None;
+            for i in 0..mines {
+                if self.closed {
+                    break;
+                }
+                let id = Uuid::now_v7();
+                self.send_mine(id, deposit_id, target_m).await;
+                last = Some(id);
+                if i + 1 < mines {
+                    self.pump_for(gap).await;
+                }
+            }
+            if resend_last && let Some(id) = last {
+                self.pump_for(Duration::from_millis(500)).await;
+                self.send_mine(id, deposit_id, target_m).await;
+            }
+        }
+        self.pump_for(grace).await;
+        if !self.closed {
+            self.close_client_side().await;
+        }
+    }
+
+    /// 원문 프레임을 보낸다. 채굴 원장(`mine_sent`)에 id 와 원문을 남긴다.
+    async fn send_raw_mine(
+        &mut self,
+        command_id: Uuid,
+        text: String,
+        deposit_id: &str,
+        target_m: [f64; 3],
+    ) {
+        let (tick, dist, speed) = self.own_fix(target_m);
+        let seq = self.next_seq;
+        self.next_seq = self.next_seq.wrapping_add(1);
+        let at = self.clock.us();
+        match self.sink.send(Message::text(text.clone())).await {
+            Ok(()) => {
+                self.ledger.on_sent_no_reply(command_id, seq, at);
+                self.mining.mine_sent.push(SentMine {
+                    command_id,
+                    deposit_id: deposit_id.to_owned(),
+                    at_us: at,
+                    frame_seq_at_send: self.frame_seq,
+                    last_snapshot_tick: tick,
+                    dist_m: dist,
+                    speed_mps: speed,
+                });
+                self.mining.raw_sent.push((command_id, text));
+            }
+            Err(e) => {
+                self.ledger.on_error(format!("send failed: {e}"));
+                self.closed = true;
+            }
+        }
+    }
+
+    fn own_fix(&self, target_m: [f64; 3]) -> (Option<u64>, Option<f64>, Option<f64>) {
+        match &self.own {
+            Some((t, s)) => (
+                Some(*t),
+                Some(dist_m(own_pos_m(s), target_m)),
+                Some(s.speed_mm_s() / 1000.0),
+            ),
+            None => (None, None, None),
+        }
+    }
+
+    /// 멈추지 않고 광맥 쪽으로 날다가 반경 안에 들어오면 `true`.
+    async fn pass_through(
+        &mut self,
+        target_m: [f64; 3],
+        radius_m: f64,
+        speed_mps: f64,
+        timeout: Duration,
+    ) -> bool {
+        let deadline = tokio::time::Instant::now() + timeout;
+        while self.own.is_none() && !self.closed && tokio::time::Instant::now() < deadline {
+            self.pump_for(Duration::from_millis(100)).await;
+        }
+        let mut seq: u64 = 0;
+        let mut trace = NavTrace::default();
+        while !self.closed && tokio::time::Instant::now() < deadline {
+            let Some((_, ship)) = self.own.clone() else {
+                break;
+            };
+            let p = own_pos_m(&ship);
+            let d = dist_m(p, target_m);
+            let v = ship.speed_mm_s() / 1000.0;
+            if trace.start_dist_m.is_none() {
+                trace.start_dist_m = Some(d);
+            }
+            trace.max_speed_mps = trace.max_speed_mps.max(v);
+            if d <= radius_m {
+                trace.arrived_at_us = Some(self.clock.us());
+                trace.arrive_dist_m = Some(d);
+                trace.arrive_speed_mps = Some(v);
+                self.mining.nav = Some(trace);
+                return true;
+            }
+            let rel = [target_m[0] - p[0], target_m[1] - p[1], target_m[2] - p[2]];
+            let aim = nav::aim_toward(rel);
+            let q = [
+                f64::from(ship.orientation_x_micro) / 1e6,
+                f64::from(ship.orientation_y_micro) / 1e6,
+                f64::from(ship.orientation_z_micro) / 1e6,
+                f64::from(ship.orientation_w_micro) / 1e6,
+            ];
+            let f = nav::forward_of(q);
+            let cos = (f[0] * rel[0] + f[1] * rel[1] + f[2] * rel[2]) / d.max(1e-9);
+            let thrust = if v < speed_mps && cos > 15f64.to_radians().cos() {
+                1000
+            } else {
+                0
+            };
+            // 목표 속도를 크게 넘으면 브레이크(선회 중 과속 방지).
+            let brake = v > speed_mps * 1.5;
+            let a = aim.map(|c| (c * 1_000_000.0).round() as i32);
+            seq += 1;
+            let ctl = SetShipControlCommand::new(Uuid::now_v7(), seq)
+                .with_thrust(0, 0, thrust)
+                .with_brake(brake)
+                .with_aim(a[0], a[1], a[2], a[3]);
+            self.send_control(ctl).await;
+            trace.control_frames += 1;
+            self.pump_for(Duration::from_millis(50)).await;
+        }
+        self.mining.nav = Some(trace);
+        false
+    }
+
+    async fn run_mine_script(
+        &mut self,
+        deposit_id: &str,
+        target_m: [f64; 3],
+        stop_radius_m: f64,
+        fly: FlyMode,
+        steps: &[MineStep],
+        grace: Duration,
+    ) {
+        let ready = match fly {
+            FlyMode::Stay => {
+                let deadline = tokio::time::Instant::now() + Duration::from_secs(5);
+                while self.own.is_none() && !self.closed && tokio::time::Instant::now() < deadline {
+                    self.pump_for(Duration::from_millis(100)).await;
+                }
+                self.own.is_some()
+            }
+            FlyMode::Stop { timeout } => {
+                let ok = self
+                    .fly_to(deposit_id, target_m, stop_radius_m, timeout)
+                    .await;
+                if ok {
+                    self.pump_for(Duration::from_millis(300)).await;
+                }
+                ok
+            }
+            FlyMode::PassThrough { speed_mps, timeout } => {
+                self.pass_through(target_m, stop_radius_m, speed_mps, timeout)
+                    .await
+            }
+        };
+        if ready {
+            let mut ids: Vec<Uuid> = Vec::new();
+            for step in steps {
+                if self.closed {
+                    break;
+                }
+                match step {
+                    MineStep::Mine => {
+                        let id = Uuid::now_v7();
+                        self.send_mine(id, deposit_id, target_m).await;
+                        ids.push(id);
+                    }
+                    MineStep::Resend(k) => {
+                        if let Some(id) = ids.get(*k).copied() {
+                            self.send_mine(id, deposit_id, target_m).await;
+                        }
+                    }
+                    MineStep::MineOther(other) => {
+                        let id = Uuid::now_v7();
+                        self.send_mine(id, other, target_m).await;
+                        ids.push(id);
+                    }
+                    MineStep::Raw(template) => {
+                        let id = Uuid::now_v7();
+                        let text = template.replace("{COMMAND_ID}", &id.to_string());
+                        self.send_raw_mine(id, text, deposit_id, target_m).await;
+                        ids.push(id);
+                    }
+                    MineStep::Wait(d) => self.pump_for(*d).await,
+                    MineStep::Signal(n) => n.notify_one(),
+                    MineStep::Remote(rx) => {
+                        let rx = rx.clone();
+                        let mut rx = rx.lock().await;
+                        let mut remote_seq: u64 = 0;
+                        loop {
+                            if self.closed {
+                                break;
+                            }
+                            tokio::select! {
+                                cmd = rx.recv() => match cmd {
+                                    Some(RemoteCmd::Mine) => {
+                                        let id = Uuid::now_v7();
+                                        self.send_mine(id, deposit_id, target_m).await;
+                                        ids.push(id);
+                                    }
+                                    Some(RemoteCmd::Control) => {
+                                        // fly_to 의 input_seq(작은 수)와 겹치지 않는 큰 수에서 시작한다.
+                                        remote_seq += 1;
+                                        let cid = Uuid::now_v7();
+                                        let ctl = SetShipControlCommand::new(cid, 10_000_000 + remote_seq)
+                                            .with_brake(true);
+                                        let at = self.clock.us();
+                                        self.send_control(ctl).await;
+                                        self.mining.control_sent.push((cid, at));
+                                    }
+                                    Some(RemoteCmd::Stop) | None => break,
+                                },
+                                () = self.pump_for(Duration::from_millis(50)) => {}
+                            }
+                        }
+                    }
+                    MineStep::MineId(id) => {
+                        self.send_mine(*id, deposit_id, target_m).await;
+                        ids.push(*id);
+                    }
+                    MineStep::TouchFile(path) => {
+                        if let Err(e) = std::fs::write(path, b"ready\n") {
+                            self.ledger
+                                .on_error(format!("touch {} 실패: {e}", path.display()));
+                        }
+                    }
+                    MineStep::WaitFile { path, timeout } => {
+                        let deadline = tokio::time::Instant::now() + *timeout;
+                        while !path.exists()
+                            && !self.closed
+                            && tokio::time::Instant::now() < deadline
+                        {
+                            self.pump_for(Duration::from_millis(100)).await;
+                        }
+                        if !path.exists() {
+                            self.mining.signal_timeouts += 1;
+                        }
+                    }
+                    MineStep::WaitSignal { notify, timeout } => {
+                        let deadline = tokio::time::Instant::now() + *timeout;
+                        let notified = notify.notified();
+                        tokio::pin!(notified);
+                        loop {
+                            if self.closed || tokio::time::Instant::now() >= deadline {
+                                self.mining.signal_timeouts += 1;
+                                break;
+                            }
+                            tokio::select! {
+                                () = &mut notified => break,
+                                () = self.pump_for(Duration::from_millis(100)) => {}
+                            }
+                        }
+                    }
+                    MineStep::WaitActorGone { actor, timeout } => {
+                        let deadline = tokio::time::Instant::now() + *timeout;
+                        while !self.closed && tokio::time::Instant::now() < deadline {
+                            let present = self.last_actors.contains(actor);
+                            if present {
+                                self.mining.actor_seen = true;
+                            } else if self.mining.actor_seen && self.last_actors_tick.is_some() {
+                                self.mining.actor_gone_at_us = Some(self.clock.us());
+                                self.mining.actor_gone_tick = self.last_actors_tick;
+                                break;
+                            }
+                            self.pump_for(Duration::from_millis(100)).await;
+                        }
+                    }
+                    MineStep::Burst { every, total } => {
+                        let end = tokio::time::Instant::now() + *total;
+                        while !self.closed && tokio::time::Instant::now() < end {
+                            let id = Uuid::now_v7();
+                            self.send_mine(id, deposit_id, target_m).await;
+                            ids.push(id);
+                            self.pump_for(*every).await;
+                        }
+                    }
+                }
+            }
+        }
+        self.pump_for(grace).await;
+        // 연결이 끝까지 열려 있었는지는 판정 입력이다(SC-76) — 닫기 전에 기록한다.
+        self.mining.open_at_end = Some(!self.closed);
+        if !self.closed {
+            self.close_client_side().await;
         }
     }
 
@@ -925,4 +1537,17 @@ impl Conn {
         // 서버의 Close 응답을 기다린다(양방향 Close 교환 — ADR-0005 §2).
         self.pump_for(Duration::from_secs(3)).await;
     }
+}
+
+/// 스냅샷 좌표(mm) → m.
+fn own_pos_m(s: &ShipState) -> [f64; 3] {
+    [
+        s.position_x_mm as f64 / 1000.0,
+        s.position_y_mm as f64 / 1000.0,
+        s.position_z_mm as f64 / 1000.0,
+    ]
+}
+
+fn dist_m(a: [f64; 3], b: [f64; 3]) -> f64 {
+    ((a[0] - b[0]).powi(2) + (a[1] - b[1]).powi(2) + (a[2] - b[2]).powi(2)).sqrt()
 }

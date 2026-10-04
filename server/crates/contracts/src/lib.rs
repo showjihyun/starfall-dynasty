@@ -27,34 +27,49 @@ pub mod commands;
 pub mod data;
 pub mod dispatch;
 pub mod events;
+pub mod historical;
 pub mod messages;
 pub mod primitives;
 pub mod registry;
 
 pub use commands::{
-    PingServerCommand, PingServerPayload, PingServerType, SetShipControlCommand,
-    SetShipControlPayload, SetShipControlType,
+    MineResourceCommand, MineResourcePayload, MineResourceType, PingServerCommand,
+    PingServerPayload, PingServerType, SetShipControlCommand, SetShipControlPayload,
+    SetShipControlType,
 };
-pub use data::{ShipClassTable, StarSystemTable, SyncTuningTable};
+pub use data::{
+    DepositFieldTable, MineralTable, MiningRulesTable, ShipClassTable, SignificanceRuleTable,
+    StarSystemTable, SyncTuningTable,
+};
 pub use events::{
-    DespawnReason, SessionCloseReason, SessionClosedEvent, SessionClosedPayload, SessionClosedType,
-    SessionOpenedEvent, SessionOpenedPayload, SessionOpenedType, SessionTransport,
-    ShipDespawnedEvent, ShipDespawnedPayload, ShipDespawnedType, ShipSpawnedEvent,
-    ShipSpawnedPayload, ShipSpawnedType,
+    DespawnReason, MineralMinedEvent, MineralMinedPayload, MineralMinedType, SessionCloseReason,
+    SessionClosedEvent, SessionClosedPayload, SessionClosedType, SessionOpenedEvent,
+    SessionOpenedPayload, SessionOpenedType, SessionTransport, ShipDespawnedEvent,
+    ShipDespawnedPayload, ShipDespawnedType, ShipSpawnedEvent, ShipSpawnedPayload, ShipSpawnedType,
+};
+pub use historical::{
+    FactStatus, HistoricalEntityKind, HistoricalLocation, HistoricalParticipant, HistoricalRole,
+    HistoricalVisibility, MineralDiscoveredEvent, MineralDiscoveredPayload, MineralDiscoveredType,
 };
 pub use messages::{
-    CommandResultMessage, CommandResultPayload, CommandResultType, CommandStatus, PingReplyMessage,
-    PingReplyPayload, PingReplyType, RejectReasonCode, SessionReadyMessage, SessionReadyPayload,
-    SessionReadyType, ShipPresence, ShipState, WorldSnapshotMessage, WorldSnapshotPayload,
-    WorldSnapshotType,
+    CommandResultMessage, CommandResultPayload, CommandResultType, CommandStatus,
+    DepositFieldStateMessage, DepositFieldStatePayload, DepositFieldStateType, DepositState,
+    HistoricalDelivery, HistoricalEventNoticeMessage, HistoricalEventNoticePayload,
+    HistoricalEventNoticeType, InventoryItem, InventoryStateMessage, InventoryStatePayload,
+    InventoryStateType, PingReplyMessage, PingReplyPayload, PingReplyType, RejectReasonCode,
+    SessionReadyMessage, SessionReadyPayload, SessionReadyType, ShipPresence, ShipState,
+    WorldSnapshotMessage, WorldSnapshotPayload, WorldSnapshotType,
 };
 pub use primitives::{
     AngularVelocityMdegPerSecond, ConstSchemaVersion, ControlAxisMilli, DataId, GameCalendar,
-    GameTime, InputSeq, MAX_SAFE_INTEGER, PositionMm, ProbeSeq, QuaternionComponentMicro, RealTime,
-    SchemaVersion, Sequence, ServerVersion, Tick, TickHz, UuidV7, VelocityMmPerSecond,
+    GameTime, InputSeq, MAX_SAFE_INTEGER, MassKg, PositionMm, ProbeSeq, QuaternionComponentMicro,
+    RealTime, RuleVersion, SchemaVersion, Sequence, ServerVersion, Tick, TickHz, UuidV5, UuidV7,
+    VelocityMmPerSecond,
 };
 pub use registry::{
-    COMMAND_RESULT, CONTRACT_TYPES, ContractType, PING_REPLY, PING_SERVER, SESSION_CLOSED,
-    SESSION_OPENED, SESSION_READY, SET_SHIP_CONTROL, SHIP_CLASS, SHIP_DESPAWNED, SHIP_SPAWNED,
+    COMMAND_RESULT, CONTRACT_TYPES, ContractType, DEPOSIT_FIELD, DEPOSIT_FIELD_STATE,
+    HISTORICAL_EVENT_NOTICE, INVENTORY_STATE, MINE_RESOURCE, MINERAL, MINERAL_DISCOVERED,
+    MINERAL_MINED, MINING_RULES, PING_REPLY, PING_SERVER, SESSION_CLOSED, SESSION_OPENED,
+    SESSION_READY, SET_SHIP_CONTROL, SHIP_CLASS, SHIP_DESPAWNED, SHIP_SPAWNED, SIGNIFICANCE_RULE,
     STAR_SYSTEM, SYNC_TUNING, WORLD_SNAPSHOT,
 };

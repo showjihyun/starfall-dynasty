@@ -3,20 +3,27 @@ resolver = "3"
 members = [
     "crates/contracts",
     "crates/sim",
+    "crates/history",
     "crates/persistence",
     "crates/gateway",
+    "crates/testdb",
     "bins/game-server",
 ]
 
-# p0-02 에서 sim / persistence 가 생겼다 (ADR-0001 §2).
-# domain / history 는 아직 만들지 않는다 — domain 은 월드 상태가 생기는 p1,
-# history 는 p2 다. 빈 크레이트는 링크 시간만 쓰고 아무 것도 증명하지 않는다.
+# p0-02 에서 sim / persistence 가 생겼다 (ADR-0001 §2). p1-02(T0)에서 history / testdb 가
+# 생겼다 — domain 은 여전히 없다(월드 상태 자체는 아직 p1-01 의 함선뿐이라 별도 domain
+# 크레이트가 아무것도 증명하지 않는다).
 #
-# 의존 방향 (ADR-0001 §2): contracts <- sim <- gateway, contracts <- persistence.
+# 의존 방향 (ADR-0001 §2, T0 개정 — 02_server_ack.md §4):
 #   - starfall-sim 에는 IO 가 없다 (axum/sqlx/redis/rand/chrono 금지 — AC-1, SC-04).
-#   - starfall-gateway 는 persistence 를 의존하지 않는다. tick 결과는 채널로 나가고
-#     바이너리가 그 채널을 persistence 에 연결한다.
+#   - starfall-history 에도 IO 가 없다. 의존은 starfall-contracts(+uuid v5) 뿐이다
+#     (ADR-0014 §1) — axum/sqlx/redis/rand/chrono/tokio 금지.
+#   - contracts <- sim <- gateway, contracts <- persistence <- history(코어) + contracts.
+#   - starfall-gateway 는 persistence 도 history 도 의존하지 않는다. tick 결과·역사 기록은
+#     채널로 나가고 바이너리가 그 채널들을 연결한다.
 #   - starfall-gateway 에는 게임 규칙·월드 상태를 넣지 않는다.
+#   - starfall-testdb 는 테스트 전용(`publish = false`, dev-dependency 로만) — DB 통합
+#     테스트가 격리 DB(`starfall_test_<uuidv7>`)만 건드리게 한다(Q-2, SC-114).
 
 [workspace.package]
 version = "0.1.0"
@@ -29,8 +36,10 @@ publish = false
 # 공통 의존성 버전은 여기 한 곳에서만 고정한다.
 starfall-contracts = { path = "crates/contracts" }
 starfall-sim = { path = "crates/sim" }
+starfall-history = { path = "crates/history" }
 starfall-persistence = { path = "crates/persistence" }
 starfall-gateway = { path = "crates/gateway" }
+starfall-testdb = { path = "crates/testdb" }
 
 # `ws` feature 는 p0-02 에서 켠다. 실측(server 검토 U-3): 크레이트 8개 추가
 # (tokio-tungstenite/tungstenite 0.29, sha1, data-encoding, rand 계열 4), 클린 빌드 +2.8초.

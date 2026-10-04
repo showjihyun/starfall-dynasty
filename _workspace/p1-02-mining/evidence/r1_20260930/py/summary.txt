@@ -1,0 +1,16 @@
+sc23_ledger_cases rc=0
+sc24_conservation_cases rc=0
+sc86_regen_load rc=0
+sc88_load rc=0
+sc90_discoveries_load rc=0
+sc92_causation_load rc=0
+sc92_causation_cases rc=0
+sc58_oracle_load rc=0
+sc83_oracle_load_ferrosite rc=0
+sc83_oracle_load_glacine rc=0
+sc83_oracle_load_cobaltine rc=0
+sc83_oracle_load_starfall-glass rc=0
+sc83_oracle_trace_glacine rc=0
+sc93_gaps_load rc=0
+sc93_gaps_cases rc=0
+done

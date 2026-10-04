@@ -1,0 +1,14 @@
+{
+  "item": "p1-02 SC-58 (AC-12a, H-12) 오라클 ↔ 역사 발견 집합 양방향 차집합 0",
+  "oracle_rows": 4,
+  "history_rows": 4,
+  "only_in_oracle": [],
+  "only_in_history": [],
+  "wrong_source": [],
+  "duplicate_keys_in_history": {},
+  "ok_sets": true,
+  "null_field_mineral_mined_rows": 0,
+  "world_id": "01a0ef96-c9ad-7c5e-8e55-1b2afe94f0a9",
+  "verdict": "PASS",
+  "oracle_sql": "select distinct on (payload->>'star_system_id', payload->>'mineral_id') payload->>'star_system_id', payload->>'mineral_id', tick, sequence, event_id from domain_events where world_id = '01a0ef96-c9ad-7c5e-8e55-1b2afe94f0a9' and event_type = 'MINERAL_MINED' and (payload->>'quantity_kg')::bigint > 0 order by payload->>'star_system_id', payload->>'mineral_id', tick, sequence;"
+}

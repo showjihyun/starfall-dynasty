@@ -1,0 +1,11 @@
+{
+  "item": "p1-02 SC-93 (AC-18c) (world_id, tick) 별 sequence 빈틈 — 한 월드",
+  "verdict": "PASS",
+  "world_id": "01a1022c-eba9-70e7-9904-9935cdd6f39b",
+  "rows_total": 636,
+  "ticks_checked": 478,
+  "ticks_with_2plus_events": 40,
+  "ticks_with_mineral_mined": 475,
+  "violating_groups": 0,
+  "sql": "select world_id, tick from domain_events where world_id = '01a1022c-eba9-70e7-9904-9935cdd6f39b' group by world_id, tick having count(*) <> max(sequence) + 1 or min(sequence) <> 0 or count(distinct sequence) <> count(*);"
+}

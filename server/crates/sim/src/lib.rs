@@ -33,10 +33,12 @@
 //! 이 크레이트가 루프를 가지면 `sleep` 과 `Instant` 가 결정적 코어로 들어온다.
 
 mod entities;
+mod mining;
 mod session;
 mod simulation;
 pub mod world;
 
+pub use mining::{DepositConstants, MineralConstants, MiningRuleConstants, StateWrite};
 pub use session::{DEDUP_CAPACITY, SessionSnapshot};
 pub use simulation::{
     DomainEventBody, IdSource, InboundCommand, Outbound, PendingEvent, PersistBatch, ServerMessage,

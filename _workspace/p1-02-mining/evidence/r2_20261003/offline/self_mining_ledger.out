@@ -1,0 +1,22 @@
+OK   원장: 정상 합성 월드 → PASS (키 2 · 이벤트 10)
+OK   원장: **채굴 0 건 → FAIL**(0 = 0 은 검사가 아니다)
+OK   원장: 연쇄 한 칸 어긋남 → FAIL
+OK   원장: 인벤토리 행 변조 → FAIL
+OK   원장: 이벤트 없는 인벤토리 행 → FAIL
+OK   보존: 정상 → PASS, 회복 발생 광맥 1 (dx +10)
+OK   보존: 회복 한 경계 누락 → FAIL(재계산 ≠ before)
+OK   보존: 채굴 0 건 → FAIL, 광물 행은 채굴 수 0 으로 찍힘
+OK   보존 --require-regen: 회복 0 인 실행 → FAIL(분모)
+OK   SC-90: 채굴 3 종 = 발견 3 행, 고갈 2 → PASS
+OK   SC-90: 한 광물 발견 두 번(3 행 ≠ 2 종) → FAIL
+OK   SC-90: 고갈 0 → FAIL(분모 — 고갈 경로 미실행)
+OK   SC-90: 채굴 1 종 → FAIL(분모 — 0 = 0 류)
+OK   보존: 같은 입력, --require-regen 없으면 PASS (위 FAIL 이 분모 때문임을 가른다)
+OK   인과: 양방향 일치 → PASS
+OK   인과: **둘 다 0 행 → FAIL**
+OK   인과: 장부 한 행 누락 → FAIL
+OK   수락: 봇 수락 ⊆ DB → PASS
+OK   수락: 봇이 수락받았는데 DB 에 없음 → FAIL
+OK   없는 열 조회 → NotImplementedYet (0 행 PASS 가 아니다)
+OK   연결 실패 → 미검증(환경)
+selftest: PASS  케이스=21

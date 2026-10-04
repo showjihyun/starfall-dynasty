@@ -1,0 +1,18 @@
+{
+  "item": "[verdict] p1-02 SC-26 정지 뒤 재기동 → 변조 값으로 적재되고 다음 채굴이 그 위에서 수락(quantity_before_kg = 변조 값)",
+  "mine": [
+    [
+      "ACCEPTED",
+      null
+    ]
+  ],
+  "mineral_mined_quantity_before_kg": {
+    "Ok": "927"
+  },
+  "pre_halt_memory_value": 300,
+  "preceding_halt_exit_code": 1,
+  "restart_log_line": "2026-09-29T23:52:54.876567Z  INFO starfall_game_server: 월드 확인 — tick 을 이어서 시작한다 (ADR-0006 §2.3) world_id=01a0ef94-f5af-7044-a77e-179d7cc35882 tick_hz=20 calendar_epoch=3800-01-01T00:00:00Z calendar_scale=60 last_tick=Some(1200) start_tick=1201",
+  "session_start_inventory": 927,
+  "tampered_value": 927,
+  "verdict": "PASS"
+}

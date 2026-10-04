@@ -1,0 +1,56 @@
+{
+  "accepted": 1,
+  "accepted_mineral_mined_row(quantity,before,after)": [
+    100,
+    100,
+    0
+  ],
+  "all_arrived": true,
+  "effective_remaining_at_processing_tick": 100,
+  "fired_state": [
+    100,
+    2165,
+    2279
+  ],
+  "inventory_gain_sum": 100,
+  "item": "[verdict] p1-02 SC-85 잔량 100 kg 광맥에 세 봇이 같은 tick → 100 / RESOURCE_DEPLETED / RESOURCE_DEPLETED, 인벤토리 합 증가 100 = 광맥 감소 (처리 tick 의 식 잔량 = 100 선행 단언)",
+  "processing_tick": 2280,
+  "regen": {
+    "interval_ticks": 600,
+    "regen_kg": 150
+  },
+  "resource_depleted": 2,
+  "same_tick": true,
+  "shots": [
+    {
+      "command_id": "01a0ef56-3e1b-74e1-9061-0839df997587",
+      "inventory_totals": [
+        0
+      ],
+      "reason": "RESOURCE_DEPLETED",
+      "status": "REJECTED",
+      "tick": 2280
+    },
+    {
+      "command_id": "01a0ef56-3e1b-74e1-9061-083853f56d93",
+      "inventory_totals": [
+        0
+      ],
+      "reason": "RESOURCE_DEPLETED",
+      "status": "REJECTED",
+      "tick": 2280
+    },
+    {
+      "command_id": "01a0ef56-3e1b-74e1-9061-083af8c119d1",
+      "inventory_totals": [
+        0,
+        100
+      ],
+      "reason": null,
+      "status": "ACCEPTED",
+      "tick": 2280
+    }
+  ],
+  "single_steps": 3,
+  "verdict": "PASS"
+}

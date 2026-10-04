@@ -1,0 +1,60 @@
+{
+  "case": "leak-scan",
+  "connect_error": null,
+  "deposit_id": "inner-belt-1",
+  "details": {
+    "deposit_field_state_before": {
+      "entries": 8,
+      "messages": 1,
+      "shape_violations": 0,
+      "unrevealed": 8
+    },
+    "first_mine_accepted": true,
+    "frames_after": 39,
+    "frames_before_first_mine": 1289,
+    "frames_total": 1328,
+    "inventory_state_before": 1,
+    "leak_hits_before_first_mine": [],
+    "positive_control_hits_after_first_mine": 4,
+    "search_terms": {
+      "mineral_ids": [
+        "ferrosite",
+        "glacine",
+        "cobaltine",
+        "starfall-glass"
+      ],
+      "reserves_kg": [
+        12000,
+        9000,
+        10000,
+        3200,
+        2400,
+        500
+      ]
+    },
+    "types_before_first_mine": {
+      "COMMAND_RESULT": 801,
+      "DEPOSIT_FIELD_STATE": 1,
+      "INVENTORY_STATE": 1,
+      "SESSION_READY": 1,
+      "WORLD_SNAPSHOT": 485
+    }
+  },
+  "item": "[verdict] p1-02 SC-40 새 월드 첫 채굴 전 받은 모든 메시지에 미확인 광맥의 mineral_id·매장량 없음 + 첫 채굴 뒤 양성 대조 적중 ≥ 1",
+  "label": "bot-020",
+  "nav": {
+    "arrive_dist_m": 149.81121775087476,
+    "arrive_speed_mps": 0.0,
+    "arrived": true,
+    "control_frames": 801,
+    "max_speed_mps": 113.48873631334521,
+    "start_dist_m": 4965.109195586337
+  },
+  "session": {
+    "actor_id": "01a0b1c2-b010-7000-8000-000000000020",
+    "close_code": 1000,
+    "close_initiator": "client",
+    "session_id": "01a0ef85-239d-7727-8a84-6e0c892edad4"
+  },
+  "verdict": "PASS"
+}

@@ -71,6 +71,54 @@ def psql(sql: str, *, timeout: int = 60) -> str:
     return (proc.stdout or "").strip()
 
 
+class QueryError(RuntimeError):
+    """조회 자체가 실패했다(열 없음·문법 오류 등). **0 행 결과로 읽히면 안 된다** — p1-02 도구 전용."""
+
+
+def classify_psql_failure(stderr: str) -> RuntimeError:
+    """psql 이 0 이 아닌 코드로 끝났을 때의 예외. **순수 함수** — selftest 가 DB 없이 부른다.
+
+    `psql()` 은 트리거 오류 본문을 호출자에게 돌려주려고 오류를 **문자열로 반환**한다(p1-01 탐침용).
+    그 문자열을 `psql_rows()` 로 쪼개면 **오류 한 줄이 결과 한 행**이 된다 — 없는 열을 조회한 도구가
+    "1 행" 을 받고 조용히 판정을 계속할 수 있다. p1-02 도구는 `psql_rows_strict()` 로 이 경로를 막는다.
+    """
+    low = stderr.lower()
+    if "no such service" in low or "is not running" in low or "cannot connect" in low:
+        return EnvironmentProblem(stderr)
+    if "does not exist" in low:        # relation · column · function — 구현(마이그레이션)과 도구의 모양이 다르다
+        return NotImplementedYet(stderr)
+    return QueryError(stderr)
+
+
+def psql_strict(sql: str, *, timeout: int = 60) -> str:
+    """오류를 문자열로 돌려주지 않는다 — 언제나 예외다."""
+    cmd = ["docker", "compose", "exec", "-T", "postgres",
+           "psql", "-v", "ON_ERROR_STOP=1", "-U", "starfall", "-d", "starfall", "-At", "-c", sql]
+    try:
+        proc = subprocess.run(cmd, cwd=REPO_ROOT, capture_output=True, text=True,
+                              timeout=timeout, encoding="utf-8", errors="replace")
+    except FileNotFoundError as exc:
+        raise EnvironmentProblem(f"docker 를 찾을 수 없다: {exc}") from exc
+    except subprocess.TimeoutExpired as exc:
+        raise EnvironmentProblem(f"psql 이 {timeout}s 안에 끝나지 않았다") from exc
+    if proc.returncode != 0:
+        raise classify_psql_failure((proc.stderr or "").strip())
+    return (proc.stdout or "").strip()
+
+
+def psql_rows_strict(sql: str, *, sep: str = "|", timeout: int = 60) -> list[list[str]]:
+    out = psql_strict(sql, timeout=timeout)
+    return [line.split(sep) for line in out.splitlines()] if out else []
+
+
+def scalar_int_strict(sql: str) -> int:
+    out = psql_strict(sql)
+    try:
+        return int(out.strip())
+    except ValueError as exc:
+        raise QueryError(f"정수를 기대했으나 받은 것: {out!r}") from exc
+
+
 def psql_rows(sql: str, *, sep: str = "|", timeout: int = 60) -> list[list[str]]:
     out = psql(sql, timeout=timeout)
     if not out:
@@ -84,6 +132,42 @@ def scalar_int(sql: str) -> int:
         return int(out.strip())
     except ValueError as exc:
         raise NotImplementedYet(f"정수를 기대했으나 받은 것: {out!r}") from exc
+
+
+def payload_key_probe_sql(table: str, column: str, event_type: str | None, keys: list[str],
+                          where: str = "") -> str:
+    """키 존재 검사 질의 — 순수 함수(selftest 용). 한 행: 전체 행 수 + 키마다 **없는** 행 수.
+
+    jsonb 의 `->>` 는 없는 키에 오류 없이 NULL 을 돌려준다. 그래서 `= 'X'` 필터는 조용히 0 행이 되고,
+    `coalesce(…, '')` 는 없는 키를 빈 문자열로 가린다(p1-02 trace-c 1차 실행이 그렇게 미검증이 됐다).
+    `?` 연산자는 **키 존재** 를 본다 — 값이 JSON null 인 키는 있는 것으로 센다(그건 별개 문제다).
+    """
+    conds = []
+    if event_type:
+        conds.append(f"event_type = '{event_type}'")
+    if where:
+        conds.append(f"({where})")
+    wh = (" where " + " and ".join(conds)) if conds else ""
+    cols = ", ".join(f"count(*) filter (where not ({column} ? '{k}'))" for k in keys)
+    return f"select count(*), {cols} from {table}{wh};"
+
+
+def require_payload_keys(table: str, column: str, event_type: str | None, keys: list[str],
+                         where: str = "", *, allow_empty: bool = False) -> int:
+    """대상 행 전부에 `keys` 가 **있어야** 한다. 없는 행이 하나라도 있으면 `QueryError`
+    (계약 §0.10 — 필드 이름이 틀리면 조용히 틀린다). 대상 행 수(분모)를 돌려준다. 분모 0 은
+    `allow_empty` 가 아니면 오류 — "검사할 행이 없어서 통과" 를 막는다."""
+    rows = psql_rows_strict(payload_key_probe_sql(table, column, event_type, keys, where))
+    if not rows:
+        raise QueryError("키 검사 질의가 행을 돌려주지 않았다")
+    vals = [int(x) for x in rows[0]]
+    total, missing = vals[0], dict(zip(keys, vals[1:]))
+    bad = {k: n for k, n in missing.items() if n}
+    if bad:
+        raise QueryError(f"{table}.{column}({event_type or '*'}) 에 키가 없는 행: {bad} / {total}")
+    if total == 0 and not allow_empty:
+        raise QueryError(f"{table}.{column}({event_type or '*'}) 대상 행 0 — 키 검사가 아무것도 재지 않았다")
+    return total
 
 
 def table_exists(name: str) -> bool:
@@ -147,3 +231,6 @@ def main_guard(fn) -> int:
     except EnvironmentProblem as exc:
         print(f"미검증(환경): {exc}", file=sys.stderr)
         return EXIT_ENV
+    except QueryError as exc:
+        print(f"FAIL(조회 오류 — 0 행으로 읽지 않는다): {exc}", file=sys.stderr)
+        return EXIT_FAIL

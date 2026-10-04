@@ -1,0 +1,6 @@
+tick=0        expected=3800-01-01T00:00:00Z got=3800-01-01T00:00:00Z ok
+tick=19       expected=3800-01-01T00:00:00Z got=3800-01-01T00:00:00Z ok
+tick=1200     expected=3800-01-01T01:00:00Z got=3800-01-01T01:00:00Z ok
+tick=24000    expected=3800-01-01T20:00:00Z got=3800-01-01T20:00:00Z ok
+tick=86400    expected=3800-01-04T00:00:00Z got=3800-01-04T00:00:00Z ok
+selftest cases=8 mismatches=0

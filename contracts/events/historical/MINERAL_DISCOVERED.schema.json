@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.starfall.invalid/contracts/events/historical/MINERAL_DISCOVERED.schema.json",
+  "title": "MineralDiscoveredEvent",
+  "description": "Historical Event, Level 2 Regional (HSE section 11, first of the MVP ten in HSE section 89). Rule mineral-discovery@1: of all committed MINERAL_MINED events with the same (world_id, star_system_id, mineral_id), the one with the smallest (tick, sequence) - and only that one - produces this record. Same tick means the smaller sequence (gateway submission order) is the sole discoverer; there is no joint discovery. At most one per (world, star system, mineral), enforced by the rule state AND by a DB unique key (ADR-0014 section 4). The discoverer is the PLAYER participant (an actor, not a ship); the ship is the VESSEL participant. What it leads to: the notice sends every connected player toward the deposit, later players learn through BACKFILL who was first (the MVP core test, GDD section 36), and it is the first line of a Chronicle and a Biography in p2. `type: object` is declared here because HISTORICAL_EVENT_NOTICE embeds this schema as a nested object.",
+  "type": "object",
+  "allOf": [
+    {
+      "$ref": "../../common/historical-event-envelope.schema.json"
+    }
+  ],
+  "properties": {
+    "event_type": {
+      "const": "MINERAL_DISCOVERED"
+    },
+    "schema_version": {
+      "const": 1
+    },
+    "participants": {
+      "description": "Exactly two: {actor, PLAYER, DISCOVERER} then {ship, SHIP, VESSEL}.",
+      "type": "array",
+      "items": {
+        "$ref": "../../common/historical-event-envelope.schema.json#/$defs/HistoricalParticipant"
+      },
+      "minItems": 2,
+      "maxItems": 2
+    },
+    "source_event_ids": {
+      "description": "Exactly one: the event_id of the discovering MINERAL_MINED.",
+      "type": "array",
+      "items": {
+        "$ref": "../../common/primitives.schema.json#/$defs/UuidV7"
+      },
+      "minItems": 1,
+      "maxItems": 1
+    },
+    "payload": {
+      "$ref": "#/$defs/MineralDiscoveredPayload"
+    }
+  },
+  "unevaluatedProperties": false,
+  "$defs": {
+    "MineralDiscoveredPayload": {
+      "title": "MineralDiscoveredPayload",
+      "type": "object",
+      "required": [
+        "mineral_id",
+        "deposit_id",
+        "quantity_kg"
+      ],
+      "properties": {
+        "mineral_id": {
+          "description": "MINERAL row that was discovered. Together with location.star_system_id this is the discovery's identity (dedupe key '{star_system_id}/{mineral_id}').",
+          "$ref": "../../common/primitives.schema.json#/$defs/DataId"
+        },
+        "deposit_id": {
+          "description": "DEPOSIT row where the discovering extraction happened.",
+          "$ref": "../../common/primitives.schema.json#/$defs/DataId"
+        },
+        "quantity_kg": {
+          "description": "Mass of the discovering extraction (copied from the source MINERAL_MINED). Never 0.",
+          "$ref": "../../common/primitives.schema.json#/$defs/MassKg",
+          "minimum": 1
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

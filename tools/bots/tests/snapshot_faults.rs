@@ -189,6 +189,7 @@ async fn fly_against(fake: &Fake, secs: u64) -> ConnectionOutcome {
         },
         clock: Clock::start(),
         live_corr: None,
+        capture_raw: false,
     })
     .await
 }

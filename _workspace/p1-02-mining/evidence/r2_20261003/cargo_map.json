@@ -1,0 +1,766 @@
+{
+  "log_test_lines": 300,
+  "rows": {
+    "SC-05": [
+      {
+        "crate": "starfall-game-server",
+        "filter": "data::tests::reject_c",
+        "matched": 16,
+        "ok": 16,
+        "failed": [],
+        "ignored": [],
+        "names": [
+          "data::tests::reject_c06_regen_interval_fractional",
+          "data::tests::reject_c01_deposit_unknown_mineral",
+          "data::tests::reject_c07_regen_exceeds_initial_reserve",
+          "data::tests::reject_c03_deposit_wrong_star_system",
+          "data::tests::reject_c08_duplicate_mineral_id",
+          "data::tests::reject_c02_mineral_without_deposit",
+          "data::tests::reject_c10_overlapping_mining_zones",
+          "data::tests::reject_c09_duplicate_deposit_id",
+          "data::tests::reject_c05_cooldown_fractional",
+          "data::tests::reject_c04_deposit_outside_soft_boundary",
+          "data::tests::reject_c11_rule_version_wrong_prefix",
+          "data::tests::reject_c13_mineral_schema_violation"
+        ]
+      }
+    ],
+    "SC-08": [
+      {
+        "crate": "starfall-sim",
+        "filter": "mining::accept_*",
+        "matched": 1,
+        "ok": 1,
+        "failed": [],
+        "ignored": [],
+        "names": [
+          "simulation::tests::mining::accept_mine_produces_event_and_both_messages"
+        ]
+      }
+    ],
+    "SC-09": [
+      {
+        "crate": "starfall-sim",
+        "filter": "mining::reject_*",
+        "matched": 1,
+        "ok": 1,
+        "failed": [],
+        "ignored": [],
+        "names": [
+          "simulation::tests::mining::reject_does_not_start_cooldown"
+        ]
+      }
+    ],
+    "SC-10": [
+      {
+        "crate": "starfall-sim",
+        "filter": "mining::reject_order_*",
+        "matched": 0,
+        "ok": 0,
+        "failed": [],
+        "ignored": [],
+        "names": []
+      }
+    ],
+    "SC-11": [
+      {
+        "crate": "starfall-sim",
+        "filter": "mining::reject_does_not_start_cooldown",
+        "matched": 1,
+        "ok": 1,
+        "failed": [],
+        "ignored": [],
+        "names": [
+          "simulation::tests::mining::reject_does_not_start_cooldown"
+        ]
+      }
+    ],
+    "SC-12": [
+      {
+        "crate": "starfall-sim",
+        "filter": "mining::partial_then_depleted",
+        "matched": 1,
+        "ok": 1,
+        "failed": [],
+        "ignored": [],
+        "names": [
+          "simulation::tests::mining::partial_then_depleted_when_remaining_is_less_than_extraction_yield"
+        ]
+      }
+    ],
+    "SC-13": [
+      {
+        "crate": "starfall-sim",
+        "filter": "mining::same_tick_submission_order",
+        "matched": 1,
+        "ok": 1,
+        "failed": [],
+        "ignored": [],
+        "names": [
+          "simulation::tests::mining::same_tick_submission_order_determines_the_winner_not_ship_id"
+        ]
+      }
+    ],
+    "SC-14": [
+      {
+        "crate": "starfall-sim",
+        "filter": "mining::tests::regen_closed_form_matches_stepwise",
+        "matched": 1,
+        "ok": 1,
+        "failed": [],
+        "ignored": [],
+        "names": [
+          "mining::tests::regen_closed_form_matches_stepwise_simulation"
+        ]
+      }
+    ],
+    "SC-15": [
+      {
+        "crate": "starfall-sim",
+        "filter": "mining_tests::range_uses_pre_integration_state",
+        "matched": 0,
+        "ok": 0,
+        "failed": [],
+        "ignored": [],
+        "names": []
+      }
+    ],
+    "SC-16": [
+      {
+        "crate": "starfall-sim",
+        "filter": "mining::dup_same_session",
+        "matched": 1,
+        "ok": 1,
+        "failed": [],
+        "ignored": [],
+        "names": [
+          "simulation::tests::mining::dup_same_session_resend_is_rejected_as_duplicate"
+        ]
+      }
+    ],
+    "SC-17": [
+      {
+        "crate": "starfall-sim",
+        "filter": "mining::dup_across_reconnect",
+        "matched": 0,
+        "ok": 0,
+        "failed": [],
+        "ignored": [],
+        "names": []
+      }
+    ],
+    "SC-18": [
+      {
+        "crate": "starfall-persistence",
+        "filter": "restart_reloads_economic_state_so_cas_succeeds_and_duplicates_are_rejected",
+        "matched": 1,
+        "ok": 1,
+        "failed": [],
+        "ignored": [],
+        "names": [
+          "restart_reloads_economic_state_so_cas_succeeds_and_duplicates_are_rejected"
+        ]
+      }
+    ],
+    "SC-19": [
+      {
+        "crate": "starfall-sim",
+        "filter": "mining::dup_two_sessions_same_tick",
+        "matched": 0,
+        "ok": 0,
+        "failed": [],
+        "ignored": [],
+        "names": []
+      }
+    ],
+    "SC-20": [
+      {
+        "crate": "starfall-persistence",
+        "filter": "batch_recommit_is_noop",
+        "matched": 1,
+        "ok": 1,
+        "failed": [],
+        "ignored": [],
+        "names": [
+          "batch_recommit_is_noop"
+        ]
+      }
+    ],
+    "SC-21": [
+      {
+        "crate": "starfall-persistence",
+        "filter": "dup_reaching_db_halts",
+        "matched": 1,
+        "ok": 1,
+        "failed": [],
+        "ignored": [],
+        "names": [
+          "dup_reaching_db_halts"
+        ]
+      },
+      {
+        "crate": "starfall-persistence",
+        "filter": "dup_across_restart",
+        "matched": 1,
+        "ok": 1,
+        "failed": [],
+        "ignored": [],
+        "names": [
+          "dup_across_restart"
+        ]
+      }
+    ],
+    "SC-22": [
+      {
+        "crate": "starfall-sim",
+        "filter": "mining::rejected_resend_*",
+        "matched": 0,
+        "ok": 0,
+        "failed": [],
+        "ignored": [],
+        "names": []
+      }
+    ],
+    "SC-25": [
+      {
+        "crate": "starfall-persistence",
+        "filter": "cas_mismatch_halts",
+        "matched": 1,
+        "ok": 1,
+        "failed": [],
+        "ignored": [],
+        "names": [
+          "cas_mismatch_halts_the_world"
+        ]
+      }
+    ],
+    "SC-26": [
+      {
+        "crate": "starfall-persistence",
+        "filter": "restart_reloads_economic_state_so_cas_succeeds_and_duplicates_are_rejected",
+        "matched": 1,
+        "ok": 1,
+        "failed": [],
+        "ignored": [],
+        "names": [
+          "restart_reloads_economic_state_so_cas_succeeds_and_duplicates_are_rejected"
+        ]
+      },
+      {
+        "crate": "starfall-persistence",
+        "filter": "load_economic_state_matches_the_database",
+        "matched": 1,
+        "ok": 1,
+        "failed": [],
+        "ignored": [],
+        "names": [
+          "load_economic_state_matches_the_database"
+        ]
+      },
+      {
+        "crate": "starfall-persistence",
+        "filter": "load_economic_state_on_empty_world_returns_empty_lists",
+        "matched": 1,
+        "ok": 1,
+        "failed": [],
+        "ignored": [],
+        "names": [
+          "load_economic_state_on_empty_world_returns_empty_lists"
+        ]
+      }
+    ],
+    "SC-27": [
+      {
+        "crate": "starfall-persistence",
+        "filter": "recorded_at_failure_fails_batch",
+        "matched": 1,
+        "ok": 1,
+        "failed": [],
+        "ignored": [],
+        "names": [
+          "recorded_at_failure_fails_batch"
+        ]
+      }
+    ],
+    "SC-28": [
+      {
+        "crate": "starfall-gateway",
+        "filter": "recording_lag_boundary_*",
+        "matched": 0,
+        "ok": 0,
+        "failed": [],
+        "ignored": [],
+        "names": []
+      }
+    ],
+    "SC-33": [
+      {
+        "crate": "starfall-sim",
+        "filter": "mining_replay",
+        "matched": 1,
+        "ok": 0,
+        "failed": [],
+        "ignored": [
+          "mining_replay_worker"
+        ],
+        "names": [
+          "mining_replay_worker"
+        ]
+      }
+    ],
+    "SC-36": [
+      {
+        "crate": "starfall-contracts",
+        "filter": "invalid_fixtures_layered",
+        "matched": 1,
+        "ok": 1,
+        "failed": [],
+        "ignored": [],
+        "names": [
+          "invalid_fixtures_layered"
+        ]
+      }
+    ],
+    "SC-37": [
+      {
+        "crate": "starfall-contracts",
+        "filter": "required_removal_mutations",
+        "matched": 1,
+        "ok": 1,
+        "failed": [],
+        "ignored": [],
+        "names": [
+          "required_removal_mutations"
+        ]
+      }
+    ],
+    "SC-38": [
+      {
+        "crate": "starfall-contracts",
+        "filter": "registry_responses",
+        "matched": 1,
+        "ok": 1,
+        "failed": [],
+        "ignored": [],
+        "names": [
+          "registry_responses"
+        ]
+      }
+    ],
+    "SC-39": [
+      {
+        "crate": "starfall-sim",
+        "filter": "mining::deposit_field_state_reveal",
+        "matched": 1,
+        "ok": 1,
+        "failed": [],
+        "ignored": [],
+        "names": [
+          "simulation::tests::mining::deposit_field_state_reveal_mixes_unconfirmed_and_revealed_and_stays_revealed_after_full_regen"
+        ]
+      }
+    ],
+    "SC-41": [
+      {
+        "crate": "starfall-history",
+        "filter": "first_extraction_discovers",
+        "matched": 1,
+        "ok": 1,
+        "failed": [],
+        "ignored": [],
+        "names": [
+          "first_extraction_discovers"
+        ]
+      }
+    ],
+    "SC-42": [
+      {
+        "crate": "starfall-history",
+        "filter": "second_extraction_is_silent",
+        "matched": 1,
+        "ok": 1,
+        "failed": [],
+        "ignored": [],
+        "names": [
+          "second_extraction_is_silent"
+        ]
+      }
+    ],
+    "SC-43": [
+      {
+        "crate": "starfall-history",
+        "filter": "other_mineral_discovers",
+        "matched": 1,
+        "ok": 1,
+        "failed": [],
+        "ignored": [],
+        "names": [
+          "other_mineral_discovers"
+        ]
+      }
+    ],
+    "SC-44": [
+      {
+        "crate": "starfall-history",
+        "filter": "same_tick_lower_sequence_wins",
+        "matched": 1,
+        "ok": 1,
+        "failed": [],
+        "ignored": [],
+        "names": [
+          "same_tick_lower_sequence_wins"
+        ]
+      }
+    ],
+    "SC-45": [
+      {
+        "crate": "starfall-history",
+        "filter": "reprocessing_is_idempotent",
+        "matched": 1,
+        "ok": 1,
+        "failed": [],
+        "ignored": [],
+        "names": [
+          "reprocessing_is_idempotent"
+        ]
+      }
+    ],
+    "SC-46": [
+      {
+        "crate": "starfall-history",
+        "filter": "batch_boundary_invariance",
+        "matched": 1,
+        "ok": 1,
+        "failed": [],
+        "ignored": [],
+        "names": [
+          "batch_boundary_invariance"
+        ]
+      }
+    ],
+    "SC-47": [
+      {
+        "crate": "starfall-persistence",
+        "filter": "history_runner_ordering_permutations",
+        "matched": 1,
+        "ok": 1,
+        "failed": [],
+        "ignored": [],
+        "names": [
+          "history_runner_ordering_permutations"
+        ]
+      }
+    ],
+    "SC-48": [
+      {
+        "crate": "starfall-history",
+        "filter": "out_of_order_input_rejected",
+        "matched": 1,
+        "ok": 1,
+        "failed": [],
+        "ignored": [],
+        "names": [
+          "out_of_order_input_rejected"
+        ]
+      }
+    ],
+    "SC-49": [
+      {
+        "crate": "starfall-history",
+        "filter": "level0_filter",
+        "matched": 1,
+        "ok": 1,
+        "failed": [],
+        "ignored": [],
+        "names": [
+          "level0_filter"
+        ]
+      }
+    ],
+    "SC-50": [
+      {
+        "crate": "starfall-history",
+        "filter": "rule_golden",
+        "matched": 2,
+        "ok": 2,
+        "failed": [],
+        "ignored": [],
+        "names": [
+          "golden::rule_golden_detects_value_change_without_version_bump",
+          "golden::rule_golden"
+        ]
+      }
+    ],
+    "SC-51": [
+      {
+        "crate": "starfall-persistence",
+        "filter": "history_first_discovery_rows",
+        "matched": 1,
+        "ok": 1,
+        "failed": [],
+        "ignored": [],
+        "names": [
+          "history_first_discovery_rows"
+        ]
+      }
+    ],
+    "SC-52": [
+      {
+        "crate": "starfall-persistence",
+        "filter": "history_tables_append_only",
+        "matched": 1,
+        "ok": 1,
+        "failed": [],
+        "ignored": [],
+        "names": [
+          "history_tables_append_only"
+        ]
+      }
+    ],
+    "SC-53": [
+      {
+        "crate": "starfall-persistence",
+        "filter": "history_dedupe_unique",
+        "matched": 1,
+        "ok": 1,
+        "failed": [],
+        "ignored": [],
+        "names": [
+          "history_dedupe_unique"
+        ]
+      }
+    ],
+    "SC-54": [
+      {
+        "crate": "starfall-persistence",
+        "filter": "history_crash_before_commit",
+        "matched": 1,
+        "ok": 1,
+        "failed": [],
+        "ignored": [],
+        "names": [
+          "history_crash_before_commit"
+        ]
+      }
+    ],
+    "SC-55": [
+      {
+        "crate": "starfall-persistence",
+        "filter": "history_fail_stop",
+        "matched": 1,
+        "ok": 1,
+        "failed": [],
+        "ignored": [],
+        "names": [
+          "history_fail_stop"
+        ]
+      }
+    ],
+    "SC-56": [
+      {
+        "crate": "starfall-persistence",
+        "filter": "history_watermark",
+        "matched": 1,
+        "ok": 1,
+        "failed": [],
+        "ignored": [],
+        "names": [
+          "history_watermark"
+        ]
+      }
+    ],
+    "SC-57": [
+      {
+        "crate": "starfall-persistence",
+        "filter": "history_restart_rebuild",
+        "matched": 1,
+        "ok": 1,
+        "failed": [],
+        "ignored": [],
+        "names": [
+          "history_restart_rebuild"
+        ]
+      }
+    ],
+    "SC-62": [
+      {
+        "crate": "starfall-persistence",
+        "filter": "history_notice_after_commit_only",
+        "matched": 1,
+        "ok": 1,
+        "failed": [],
+        "ignored": [],
+        "names": [
+          "history_notice_after_commit_only"
+        ]
+      }
+    ],
+    "SC-63": [
+      {
+        "crate": "starfall-gateway",
+        "filter": "notice_no_gap_same_tick",
+        "matched": 1,
+        "ok": 1,
+        "failed": [],
+        "ignored": [],
+        "names": [
+          "notice_no_gap_same_tick"
+        ]
+      }
+    ],
+    "SC-100": [
+      {
+        "crate": "starfall-sim",
+        "filter": "duplicate_command_id_across_different_sessions_is_rejected",
+        "matched": 1,
+        "ok": 1,
+        "failed": [],
+        "ignored": [],
+        "names": [
+          "simulation::tests::mining::duplicate_command_id_across_different_sessions_is_rejected"
+        ]
+      },
+      {
+        "crate": "starfall-persistence",
+        "filter": "dup_cross_actor_no_halt",
+        "matched": 1,
+        "ok": 1,
+        "failed": [],
+        "ignored": [],
+        "names": [
+          "dup_cross_actor_no_halt"
+        ]
+      }
+    ],
+    "SC-101": [
+      {
+        "crate": "starfall-persistence",
+        "filter": "payload_serialize_failure_fails_batch",
+        "matched": 1,
+        "ok": 1,
+        "failed": [],
+        "ignored": [],
+        "names": [
+          "payload_serialize_failure_fails_batch"
+        ]
+      }
+    ],
+    "SC-102": [
+      {
+        "crate": "starfall-persistence",
+        "filter": "no_commit_after_fatal",
+        "matched": 1,
+        "ok": 1,
+        "failed": [],
+        "ignored": [],
+        "names": [
+          "no_commit_after_fatal"
+        ]
+      }
+    ],
+    "SC-103": [
+      {
+        "crate": "starfall-persistence",
+        "filter": "admin_shutdown_is_transient",
+        "matched": 1,
+        "ok": 1,
+        "failed": [],
+        "ignored": [],
+        "names": [
+          "admin_shutdown_is_transient"
+        ]
+      }
+    ],
+    "SC-105": [
+      {
+        "crate": "starfall-persistence",
+        "filter": "history_conflict_halts_runner_only",
+        "matched": 1,
+        "ok": 1,
+        "failed": [],
+        "ignored": [],
+        "names": [
+          "history_conflict_halts_runner_only"
+        ]
+      }
+    ],
+    "SC-106": [
+      {
+        "crate": "starfall-persistence",
+        "filter": "history_redelivery_is_silent",
+        "matched": 1,
+        "ok": 1,
+        "failed": [],
+        "ignored": [],
+        "names": [
+          "history_redelivery_is_silent"
+        ]
+      }
+    ],
+    "SC-111": [
+      {
+        "crate": "starfall-persistence",
+        "filter": "history_same_source_different_content_halts",
+        "matched": 1,
+        "ok": 1,
+        "failed": [],
+        "ignored": [],
+        "names": [
+          "history_same_source_different_content_halts"
+        ]
+      }
+    ],
+    "SC-112": [
+      {
+        "crate": "starfall-persistence",
+        "filter": "terminated_backend_is_retried",
+        "matched": 1,
+        "ok": 1,
+        "failed": [],
+        "ignored": [],
+        "names": [
+          "terminated_backend_is_retried"
+        ]
+      }
+    ],
+    "SC-114": [
+      {
+        "crate": "starfall-testdb",
+        "filter": "refuses_non_test_database",
+        "matched": 1,
+        "ok": 1,
+        "failed": [],
+        "ignored": [],
+        "names": [
+          "tests::refuses_non_test_database"
+        ]
+      }
+    ]
+  },
+  "zero_match_filters": [
+    [
+      "SC-10",
+      "mining::reject_order_*"
+    ],
+    [
+      "SC-15",
+      "mining_tests::range_uses_pre_integration_state"
+    ],
+    [
+      "SC-17",
+      "mining::dup_across_reconnect"
+    ],
+    [
+      "SC-19",
+      "mining::dup_two_sessions_same_tick"
+    ],
+    [
+      "SC-22",
+      "mining::rejected_resend_*"
+    ],
+    [
+      "SC-28",
+      "recording_lag_boundary_*"
+    ]
+  ]
+}

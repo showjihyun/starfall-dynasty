@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "rule_id": "mineral-discovery",
+  "rule_version": "mineral-discovery@1",
+  "produces_event_type": "MINERAL_DISCOVERED",
+  "importance_level": 0,
+  "visibility": "PUBLIC",
+  "evidence": {
+    "evidence_type": "SHIP_LOG",
+    "visibility": "PARTICIPANTS_ONLY"
+  }
+}

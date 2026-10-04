@@ -515,11 +515,96 @@ def run(args: argparse.Namespace) -> int:
     return db.EXIT_OK if verdict == "PASS" else db.EXIT_FAIL
 
 
+# ---------------------------------------------------------------------------
+# p1-02 (계약 SC-97) — 계산부는 `iface_p1_02.py`, 판정 라벨은 여기(출처 게이트, 계약 §3.2)
+# ---------------------------------------------------------------------------
+
+def run_p1_02(args: argparse.Namespace) -> int:
+    import iface_p1_02 as P
+    res = P.compare()
+    empty_types = sorted(t for t in P.TYPES if res["rows_per_type"].get(t, 0) == 0)
+    ok = not res["mismatches"] and not empty_types and res["rows_total"] > 0
+    out = {
+        "item": "p1-02 SC-97 (AC-19b) 신규 10 타입 스키마·Rust·C# 필드별 표 — 불일치 0",
+        "verdict": "PASS" if ok else ("FAIL(분모 — 행이 없는 타입)" if empty_types else "FAIL"),
+        "types": res["types"], "rows_total": res["rows_total"], "rows_per_type": res["rows_per_type"],
+        "types_with_zero_rows": empty_types,
+        "required_nullable_rows": res["required_nullable_rows"],
+        "mismatches": len(res["mismatches"]), "mismatch_detail": res["mismatches"],
+        "rows": res["rows"],
+    }
+    db.emit(out, args.evidence)
+    if args.markdown:
+        lines = ["# p1-02 SC-97 경계면 비교표 (스키마 / Rust / C#)", "",
+                 f"- 판정: **{out['verdict']}** — 타입 {res['types']} · 행 {res['rows_total']} · "
+                 f"불일치 {len(res['mismatches'])} · required+nullable 행 {res['required_nullable_rows']}", "",
+                 "| 타입 | 필드 | req | null | 범위 | Rust | C# | 문제 |", "|---|---|---|---|---|---|---|---|"]
+        for r in res["rows"]:
+            rng = f"{r['minimum']}..{r['maximum']}" if r["minimum"] is not None else ""
+            lines.append(f"| {r['type']} | `{r['field']}` | {r['required']} | {r['nullable']} | {rng} | "
+                         f"`{r['rust']}`{' +dw' if r['rust_deserialize_with'] else ''} | {r['csharp']} | "
+                         f"{'; '.join(r['problems'])} |")
+        Path(args.markdown).write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return db.EXIT_OK if ok else db.EXIT_FAIL
+
+
+def selftest_p1_02() -> int:
+    """규칙 6 — 방어가 걸려야 할 입력에서 걸리는가. 실제 트리를 읽고 **변이를 주입**한다."""
+    import copy
+    import iface_p1_02 as P
+    real = P.rust_structs()
+    base = P.compare(structs=real)
+    cases = [("실제 트리: 10 타입 전부 행 > 0, 불일치 0",
+              base["types"] == 10 and all(v > 0 for v in base["rows_per_type"].values())
+              and len(base["rows_per_type"]) == 10 and not base["mismatches"])]
+
+    s1 = copy.deepcopy(real)
+    s1["DepositState"]["mineral_id"]["deserialize_with"] = False     # 빠진 키를 None 으로 받게 됨
+    r1 = P.compare(structs=s1)
+    cases.append(("변이: DepositState.mineral_id 의 deserialize_with 제거 → SC-37 불일치로 잡힌다",
+                  any(m["field"] == "payload.deposits[].mineral_id" for m in r1["mismatches"])))
+
+    s2 = copy.deepcopy(real)
+    del s2["InventoryItem"]["quantity_kg"]
+    r2 = P.compare(structs=s2)
+    cases.append(("변이: Rust InventoryItem.quantity_kg 삭제 → 잡힌다",
+                  any(m["field"] == "payload.items[].quantity_kg" for m in r2["mismatches"])))
+
+    def cs_drop(root):
+        c = P.cs_classes(root)
+        if "DepositState" in c:
+            c["DepositState"].pop("remaining_kg", None)
+        return c
+    r3 = P.compare(structs=real, cs_loader=cs_drop)
+    cases.append(("변이: C# DepositState.remaining_kg 삭제 → 잡힌다",
+                  any(m["field"] == "payload.deposits[].remaining_kg" for m in r3["mismatches"])))
+
+    s4 = copy.deepcopy(real)
+    s4["MineralMinedEvent"]["causation_id"]["type"] = "Option<UuidV7>"   # 좁힘 풀림
+    r4 = P.compare(structs=s4)
+    cases.append(("변이: MINERAL_MINED.causation_id 를 Option 으로 → 좁힘 위반으로 잡힌다",
+                  any(m["type"] == "MINERAL_MINED" and m["field"] == "causation_id" for m in r4["mismatches"])))
+
+    fails = 0
+    for name, ok in cases:
+        print(f"{'OK  ' if ok else 'FAIL'} [p1-02] {name}")
+        fails += 0 if ok else 1
+    print(f"selftest p1-02: {'PASS' if fails == 0 else f'FAIL ({fails})'}  케이스={len(cases)} "
+          f"(실제 행 {base['rows_total']}, required+nullable {base['required_nullable_rows']})")
+    return 0 if fails == 0 else 1
+
+
 def main() -> int:
-    ap = argparse.ArgumentParser(description="SC-83 경계면 3자 비교")
+    ap = argparse.ArgumentParser(description="경계면 3자 비교 (p1-01 SC-83 / p1-02 SC-97)")
+    ap.add_argument("mode", nargs="?", choices=["selftest"])
+    ap.add_argument("--slice", default="p1-01", choices=["p1-01", "p1-02"])
     ap.add_argument("--evidence")
     ap.add_argument("--markdown", help="사람이 읽는 표를 이 경로에 쓴다")
     args = ap.parse_args()
+    if args.mode == "selftest":
+        return selftest_p1_02() if args.slice == "p1-02" else 2
+    if args.slice == "p1-02":
+        return db.main_guard(lambda: run_p1_02(args))
     return db.main_guard(lambda: run(args))
 
 

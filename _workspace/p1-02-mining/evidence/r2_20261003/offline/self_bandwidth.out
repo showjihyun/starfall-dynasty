@@ -1,0 +1,28 @@
+{
+  "item": "bandwidth 자체 검증",
+  "verdict": "PASS",
+  "arithmetic_ok": true,
+  "sc71_controls": {
+    "gap_19pct": "PASS",
+    "gap_21pct": "FAIL",
+    "gap_exactly_20pct": "PASS",
+    "duration_zero": "미검증(표본 없음)",
+    "sessions_below_31": "미검증(표본 없음)",
+    "duration_below_60": "미검증(표본 없음)",
+    "zero_bot_bytes": "미검증(표본 없음)",
+    "zero_server_bytes": "미검증(표본 없음)",
+    "source_attribution_present": [
+      "bot_bytes",
+      "server_bytes",
+      "why_it_matters"
+    ]
+  },
+  "sc71_controls_ok": true,
+  "sc71_controls_meaning": "19 % PASS 와 21 % FAIL 이 같이 나와야 **20 % 가 판정 식에 실제로 들어갔다**는 뜻이다. 옛 코드에서 SC-71 은 식에 없었고 다른 세 항목의 초록불을 상속했다 — 그 상태에서는 어떤 gap 을 넣어도 verdict 가 같았다. 방어 (a)(b) 는 **아무것도 안 흐른 실행**과 **창이 못 미친 실행**이 PASS 를 못 받게 한다.",
+  "synthetic": "31세션 × 10 Hz × 10초 × 16,566 B",
+  "per_session_KiB_s": 161.78,
+  "adr_per_session_KiB_s": 161.8,
+  "total_Mbit_s": 41.08,
+  "adr_total_Mbit_s": 42.5,
+  "meaning": "ADR-0011 §2 의 산출을 같은 입력으로 재현한다 — 산수가 어긋나면 실측 해석도 어긋난다"
+}

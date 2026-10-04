@@ -1,0 +1,209 @@
+postgres-1  | 2026-09-30 12:28:14.865 UTC [30] LOG:  checkpoint starting: time
+postgres-1  | 2026-09-30 12:28:19.498 UTC [30] LOG:  checkpoint complete: wrote 46 buffers (0.3%), wrote 3 SLRU buffers; 0 WAL file(s) added, 0 removed, 0 recycled; write=4.614 s, sync=0.011 s, total=4.633 s; sync files=25, longest=0.002 s, average=0.001 s; distance=286 kB, estimate=286 kB; lsn=4/588DEF0, redo lsn=4/588DE98
+postgres-1  | 
+postgres-1  | PostgreSQL Database directory appears to contain a database; Skipping initialization
+postgres-1  | 
+postgres-1  | 2026-09-30 12:38:24.714 UTC [1] LOG:  starting PostgreSQL 18.6 (Debian 18.6-1.pgdg13+2) on x86_64-pc-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+postgres-1  | 2026-09-30 12:38:24.714 UTC [1] LOG:  listening on IPv4 address "0.0.0.0", port 5432
+postgres-1  | 2026-09-30 12:38:24.714 UTC [1] LOG:  listening on IPv6 address "::", port 5432
+postgres-1  | 2026-09-30 12:38:24.718 UTC [1] LOG:  listening on Unix socket "/var/run/postgresql/.s.PGSQL.5432"
+postgres-1  | 2026-09-30 12:38:24.725 UTC [32] LOG:  database system was interrupted; last known up at 2026-09-30 12:28:19 UTC
+postgres-1  | 2026-09-30 12:38:25.112 UTC [33] FATAL:  the database system is starting up
+postgres-1  | 2026-09-30 12:38:25.128 UTC [34] FATAL:  the database system is starting up
+postgres-1  | 2026-09-30 12:38:25.159 UTC [35] FATAL:  the database system is starting up
+postgres-1  | 2026-09-30 12:38:25.185 UTC [32] LOG:  database system was not properly shut down; automatic recovery in progress
+postgres-1  | 2026-09-30 12:38:25.188 UTC [32] LOG:  redo starts at 4/588DE98
+postgres-1  | 2026-09-30 12:38:25.193 UTC [32] LOG:  invalid record length at 4/58BAB48: expected at least 24, got 0
+postgres-1  | 2026-09-30 12:38:25.193 UTC [32] LOG:  redo done at 4/58BAB20 system usage: CPU: user: 0.00 s, system: 0.00 s, elapsed: 0.00 s
+postgres-1  | 2026-09-30 12:38:25.198 UTC [30] LOG:  checkpoint starting: end-of-recovery immediate wait
+postgres-1  | 2026-09-30 12:38:25.207 UTC [36] FATAL:  the database system is not yet accepting connections
+postgres-1  | 2026-09-30 12:38:25.207 UTC [36] DETAIL:  Consistent recovery state has not been yet reached.
+postgres-1  | 2026-09-30 12:38:25.207 UTC [37] FATAL:  the database system is not yet accepting connections
+postgres-1  | 2026-09-30 12:38:25.207 UTC [37] DETAIL:  Consistent recovery state has not been yet reached.
+postgres-1  | 2026-09-30 12:38:25.219 UTC [30] LOG:  checkpoint complete: wrote 28 buffers (0.2%), wrote 3 SLRU buffers; 0 WAL file(s) added, 0 removed, 0 recycled; write=0.005 s, sync=0.011 s, total=0.023 s; sync files=19, longest=0.003 s, average=0.001 s; distance=179 kB, estimate=179 kB; lsn=4/58BAB48, redo lsn=4/58BAB48
+postgres-1  | 2026-09-30 12:38:25.222 UTC [38] FATAL:  the database system is not yet accepting connections
+postgres-1  | 2026-09-30 12:38:25.222 UTC [38] DETAIL:  Consistent recovery state has not been yet reached.
+postgres-1  | 2026-09-30 12:38:25.222 UTC [1] LOG:  database system is ready to accept connections
+postgres-1  | 2026-09-30 12:39:44.201 UTC [30] LOG:  checkpoint starting: immediate force wait
+postgres-1  | 2026-09-30 12:39:44.249 UTC [30] LOG:  checkpoint complete: wrote 989 buffers (6.0%), wrote 1 SLRU buffers; 0 WAL file(s) added, 0 removed, 1 recycled; write=0.026 s, sync=0.010 s, total=0.048 s; sync files=16, longest=0.003 s, average=0.001 s; distance=9732 kB, estimate=9732 kB; lsn=4/623C310, redo lsn=4/623BDB0
+postgres-1  | 2026-09-30 12:39:44.250 UTC [30] LOG:  checkpoint starting: immediate force wait
+postgres-1  | 2026-09-30 12:39:44.261 UTC [30] LOG:  checkpoint complete: wrote 1 buffers (0.0%), wrote 0 SLRU buffers; 0 WAL file(s) added, 0 removed, 0 recycled; write=0.001 s, sync=0.002 s, total=0.012 s; sync files=1, longest=0.002 s, average=0.002 s; distance=1 kB, estimate=8759 kB; lsn=4/623C3E8, redo lsn=4/623C388
+postgres-1  | 2026-09-30 12:40:03.977 UTC [248] ERROR:  test
+postgres-1  | 2026-09-30 12:40:03.977 UTC [248] CONTEXT:  PL/pgSQL function inline_code_block line 1 at RAISE
+postgres-1  | 2026-09-30 12:40:03.977 UTC [248] STATEMENT:  DO $$ BEGIN RAISE EXCEPTION USING ERRCODE = '08006', MESSAGE = 'test'; END $$;
+postgres-1  | 2026-09-30 12:40:03.979 UTC [249] ERROR:  test
+postgres-1  | 2026-09-30 12:40:03.979 UTC [249] CONTEXT:  PL/pgSQL function inline_code_block line 1 at RAISE
+postgres-1  | 2026-09-30 12:40:03.979 UTC [249] STATEMENT:  DO $$ BEGIN RAISE EXCEPTION USING ERRCODE = '40001', MESSAGE = 'test'; END $$;
+postgres-1  | 2026-09-30 12:40:03.980 UTC [248] ERROR:  test
+postgres-1  | 2026-09-30 12:40:03.980 UTC [248] CONTEXT:  PL/pgSQL function inline_code_block line 1 at RAISE
+postgres-1  | 2026-09-30 12:40:03.980 UTC [248] STATEMENT:  DO $$ BEGIN RAISE EXCEPTION USING ERRCODE = '40P01', MESSAGE = 'test'; END $$;
+postgres-1  | 2026-09-30 12:40:03.982 UTC [249] ERROR:  test
+postgres-1  | 2026-09-30 12:40:03.982 UTC [249] CONTEXT:  PL/pgSQL function inline_code_block line 1 at RAISE
+postgres-1  | 2026-09-30 12:40:03.982 UTC [249] STATEMENT:  DO $$ BEGIN RAISE EXCEPTION USING ERRCODE = '53300', MESSAGE = 'test'; END $$;
+postgres-1  | 2026-09-30 12:40:03.984 UTC [248] ERROR:  test
+postgres-1  | 2026-09-30 12:40:03.984 UTC [248] CONTEXT:  PL/pgSQL function inline_code_block line 1 at RAISE
+postgres-1  | 2026-09-30 12:40:03.984 UTC [248] STATEMENT:  DO $$ BEGIN RAISE EXCEPTION USING ERRCODE = '57P01', MESSAGE = 'test'; END $$;
+postgres-1  | 2026-09-30 12:40:03.985 UTC [249] ERROR:  test
+postgres-1  | 2026-09-30 12:40:03.985 UTC [249] CONTEXT:  PL/pgSQL function inline_code_block line 1 at RAISE
+postgres-1  | 2026-09-30 12:40:03.985 UTC [249] STATEMENT:  DO $$ BEGIN RAISE EXCEPTION USING ERRCODE = '57P02', MESSAGE = 'test'; END $$;
+postgres-1  | 2026-09-30 12:40:03.987 UTC [248] ERROR:  test
+postgres-1  | 2026-09-30 12:40:03.987 UTC [248] CONTEXT:  PL/pgSQL function inline_code_block line 1 at RAISE
+postgres-1  | 2026-09-30 12:40:03.987 UTC [248] STATEMENT:  DO $$ BEGIN RAISE EXCEPTION USING ERRCODE = '57P03', MESSAGE = 'test'; END $$;
+postgres-1  | 2026-09-30 12:40:03.988 UTC [249] ERROR:  test
+postgres-1  | 2026-09-30 12:40:03.988 UTC [249] CONTEXT:  PL/pgSQL function inline_code_block line 1 at RAISE
+postgres-1  | 2026-09-30 12:40:03.988 UTC [249] STATEMENT:  DO $$ BEGIN RAISE EXCEPTION USING ERRCODE = '23505', MESSAGE = 'test'; END $$;
+postgres-1  | 2026-09-30 12:40:03.990 UTC [248] ERROR:  test
+postgres-1  | 2026-09-30 12:40:03.990 UTC [248] CONTEXT:  PL/pgSQL function inline_code_block line 1 at RAISE
+postgres-1  | 2026-09-30 12:40:03.990 UTC [248] STATEMENT:  DO $$ BEGIN RAISE EXCEPTION USING ERRCODE = '22001', MESSAGE = 'test'; END $$;
+postgres-1  | 2026-09-30 12:40:03.992 UTC [249] ERROR:  test
+postgres-1  | 2026-09-30 12:40:03.992 UTC [249] CONTEXT:  PL/pgSQL function inline_code_block line 1 at RAISE
+postgres-1  | 2026-09-30 12:40:03.992 UTC [249] STATEMENT:  DO $$ BEGIN RAISE EXCEPTION USING ERRCODE = '42601', MESSAGE = 'test'; END $$;
+postgres-1  | 2026-09-30 12:40:04.024 UTC [30] LOG:  checkpoint starting: immediate force wait
+postgres-1  | 2026-09-30 12:40:04.039 UTC [30] LOG:  checkpoint complete: wrote 4 buffers (0.0%), wrote 1 SLRU buffers; 0 WAL file(s) added, 0 removed, 0 recycled; write=0.003 s, sync=0.004 s, total=0.016 s; sync files=5, longest=0.003 s, average=0.001 s; distance=4714 kB, estimate=8355 kB; lsn=4/66D6E98, redo lsn=4/66D6E40
+postgres-1  | 2026-09-30 12:40:04.632 UTC [30] LOG:  checkpoint starting: immediate force wait
+postgres-1  | 2026-09-30 12:40:04.649 UTC [30] LOG:  checkpoint complete: wrote 4 buffers (0.0%), wrote 1 SLRU buffers; 0 WAL file(s) added, 0 removed, 0 recycled; write=0.003 s, sync=0.004 s, total=0.017 s; sync files=5, longest=0.002 s, average=0.001 s; distance=4714 kB, estimate=7990 kB; lsn=4/6B71A00, redo lsn=4/6B719A8
+postgres-1  | 2026-09-30 12:40:04.943 UTC [30] LOG:  checkpoint starting: immediate force wait
+postgres-1  | 2026-09-30 12:40:04.960 UTC [30] LOG:  checkpoint complete: wrote 3 buffers (0.0%), wrote 1 SLRU buffers; 0 WAL file(s) added, 0 removed, 1 recycled; write=0.003 s, sync=0.004 s, total=0.018 s; sync files=4, longest=0.003 s, average=0.001 s; distance=4709 kB, estimate=7662 kB; lsn=4/700AFD8, redo lsn=4/700AF80
+postgres-1  | 2026-09-30 12:40:05.198 UTC [263] ERROR:  duplicate key value violates unique constraint "processed_commands_pkey"
+postgres-1  | 2026-09-30 12:40:05.198 UTC [263] DETAIL:  Key (world_id, command_id)=(01a0e7f3-7869-7105-9103-717c87929da8, 01a0b1c2-9c01-7d11-8e21-3f3140516171) already exists.
+postgres-1  | 2026-09-30 12:40:05.198 UTC [263] STATEMENT:  INSERT INTO processed_commands (world_id, command_id, actor_id, command_type, tick)
+postgres-1  | 	                 VALUES ($1, $2, $3, $4, $5)
+postgres-1  | 2026-09-30 12:40:05.232 UTC [30] LOG:  checkpoint starting: immediate force wait
+postgres-1  | 2026-09-30 12:40:05.246 UTC [30] LOG:  checkpoint complete: wrote 3 buffers (0.0%), wrote 1 SLRU buffers; 0 WAL file(s) added, 0 removed, 0 recycled; write=0.003 s, sync=0.003 s, total=0.015 s; sync files=4, longest=0.002 s, average=0.001 s; distance=4709 kB, estimate=7367 kB; lsn=4/74A4438, redo lsn=4/74A43E0
+postgres-1  | 2026-09-30 12:40:05.493 UTC [30] LOG:  checkpoint starting: immediate force wait
+postgres-1  | 2026-09-30 12:40:05.508 UTC [30] LOG:  checkpoint complete: wrote 4 buffers (0.0%), wrote 1 SLRU buffers; 0 WAL file(s) added, 0 removed, 0 recycled; write=0.003 s, sync=0.004 s, total=0.016 s; sync files=5, longest=0.002 s, average=0.001 s; distance=4715 kB, estimate=7102 kB; lsn=4/793F0F8, redo lsn=4/793F0A0
+postgres-1  | 2026-09-30 12:40:05.772 UTC [30] LOG:  checkpoint starting: immediate force wait
+postgres-1  | 2026-09-30 12:40:05.786 UTC [30] LOG:  checkpoint complete: wrote 3 buffers (0.0%), wrote 1 SLRU buffers; 0 WAL file(s) added, 0 removed, 0 recycled; write=0.003 s, sync=0.004 s, total=0.015 s; sync files=4, longest=0.002 s, average=0.001 s; distance=4709 kB, estimate=6862 kB; lsn=4/7DD8768, redo lsn=4/7DD8710
+postgres-1  | 2026-09-30 12:40:06.000 UTC [286] ERROR:  duplicate key value violates unique constraint "processed_commands_pkey"
+postgres-1  | 2026-09-30 12:40:06.000 UTC [286] DETAIL:  Key (world_id, command_id)=(01a0e7f3-7869-7105-9103-717c87929da8, 01a0b1c2-9c01-7d11-8e21-3f3140516171) already exists.
+postgres-1  | 2026-09-30 12:40:06.000 UTC [286] STATEMENT:  INSERT INTO processed_commands (world_id, command_id, actor_id, command_type, tick)
+postgres-1  | 	                 VALUES ($1, $2, $3, $4, $5)
+postgres-1  | 2026-09-30 12:40:06.040 UTC [30] LOG:  checkpoint starting: immediate force wait
+postgres-1  | 2026-09-30 12:40:06.056 UTC [30] LOG:  checkpoint complete: wrote 3 buffers (0.0%), wrote 1 SLRU buffers; 0 WAL file(s) added, 0 removed, 1 recycled; write=0.003 s, sync=0.004 s, total=0.017 s; sync files=4, longest=0.002 s, average=0.001 s; distance=4709 kB, estimate=6647 kB; lsn=4/8271EA8, redo lsn=4/8271E50
+postgres-1  | 2026-09-30 12:40:06.367 UTC [30] LOG:  checkpoint starting: immediate force wait
+postgres-1  | 2026-09-30 12:40:06.385 UTC [30] LOG:  checkpoint complete: wrote 3 buffers (0.0%), wrote 1 SLRU buffers; 0 WAL file(s) added, 0 removed, 0 recycled; write=0.004 s, sync=0.004 s, total=0.018 s; sync files=4, longest=0.003 s, average=0.001 s; distance=4710 kB, estimate=6453 kB; lsn=4/870B7F8, redo lsn=4/870B7A0
+postgres-1  | 2026-09-30 12:40:06.619 UTC [30] LOG:  checkpoint starting: immediate force wait
+postgres-1  | 2026-09-30 12:40:06.633 UTC [30] LOG:  checkpoint complete: wrote 4 buffers (0.0%), wrote 1 SLRU buffers; 0 WAL file(s) added, 0 removed, 0 recycled; write=0.003 s, sync=0.003 s, total=0.014 s; sync files=5, longest=0.002 s, average=0.001 s; distance=4711 kB, estimate=6279 kB; lsn=4/8BA5798, redo lsn=4/8BA5740
+postgres-1  | 2026-09-30 12:40:06.878 UTC [30] LOG:  checkpoint starting: immediate force wait
+postgres-1  | 2026-09-30 12:40:06.894 UTC [30] LOG:  checkpoint complete: wrote 3 buffers (0.0%), wrote 1 SLRU buffers; 0 WAL file(s) added, 0 removed, 1 recycled; write=0.004 s, sync=0.003 s, total=0.016 s; sync files=4, longest=0.002 s, average=0.001 s; distance=4709 kB, estimate=6122 kB; lsn=4/903ED78, redo lsn=4/903ED20
+postgres-1  | 2026-09-30 12:40:07.137 UTC [30] LOG:  checkpoint starting: immediate force wait
+postgres-1  | 2026-09-30 12:40:07.151 UTC [30] LOG:  checkpoint complete: wrote 3 buffers (0.0%), wrote 1 SLRU buffers; 0 WAL file(s) added, 0 removed, 0 recycled; write=0.003 s, sync=0.004 s, total=0.014 s; sync files=4, longest=0.002 s, average=0.001 s; distance=4709 kB, estimate=5981 kB; lsn=4/94D8448, redo lsn=4/94D83F0
+postgres-1  | 2026-09-30 12:40:07.902 UTC [312] FATAL:  terminating connection due to administrator command
+postgres-1  | 2026-09-30 12:40:08.004 UTC [30] LOG:  checkpoint starting: immediate force wait
+postgres-1  | 2026-09-30 12:40:08.018 UTC [30] LOG:  checkpoint complete: wrote 4 buffers (0.0%), wrote 1 SLRU buffers; 0 WAL file(s) added, 0 removed, 0 recycled; write=0.003 s, sync=0.004 s, total=0.015 s; sync files=5, longest=0.003 s, average=0.001 s; distance=4715 kB, estimate=5854 kB; lsn=4/99731E0, redo lsn=4/9973188
+postgres-1  | 2026-09-30 12:40:08.245 UTC [316] FATAL:  terminating connection due to administrator command
+postgres-1  | 2026-09-30 12:40:08.347 UTC [30] LOG:  checkpoint starting: immediate force wait
+postgres-1  | 2026-09-30 12:40:08.363 UTC [30] LOG:  checkpoint complete: wrote 3 buffers (0.0%), wrote 1 SLRU buffers; 0 WAL file(s) added, 0 removed, 0 recycled; write=0.003 s, sync=0.004 s, total=0.016 s; sync files=4, longest=0.002 s, average=0.001 s; distance=4707 kB, estimate=5740 kB; lsn=4/9E0BF78, redo lsn=4/9E0BF20
+postgres-1  | 2026-09-30 12:40:08.588 UTC [321] FATAL:  terminating connection due to administrator command
+postgres-1  | 2026-09-30 12:40:08.690 UTC [30] LOG:  checkpoint starting: immediate force wait
+postgres-1  | 2026-09-30 12:40:08.707 UTC [30] LOG:  checkpoint complete: wrote 4 buffers (0.0%), wrote 2 SLRU buffers; 0 WAL file(s) added, 0 removed, 1 recycled; write=0.004 s, sync=0.004 s, total=0.017 s; sync files=5, longest=0.002 s, average=0.001 s; distance=4713 kB, estimate=5637 kB; lsn=4/A2A6408, redo lsn=4/A2A63B0
+postgres-1  | 2026-09-30 12:40:08.959 UTC [30] LOG:  checkpoint starting: immediate force wait
+postgres-1  | 2026-09-30 12:40:08.973 UTC [30] LOG:  checkpoint complete: wrote 3 buffers (0.0%), wrote 1 SLRU buffers; 0 WAL file(s) added, 0 removed, 0 recycled; write=0.003 s, sync=0.004 s, total=0.015 s; sync files=4, longest=0.002 s, average=0.001 s; distance=4712 kB, estimate=5544 kB; lsn=4/A740410, redo lsn=4/A7403B8
+postgres-1  | 2026-09-30 12:40:09.163 UTC [332] ERROR:  new row for relation "domain_events" violates check constraint "domain_events_payload_is_object"
+postgres-1  | 2026-09-30 12:40:09.163 UTC [332] DETAIL:  Failing row contains (01a0b1c2-a001-7e01-8f11-505162738495, SESSION_OPENED, 1, 01a0e7f3-7869-7105-9103-717c87929da8, 0, 0, 3800-01-01T00:00:00Z, 2026-09-30 12:40:09.163669+00, 01a0b1c2-2c01-7a45-8b67-89abcdef0123, null, 01a0b1c2-2c01-7a45-8b67-89abcdef0123, null).
+postgres-1  | 2026-09-30 12:40:09.163 UTC [332] STATEMENT:  INSERT INTO domain_events (
+postgres-1  | 	             event_id, event_type, schema_version, world_id, tick, sequence,
+postgres-1  | 	             occurred_at, recorded_at, correlation_id, causation_id, actor_id, payload
+postgres-1  | 	         ) VALUES ($1, 'SESSION_OPENED', 1, $2, 0, 0, '3800-01-01T00:00:00Z', now(), $3, NULL, $3, 'null'::jsonb)
+postgres-1  | 2026-09-30 12:40:09.195 UTC [30] LOG:  checkpoint starting: immediate force wait
+postgres-1  | 2026-09-30 12:40:09.209 UTC [30] LOG:  checkpoint complete: wrote 3 buffers (0.0%), wrote 1 SLRU buffers; 0 WAL file(s) added, 0 removed, 0 recycled; write=0.003 s, sync=0.003 s, total=0.014 s; sync files=4, longest=0.002 s, average=0.001 s; distance=4709 kB, estimate=5461 kB; lsn=4/ABD9870, redo lsn=4/ABD9818
+postgres-1  | 2026-09-30 12:40:09.433 UTC [30] LOG:  checkpoint starting: immediate force wait
+postgres-1  | 2026-09-30 12:40:09.450 UTC [30] LOG:  checkpoint complete: wrote 4 buffers (0.0%), wrote 1 SLRU buffers; 0 WAL file(s) added, 0 removed, 1 recycled; write=0.003 s, sync=0.004 s, total=0.018 s; sync files=5, longest=0.003 s, average=0.001 s; distance=4714 kB, estimate=5386 kB; lsn=4/B0741B8, redo lsn=4/B074160
+postgres-1  | 2026-09-30 12:40:09.681 UTC [30] LOG:  checkpoint starting: immediate force wait
+postgres-1  | 2026-09-30 12:40:09.697 UTC [30] LOG:  checkpoint complete: wrote 3 buffers (0.0%), wrote 1 SLRU buffers; 0 WAL file(s) added, 0 removed, 0 recycled; write=0.004 s, sync=0.004 s, total=0.016 s; sync files=4, longest=0.002 s, average=0.001 s; distance=4708 kB, estimate=5318 kB; lsn=4/B50D468, redo lsn=4/B50D410
+postgres-1  | 2026-09-30 12:40:09.892 UTC [347] FATAL:  terminating connection due to administrator command
+postgres-1  | 2026-09-30 12:40:10.438 UTC [346] FATAL:  terminating connection due to administrator command
+postgres-1  | 2026-09-30 12:40:10.485 UTC [30] LOG:  checkpoint starting: immediate force wait
+postgres-1  | 2026-09-30 12:40:10.499 UTC [30] LOG:  checkpoint complete: wrote 4 buffers (0.0%), wrote 1 SLRU buffers; 0 WAL file(s) added, 0 removed, 0 recycled; write=0.004 s, sync=0.004 s, total=0.015 s; sync files=5, longest=0.002 s, average=0.001 s; distance=4718 kB, estimate=5258 kB; lsn=4/B9A8EF8, redo lsn=4/B9A8EA0
+postgres-1  | 2026-09-30 12:40:11.171 UTC [404] ERROR:  duplicate key value violates unique constraint "historical_events_world_id_event_type_dedupe_key_key"
+postgres-1  | 2026-09-30 12:40:11.171 UTC [404] DETAIL:  Key (world_id, event_type, dedupe_key)=(01a0e7f3-7869-7105-9103-00009811405e, MINERAL_DISCOVERED, cradle/starfall-glass) already exists.
+postgres-1  | 2026-09-30 12:40:11.171 UTC [404] STATEMENT:  INSERT INTO historical_events (
+postgres-1  | 	             historical_event_id, world_id, event_type, dedupe_key, rule_version,
+postgres-1  | 	             importance_level, tick, occurred_at, recorded_at, visibility, fact_status,
+postgres-1  | 	             source_event_ids, location, participants, payload
+postgres-1  | 	         ) SELECT gen_random_uuid(), world_id, event_type, dedupe_key, rule_version,
+postgres-1  | 	                  importance_level, tick, occurred_at, now(), visibility, fact_status,
+postgres-1  | 	                  source_event_ids, location, participants, payload
+postgres-1  | 	           FROM historical_events LIMIT 1
+postgres-1  | 2026-09-30 12:40:11.173 UTC [30] LOG:  checkpoint starting: immediate force wait
+postgres-1  | 2026-09-30 12:40:11.187 UTC [396] FATAL:  terminating connection due to administrator command
+postgres-1  | 2026-09-30 12:40:11.300 UTC [30] LOG:  checkpoint complete: wrote 3713 buffers (22.7%), wrote 1 SLRU buffers; 0 WAL file(s) added, 0 removed, 4 recycled; write=0.083 s, sync=0.022 s, total=0.128 s; sync files=38, longest=0.005 s, average=0.001 s; distance=56496 kB, estimate=56496 kB; lsn=4/F0D9798, redo lsn=4/F0D5028
+postgres-1  | 2026-09-30 12:40:11.302 UTC [30] LOG:  checkpoint starting: immediate force wait
+postgres-1  | 2026-09-30 12:40:11.316 UTC [30] LOG:  checkpoint complete: wrote 1 buffers (0.0%), wrote 1 SLRU buffers; 0 WAL file(s) added, 0 removed, 0 recycled; write=0.002 s, sync=0.003 s, total=0.015 s; sync files=2, longest=0.003 s, average=0.002 s; distance=17 kB, estimate=50848 kB; lsn=4/F0D9898, redo lsn=4/F0D9810
+postgres-1  | 2026-09-30 12:40:11.599 UTC [433] ERROR:  duplicate key value violates unique constraint "evidence_pkey"
+postgres-1  | 2026-09-30 12:40:11.599 UTC [433] DETAIL:  Key (evidence_id)=(a47cfd84-1919-5145-971d-2ed8d55c3d0c) already exists.
+postgres-1  | 2026-09-30 12:40:11.599 UTC [433] STATEMENT:  INSERT INTO evidence (evidence_id, historical_event_id, rule_version, evidence_type, visibility, source_entity_id)
+postgres-1  | 	         VALUES ($1, $2, $3, $4, $5, $6)
+postgres-1  | 2026-09-30 12:40:11.617 UTC [431] ERROR:  history table historical_events is append-only (UPDATE blocked). 정정은 새 레코드로 한다.
+postgres-1  | 2026-09-30 12:40:11.617 UTC [431] CONTEXT:  PL/pgSQL function forbid_history_mutation() line 3 at RAISE
+postgres-1  | 2026-09-30 12:40:11.617 UTC [431] STATEMENT:  UPDATE historical_events SET importance_level = 5
+postgres-1  | 2026-09-30 12:40:11.618 UTC [428] ERROR:  history table historical_events is append-only (DELETE blocked). 정정은 새 레코드로 한다.
+postgres-1  | 2026-09-30 12:40:11.618 UTC [428] CONTEXT:  PL/pgSQL function forbid_history_mutation() line 3 at RAISE
+postgres-1  | 2026-09-30 12:40:11.618 UTC [428] STATEMENT:  DELETE FROM historical_events
+postgres-1  | 2026-09-30 12:40:11.620 UTC [431] ERROR:  history table historical_event_sources is append-only (UPDATE blocked). 정정은 새 레코드로 한다.
+postgres-1  | 2026-09-30 12:40:11.620 UTC [431] CONTEXT:  PL/pgSQL function forbid_history_mutation() line 3 at RAISE
+postgres-1  | 2026-09-30 12:40:11.620 UTC [431] STATEMENT:  UPDATE historical_event_sources SET detector_rule = 'x'
+postgres-1  | 2026-09-30 12:40:11.622 UTC [428] ERROR:  history table historical_event_sources is append-only (DELETE blocked). 정정은 새 레코드로 한다.
+postgres-1  | 2026-09-30 12:40:11.622 UTC [428] CONTEXT:  PL/pgSQL function forbid_history_mutation() line 3 at RAISE
+postgres-1  | 2026-09-30 12:40:11.622 UTC [428] STATEMENT:  DELETE FROM historical_event_sources
+postgres-1  | 2026-09-30 12:40:11.624 UTC [431] ERROR:  history table evidence is append-only (UPDATE blocked). 정정은 새 레코드로 한다.
+postgres-1  | 2026-09-30 12:40:11.624 UTC [431] CONTEXT:  PL/pgSQL function forbid_history_mutation() line 3 at RAISE
+postgres-1  | 2026-09-30 12:40:11.624 UTC [431] STATEMENT:  UPDATE evidence SET evidence_type = 'x'
+postgres-1  | 2026-09-30 12:40:11.626 UTC [428] ERROR:  history table evidence is append-only (DELETE blocked). 정정은 새 레코드로 한다.
+postgres-1  | 2026-09-30 12:40:11.626 UTC [428] CONTEXT:  PL/pgSQL function forbid_history_mutation() line 3 at RAISE
+postgres-1  | 2026-09-30 12:40:11.626 UTC [428] STATEMENT:  DELETE FROM evidence
+postgres-1  | 2026-09-30 12:40:11.658 UTC [433] FATAL:  terminating connection due to administrator command
+postgres-1  | 2026-09-30 12:40:11.663 UTC [30] LOG:  checkpoint starting: immediate force wait
+postgres-1  | 2026-09-30 12:40:11.881 UTC [30] LOG:  checkpoint complete: wrote 1999 buffers (12.2%), wrote 1 SLRU buffers; 0 WAL file(s) added, 0 removed, 1 recycled; write=0.034 s, sync=0.171 s, total=0.218 s; sync files=420, longest=0.004 s, average=0.001 s; distance=18850 kB, estimate=47648 kB; lsn=4/10343DF8, redo lsn=4/10342138
+postgres-1  | 2026-09-30 12:40:11.881 UTC [30] LOG:  checkpoint starting: immediate force wait
+postgres-1  | 2026-09-30 12:40:11.892 UTC [30] LOG:  checkpoint complete: wrote 1 buffers (0.0%), wrote 0 SLRU buffers; 0 WAL file(s) added, 0 removed, 0 recycled; write=0.001 s, sync=0.002 s, total=0.011 s; sync files=1, longest=0.002 s, average=0.002 s; distance=7 kB, estimate=42884 kB; lsn=4/10343ED0, redo lsn=4/10343E70
+postgres-1  | 2026-09-30 12:40:12.161 UTC [30] LOG:  checkpoint starting: immediate force wait
+postgres-1  | 2026-09-30 12:40:12.176 UTC [30] LOG:  checkpoint complete: wrote 3 buffers (0.0%), wrote 1 SLRU buffers; 0 WAL file(s) added, 0 removed, 0 recycled; write=0.003 s, sync=0.003 s, total=0.015 s; sync files=4, longest=0.002 s, average=0.001 s; distance=4724 kB, estimate=39068 kB; lsn=4/107E12B0, redo lsn=4/107E1258
+postgres-1  | 2026-09-30 12:40:12.433 UTC [30] LOG:  checkpoint starting: immediate force wait
+postgres-1  | 2026-09-30 12:40:12.449 UTC [30] LOG:  checkpoint complete: wrote 4 buffers (0.0%), wrote 1 SLRU buffers; 0 WAL file(s) added, 0 removed, 0 recycled; write=0.004 s, sync=0.004 s, total=0.016 s; sync files=5, longest=0.002 s, average=0.001 s; distance=4731 kB, estimate=35634 kB; lsn=4/10C7FF30, redo lsn=4/10C7FED8
+postgres-1  | 2026-09-30 12:40:12.714 UTC [30] LOG:  checkpoint starting: immediate force wait
+postgres-1  | 2026-09-30 12:40:12.733 UTC [30] LOG:  checkpoint complete: wrote 3 buffers (0.0%), wrote 1 SLRU buffers; 0 WAL file(s) added, 0 removed, 1 recycled; write=0.003 s, sync=0.003 s, total=0.019 s; sync files=4, longest=0.002 s, average=0.001 s; distance=4725 kB, estimate=32543 kB; lsn=4/1111D3E8, redo lsn=4/1111D390
+postgres-1  | 2026-09-30 12:40:13.030 UTC [30] LOG:  checkpoint starting: immediate force wait
+postgres-1  | 2026-09-30 12:40:13.046 UTC [30] LOG:  checkpoint complete: wrote 3 buffers (0.0%), wrote 1 SLRU buffers; 0 WAL file(s) added, 0 removed, 0 recycled; write=0.003 s, sync=0.004 s, total=0.017 s; sync files=4, longest=0.002 s, average=0.001 s; distance=4725 kB, estimate=29762 kB; lsn=4/115BAA18, redo lsn=4/115BA9C0
+postgres-1  | 2026-09-30 12:40:13.312 UTC [30] LOG:  checkpoint starting: immediate force wait
+postgres-1  | 2026-09-30 12:40:13.327 UTC [30] LOG:  checkpoint complete: wrote 3 buffers (0.0%), wrote 1 SLRU buffers; 0 WAL file(s) added, 0 removed, 0 recycled; write=0.003 s, sync=0.004 s, total=0.015 s; sync files=4, longest=0.002 s, average=0.001 s; distance=4719 kB, estimate=27257 kB; lsn=4/11A56830, redo lsn=4/11A567D8
+postgres-1  | 2026-09-30 12:40:13.588 UTC [30] LOG:  checkpoint starting: immediate force wait
+postgres-1  | 2026-09-30 12:40:13.607 UTC [30] LOG:  checkpoint complete: wrote 4 buffers (0.0%), wrote 1 SLRU buffers; 0 WAL file(s) added, 0 removed, 0 recycled; write=0.003 s, sync=0.006 s, total=0.020 s; sync files=5, longest=0.002 s, average=0.002 s; distance=4726 kB, estimate=25004 kB; lsn=4/11EF40A0, redo lsn=4/11EF4048
+postgres-1  | 2026-09-30 12:40:13.889 UTC [30] LOG:  checkpoint starting: immediate force wait
+postgres-1  | 2026-09-30 12:40:13.906 UTC [30] LOG:  checkpoint complete: wrote 3 buffers (0.0%), wrote 1 SLRU buffers; 0 WAL file(s) added, 0 removed, 1 recycled; write=0.003 s, sync=0.004 s, total=0.018 s; sync files=4, longest=0.002 s, average=0.001 s; distance=4720 kB, estimate=22976 kB; lsn=4/123900B0, redo lsn=4/12390058
+postgres-1  | 2026-09-30 12:40:14.171 UTC [30] LOG:  checkpoint starting: immediate force wait
+postgres-1  | 2026-09-30 12:40:14.185 UTC [30] LOG:  checkpoint complete: wrote 3 buffers (0.0%), wrote 1 SLRU buffers; 0 WAL file(s) added, 0 removed, 0 recycled; write=0.003 s, sync=0.003 s, total=0.015 s; sync files=4, longest=0.002 s, average=0.001 s; distance=4720 kB, estimate=21150 kB; lsn=4/1282C1B0, redo lsn=4/1282C158
+postgres-1  | 2026-09-30 12:40:14.478 UTC [30] LOG:  checkpoint starting: immediate force wait
+postgres-1  | 2026-09-30 12:40:14.493 UTC [30] LOG:  checkpoint complete: wrote 4 buffers (0.0%), wrote 1 SLRU buffers; 0 WAL file(s) added, 0 removed, 0 recycled; write=0.003 s, sync=0.004 s, total=0.016 s; sync files=5, longest=0.002 s, average=0.001 s; distance=4726 kB, estimate=19508 kB; lsn=4/12CC9D58, redo lsn=4/12CC9D00
+postgres-1  | 2026-09-30 12:40:14.767 UTC [30] LOG:  checkpoint starting: immediate force wait
+postgres-1  | 2026-09-30 12:40:14.783 UTC [30] LOG:  checkpoint complete: wrote 3 buffers (0.0%), wrote 1 SLRU buffers; 0 WAL file(s) added, 0 removed, 1 recycled; write=0.003 s, sync=0.003 s, total=0.016 s; sync files=4, longest=0.002 s, average=0.001 s; distance=4720 kB, estimate=18029 kB; lsn=4/13166068, redo lsn=4/13165FF8
+postgres-1  | 2026-09-30 12:40:15.049 UTC [30] LOG:  checkpoint starting: immediate force wait
+postgres-1  | 2026-09-30 12:40:15.062 UTC [30] LOG:  checkpoint complete: wrote 3 buffers (0.0%), wrote 1 SLRU buffers; 0 WAL file(s) added, 0 removed, 0 recycled; write=0.003 s, sync=0.003 s, total=0.014 s; sync files=4, longest=0.002 s, average=0.001 s; distance=4720 kB, estimate=16698 kB; lsn=4/13602438, redo lsn=4/136023E0
+postgres-1  | 2026-09-30 12:40:15.332 UTC [30] LOG:  checkpoint starting: immediate force wait
+postgres-1  | 2026-09-30 12:40:15.347 UTC [30] LOG:  checkpoint complete: wrote 3 buffers (0.0%), wrote 1 SLRU buffers; 0 WAL file(s) added, 0 removed, 0 recycled; write=0.003 s, sync=0.004 s, total=0.015 s; sync files=4, longest=0.002 s, average=0.001 s; distance=4721 kB, estimate=15500 kB; lsn=4/13A9E908, redo lsn=4/13A9E8B0
+postgres-1  | 2026-09-30 12:40:15.631 UTC [30] LOG:  checkpoint starting: immediate force wait
+postgres-1  | 2026-09-30 12:40:15.646 UTC [30] LOG:  checkpoint complete: wrote 4 buffers (0.0%), wrote 1 SLRU buffers; 0 WAL file(s) added, 0 removed, 0 recycled; write=0.004 s, sync=0.004 s, total=0.015 s; sync files=5, longest=0.002 s, average=0.001 s; distance=4728 kB, estimate=14423 kB; lsn=4/13F3C918, redo lsn=4/13F3C8C0
+postgres-1  | 2026-09-30 12:40:15.969 UTC [30] LOG:  checkpoint starting: immediate force wait
+postgres-1  | 2026-09-30 12:40:15.988 UTC [30] LOG:  checkpoint complete: wrote 3 buffers (0.0%), wrote 1 SLRU buffers; 0 WAL file(s) added, 0 removed, 1 recycled; write=0.005 s, sync=0.003 s, total=0.019 s; sync files=4, longest=0.002 s, average=0.001 s; distance=4721 kB, estimate=13453 kB; lsn=4/143D8FE0, redo lsn=4/143D8F88
+postgres-1  | 2026-09-30 12:40:16.307 UTC [30] LOG:  checkpoint starting: immediate force wait
+postgres-1  | 2026-09-30 12:40:16.321 UTC [30] LOG:  checkpoint complete: wrote 3 buffers (0.0%), wrote 1 SLRU buffers; 0 WAL file(s) added, 0 removed, 0 recycled; write=0.004 s, sync=0.003 s, total=0.015 s; sync files=4, longest=0.002 s, average=0.001 s; distance=4721 kB, estimate=12580 kB; lsn=4/14875780, redo lsn=4/14875728
+postgres-1  | 2026-09-30 12:40:16.602 UTC [30] LOG:  checkpoint starting: immediate force wait
+postgres-1  | 2026-09-30 12:40:16.622 UTC [30] LOG:  checkpoint complete: wrote 4 buffers (0.0%), wrote 1 SLRU buffers; 0 WAL file(s) added, 0 removed, 0 recycled; write=0.006 s, sync=0.005 s, total=0.020 s; sync files=5, longest=0.002 s, average=0.001 s; distance=4728 kB, estimate=11795 kB; lsn=4/14D13AF8, redo lsn=4/14D13AA0
+postgres-1  | 2026-09-30 12:40:16.945 UTC [30] LOG:  checkpoint starting: immediate force wait
+postgres-1  | 2026-09-30 12:40:16.962 UTC [30] LOG:  checkpoint complete: wrote 3 buffers (0.0%), wrote 1 SLRU buffers; 0 WAL file(s) added, 0 removed, 1 recycled; write=0.003 s, sync=0.003 s, total=0.018 s; sync files=4, longest=0.002 s, average=0.001 s; distance=4722 kB, estimate=11087 kB; lsn=4/151B04A8, redo lsn=4/151B0450
+postgres-1  | 2026-09-30 12:40:17.332 UTC [30] LOG:  checkpoint starting: immediate force wait
+postgres-1  | 2026-09-30 12:40:17.349 UTC [30] LOG:  checkpoint complete: wrote 3 buffers (0.0%), wrote 1 SLRU buffers; 0 WAL file(s) added, 0 removed, 0 recycled; write=0.003 s, sync=0.004 s, total=0.017 s; sync files=4, longest=0.002 s, average=0.001 s; distance=4722 kB, estimate=10451 kB; lsn=4/1564CF30, redo lsn=4/1564CED8
+postgres-1  | 2026-09-30 12:40:17.728 UTC [30] LOG:  checkpoint starting: immediate force wait
+postgres-1  | 2026-09-30 12:40:17.745 UTC [30] LOG:  checkpoint complete: wrote 4 buffers (0.0%), wrote 1 SLRU buffers; 0 WAL file(s) added, 0 removed, 0 recycled; write=0.004 s, sync=0.004 s, total=0.017 s; sync files=5, longest=0.002 s, average=0.001 s; distance=4729 kB, estimate=9879 kB; lsn=4/15AEB5F0, redo lsn=4/15AEB598
+postgres-1  | 2026-09-30 12:40:18.063 UTC [30] LOG:  checkpoint starting: immediate force wait
+postgres-1  | 2026-09-30 12:40:18.078 UTC [30] LOG:  checkpoint complete: wrote 3 buffers (0.0%), wrote 1 SLRU buffers; 0 WAL file(s) added, 0 removed, 0 recycled; write=0.003 s, sync=0.004 s, total=0.016 s; sync files=4, longest=0.002 s, average=0.001 s; distance=4723 kB, estimate=9363 kB; lsn=4/15F88278, redo lsn=4/15F88220
+postgres-1  | 2026-09-30 12:40:18.358 UTC [30] LOG:  checkpoint starting: immediate force wait
+postgres-1  | 2026-09-30 12:40:18.375 UTC [30] LOG:  checkpoint complete: wrote 3 buffers (0.0%), wrote 1 SLRU buffers; 0 WAL file(s) added, 0 removed, 1 recycled; write=0.004 s, sync=0.003 s, total=0.017 s; sync files=4, longest=0.002 s, average=0.001 s; distance=4723 kB, estimate=8899 kB; lsn=4/16424FE0, redo lsn=4/16424F88
+postgres-1  | 2026-09-30 12:40:18.679 UTC [30] LOG:  checkpoint starting: immediate force wait
+postgres-1  | 2026-09-30 12:40:18.694 UTC [30] LOG:  checkpoint complete: wrote 4 buffers (0.0%), wrote 1 SLRU buffers; 0 WAL file(s) added, 0 removed, 0 recycled; write=0.003 s, sync=0.004 s, total=0.016 s; sync files=5, longest=0.002 s, average=0.001 s; distance=4730 kB, estimate=8482 kB; lsn=4/168C3A10, redo lsn=4/168C39B8
+postgres-1  | 2026-09-30 12:40:18.982 UTC [429] FATAL:  terminating connection due to administrator command
+postgres-1  | 2026-09-30 12:40:19.084 UTC [30] LOG:  checkpoint starting: immediate force wait
+postgres-1  | 2026-09-30 12:40:19.098 UTC [30] LOG:  checkpoint complete: wrote 1 buffers (0.0%), wrote 1 SLRU buffers; 0 WAL file(s) added, 0 removed, 0 recycled; write=0.004 s, sync=0.003 s, total=0.015 s; sync files=2, longest=0.002 s, average=0.002 s; distance=4 kB, estimate=7634 kB; lsn=4/168C4C98, redo lsn=4/168C4C40
+postgres-1  | 2026-09-30 12:40:19.517 UTC [560] FATAL:  terminating connection due to administrator command
+postgres-1  | 2026-09-30 12:40:19.619 UTC [30] LOG:  checkpoint starting: immediate force wait
+postgres-1  | 2026-09-30 12:40:19.635 UTC [30] LOG:  checkpoint complete: wrote 4 buffers (0.0%), wrote 1 SLRU buffers; 0 WAL file(s) added, 0 removed, 0 recycled; write=0.003 s, sync=0.004 s, total=0.016 s; sync files=5, longest=0.002 s, average=0.001 s; distance=4723 kB, estimate=7343 kB; lsn=4/16D619F8, redo lsn=4/16D619A0

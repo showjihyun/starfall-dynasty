@@ -1,0 +1,52 @@
+{
+  "got_backfill": 64,
+  "got_live": 36,
+  "got_more_than_once": 0,
+  "got_neither": 0,
+  "item": "[verdict] p1-02 SC-63 기록 커밋과 세션 열림이 겹치게 만든 반복에서 LIVE·BACKFILL 을 둘 다 못 받은 세션 0 (notice_open_overlap_ticks_total 델타 ≥ 1 선행 단언)",
+  "overlap_ticks_delta": 1,
+  "rounds": [
+    {
+      "got_backfill": 16,
+      "got_live": 9,
+      "got_more_than_once": 0,
+      "got_neither": 0,
+      "miner_arrived": true,
+      "mineral": "ferrosite",
+      "openers": 25,
+      "ready": 25
+    },
+    {
+      "got_backfill": 16,
+      "got_live": 9,
+      "got_more_than_once": 0,
+      "got_neither": 0,
+      "miner_arrived": true,
+      "mineral": "glacine",
+      "openers": 25,
+      "ready": 25
+    },
+    {
+      "got_backfill": 16,
+      "got_live": 9,
+      "got_more_than_once": 0,
+      "got_neither": 0,
+      "miner_arrived": true,
+      "mineral": "cobaltine",
+      "openers": 25,
+      "ready": 25
+    },
+    {
+      "got_backfill": 16,
+      "got_live": 9,
+      "got_more_than_once": 0,
+      "got_neither": 0,
+      "miner_arrived": true,
+      "mineral": "starfall-glass",
+      "openers": 25,
+      "ready": 25
+    }
+  ],
+  "sessions_ready": 100,
+  "verdict": "PASS"
+}

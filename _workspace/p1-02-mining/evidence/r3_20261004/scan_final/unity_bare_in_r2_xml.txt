@@ -1,0 +1,9 @@
+source: r2 editmode-r2.xml (client ¼Ò½º´Â r2 ÀÌÈÄ sha ºÒº¯)
+UnknownClosedValue_	cases=5	not_passed=0
+InventoryPanel_ChangesOnlyOnInventoryState	cases=1	not_passed=0
+DiscoveryFeed_DedupesByHistoricalEventId	cases=0	not_passed=0
+PilotLabel_LastFourChars	cases=1	not_passed=0
+DiscoveryList_KeysByActorIdNotLabel	cases=1	not_passed=0
+DepositTableEntry_HasNoServerOnlyFields	cases=1	not_passed=0
+DepositMarker_FollowsMessageNotDataCopy	cases=0	not_passed=0
+PlayMode r2 playmode-r2.xml: DiscoveryFeed_DedupesByHistoricalEventId cases=1 not_passed=0 ; DepositMarker_FollowsMessageNotDataCopy cases=1 not_passed=0 (failure/skipped/error ìš”ì†Œ 0)

@@ -1,0 +1,93 @@
+{
+  "item": "p1-02 SC-07 (AC-19c2) 읽히지 않는 데이터 파일 0 — 파일마다 읽는 코드 × 게이트",
+  "verdict": "PASS",
+  "files_denominator": 10,
+  "paired": 10,
+  "unpaired": [],
+  "loaded_lines": 10,
+  "loaded_but_not_a_data_file": [],
+  "cargo_log_given": true,
+  "rows": [
+    {
+      "file": "history/rules/mineral-discovery.json",
+      "read_by_server_log": true,
+      "schema_gate": true,
+      "derived_gate_pattern": "*rule_golden*",
+      "derived_gate_passed": true,
+      "paired": true
+    },
+    {
+      "file": "minerals/cobaltine.json",
+      "read_by_server_log": true,
+      "schema_gate": true,
+      "derived_gate_pattern": "*data::*reject_c*",
+      "derived_gate_passed": true,
+      "paired": true
+    },
+    {
+      "file": "minerals/ferrosite.json",
+      "read_by_server_log": true,
+      "schema_gate": true,
+      "derived_gate_pattern": "*data::*reject_c*",
+      "derived_gate_passed": true,
+      "paired": true
+    },
+    {
+      "file": "minerals/glacine.json",
+      "read_by_server_log": true,
+      "schema_gate": true,
+      "derived_gate_pattern": "*data::*reject_c*",
+      "derived_gate_passed": true,
+      "paired": true
+    },
+    {
+      "file": "minerals/starfall-glass.json",
+      "read_by_server_log": true,
+      "schema_gate": true,
+      "derived_gate_pattern": "*data::*reject_c*",
+      "derived_gate_passed": true,
+      "paired": true
+    },
+    {
+      "file": "mining/mining-rules.json",
+      "read_by_server_log": true,
+      "schema_gate": true,
+      "derived_gate_pattern": "*data::*reject_c*",
+      "derived_gate_passed": true,
+      "paired": true
+    },
+    {
+      "file": "movement/sync-tuning.json",
+      "read_by_server_log": true,
+      "schema_gate": true,
+      "derived_gate_pattern": "*data::*",
+      "derived_gate_passed": true,
+      "paired": true
+    },
+    {
+      "file": "ships/scout-s01.json",
+      "read_by_server_log": true,
+      "schema_gate": true,
+      "derived_gate_pattern": "*data::*",
+      "derived_gate_passed": true,
+      "paired": true
+    },
+    {
+      "file": "world/deposits/cradle.json",
+      "read_by_server_log": true,
+      "schema_gate": true,
+      "derived_gate_pattern": "*data::*reject_c*",
+      "derived_gate_passed": true,
+      "paired": true
+    },
+    {
+      "file": "world/systems/cradle.json",
+      "read_by_server_log": true,
+      "schema_gate": true,
+      "derived_gate_pattern": "*data::*",
+      "derived_gate_passed": true,
+      "paired": true
+    }
+  ],
+  "ok": true
+}

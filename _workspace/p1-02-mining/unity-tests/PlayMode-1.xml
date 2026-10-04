@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites name="Starfall Dynasty" tests="2" failures="1" errors="0" skipped="0" time="0.118">
+  <testsuite name="Starfall.Tests.PlayMode.GreyboxMiningSessionPlayModeTests" tests="2" failures="1" errors="0" skipped="0" time="0.118">
+    <testcase name="DepositMarker_FollowsMessageNotDataCopy" classname="Starfall.Tests.PlayMode.GreyboxMiningSessionPlayModeTests" time="0.101">
+      <failure message="the marker must show the MESSAGE's mineral (starfall-glass, from revealed-and-depleted.json)&#13;&#10;  Expected: String containing &quot;starfall-glass&quot;&#13;&#10;  But was:  &quot;Far Reach (far-reach) - Starfall Glass 잔량 475 kg&quot;" type="Failed">at Starfall.Tests.PlayMode.GreyboxMiningSessionPlayModeTests.DepositMarker_FollowsMessageNotDataCopy () [0x001b2] in C:\WorkSpace\SpaceHistoric\client\Assets\_Project\Tests\PlayMode\GreyboxMiningSessionPlayModeTests.cs:159</failure>
+      <system-out>far-reach after all-unrevealed: Far Reach (far-reach) - 미확인
+far-reach after revealed-and-depleted: Far Reach (far-reach) - Starfall Glass 잔량 475 kg</system-out>
+    </testcase>
+    <testcase name="DiscoveryFeed_DedupesByHistoricalEventId" classname="Starfall.Tests.PlayMode.GreyboxMiningSessionPlayModeTests" time="0.017">
+      <system-out>starfall.mining: DISCOVERY Starfall Glass 발견! Pilot-0123 (far-reach)
+discovered after LIVE + BACKFILL(same id) = 1
+Saving results to: C:/Users/CHOISOOYEON/AppData/LocalLow/Starfall/Starfall Dynasty\TestResults.xml</system-out>
+    </testcase>
+  </testsuite>
+</testsuites>

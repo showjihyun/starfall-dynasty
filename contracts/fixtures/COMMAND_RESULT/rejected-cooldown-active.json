@@ -1,0 +1,12 @@
+{
+  "message_id": "01a0b1c2-6c32-7113-9224-3b4c5d6e7f80",
+  "message_type": "COMMAND_RESULT",
+  "schema_version": 1,
+  "tick": 1240,
+  "correlation_id": "01a0b1c2-4a12-7c01-8d02-1e033f044a05",
+  "payload": {
+    "command_id": "01a0b1c2-9c02-7d12-9e22-4f4150617181",
+    "status": "REJECTED",
+    "reason_code": "COOLDOWN_ACTIVE"
+  }
+}

@@ -156,6 +156,30 @@ def contract_named_cases(contract_text: str, known: set[str]) -> dict[str, set[i
     return out
 
 
+PROBE_CASE_ARG = re.compile(r"--case\s+([a-z][a-z0-9]*(?:-[a-z0-9]+)*)")
+
+
+def contract_probe_case_tokens(contract_text: str) -> dict[str, set[int]]:
+    """계약 §1 행의 백틱 span 안 **`--case <이름>`** 토큰 전부 — `known` 으로 거르기 **전**.
+
+    `contract_named_cases()` 는 `as_str()` 에 있는 이름만 돌려주므로 그 결과로는 "계약이 적었는데
+    소스에 없는 케이스"(유령 지명)를 원리적으로 볼 수 없다. 그 검사는 이 함수의 결과로 한다.
+    """
+    out: dict[str, set[int]] = {}
+    section = None
+    for line in contract_text.splitlines():
+        if line.startswith("## "):
+            section = line[3:].strip()
+        m = CONTRACT_ROW.match(line.strip())
+        if not m or not (section and section.startswith("1.")):
+            continue
+        n = int(m.group(1))
+        for span in re.findall(r"`([^`]+)`", line):
+            for tok in PROBE_CASE_ARG.findall(span):
+                out.setdefault(tok, set()).add(n)
+    return out
+
+
 def identities(scenario_src: str, main_src: str, all_rs: dict[str, str] | None = None) -> dict:
     """**판정 전에** 보는 두 항등식 (Q-3).
 

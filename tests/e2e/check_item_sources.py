@@ -31,9 +31,11 @@
 것은 *남의 번호*이지 *문서화 누락*이 아니고, 엄하게 걸면 사람이 검사를 끄게 된다.
 
     python tests/e2e/check_item_sources.py --contract <02_*.md> [--tools-dir tests/e2e]
+    python tests/e2e/check_item_sources.py --contract <02_*.md> --slice p1-02   # 슬라이스 표지 (p1-02 계약 §3.3)
     python tests/e2e/check_item_sources.py --selftest
 
-종료 코드: 0 통과 / **1 출처 위반**(남의 번호로 verdict) / **3 미지명만** / 2 사용법 오류
+종료 코드: 0 통과 / **1 출처 위반**(남의 번호로 verdict, 유령 지명) / **3 미지명만** / 2 사용법 오류 /
+**4 판정 불가**(항등식 깨짐, 분류 불가 팔, **알 수 없는 슬라이스 표지**)
 """
 
 from __future__ import annotations
@@ -92,6 +94,23 @@ EXIT_UNNAMED_ONLY = 3
 EXIT_UNDECIDABLE = 4
 # 기본 실행이 제외를 적을 때 같이 찍는 수. **이 수가 출력에 있어야 만기가 지났는지·
 # 늘었는지가 그 자리에서 읽힌다**(architect R23). `--include-rust` 실행으로 갱신한다.
+# ── 슬라이스 표지 (p1-02 계약 §3.3, architect Q-1 승인 2026-09-27) ──────────────────────
+# 슬라이스마다 SC 번호가 처음부터 다시 매겨진다. 표지 없이 한 계약으로 모든 도구를 대조하면
+# **p1-01 도구 12개의 라벨 33건이 p1-02 계약에서 "남의 번호" 가 된다**(qa 실측). 그래서 p1-02 부터
+# verdict 라벨은 `p1-02 SC-nn` 으로 시작하고, **표지 없는 라벨은 p1-01 라벨로 읽는다**(소급 없음).
+KNOWN_SLICES = ("p1-01", "p1-02")
+LEGACY_SLICE = "p1-01"
+# 라벨 **첫머리**의 `p…` 토큰 + 공백 + `SC-숫자`. 알려진 목록에 없는 토큰(`p1-2`)도 여기서 잡힌다 —
+# **그래야 오타 표지가 조용히 "다른 슬라이스" 로 빠지지 않는다**(architect 조건: 모르는 표지 = exit 4).
+SLICE_TAG = re.compile(r"^\s*(p[\w.-]*)\s+(?=SC-\d)")
+
+
+def label_slice(label: str) -> str:
+    """라벨이 속한 슬라이스. 표지가 없으면 p1-01. 알려지지 않은 표지는 그 표지 그대로 돌려준다."""
+    m = SLICE_TAG.match(label)
+    return m.group(1) if m else LEGACY_SLICE
+
+
 def expand(text: str) -> set[int]:
     """문자열 안의 SC 번호를 범위까지 펼쳐 모은다."""
     out: set[int] = set()
@@ -145,7 +164,7 @@ def emitted(tool_path: Path) -> set[int]:
     return out
 
 
-def rust_check(contract_text: str, all_rs: dict) -> dict:
+def rust_check(contract_text: str, all_rs: dict, slice_: str = LEGACY_SLICE) -> dict:
     """Rust 팔을 **케이스 이름**으로 계약 §1 에 잇는다 (architect R28 Q-2·Q-4·Q-5).
 
     **`PY_NAME` 경로를 타지 않는다** — 그것은 `.py` 만 잡으므로 `.rs` 는 원리적으로 지명될 수
@@ -172,18 +191,31 @@ def rust_check(contract_text: str, all_rs: dict) -> dict:
     # 가 출력에서 갈리지 않는다.
     unnamed_verdict_arms = []   # (케이스, [SC…]) — 계약 §1 에 그 케이스 이름이 없다
     violations = []             # (케이스, SC) — 이름은 있는데 그 번호를 안 줬다
+    other_slice_arms = []       # 다른 슬라이스 표지의 verdict 팔 — 세고 판정에서 뺀다
+    unknown_slice_arms = []     # (케이스, 리터럴) — 알려지지 않은 표지 → exit 4
     for a in arms:
         if a["kind"] != "verdict":
             continue
         case = names.get(a["variant"]) or a["variant"]
+        sl = label_slice(a["literals"][0]) if a["literals"] else LEGACY_SLICE
+        if sl not in KNOWN_SLICES:
+            unknown_slice_arms.append((case, a["literals"][0]))
+            continue
+        if sl != slice_:
+            other_slice_arms.append(case)
+            continue
         if case not in named:
             unnamed_verdict_arms.append((case, a["sc"]))
             continue
         for n in a["sc"]:
             if n not in named[case]:
                 violations.append((case, n))
-    # Q-5 유령 지명: 계약이 백틱으로 적은 케이스 이름이 `as_str()` 에 없으면 위반
-    ghosts = sorted(set(named) - set(names.values()))
+    # Q-5 유령 지명: 계약이 `--case <이름>` 으로 적은 케이스가 `as_str()` 에 없으면 위반.
+    # **옛 식 `set(named) - set(names.values())` 는 늘 공집합이었다** — `named` 가 이미 `known`
+    # (= `as_str()` 이름)으로 걸러진 뒤였기 때문이다(검출기 사망형, p1-02 계약 §3.3 ⑤ — qa 가 자기
+    # 도구에 규칙 3 을 돌려 찾았다). 걸러지기 **전** 토큰을 받아야 한다. 백틱 안 아무 소문자 토큰이
+    # 아니라 `--case` 뒤 토큰만 센다 — `cargo`·`grep` 같은 단어가 유령으로 잡히지 않게.
+    ghosts = sorted(set(RCR.contract_probe_case_tokens(contract_text)) - set(names.values()))
     return {
         "identities": ids,
         "arms_total": len(arms),
@@ -201,6 +233,9 @@ def rust_check(contract_text: str, all_rs: dict) -> dict:
         "contract_named_cases": {k: sorted(v) for k, v in sorted(named.items())},
         "violations": sorted(violations),
         "ghost_named_cases": ghosts,
+        "slice": slice_,
+        "other_slice_arms": sorted(other_slice_arms),
+        "unknown_slice_arms": sorted(unknown_slice_arms),
     }
 
 
@@ -215,7 +250,9 @@ def rust_exit_code(res: dict) -> int:
     if (not res["identities"]["ok"] or res["unclassifiable_arms"]
             or res["unqualified_arms"]
             # Q-9: 명시가 팔 수보다 적으면 **게이트가 무엇으로 판정했는지 모르는 상태**다.
-            or res["explicit_arms"] < res["arms_total"]):
+            or res["explicit_arms"] < res["arms_total"]
+            # 알려지지 않은 슬라이스 표지 — 어느 계약으로 판정할지 모른다(architect Q-1 조건).
+            or res.get("unknown_slice_arms")):
         return EXIT_UNDECIDABLE
     if res["violations"] or res["ghost_named_cases"] or res["unnamed_verdict_arms"]:
         return EXIT_SOURCE_VIOLATION
@@ -272,15 +309,25 @@ def coverage(contract_text: str) -> tuple[set[int], set[int], set[int]]:
 
 
 def check(contract_text: str, tools: dict[str, str],
-          refused: list[str] | None = None) -> list[tuple[str, int]]:
+          refused: list[str] | None = None, slice_: str = LEGACY_SLICE,
+          tally: dict | None = None) -> list[tuple[str, int]]:
     """(도구, 남의 번호) 목록. 빈 목록이 통과다.
 
     `.rs` 는 **이 경로로 판정하지 않는다** — `refused` 에 이름만 담고 건너뛴다(R28 Q-2).
+
+    **`slice_` 가 아닌 슬라이스의 라벨은 판정하지 않고 `tally` 에 센다.** 세지 않고 빼면
+    "볼 게 없었다" 와 "통과했다" 가 같은 출력이 된다. 알려지지 않은 표지는 `tally["unknown"]` 에
+    (도구, 라벨) 로 담는다 — 호출자가 exit 4 로 만든다.
     """
     allowed = contract_allowed(contract_text)
     bad: list[tuple[str, int]] = []
     if refused is None:
         refused = []
+    if tally is None:
+        tally = {}
+    tally.setdefault("judged", 0)
+    tally.setdefault("other", 0)
+    tally.setdefault("unknown", [])
     for name, source in sorted(tools.items()):
         used: set[int] = set()
         if name.endswith(".rs"):
@@ -291,7 +338,18 @@ def check(contract_text: str, tools: dict[str, str],
             refused.append(name)
             continue
         for a, b in ITEM_LABEL.findall(source):
-            used |= expand(a or b)
+            label = a or b
+            if not SC_NUM.search(label):
+                continue            # SC 번호 없는 라벨은 아무것도 주장하지 않는다
+            sl = label_slice(label)
+            if sl not in KNOWN_SLICES:
+                tally["unknown"].append((name, label))
+                continue
+            if sl != slice_:
+                tally["other"] += 1
+                continue
+            tally["judged"] += 1
+            used |= expand(label)
         for n in sorted(used - allowed.get(name, set())):
             bad.append((name, n))
     return bad
@@ -576,9 +634,94 @@ def selftest() -> int:
         if not ok:
             failures += 1
     failures += rust_selftest()
-    total = len(cases) + len(cov_cases) + len(code_cases) + 14
-    print(f"selftest: {'PASS' if failures == 0 else f'FAIL ({failures})'}  케이스={total} (출처 {len(cases)} + 분모 {len(cov_cases)} + 종료코드 {len(code_cases)} + Rust 14)")
+    slice_fail, slice_n = slice_selftest()
+    failures += slice_fail
+    total = len(cases) + len(cov_cases) + len(code_cases) + 14 + slice_n
+    print(f"selftest: {'PASS' if failures == 0 else f'FAIL ({failures})'}  케이스={total} (출처 {len(cases)} + 분모 {len(cov_cases)} + 종료코드 {len(code_cases)} + Rust 14 + 슬라이스·유령 {slice_n})")
     return 0 if failures == 0 else 1
+
+
+def slice_selftest() -> tuple[int, int]:
+    """**p1-02 계약 §3.3 4 의 대조 ①~⑤ + ⑤' 유령 지명.** 규칙 6 — 방어가 걸려야 할 입력에서
+    실제로 걸리고, 걸리지 말아야 할 입력에서 안 걸리는가.
+
+    **고치기 전 게이트에서 ①·③ 은 위반으로, ⑥ 은 0 으로 나왔다** — ①·③ 은 표지 개념이 없어
+    모든 라벨을 한 계약으로 대조했고(p1-02 계약 초안 실측: p1-01 라벨 33 건 위반), ⑥ 의 유령 검사는
+    `known` 으로 거른 뒤의 집합에서 빼기를 해 늘 공집합이었다.
+    """
+    S1 = "## 1. 검증 항목" + NL
+    row = lambda n, cell: "| SC-%d | 무엇 | %s | qa | AC-x | E6 |%s" % (n, cell, NL)
+    contract = S1 + row(11, "`x_tool.py`") + row(74, "`bots probe --case cheat-mine-inject`")
+    cases = []
+
+    # ① p1-02 모드에서 표지 없는 라벨(= p1-01) → 위반 아님, 제외 1
+    t: dict = {}
+    got = check(contract, {"x_tool.py": '"item": "SC-11 옛 라벨"', "y.py": '"item": "SC-40 옛 라벨"'},
+                slice_="p1-02", tally=t)
+    cases.append(("① --slice p1-02: 표지 없는 라벨은 판정하지 않고 센다",
+                  got == [] and t["other"] == 2 and t["judged"] == 0, "bad=%s tally=%s" % (got, t)))
+    # ② p1-02 모드에서 계약에 없는 번호 → 위반
+    t = {}
+    got = check(contract, {"x_tool.py": '"item": "p1-02 SC-999 없는 번호"'}, slice_="p1-02", tally=t)
+    cases.append(("② --slice p1-02: `p1-02 SC-999` 는 위반",
+                  got == [("x_tool.py", 999)] and t["judged"] == 1, "bad=%s tally=%s" % (got, t)))
+    # ②' 음성 대조 — 지명된 번호면 통과(②가 "표지만 있으면 늘 위반" 이 아님)
+    t = {}
+    got = check(contract, {"x_tool.py": '"item": "p1-02 SC-11 지명된 번호"'}, slice_="p1-02", tally=t)
+    cases.append(("②' --slice p1-02: 지명된 `p1-02 SC-11` 은 통과", got == [] and t["judged"] == 1,
+                  "bad=%s tally=%s" % (got, t)))
+    # ③ p1-01 모드에서 p1-02 라벨 → 제외
+    t = {}
+    got = check(contract, {"z.py": '"item": "p1-02 SC-11 새 라벨"'}, tally=t)
+    cases.append(("③ p1-01 모드: `p1-02 SC-11` 은 판정하지 않고 센다",
+                  got == [] and t["other"] == 1, "bad=%s tally=%s" % (got, t)))
+    # ⑤(py) 알 수 없는 표지 → tally.unknown
+    t = {}
+    got = check(contract, {"x_tool.py": '"item": "p1-2 SC-11 오타 표지"'}, slice_="p1-02", tally=t)
+    cases.append(("⑤ 오타 표지 `p1-2` 는 다른 슬라이스로 빠지지 않고 unknown 으로",
+                  t["unknown"] == [("x_tool.py", "p1-2 SC-11 오타 표지")] and t["other"] == 0,
+                  "tally=%s" % t))
+
+    # ④ Rust: 지명된 케이스인데 번호가 다르면 위반
+    src = _rs([("CheatMineInject", 'ContractRef::Verdict("p1-02 SC-73 주입")')],
+              names=[("CheatMineInject", "cheat-mine-inject")])
+    res = rust_check(contract, {"scenario.rs": src, "main.rs": ""}, slice_="p1-02")
+    cases.append(("④ Rust --slice p1-02: 케이스는 지명됐지만 번호가 다르면 위반",
+                  res["violations"] == [("cheat-mine-inject", 73)]
+                  and rust_exit_code(res) == EXIT_SOURCE_VIOLATION, str(res["violations"])))
+    # ④' 같은 팔이 p1-01 모드에서는 제외(다른 슬라이스)
+    res = rust_check(contract, {"scenario.rs": src, "main.rs": ""})
+    cases.append(("④' Rust p1-01 모드: p1-02 팔은 제외 — 미지명·위반 0",
+                  res["other_slice_arms"] == ["cheat-mine-inject"] and res["violations"] == []
+                  and res["unnamed_verdict_arms"] == [], str(res["other_slice_arms"])))
+    # ⑤(rs) 알 수 없는 표지 → exit 4
+    src = _rs([("CheatMineInject", 'ContractRef::Verdict("p1-2 SC-74 오타")')],
+              names=[("CheatMineInject", "cheat-mine-inject")])
+    res = rust_check(contract, {"scenario.rs": src, "main.rs": ""}, slice_="p1-02")
+    cases.append(("⑤ Rust 오타 표지 → exit 4", rust_exit_code(res) == EXIT_UNDECIDABLE
+                  and res["unknown_slice_arms"] == [("cheat-mine-inject", "p1-2 SC-74 오타")],
+                  str(res["unknown_slice_arms"])))
+    # ⑥ 유령 지명 — 계약이 `--case ghost-case` 를 적었는데 as_str() 에 없다 → 위반
+    src = _rs([("CheatMineInject", 'ContractRef::Verdict("p1-02 SC-74 주입")')],
+              names=[("CheatMineInject", "cheat-mine-inject")])
+    res = rust_check(contract + row(80, "`bots probe --case ghost-case`"),
+                     {"scenario.rs": src, "main.rs": ""}, slice_="p1-02")
+    cases.append(("⑥ 유령 지명 `ghost-case` 를 잡는다(옛 식은 늘 0)",
+                  res["ghost_named_cases"] == ["ghost-case"]
+                  and rust_exit_code(res) == EXIT_SOURCE_VIOLATION, str(res["ghost_named_cases"])))
+    # ⑥' 음성 대조 — 있는 케이스만 적으면 유령 0, 그리고 백틱 안 `cargo` 같은 단어는 유령이 아니다
+    res = rust_check(contract + row(81, "`cargo test -p starfall-sim`"),
+                     {"scenario.rs": src, "main.rs": ""}, slice_="p1-02")
+    cases.append(("⑥' 있는 케이스·`--case` 없는 백틱 단어는 유령이 아니다",
+                  res["ghost_named_cases"] == [] and rust_exit_code(res) == 0,
+                  "ghosts=%s code=%s" % (res["ghost_named_cases"], rust_exit_code(res))))
+
+    failures = 0
+    for name, ok, detail in cases:
+        print("%s [슬라이스] %s%s" % ("OK  " if ok else "FAIL", name, "" if ok else " :: " + detail))
+        if not ok:
+            failures += 1
+    return failures, len(cases)
 
 
 def main() -> int:
@@ -591,6 +734,9 @@ def main() -> int:
                     help="Rust 판정을 끈다. 끄면 항등식도 안 찍힌다 — 그 사실이 출력에 남는다")
     ap.add_argument("--include-rust", action="store_true",
                     help="tools/bots/src 의 Rust 라벨도 훑는다(규칙 8 만기 항목, 기본 꺼짐)")
+    ap.add_argument("--slice", default=LEGACY_SLICE, choices=KNOWN_SLICES,
+                    help="이 계약이 판정하는 슬라이스. 다른 슬라이스 표지의 라벨은 세어 찍고 판정에서 뺀다 "
+                         "(기본 p1-01 = 표지 없는 라벨)")
     ap.add_argument("--selftest", action="store_true")
     args = ap.parse_args()
 
@@ -614,7 +760,8 @@ def main() -> int:
                 continue
             tools[f.name] = f.read_text(encoding="utf-8")
     refused: list[str] = []
-    bad = check(contract_text, tools, refused)
+    tally: dict = {}
+    bad = check(contract_text, tools, refused, slice_=args.slice, tally=tally)
 
     # ── Rust (architect R28 Q-7). **기본으로 켠다** — rust 의 라벨 강등(R-1·R-2)이 들어온 것을
     #    실행으로 확인했다(verdict 6 / reference 11). `--no-rust` 로 끌 수 있지만 **두 항등식은
@@ -626,7 +773,7 @@ def main() -> int:
         {f.name: f.read_text(encoding="utf-8") for f in sorted(rs_dir.glob("*.rs"))}
         if rs_dir.is_dir() else {}
     )
-    rust_res = rust_check(contract_text, all_rs) if all_rs else {"skipped": "tools/bots/src 가 없다"}
+    rust_res = rust_check(contract_text, all_rs, slice_=args.slice) if all_rs else {"skipped": "tools/bots/src 가 없다"}
     rust_code = 0 if args.no_rust else rust_exit_code(rust_res)
 
     allowed = contract_allowed(contract_text)
@@ -639,6 +786,13 @@ def main() -> int:
     for n in tools:
         kinds[n.rsplit(".", 1)[-1]] = kinds.get(n.rsplit(".", 1)[-1], 0) + 1
     print(f"검사한 도구: {len(tools)} ({', '.join(f'{k} {v}' for k, v in sorted(kinds.items()))})")
+    # **슬라이스 분모** (p1-02 계약 §3.3). 뺀 수를 찍지 않으면 "다른 슬라이스라 뺐다" 와
+    # "볼 게 없었다" 가 같은 출력이 된다.
+    rs_other = len(rust_res.get("other_slice_arms", [])) if not rust_res.get("skipped") else 0
+    rs_unknown = rust_res.get("unknown_slice_arms", []) if not rust_res.get("skipped") else []
+    print(f"슬라이스 {args.slice}: 판정한 py 라벨 {tally['judged']} · 다른 슬라이스로 뺀 라벨 "
+          f"py {tally['other']} + rs verdict 팔 {rs_other} · 알 수 없는 표지 "
+          f"{len(tally['unknown']) + len(rs_unknown)}")
     # **무엇을 훑지 않았는지를 적는다** (architect R23). 끄는 선택은 유지하되 **제외가 명시적으로
     # 비어 있게** 만든다 — `도구 없음(사람 관찰)` 이 빈칸과 다른 것과 같은 이치다.
     # **개수를 같이 찍는 것이 핵심이다**: 만기가 지났는지, 수가 늘었는지가 그 자리에서 읽힌다.
@@ -731,6 +885,15 @@ def main() -> int:
     code = exit_code(bad, unmarked)
     # **무거운 쪽이 이긴다**: 4(판정 불가) > 1(거짓 주장) > 3(문서 공백).
     if refused:
+        code = EXIT_UNDECIDABLE
+    if tally["unknown"] or rs_unknown:
+        print()
+        print("!! 알 수 없는 슬라이스 표지 — 알려진 목록 %s 에 없다 → exit 4 (판정 불가):" % (KNOWN_SLICES,))
+        for tool, label in tally["unknown"]:
+            print("   %s  ->  %s" % (tool, label))
+        for case, label in rs_unknown:
+            print("   %s(rs)  ->  %s" % (case, label))
+        print("   오타 표지가 조용히 \"다른 슬라이스\" 로 빠지면 그 라벨은 어느 계약에서도 판정되지 않는다.")
         code = EXIT_UNDECIDABLE
     if rust_code == EXIT_UNDECIDABLE or code == EXIT_UNDECIDABLE:
         code = EXIT_UNDECIDABLE

@@ -1,0 +1,105 @@
+{
+  "item": "p1-02 SC-107 (ADR-0013 §5a-1) 정지 경로 제약 분모 — pg_constraint 실측 = ADR 요구",
+  "migrations_applied": [
+    1,
+    2,
+    3
+  ],
+  "ok": true,
+  "undecidable": false,
+  "tables_parsed": 5,
+  "required_total": 104,
+  "required_triggers": 4,
+  "actual_triggers": 4,
+  "rows": [
+    {
+      "table": "deposit_states",
+      "required": 11,
+      "actual": 11,
+      "by_contype": {
+        "c": 4,
+        "f": 1,
+        "n": 5,
+        "p": 1
+      }
+    },
+    {
+      "table": "domain_events",
+      "required": 17,
+      "actual": 17,
+      "by_contype": {
+        "c": 4,
+        "f": 1,
+        "n": 10,
+        "p": 1,
+        "u": 1
+      }
+    },
+    {
+      "table": "inventory_items",
+      "required": 7,
+      "actual": 7,
+      "by_contype": {
+        "c": 1,
+        "f": 1,
+        "n": 4,
+        "p": 1
+      }
+    },
+    {
+      "table": "processed_commands",
+      "required": 8,
+      "actual": 8,
+      "by_contype": {
+        "c": 1,
+        "f": 1,
+        "n": 5,
+        "p": 1
+      }
+    },
+    {
+      "table": "worlds",
+      "required": 11,
+      "actual": 11,
+      "by_contype": {
+        "c": 3,
+        "n": 7,
+        "p": 1
+      }
+    },
+    {
+      "table": "historical_events+historical_event_sources+evidence+history_cursor",
+      "required": 50,
+      "actual": 50,
+      "by_contype": {
+        "historical_events": {
+          "c": 4,
+          "f": 1,
+          "n": 15,
+          "p": 1,
+          "u": 1
+        },
+        "historical_event_sources": {
+          "f": 2,
+          "n": 3,
+          "p": 1
+        },
+        "evidence": {
+          "c": 3,
+          "f": 1,
+          "n": 9,
+          "p": 1
+        },
+        "history_cursor": {
+          "c": 2,
+          "f": 1,
+          "n": 4,
+          "p": 1
+        }
+      }
+    }
+  ],
+  "problems": [],
+  "counting_basis": "pg_constraint 전 contype(p·u·f·c·n 포함), pg_trigger 비내부",
+  "verdict": "PASS"
+}

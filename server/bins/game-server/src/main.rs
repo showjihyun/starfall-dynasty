@@ -130,6 +130,10 @@ async fn serve(config: Config) -> Result<(), Box<dyn std::error::Error>> {
         ship_classes = game_data.ship_classes.len(),
         spawn_points = game_data.spawn_point_count(),
         snapshot_interval_ticks = game_data.snapshot_interval_ticks,
+        // SC-06/SC-07(server-db 요청) — 파일별 "데이터 파일 적재 data_file=…" 줄은
+        // data::load() 안에서 이미 찍힌다(qa 요구 형식). 이 요약 줄은 그 개수를
+        // 한눈에 보여준다 — "10개 전부 읽었다"를 실서버 로그만으로 확인할 수 있게.
+        loaded_files = game_data.loaded_files.len(),
         "게임 데이터 로딩 완료"
     );
 
@@ -142,6 +146,47 @@ async fn serve(config: Config) -> Result<(), Box<dyn std::error::Error>> {
         starfall_persistence::load_world(&pool, config.world_id, config.tick_hz, server_version)
             .await?;
     let start_tick = starfall_persistence::resume_tick(&pool, config.world_id).await?;
+
+    // S8(qa 발견, ADR-0013 §7 2단계) — 경제 상태(인벤토리·매장지·처리 장부)를 sim의
+    // 초기값으로 적재한다. **S4가 놓쳤던 자리가 여기다** — 이 호출이 없으면 재기동한
+    // sim이 지속 기억을 전혀 모른 채 시작해, 첫 채굴이 DB의 실제 값과 어긋나 CAS
+    // 불일치로 월드가 정지한다(K5) — 옛 command_id 재전송도 sim에서는 처음 보는
+    // 것으로 통과해 DB PK(23505)에서야 걸려 정지한다(03_server_impl.md S4절 "누락"
+    // 참고). 빈 월드(아직 아무도 채굴 안 함)는 세 목록이 전부 비어 있는 채로 성공한다
+    // — 실패가 아니라 정상 시작 상태다(server-db 확인).
+    let economic_state = starfall_persistence::load_economic_state(&pool, config.world_id)
+        .await
+        .map_err(|error| {
+            tracing::error!(%error, "경제 상태 적재 실패");
+            error
+        })?;
+    tracing::debug!(
+        inventory_rows = economic_state.inventory.len(),
+        deposit_rows = economic_state.deposits.len(),
+        processed_command_ids = economic_state.processed_command_ids.len(),
+        "경제 상태 적재 완료"
+    );
+
+    // T0 순서(server 검토 §1.9, ADR-0013 §7 개정): 마이그레이션 → 월드 대조 → **경제 상태
+    // 적재**(S4, 위) → **여기, 역사 적재**(H2) → tick 드라이버 생성. `SignificanceRuleTable`
+    // 은 S2가 `data/history/rules/`에서 이미 적재·검증한 값 — 이 슬라이스는 규칙이
+    // 정확히 1개임을 `GameData::sole_rule_version`과 같은 전제로 삼는다(S2 §4.7 검산).
+    let history_rule = game_data
+        .significance_rules
+        .values()
+        .next()
+        .cloned()
+        .ok_or("data/history/rules/ 에 역사 규칙이 없다 — S2 가 이미 막았어야 한다")?;
+    let history_boot = starfall_persistence::history::load(&pool, config.world_id, history_rule)
+        .await
+        .map_err(|error| {
+            tracing::error!(%error, "역사 상태 적재 실패");
+            error
+        })?;
+    tracing::debug!(
+        initial_backfill = history_boot.initial_backfill.len(),
+        "역사 상태 적재 완료"
+    );
     tracing::info!(
         world_id = %config.world_id,
         tick_hz = config.tick_hz,
@@ -166,13 +211,46 @@ async fn serve(config: Config) -> Result<(), Box<dyn std::error::Error>> {
         game_data.spawn_point_count() as u64,
         u64::from(game_data.snapshot_interval_ticks),
         world.max_entities_per_snapshot as u64,
+        game_data.minerals.len() as u64,
+        game_data.deposits.len() as u64,
+        game_data.sole_rule_version().unwrap_or_default(),
+        game_data.loaded_files.len() as u64,
     );
-    let (persisted, failed, last_committed) = stats.persist_handles();
+    let (persisted, failed, last_committed, halted, ambiguous_commits) = stats.persist_handles();
+    // p1-02(S7, qa SC-04 발견) — 종료 로그가 "커밋 완료"라고 주장할 값은 이 프로세스가
+    // 마지막으로 실행한 tick(`stats.current_tick()`)이 아니라 **실제로 DB에 커밋된
+    // 워터마크**여야 한다(둘이 다를 수 있었던 이유는 아래 `spawn_tick_thread`의
+    // 종료 스윕 수정 참고). `PersistHandles`로 옮기기 전에 복제해 둔다 — 그쪽은
+    // 소유권을 가져간다.
+    let last_committed_for_shutdown_log = Arc::clone(&last_committed);
 
     let (persist_tx, persist_rx) = mpsc::channel(starfall_gateway::runtime::PERSIST_QUEUE_CAPACITY);
     let shutdown_flag = Arc::new(AtomicBool::new(false));
 
-    let simulation = Simulation::new(world, start_tick);
+    // T0 LIVE 채널(bounded 256, §4 합의) — S5가 수신단을 tick 드라이버에 넘긴다(아래
+    // `runtime::build`). 송신단은 역사 러너가 커밋 직후에 쓴다.
+    let (history_live_tx, history_live_rx) = mpsc::channel(256);
+    // `initial_backfill`은 `history_boot`가 `run_runner`로 옮겨지기 **전에** 복제해야
+    // 한다(history H2 인계 — `run_runner`가 `HistoryBoot`를 소비한다). 이 목록이
+    // 게이트웨이의 세션 시작 BACKFILL 씨앗이다(I-65).
+    let initial_backfill = history_boot.initial_backfill.clone();
+
+    let mut simulation = Simulation::new(world, start_tick);
+    // S8 — DB에서 적재한 경제 상태를 sim의 초기값으로 주입한다. `runtime::build`가
+    // `simulation`의 소유권을 가져가기 **전**이어야 한다.
+    for row in economic_state.inventory {
+        simulation.seed_inventory(row.actor_id, row.mineral_id, row.quantity_kg);
+    }
+    for row in economic_state.deposits {
+        simulation.seed_deposit_state(
+            row.deposit_id,
+            row.remaining_kg,
+            row.as_of_tick,
+            row.first_extracted_tick,
+        );
+    }
+    simulation.seed_processed_command_ids(economic_state.processed_command_ids);
+
     let tick_period = Duration::from_nanos(1_000_000_000 / u64::from(config.tick_hz));
     let (submit, tick_thread) = starfall_gateway::runtime::build(
         simulation,
@@ -180,17 +258,35 @@ async fn serve(config: Config) -> Result<(), Box<dyn std::error::Error>> {
         stats.clone(),
         tick_period,
         Arc::clone(&shutdown_flag),
+        initial_backfill,
+        history_live_rx,
     );
 
+    // T0 커밋 알림(`02_server_ack.md` §4) — 깨우기일 뿐, 워터마크는 `worlds.last_tick`.
+    // `Sender` 가 drop 되면(persistence 태스크 종료) 러너가 마지막으로 따라잡고 끝난다.
+    let (commit_notify_tx, commit_notify_rx) = tokio::sync::watch::channel(None);
+
     let persistence = tokio::spawn(starfall_persistence::run(
-        pool,
+        pool.clone(),
         config.world_id,
         persist_rx,
         PersistHandles {
             persisted_total: persisted,
             failed_total: failed,
             last_committed_tick: last_committed,
+            halted,
+            ambiguous_commits_total: ambiguous_commits,
         },
+        commit_notify_tx,
+    ));
+    let history_handles = starfall_persistence::history::HistoryHandles::new();
+    let history_runner = tokio::spawn(starfall_persistence::history::run_runner(
+        pool,
+        config.world_id,
+        history_boot,
+        commit_notify_rx,
+        history_live_tx,
+        history_handles,
     ));
 
     // ── 3. HTTP/WS 표면 ────────────────────────────────────────────────────
@@ -223,9 +319,10 @@ async fn serve(config: Config) -> Result<(), Box<dyn std::error::Error>> {
     // ── 4. 종료 ────────────────────────────────────────────────────────────
     let shutdown_stats = stats.clone();
     let shutdown_signal_flag = Arc::clone(&shutdown_flag);
+    let signal_stats = stats.clone();
     axum::serve(listener, app)
         .with_graceful_shutdown(async move {
-            shutdown_signal().await;
+            shutdown_signal(&signal_stats).await;
             // 새 연결을 먼저 막는다. 기존 세션은 아래 스윕이 닫는다.
             shutdown_stats.set_accepting(false);
             shutdown_signal_flag.store(true, Ordering::Release);
@@ -250,12 +347,45 @@ async fn serve(config: Config) -> Result<(), Box<dyn std::error::Error>> {
     // 영속화 태스크는 tick 스레드가 채널을 닫을 때 끝난다. **커밋을 기다린다** —
     // 여기서 기다리지 않으면 마지막 tick 의 SESSION_CLOSED 가 사라진다.
     persistence.await?;
+    // 역사 러너는 persistence 가 끝나면(= commit_notify Sender drop) 스스로 끝난다
+    // (조정 3 — 러너 정지는 서버를 멈추지 않는다. 여기서는 정상 종료 경로이므로 그냥
+    // 기다린다).
+    history_runner.await?;
 
+    // S7 — `stats.current_tick()`(이 프로세스가 실행한 마지막 tick)이 아니라 실제로
+    // 커밋된 워터마크를 찍는다(qa SC-04: 이벤트 없는 종료 tick은 예전엔 커밋되지
+    // 않아 이 로그가 거짓이었다 — 아래 `spawn_tick_thread` 종료 스윕 수정이 지금은
+    // 항상 마지막 tick을 커밋해 둘이 같아지지만, 로그 자체는 여전히 "실행한 값"이
+    // 아니라 "커밋된 값"을 봐야 한다는 원칙을 지킨다).
+    let committed_watermark = last_committed_for_shutdown_log.load(Ordering::Acquire);
+    // p1-02(S10, qa SC-25 발견) — "정상 종료" 로그는 원인이 stdin/Ctrl-C 일 때만
+    // 참이다. `stats.persist_halted()` 가 true 면 이 종료는 K5(영속화 회복 불가 정지,
+    // ADR-0013 §5) 때문이지 사람이 끈 게 아니다 — 로그도 exit code 도 그 사실을
+    // 반영해야 한다(AC-5(b)). 분기 자체는 `shutdown_outcome`(순수 함수, 아래 단위
+    // 테스트)에 있다 — 여기서는 그 결과를 로그·반환값으로 옮기기만 한다.
+    if let Err(reason) = shutdown_outcome(stats.persist_halted()) {
+        tracing::error!(
+            tick = committed_watermark,
+            "starfall game-server 비정상 종료 — {reason}. 마지막 tick 까지 커밋 시도 완료"
+        );
+        return Err(reason.into());
+    }
     tracing::info!(
-        tick = stats.current_tick(),
+        tick = committed_watermark,
         "starfall game-server 정상 종료 — 마지막 tick 까지 커밋 완료"
     );
     Ok(())
+}
+
+/// p1-02(S10, qa SC-25) — 종료 사유에 따른 로그 문구·exit code 분기를 순수 함수로 뺐다.
+/// 실제 프로세스를 띄워 exit code 를 보는 것은 qa e2e(`tests/e2e/restart_cases.py`)의
+/// 몫이다 — 여기서는 "그 분기 로직 자체가 맞는가"만 단위 테스트로 고정한다.
+fn shutdown_outcome(persist_halted: bool) -> Result<(), &'static str> {
+    if persist_halted {
+        Err("영속화 정지(K5, ADR-0013 §5)로 서버가 스스로 종료했다 — SC-25")
+    } else {
+        Ok(())
+    }
 }
 
 /// Ctrl-C 또는 stdin `shutdown` 한 줄 (스펙 §5.5).
@@ -266,7 +396,14 @@ async fn serve(config: Config) -> Result<(), Box<dyn std::error::Error>> {
 /// 보낼 표준 경로도 없다. 하드 킬은 graceful shutdown 경로를 **전혀 타지 않으면서**
 /// outbox 부재로 인한 손실을 재현해, 결과가 "graceful shutdown 이 깨졌다"로 보인다.
 /// 이 경로가 없으면 AC-8(d) 는 이 PC 에서 자동 검증이 불가능하다.
-async fn shutdown_signal() {
+///
+/// p1-02(S10, qa SC-25 발견) — 세 번째 경로로 `stats.persist_halted()`(K5, ADR-0013 §5)
+/// 를 함께 기다린다. `runtime.rs`의 tick 루프도 같은 값을 보고 스스로 멈추지만, 그것만
+/// 으로는 **이 프로세스**가 끝나지 않는다 — `axum::serve`는 이 함수가 반환해야 graceful
+/// shutdown을 시작한다. 이 경로가 없으면(수정 전 상태) 영속화가 회복 불가로 정지한
+/// 뒤에도 프로세스는 사람이 stdin `shutdown`을 보낼 때까지 계속 살아 있었다(qa 실측:
+/// tick 469 정지 → tick 1779까지 계속 ACCEPT, 그 결과는 DB에 영영 남지 않는다).
+async fn shutdown_signal(stats: &starfall_gateway::Stats) {
     let notify = Arc::new(Notify::new());
     spawn_stdin_listener(Arc::clone(&notify));
 
@@ -283,6 +420,25 @@ async fn shutdown_signal() {
         },
         () = notify.notified() => {
             tracing::info!("stdin 'shutdown' 수신 — graceful shutdown 시작");
+        }
+        () = wait_for_persist_halted(stats) => {
+            tracing::error!(
+                "영속화 정지(K5, ADR-0013 §5) 감지 — 서버가 스스로 종료를 시작한다(SC-25)"
+            );
+        }
+    }
+}
+
+/// `stats.persist_halted()`를 짧은 간격으로 폴링한다(p1-02 S10). 폴 주기(50ms)는
+/// 기본 tick 주기와 같은 자릿수로 잡아, "tick 루프는 멈췄는데 프로세스만 살아 있는"
+/// 창을 tick 한두 개 폭 정도로 좁힌다 — qa가 실측한 66초+ 지연(사람이 stdin으로 끌
+/// 때까지)과 대비된다.
+async fn wait_for_persist_halted(stats: &starfall_gateway::Stats) {
+    let mut interval = tokio::time::interval(Duration::from_millis(50));
+    loop {
+        interval.tick().await;
+        if stats.persist_halted() {
+            return;
         }
     }
 }
@@ -405,6 +561,54 @@ fn build_world_constants(
         rate_limit_per_tick_cap,
         max_entities_per_snapshot: usize::try_from(sync.snapshot.max_entities_per_snapshot)
             .unwrap_or(1),
+        // p1-02(S2) — `data/minerals`·`data/world/deposits`·`data/mining/mining-rules`.
+        // `game_data` 가 기동 시 §4.7 검산까지 마친 값이라 여기서는 sim 의 상수 모양으로
+        // 옮겨 담기만 한다(판정 로직 없음).
+        minerals: game_data
+            .minerals
+            .values()
+            .map(|table| {
+                (
+                    table.id.clone(),
+                    starfall_sim::MineralConstants {
+                        yield_per_extraction_kg: i64::from(
+                            table.extraction.yield_per_extraction_kg.get(),
+                        ),
+                        regen_kg: i64::from(table.regeneration.regen_kg.get()),
+                        regen_interval_ticks: u64::try_from(table.regeneration.regen_interval_s)
+                            .unwrap_or(0)
+                            .saturating_mul(u64::from(tick_hz)),
+                    },
+                )
+            })
+            .collect(),
+        deposits: game_data
+            .deposits
+            .values()
+            .map(|deposit| {
+                (
+                    deposit.id.clone(),
+                    starfall_sim::DepositConstants {
+                        mineral_id: deposit.mineral_id.clone(),
+                        position_m: starfall_sim::world::Vec3 {
+                            x: deposit.position_m[0],
+                            y: deposit.position_m[1],
+                            z: deposit.position_m[2],
+                        },
+                        radius_m: deposit.radius_m,
+                        initial_reserve_kg: i64::from(deposit.initial_reserve_kg.get()),
+                    },
+                )
+            })
+            .collect(),
+        mining_rules: starfall_sim::MiningRuleConstants {
+            mining_range_from_surface_m: game_data
+                .mining_rules
+                .extraction
+                .mining_range_from_surface_m,
+            max_ship_speed_mps: game_data.mining_rules.extraction.max_ship_speed_mps,
+            cooldown_ticks: game_data.mining_cooldown_ticks,
+        },
     })
 }
 
@@ -416,4 +620,22 @@ fn world_seed_from_world_id(world_id: UuidV7) -> u64 {
     let mut low8 = [0u8; 8];
     low8.copy_from_slice(&bytes[8..16]);
     u64::from_le_bytes(low8)
+}
+
+#[cfg(test)]
+mod shutdown_outcome_tests {
+    use super::shutdown_outcome;
+
+    #[test]
+    fn clean_shutdown_is_ok() {
+        assert_eq!(shutdown_outcome(false), Ok(()));
+    }
+
+    #[test]
+    fn persist_halted_is_a_non_zero_exit_with_a_reason() {
+        assert!(
+            shutdown_outcome(true).is_err(),
+            "정지 원인은 Err 여야 exit code 가 0이 아니게 된다"
+        );
+    }
 }

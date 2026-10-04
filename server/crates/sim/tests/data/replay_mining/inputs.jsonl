@@ -1,0 +1,6 @@
+{"kind":"MineResource","tick":1,"session":"01a0b1c2-0001-700b-8000-00000000000b","deposit_id":"replay-deposit"}
+{"kind":"SetShipControl","tick":5,"session":"01a0b1c2-0001-700b-8000-00000000000b","payload":{"input_seq":1,"thrust_x_milli":0,"thrust_y_milli":0,"thrust_z_milli":50,"roll_milli":0,"aim_x_micro":70360,"aim_y_micro":-703598,"aim_z_micro":0,"aim_w_micro":707107,"brake":false,"flight_assist":true}}
+{"kind":"SetShipControl","tick":6,"session":"01a0b1c2-0001-700b-8000-00000000000b","payload":{"input_seq":2,"thrust_x_milli":0,"thrust_y_milli":0,"thrust_z_milli":0,"roll_milli":0,"aim_x_micro":70360,"aim_y_micro":-703598,"aim_z_micro":0,"aim_w_micro":707107,"brake":false,"flight_assist":true}}
+{"kind":"MineResource","tick":61,"session":"01a0b1c2-0001-700b-8000-00000000000b","deposit_id":"replay-deposit"}
+{"kind":"MineResource","tick":121,"session":"01a0b1c2-0001-700b-8000-00000000000b","deposit_id":"replay-deposit"}
+{"kind":"MineResource","tick":181,"session":"01a0b1c2-0001-700b-8000-00000000000b","deposit_id":"replay-deposit"}

@@ -4,10 +4,11 @@
 
 use serde::{Deserialize, Deserializer, Serialize};
 
+use crate::historical::MineralDiscoveredEvent;
 use crate::primitives::{
-    AngularVelocityMdegPerSecond, ConstSchemaVersion, DataId, InputSeq, PositionMm, ProbeSeq,
-    QuaternionComponentMicro, ServerVersion, Tick, TickHz, UuidV7, VelocityMmPerSecond,
-    required_nullable,
+    AngularVelocityMdegPerSecond, ConstSchemaVersion, DataId, InputSeq, MassKg, PositionMm,
+    ProbeSeq, QuaternionComponentMicro, ServerVersion, Tick, TickHz, UuidV7, VelocityMmPerSecond,
+    de_optional_positive_mass_kg, de_positive_mass_kg, required_nullable,
 };
 
 /// `PING_REPLY` 의 타입 상수.
@@ -106,6 +107,21 @@ pub enum RejectReasonCode {
     RateLimited,
     /// `input_seq` 가 이미 적용한 값보다 크지 않다. p1-01 신규(ADR-0011 §4).
     StaleInput,
+    /// `deposit_id` 가 이 성계의 어떤 매장지도 가리키지 않는다. p1-02 신규(스펙 §4.2).
+    TargetUnknown,
+    /// 이 행위자가 아직 채굴 쿨다운 중이다. p1-02 신규.
+    CooldownActive,
+    /// 함선이 매장지의 채굴 사거리 밖에 있다. p1-02 신규.
+    TargetOutOfRange,
+    /// 함선 속도가 채굴 허용 상한을 넘는다. p1-02 신규.
+    ShipTooFast,
+    /// 매장지가 소진돼 이번 채굴로 얻을 양이 0이다. p1-02 신규.
+    ResourceDepleted,
+    /// 영속화 백로그가 임계를 넘어 상태 변경 명령을 받지 않는다. p1-02 신규(ADR-0013 §6).
+    RecordingBacklog,
+    /// 이 채굴로 그 광물의 인벤토리가 표현 가능한 최댓값(`MassKg`)을 넘는다. p1-02 신규
+    /// (ADR-0013 §5a) — checked 덧셈이 판정 마지막 단계에서 막는다(panic 없음).
+    CapacityExceeded,
 }
 
 /// `COMMAND_RESULT` payload.
@@ -372,4 +388,199 @@ pub struct WorldSnapshotMessage {
     pub correlation_id: Option<UuidV7>,
     /// 타입별 payload.
     pub payload: WorldSnapshotPayload,
+}
+
+// ---------------------------------------------------------------------------
+// DEPOSIT_FIELD_STATE (p1-02)
+// ---------------------------------------------------------------------------
+
+/// `DEPOSIT_FIELD_STATE` 의 타입 상수.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub enum DepositFieldStateType {
+    /// 유일한 값.
+    #[default]
+    #[serde(rename = "DEPOSIT_FIELD_STATE")]
+    DepositFieldState,
+}
+
+/// 매장지 하나의 동적 상태. **넷 다 null(미확인) 또는 넷 다 값(드러남)** — 스키마는 이
+/// 상관을 표현하지 못한다(설명 참고). 서버(S3)가 강제하고 QA가 양성 대조로 확인한다
+/// (스펙 p1-02 I-68). 이 타입은 와이어 모양을 그대로 따라 쓴다 — 필드 넷을 Rust에서
+/// `Option<Revealed>` 하나로 묶고 싶으면 내부 표현만 바꾸고 와이어는 그대로 둔다
+/// (01_architect_tasks.md "구현자가 architect 에게 가져올 것").
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct DepositState {
+    /// `DEPOSIT` 행. 위치·반지름·이름은 클라이언트 사본에서 온다 — 이 메시지에는 없다.
+    pub deposit_id: DataId,
+    /// 드러나기 전에는 `null` — 광물을 미리 알려주지 않는다.
+    #[serde(deserialize_with = "required_nullable")]
+    pub mineral_id: Option<DataId>,
+    /// 드러나기 전에는 `null`(원 매장량을 알면 광물을 유추할 수 있다).
+    #[serde(deserialize_with = "de_optional_positive_mass_kg")]
+    pub initial_reserve_kg: Option<MassKg>,
+    /// 이 tick까지 게으른 회복을 적용한 잔량. 드러나기 전에는 `null`. `0` = 소진.
+    #[serde(deserialize_with = "required_nullable")]
+    pub remaining_kg: Option<MassKg>,
+    /// 매장지를 드러낸 채굴의 tick. 드러나기 전에는 `null`.
+    #[serde(deserialize_with = "required_nullable")]
+    pub first_extracted_tick: Option<Tick>,
+}
+
+/// `DEPOSIT_FIELD_STATE` payload.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct DepositFieldStatePayload {
+    /// 이 성계.
+    pub star_system_id: DataId,
+    /// 모든 매장지, `deposit_id` 오름차순.
+    pub deposits: Vec<DepositState>,
+}
+
+/// `DEPOSIT_FIELD_STATE` — 성계 전체 매장지의 동적 상태. 모든 플레이어에게 같다.
+///
+/// `SESSION_READY` 직후 1회, 그리고 어느 매장지의 가시 상태가 바뀐 모든 tick마다 그
+/// 월드의 모든 세션에 전체 목록으로 다시 보낸다. 어떤 명령의 응답도 아니다.
+///
+/// 대응 스키마: `contracts/messages/DEPOSIT_FIELD_STATE.schema.json`
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct DepositFieldStateMessage {
+    /// 추적·로그 상관용 서버 생성 UUIDv7.
+    pub message_id: UuidV7,
+    /// 언제나 `DEPOSIT_FIELD_STATE`.
+    pub message_type: DepositFieldStateType,
+    /// 언제나 1.
+    pub schema_version: ConstSchemaVersion<1>,
+    /// 이 상태를 만든 tick.
+    pub tick: Tick,
+    /// 명령의 응답이 아니므로 언제나 `null`.
+    #[serde(deserialize_with = "required_nullable")]
+    pub correlation_id: Option<UuidV7>,
+    /// 타입별 payload.
+    pub payload: DepositFieldStatePayload,
+}
+
+// ---------------------------------------------------------------------------
+// INVENTORY_STATE (p1-02)
+// ---------------------------------------------------------------------------
+
+/// `INVENTORY_STATE` 의 타입 상수.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub enum InventoryStateType {
+    /// 유일한 값.
+    #[default]
+    #[serde(rename = "INVENTORY_STATE")]
+    InventoryState,
+}
+
+/// 인벤토리 항목 하나. `0`kg인 광물은 항목 자체가 없다(빈 목록 = 빈 인벤토리).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct InventoryItem {
+    /// `MINERAL` 행.
+    pub mineral_id: DataId,
+    /// 보유량. 항목이 있다는 것 자체가 `> 0` 이다.
+    #[serde(deserialize_with = "de_positive_mass_kg")]
+    pub quantity_kg: MassKg,
+}
+
+/// `INVENTORY_STATE` payload.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct InventoryStatePayload {
+    /// 소유자. 언제나 이 메시지를 받는 세션의 행위자.
+    pub actor_id: UuidV7,
+    /// 보유 광물 각각 한 항목, `mineral_id` 오름차순.
+    pub items: Vec<InventoryItem>,
+}
+
+/// `INVENTORY_STATE` — 이 세션 행위자의 인벤토리 전체(델타가 아니다).
+///
+/// `SESSION_READY` 직후 1회, 그리고 그 행위자의 인벤토리가 바뀐 모든 tick마다(`MINE_RESOURCE`
+/// 는 같은 tick의 `COMMAND_RESULT` 뒤). **클라이언트는 인벤토리를 스스로 계산하지 않는다**
+/// (스펙 p1-02 I-49) — 언제나 마지막으로 받은 이 메시지를 보여준다.
+///
+/// 대응 스키마: `contracts/messages/INVENTORY_STATE.schema.json`
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct InventoryStateMessage {
+    /// 추적·로그 상관용 서버 생성 UUIDv7.
+    pub message_id: UuidV7,
+    /// 언제나 `INVENTORY_STATE`.
+    pub message_type: InventoryStateType,
+    /// 언제나 1.
+    pub schema_version: ConstSchemaVersion<1>,
+    /// 이 상태를 만든 tick.
+    pub tick: Tick,
+    /// 명령의 응답이 아니므로 언제나 `null`.
+    #[serde(deserialize_with = "required_nullable")]
+    pub correlation_id: Option<UuidV7>,
+    /// 타입별 payload.
+    pub payload: InventoryStatePayload,
+}
+
+// ---------------------------------------------------------------------------
+// HISTORICAL_EVENT_NOTICE (p1-02)
+// ---------------------------------------------------------------------------
+
+/// `HISTORICAL_EVENT_NOTICE` 의 타입 상수.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub enum HistoricalEventNoticeType {
+    /// 유일한 값.
+    #[default]
+    #[serde(rename = "HISTORICAL_EVENT_NOTICE")]
+    HistoricalEventNotice,
+}
+
+/// 배달 종류. LIVE = 방금 일어났다. BACKFILL = 이 세션이 열리기 전에 일어났다.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum HistoricalDelivery {
+    /// 커밋 직후 실시간 배달.
+    Live,
+    /// 세션이 열릴 때 밀린 기록을 채워 넣는다.
+    Backfill,
+}
+
+/// `HISTORICAL_EVENT_NOTICE` payload.
+///
+/// **알려진 만기**: `historical_event` 는 지금 유일한 역사 타입인 `MINERAL_DISCOVERED` 를
+/// 직접 참조한다. 두 번째 역사 타입이 계약에 들어오는 슬라이스는 이 필드를 판별 union으로
+/// 바꿔야 한다(`schema_version` 2 또는 codegen 확장, `01_architect_tasks.md` 만기 표).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct HistoricalEventNoticePayload {
+    /// LIVE 또는 BACKFILL.
+    pub delivery: HistoricalDelivery,
+    /// 역사 기록 본문. 러너가 만들고, 게이트웨이/tick 드라이버가 `delivery`·이 envelope의
+    /// `tick`·`message_id` 를 붙여 이 메시지로 조립한다(러너는 그 값들을 모른다).
+    pub historical_event: MineralDiscoveredEvent,
+}
+
+/// `HISTORICAL_EVENT_NOTICE` — 플레이어에게 배달된 역사 기록 1건(ADR-0014 §6).
+///
+/// envelope의 `tick`은 **송신 시점의 게이트웨이 현재 tick**이지 기록 자체의 tick이 아니다.
+/// 같은 기록을 LIVE와 BACKFILL 양쪽으로 받을 수 있다 — 클라이언트는
+/// `historical_event.historical_event_id` 로 한 번만 보여준다(스펙 p1-02 I-65). 커밋 전에는
+/// 절대 보내지 않는다. 어떤 명령의 응답도 아니다. 문장·표시명이 없다 — 클라이언트가 텍스트를
+/// 만든다.
+///
+/// 대응 스키마: `contracts/messages/HISTORICAL_EVENT_NOTICE.schema.json`
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct HistoricalEventNoticeMessage {
+    /// 추적·로그 상관용 서버 생성 UUIDv7. 송신마다 새로 만든다.
+    pub message_id: UuidV7,
+    /// 언제나 `HISTORICAL_EVENT_NOTICE`.
+    pub message_type: HistoricalEventNoticeType,
+    /// 언제나 1.
+    pub schema_version: ConstSchemaVersion<1>,
+    /// 송신 시점의 게이트웨이 현재 tick.
+    pub tick: Tick,
+    /// 명령의 응답이 아니므로 언제나 `null`.
+    #[serde(deserialize_with = "required_nullable")]
+    pub correlation_id: Option<UuidV7>,
+    /// 타입별 payload.
+    pub payload: HistoricalEventNoticePayload,
 }

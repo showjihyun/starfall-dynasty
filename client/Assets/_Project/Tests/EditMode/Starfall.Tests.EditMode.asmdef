@@ -8,6 +8,7 @@
         "Starfall.Flight",
         "Starfall.Remote",
         "Starfall.Greybox",
+        "Starfall.Mining",
         "UnityEngine.TestRunner",
         "UnityEditor.TestRunner"
     ],

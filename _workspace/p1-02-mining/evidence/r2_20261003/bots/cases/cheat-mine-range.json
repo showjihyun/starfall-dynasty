@@ -1,0 +1,83 @@
+{
+  "case": "cheat-mine-range",
+  "connect_error": null,
+  "deposit_id": "inner-belt-1",
+  "details": {
+    "condition_held_at_send": 5,
+    "exact_reason": 5,
+    "expected_reason": "TARGET_OUT_OF_RANGE",
+    "rows": [
+      {
+        "condition_at_send": true,
+        "deposit_id": "inner-belt-1",
+        "dist_m": 6375.9163517172965,
+        "results": [
+          [
+            "REJECTED",
+            "TARGET_OUT_OF_RANGE"
+          ]
+        ],
+        "speed_mps": 0.0
+      },
+      {
+        "condition_at_send": true,
+        "deposit_id": "inner-belt-1",
+        "dist_m": 6375.9163517172965,
+        "results": [
+          [
+            "REJECTED",
+            "TARGET_OUT_OF_RANGE"
+          ]
+        ],
+        "speed_mps": 0.0
+      },
+      {
+        "condition_at_send": true,
+        "deposit_id": "inner-belt-1",
+        "dist_m": 6375.9163517172965,
+        "results": [
+          [
+            "REJECTED",
+            "TARGET_OUT_OF_RANGE"
+          ]
+        ],
+        "speed_mps": 0.0
+      },
+      {
+        "condition_at_send": true,
+        "deposit_id": "inner-belt-1",
+        "dist_m": 6375.9163517172965,
+        "results": [
+          [
+            "REJECTED",
+            "TARGET_OUT_OF_RANGE"
+          ]
+        ],
+        "speed_mps": 0.0
+      },
+      {
+        "condition_at_send": true,
+        "deposit_id": "inner-belt-1",
+        "dist_m": 6375.9163517172965,
+        "results": [
+          [
+            "REJECTED",
+            "TARGET_OUT_OF_RANGE"
+          ]
+        ],
+        "speed_mps": 0.0
+      }
+    ],
+    "sent": 5
+  },
+  "item": "[verdict] p1-02 SC-74 사거리 밖 반복 → TARGET_OUT_OF_RANGE (보낸 시점 거리 > 한계)",
+  "label": "bot-012",
+  "nav": null,
+  "session": {
+    "actor_id": "01a0b1c2-b010-7000-8000-000000000012",
+    "close_code": 1000,
+    "close_initiator": "client",
+    "session_id": "01a1021a-2d22-7703-9bcc-60a3c3d5de2d"
+  },
+  "verdict": "PASS"
+}

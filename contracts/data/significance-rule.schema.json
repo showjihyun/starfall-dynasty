@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.starfall.invalid/contracts/data/significance-rule.schema.json",
+  "title": "SignificanceRuleTable",
+  "description": "Shape of one historical significance rule file, data/history/rules/{rule_id}.json - ONE RULE PER FILE, so adding a rule never changes an existing rule's file hash (ADR-0014 section 5). Read at boot by the assembling binary and passed to the pure history core as values; the core never reads files. A golden test binds rule_version to (a) this file's normalised content hash and (b) the core's output on a fixed input: changing a value without raising rule_version fails. The rule's CONDITION is Rust code, not data (HSE section 33: explicit rules first); this file carries the rule's identity and its output constants only. It must not carry inputs taken from other data tables (e.g. rarity) - ADR-0014 section 5. Boot check: rule_version starts with rule_id + '@'.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "rule_id",
+    "rule_version",
+    "produces_event_type",
+    "importance_level",
+    "visibility",
+    "evidence"
+  ],
+  "properties": {
+    "schema_version": {
+      "$ref": "../common/primitives.schema.json#/$defs/SchemaVersion"
+    },
+    "rule_id": {
+      "$ref": "../common/primitives.schema.json#/$defs/DataId"
+    },
+    "rule_version": {
+      "$ref": "../common/primitives.schema.json#/$defs/RuleVersion"
+    },
+    "produces_event_type": {
+      "description": "Historical event type this rule produces. NOT named `event_type`: `command_type`/`message_type`/`event_type` are reserved as top-level discriminator keys of contract objects (ADR-0002 section 1a) - a data table using one of them is misread as a message by generic dispatch code (client report, p1-02).",
+      "$ref": "../common/primitives.schema.json#/$defs/TypeName"
+    },
+    "importance_level": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 5
+    },
+    "visibility": {
+      "$ref": "../common/historical-event-envelope.schema.json#/$defs/Visibility"
+    },
+    "designer_note": {
+      "type": "string",
+      "maxLength": 2000
+    },
+    "evidence": {
+      "title": "SignificanceRuleEvidence",
+      "type": "object",
+      "required": [
+        "evidence_type",
+        "visibility"
+      ],
+      "properties": {
+        "evidence_type": {
+          "description": "HSE evidence type of the automatic evidence created per record. p1-02: SHIP_LOG. Closed set that grows with rules.",
+          "type": "string",
+          "enum": [
+            "SHIP_LOG"
+          ]
+        },
+        "visibility": {
+          "$ref": "../common/historical-event-envelope.schema.json#/$defs/Visibility"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

@@ -61,3 +61,4 @@ Bash 앞에 한 번: `export PATH="$HOME/.cargo/bin:$HOME/.dotnet/tools:/c/Users
 | 2026-09-17 | 초기 구성 (에이전트 7, 스킬 8, 프로젝트 플러그인 4) | 기획안 기반 게임 개발 하네스 도입 |
 | 2026-09-19 | 구현 역할(server·history·client·techart)은 Sonnet 5 + TDD, 판단 역할(architect·designer·qa)은 Opus 5 | 근거·예외·재검토 조건: `.claude/skills/starfall-dev/references/model-assignment.md` |
 | 2026-09-23 | 검증 규율·금지 사항·명령/환경 절 신설 | p1-01에서 에이전트마다 반복 설명해야 했던 것, 그리고 네 번 반복된 "초록불인데 아무것도 재지 않는" 결함 |
+| 2026-10-03 | QA 처리량 규칙 신설(`starfall-dev/references/qa-throughput.md`): 모듈 완료 전 계약 자기 점검(이름 실행·구현 변이·sha256 원복), 계약 단계 도달 가능성 계산, 라운드 자동 실행기 `run_round.py`, 턴 사이 대기 금지·`RESUME.md`, `FREEZE` 파일 동결, qa 라운드마다 새로 띄움, r2부터 FAIL·변경 영향만 재판정 | p1-02에서 Phase 4 착수부터 r2까지 약 1주일 걸렸다. 그중 약 3일은 아무도 재개하지 않은 공백이었고, 3.5시간 이상은 완료 알림을 놓친 정지였다. r1 FAIL 7건은 모두 모듈 완료 시점에 기계적으로 잡을 수 있었다 |

@@ -1,0 +1,18 @@
+== SC-02
+server/crates/history/Cargo.toml
+server/crates/sim/Cargo.toml
+crates: starfall-sim starfall-history
+matches(non-comment)=0
+positive control persistence sqlx=2
+== SC-03
+SystemTime/Instant:: in history src (non-comment): 0
+server/crates/history/src/lib.rs:4://! `sim`·`domain` 과 같은 이유로 IO 가 없다 — 시간(`SystemTime`/`Instant`)·소켓·DB·난수는
+server/crates/history/src/core.rs:12:use std::collections::{HashMap, HashSet};
+server/crates/history/src/core.rs:60:    worlds: HashMap<UuidV7, WorldState>,
+server/crates/history/src/core.rs:71:            worlds: HashMap::new(),
+server/crates/history/src/core.rs:88:        let mut worlds = HashMap::new();
+positive control gateway Instant: 14
+== SC-95
+server/crates\persistence\src\history.rs:514:        "INSERT INTO historical_events (
+server/crates\persistence\src\history.rs:559:        "INSERT INTO historical_event_sources (source_event_id, detector_rule, historical_event_id)
+server/crates\persistence\src\history.rs:569:        "INSERT INTO evidence (evidence_id, historical_event_id, rule_version, evidence_type, visibility, source_entity_id)

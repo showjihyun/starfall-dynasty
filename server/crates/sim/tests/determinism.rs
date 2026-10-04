@@ -181,6 +181,16 @@ fn world() -> WorldConstants {
         carry_forward_max_ticks: 10_000, // 이 재생에서 이월이 만료되지 않게(휴면 입력은 세션 닫힘으로만 겪는다)
         rate_limit_per_tick_cap: 5,
         max_entities_per_snapshot: 64,
+        // p1-02 — 이 재생은 채굴 명령을 보내지 않는다(이동 golden, AC-7(b)). 빈 표를
+        // 둬도 물리 결과에 영향이 없다 — 채굴이 물리를 건드리지 않는다는 것 자체가
+        // 이 파일이 바이트 단위로 불변이어야 하는 이유다.
+        minerals: std::collections::BTreeMap::new(),
+        deposits: std::collections::BTreeMap::new(),
+        mining_rules: starfall_sim::MiningRuleConstants {
+            mining_range_from_surface_m: 150.0,
+            max_ship_speed_mps: 10.0,
+            cooldown_ticks: 60,
+        },
     }
 }
 

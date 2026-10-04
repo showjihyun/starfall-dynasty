@@ -1,0 +1,44 @@
+log rows 74 fixture files 74
+order mismatches 0 []
+contract table rows 40
+MINE_RESOURCE	actor-field-injected.json	기대(스펙§5.3)=거부	실측r2=거부	unknown field `actor_id`, expected one of `command_id`, `command_type`, `schema_version`, `client_sent_at`, `p
+MINE_RESOURCE	deposit-id-not-kebab.json	기대(스펙§5.3)=거부	실측r2=거부	DataId 패턴에 맞지 않는다: Far_Reach
+MINE_RESOURCE	mineral-field-injected.json	기대(스펙§5.3)=거부	실측r2=거부	unknown field `mineral_id`, expected `deposit_id`
+MINE_RESOURCE	missing-deposit-id.json	기대(스펙§5.3)=거부	실측r2=거부	missing field `deposit_id`
+MINE_RESOURCE	position-field-injected.json	기대(스펙§5.3)=거부	실측r2=거부	unknown field `position_x_mm`, expected `deposit_id`
+MINE_RESOURCE	quantity-field-injected.json	기대(스펙§5.3)=거부	실측r2=거부	unknown field `quantity_kg`, expected `deposit_id`
+MINERAL_MINED	actor-id-null.json	기대(스펙§5.3)=거부	실측r2=거부	invalid type: null, expected a string
+MINERAL_MINED	causation-id-null.json	기대(스펙§5.3)=거부	실측r2=거부	invalid type: null, expected a string
+MINERAL_MINED	importance-level-injected.json	기대(스펙§5.3)=거부	실측r2=거부	unknown field `importance_level`, expected one of `event_id`, `event_type`, `schema_version`, `world_id`, `tic
+MINERAL_MINED	quantity-fractional.json	기대(스펙§5.3)=거부	실측r2=거부	invalid type: floating point `25.5`, expected i32
+MINERAL_MINED	quantity-zero.json	기대(스펙§5.3)=거부	실측r2=거부	MassKg 는 이 필드에서 0일 수 없다 (최소 1)
+MINERAL_MINED	remaining-negative.json	기대(스펙§5.3)=거부	실측r2=거부	MassKg 는 0 ..= 2147483647 범위여야 한다 (받음: -25)
+MINERAL_DISCOVERED	domain-envelope-field-sequence.json	기대(스펙§5.3)=거부	실측r2=거부	unknown field `sequence`, expected one of `historical_event_id`, `event_type`, `schema_version`, `world_id`, `
+MINERAL_DISCOVERED	fact-status-interpretation.json	기대(스펙§5.3)=거부	실측r2=거부	unknown variant `DISPUTED`, expected `CONFIRMED`
+MINERAL_DISCOVERED	historical-id-v7-not-derived.json	기대(스펙§5.3)=거부	실측r2=거부	UuidV5 는 버전 5이어야 한다 (받은 값의 버전: 7, 값: 01a0b1c2-a001-7e01-8f11-505162738495)
+MINERAL_DISCOVERED	importance-level-zero.json	기대(스펙§5.3)=거부	실측r2=거부	importance_level 은 1 ..= 5 여야 한다 (받음: 0)
+MINERAL_DISCOVERED	narrative-field-injected.json	기대(스펙§5.3)=거부	실측r2=거부	unknown field `headline`, expected one of `historical_event_id`, `event_type`, `schema_version`, `world_id`, `
+MINERAL_DISCOVERED	participants-discoverer-only.json	기대(스펙§5.3)=거부	실측r2=거부	participants 는 정확히 2개여야 한다 (받음: 1)
+MINERAL_DISCOVERED	rule-version-without-number.json	기대(스펙§5.3)=거부	실측r2=거부	RuleVersion 패턴에 맞지 않는다: mineral-discovery
+MINERAL_DISCOVERED	source-event-ids-empty.json	기대(스펙§5.3)=거부	실측r2=거부	source_event_ids 는 정확히 1개여야 한다 (받음: 0)
+INVENTORY_STATE	capacity-field-injected.json	기대(스펙§5.3)=거부	실측r2=거부	unknown field `capacity_kg`, expected `actor_id` or `items`
+INVENTORY_STATE	fractional-quantity.json	기대(스펙§5.3)=거부	실측r2=거부	invalid type: floating point `200.5`, expected i32
+INVENTORY_STATE	zero-quantity-item.json	기대(스펙§5.3)=거부	실측r2=거부	MassKg 는 이 필드에서 0일 수 없다 (최소 1)
+DEPOSIT_FIELD_STATE	hint-field-injected.json	기대(스펙§5.3)=거부	실측r2=거부	unknown field `rarity`, expected one of `deposit_id`, `mineral_id`, `initial_reserve_kg`, `remaining_kg`, `fir
+DEPOSIT_FIELD_STATE	missing-mineral-key.json	기대(스펙§5.3)=거부	실측r2=거부	missing field `mineral_id`
+DEPOSIT_FIELD_STATE	remaining-negative.json	기대(스펙§5.3)=거부	실측r2=거부	MassKg 는 0 ..= 2147483647 범위여야 한다 (받음: -1)
+HISTORICAL_EVENT_NOTICE	nested-level-zero.json	기대(스펙§5.3)=거부	실측r2=거부	importance_level 은 1 ..= 5 여야 한다 (받음: 0)
+HISTORICAL_EVENT_NOTICE	sentence-injected.json	기대(스펙§5.3)=거부	실측r2=거부	unknown field `headline`, expected `delivery` or `historical_event`
+HISTORICAL_EVENT_NOTICE	unknown-delivery.json	기대(스펙§5.3)=거부	실측r2=거부	unknown variant `REPLAY`, expected `LIVE` or `BACKFILL`
+MINERAL	regen-interval-fractional.json	기대(스펙§5.3)=거부	실측r2=거부	invalid type: floating point `1.5`, expected i64
+MINERAL	unread-property.json	기대(스펙§5.3)=거부	실측r2=거부	unknown field `density_kg_m3`, expected one of `schema_version`, `id`, `display_name`, `rarity`, `designer_not
+MINERAL	yield-fractional.json	기대(스펙§5.3)=거부	실측r2=거부	invalid type: floating point `80.5`, expected i32
+DEPOSIT_FIELD	no-deposits.json	기대(스펙§5.3)=거부	실측r2=거부	deposits 는 1 ..= 64 개여야 한다 (받음: 0)
+DEPOSIT_FIELD	position-two-components.json	기대(스펙§5.3)=거부	실측r2=거부	invalid length 2, expected an array of length 3
+DEPOSIT_FIELD	reserve-fractional.json	기대(스펙§5.3)=거부	실측r2=거부	invalid type: floating point `3200.5`, expected i32
+MINING_RULES	cooldown-fractional.json	기대(스펙§5.3)=거부	실측r2=거부	invalid type: floating point `2.5`, expected i64
+MINING_RULES	range-zero.json	기대(스펙§5.3)=거부	실측r2=거부	de_mining_range_from_surface_m 는 (0 .. 5000 범위를 벗어난다 (받음: 0)
+SIGNIFICANCE_RULE	foreign-input-rarity.json	기대(스펙§5.3)=거부	실측r2=거부	unknown field `rarity_weight`, expected one of `schema_version`, `rule_id`, `rule_version`, `produces_event_ty
+SIGNIFICANCE_RULE	importance-level-zero.json	기대(스펙§5.3)=거부	실측r2=거부	importance_level 은 1 ..= 5 여야 한다 (받음: 0)
+SIGNIFICANCE_RULE	rule-version-malformed.json	기대(스펙§5.3)=거부	실측r2=거부	RuleVersion 패턴에 맞지 않는다: v1
+compared 40 mismatch 0 []

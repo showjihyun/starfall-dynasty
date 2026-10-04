@@ -1,0 +1,80 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.starfall.invalid/contracts/data/deposit-field.schema.json",
+  "title": "DepositFieldTable",
+  "description": "Shape of a star system's deposit file, data/world/deposits/{star_system_id}.json (p1-02). SERVER-SIDE TRUTH FOR mineral_id AND initial_reserve_kg: a client may hold a copy of this file (ADR-0012 section 7 file copy) but must read only id, display_name, position_m and radius_m from it; the mineral of a deposit reaches the client only through DEPOSIT_FIELD_STATE after the deposit is revealed. Boot-time checks beyond this schema (all boot failures, spec p1-02 I-38 extension): every mineral_id exists in data/minerals; every mineral has at least one deposit; star_system_id equals a loaded star system; |position| + radius_m + mining_range_from_surface_m <= soft_boundary_radius_m; regen_kg <= initial_reserve_kg; ids unique; mining zones of two deposits do not overlap. Positions are system-local metres (ADR-0009 section 1). 단위 접미사 규약: 수치 필드 이름이 단위로 끝난다 (_m, _mps, _s, _kg). **_kg 필드는 정수다** — 수량은 경제 값이므로 ADR-0009 section 2 의 SI 실수 예외에 들지 않는다(primitives MassKg). _s 필드도 정수이고 tick_hz 를 곱해 정수 tick 이 되어야 한다(서버 기동 검증).",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "star_system_id",
+    "deposits"
+  ],
+  "properties": {
+    "schema_version": {
+      "$ref": "../common/primitives.schema.json#/$defs/SchemaVersion"
+    },
+    "star_system_id": {
+      "$ref": "../common/primitives.schema.json#/$defs/DataId"
+    },
+    "designer_note": {
+      "type": "string",
+      "maxLength": 2000
+    },
+    "deposits": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Deposit"
+      },
+      "minItems": 1,
+      "maxItems": 64
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "Deposit": {
+      "title": "Deposit",
+      "type": "object",
+      "required": [
+        "id",
+        "display_name",
+        "mineral_id",
+        "position_m",
+        "radius_m",
+        "initial_reserve_kg"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "../common/primitives.schema.json#/$defs/DataId"
+        },
+        "display_name": {
+          "description": "Region-only name; must not reveal the mineral.",
+          "type": "string",
+          "pattern": "^[^\\u0000-\\u001f]{1,64}$"
+        },
+        "mineral_id": {
+          "$ref": "../common/primitives.schema.json#/$defs/DataId"
+        },
+        "position_m": {
+          "type": "array",
+          "items": {
+            "type": "number",
+            "minimum": -20000.0,
+            "maximum": 20000.0
+          },
+          "minItems": 3,
+          "maxItems": 3
+        },
+        "radius_m": {
+          "type": "number",
+          "exclusiveMinimum": 0.0,
+          "maximum": 1000.0
+        },
+        "initial_reserve_kg": {
+          "$ref": "../common/primitives.schema.json#/$defs/MassKg",
+          "minimum": 1
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

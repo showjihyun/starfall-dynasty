@@ -1,0 +1,36 @@
+{
+  "historical_event_id": "a5fcc225-5038-5071-b5d1-059847588363",
+  "event_type": "MINERAL_DISCOVERED",
+  "schema_version": 1,
+  "world_id": "01a0b1c2-3d4e-7f01-8a2b-9c0d1e2f3a4b",
+  "rule_version": "mineral-discovery@1",
+  "importance_level": 2,
+  "tick": 91234,
+  "occurred_at": "3800-01-04T04:01:00Z",
+  "recorded_at": "2026-09-27T09:12:40.734Z",
+  "visibility": "PUBLIC",
+  "fact_status": "CONFIRMED",
+  "source_event_ids": [
+    "01a0b1c2-a002-7e02-9f12-6061728394a5"
+  ],
+  "location": {
+    "star_system_id": "cradle"
+  },
+  "participants": [
+    {
+      "entity_id": "01a0b1c2-2c02-7b46-9c68-9abcdef01234",
+      "entity_kind": "PLAYER",
+      "role": "DISCOVERER"
+    },
+    {
+      "entity_id": "01a0b1c2-8b02-7a12-9b23-ac34d55e66f7",
+      "entity_kind": "SHIP",
+      "role": "VESSEL"
+    }
+  ],
+  "payload": {
+    "mineral_id": "glacine",
+    "deposit_id": "vela-orbit-1",
+    "quantity_kg": 100
+  }
+}

@@ -1,0 +1,63 @@
+SC-05	starfall-game-server	data::tests::reject_c	rc=0	ran=16	passed=16	failed=0	data::tests::reject_c04_deposit_outside_soft_boundary data::tests::reject_c10_overlapping_mining_zones data::tests::reject_c03_deposit_wrong_star_system data::tests::reject_c08_duplicate_mineral_id data::tests::reject_c02_mineral_without_deposit data::tests::reject_c05_cooldown_fractional data::tests::reject_c09_duplicate_deposit_id data::tests::reject_c07_regen_exceeds_initial_reserve data::tests::reject_c06_regen_interval_fractional data::tests::reject_c11_rule_version_wrong_prefix data::tests::reject_c01_deposit_unknown_mineral data::tests::reject_c12_produces_event_type_not_registered data::tests::reject_c13_mineral_schema_violation data::tests::reject_c15_mining_rules_schema_violation data::tests::reject_c14_deposit_field_schema_violation data::tests::reject_c16_significance_rule_schema_violation 
+SC-08	starfall-sim	mining::accept_*	rc=0	ran=1	passed=1	failed=0	simulation::tests::mining::accept_mine_produces_event_and_both_messages 
+SC-09	starfall-sim	mining::each_rejection_reason	rc=0	ran=2	passed=2	failed=0	simulation::tests::mining::each_rejection_reason_leaves_prior_accepted_state_untouched simulation::tests::mining::each_rejection_reason_leaves_prior_accepted_state_untouched_reasons_3_6_7 
+SC-09	starfall-gateway	mine_resource_capacity_exceeded_is_counted_in_commands_rejected_total	rc=0	ran=1	passed=1	failed=0	mine_resource_capacity_exceeded_is_counted_in_commands_rejected_total 
+SC-10	starfall-sim	mining::reject_order_*	rc=0	ran=1	passed=1	failed=0	simulation::tests::mining::reject_order_adjacent_pairs_pick_the_earlier_one 
+SC-10cand	starfall-sim	mining::cooldown_before_range_in_judgement_order	rc=0	ran=1	passed=1	failed=0	simulation::tests::mining::cooldown_before_range_in_judgement_order 
+SC-11	starfall-sim	mining::reject_does_not_start_cooldown	rc=0	ran=1	passed=1	failed=0	simulation::tests::mining::reject_does_not_start_cooldown 
+SC-12	starfall-sim	mining::partial_then_depleted	rc=0	ran=1	passed=1	failed=0	simulation::tests::mining::partial_then_depleted_when_remaining_is_less_than_extraction_yield 
+SC-13	starfall-sim	mining::same_tick_submission_order	rc=0	ran=1	passed=1	failed=0	simulation::tests::mining::same_tick_submission_order_determines_the_winner_not_ship_id 
+SC-14	starfall-sim	mining::tests::regen_closed_form_matches_stepwise	rc=0	ran=1	passed=1	failed=0	mining::tests::regen_closed_form_matches_stepwise_simulation 
+SC-15	starfall-sim	mining::range_uses_pre_integration_state	rc=0	ran=1	passed=1	failed=0	simulation::tests::mining::range_uses_pre_integration_state 
+SC-16	starfall-sim	mining::dup_same_session	rc=0	ran=1	passed=1	failed=0	simulation::tests::mining::dup_same_session_resend_is_rejected_as_duplicate 
+SC-17	starfall-sim	mining::dup_across_reconnect	rc=0	ran=1	passed=1	failed=0	simulation::tests::mining::dup_across_reconnect_within_linger_window_is_rejected 
+SC-18	starfall-persistence	restart_reloads_economic_state_so_cas_succeeds_and_duplicates_are_rejected	rc=0	ran=1	passed=1	failed=0	restart_reloads_economic_state_so_cas_succeeds_and_duplicates_are_rejected 
+SC-19	starfall-sim	mining::dup_two_sessions_same_tick	rc=0	ran=1	passed=1	failed=0	simulation::tests::mining::dup_two_sessions_same_tick_accept_one_duplicate_one 
+SC-20	starfall-persistence	batch_recommit_is_noop	rc=0	ran=1	passed=1	failed=0	batch_recommit_is_noop 
+SC-21	starfall-persistence	dup_reaching_db_halts	rc=0	ran=1	passed=1	failed=0	dup_reaching_db_halts 
+SC-21	starfall-persistence	dup_across_restart	rc=0	ran=1	passed=1	failed=0	dup_across_restart 
+SC-22	starfall-sim	mining::rejected_resend_*	rc=0	ran=1	passed=1	failed=0	simulation::tests::mining::rejected_resend_branches 
+SC-25	starfall-persistence	cas_mismatch_halts	rc=0	ran=1	passed=1	failed=0	cas_mismatch_halts_the_world 
+SC-26	starfall-persistence	restart_reloads_economic_state_so_cas_succeeds_and_duplicates_are_rejected	rc=0	ran=1	passed=1	failed=0	restart_reloads_economic_state_so_cas_succeeds_and_duplicates_are_rejected 
+SC-26	starfall-persistence	load_economic_state_matches_the_database	rc=0	ran=1	passed=1	failed=0	load_economic_state_matches_the_database 
+SC-26	starfall-persistence	load_economic_state_on_empty_world_returns_empty_lists	rc=0	ran=1	passed=1	failed=0	load_economic_state_on_empty_world_returns_empty_lists 
+SC-27	starfall-persistence	recorded_at_failure_fails_batch	rc=0	ran=1	passed=1	failed=0	recorded_at_failure_fails_batch 
+SC-28	starfall-gateway	recording_lag_boundary_*	rc=0	ran=1	passed=1	failed=0	ws::tests::recording_lag_boundary_rejects_mine_resource_but_accepts_ship_control 
+SC-28	starfall-gateway	recording_halted_rejects_state_change	rc=0	ran=0	passed=0	failed=0	
+SC-28cand	starfall-gateway	mine_resource_is_not_rejected_with_recording_backlog_when_lag_is_within_the_limit	rc=0	ran=1	passed=1	failed=0	ws::tests::mine_resource_is_not_rejected_with_recording_backlog_when_lag_is_within_the_limit 
+SC-28cand	starfall-gateway	mine_resource_passes_when_persist_backlog_is_high_but_recording_lag_is_zero	rc=0	ran=1	passed=1	failed=0	ws::tests::mine_resource_passes_when_persist_backlog_is_high_but_recording_lag_is_zero 
+SC-33	starfall-sim	mining_replay	rc=0	ran=1	passed=1	failed=0	sc33_two_process_replay_with_mining_is_byte_identical 
+SC-36	starfall-contracts	invalid_fixtures_layered	rc=0	ran=1	passed=1	failed=0	invalid_fixtures_layered 
+SC-37	starfall-contracts	required_removal_mutations	rc=0	ran=1	passed=1	failed=0	required_removal_mutations 
+SC-38	starfall-contracts	registry_responses	rc=0	ran=1	passed=1	failed=0	registry_responses 
+SC-39	starfall-sim	mining::deposit_field_state_reveal	rc=0	ran=1	passed=1	failed=0	simulation::tests::mining::deposit_field_state_reveal_mixes_unconfirmed_and_revealed_and_stays_revealed_after_full_regen 
+SC-41	starfall-history	first_extraction_discovers	rc=0	ran=1	passed=1	failed=0	first_extraction_discovers 
+SC-42	starfall-history	second_extraction_is_silent	rc=0	ran=1	passed=1	failed=0	second_extraction_is_silent 
+SC-43	starfall-history	other_mineral_discovers	rc=0	ran=1	passed=1	failed=0	other_mineral_discovers 
+SC-44	starfall-history	same_tick_lower_sequence_wins	rc=0	ran=1	passed=1	failed=0	same_tick_lower_sequence_wins 
+SC-45	starfall-history	reprocessing_is_idempotent	rc=0	ran=1	passed=1	failed=0	reprocessing_is_idempotent 
+SC-46	starfall-history	batch_boundary_invariance	rc=0	ran=1	passed=1	failed=0	batch_boundary_invariance 
+SC-47	starfall-persistence	history_runner_ordering_permutations	rc=0	ran=1	passed=1	failed=0	history_runner_ordering_permutations 
+SC-48	starfall-history	out_of_order_input_rejected	rc=0	ran=1	passed=1	failed=0	out_of_order_input_rejected 
+SC-49	starfall-history	level0_filter	rc=0	ran=1	passed=1	failed=0	level0_filter 
+SC-50	starfall-history	rule_golden	rc=0	ran=2	passed=2	failed=0	golden::rule_golden_detects_value_change_without_version_bump golden::rule_golden 
+SC-51	starfall-persistence	history_first_discovery_rows	rc=0	ran=1	passed=1	failed=0	history_first_discovery_rows 
+SC-52	starfall-persistence	history_tables_append_only	rc=0	ran=1	passed=1	failed=0	history_tables_append_only 
+SC-53	starfall-persistence	history_dedupe_unique	rc=0	ran=1	passed=1	failed=0	history_dedupe_unique 
+SC-54	starfall-persistence	history_crash_before_commit	rc=0	ran=1	passed=1	failed=0	history_crash_before_commit 
+SC-55	starfall-persistence	history_fail_stop	rc=0	ran=1	passed=1	failed=0	history_fail_stop 
+SC-56	starfall-persistence	history_watermark	rc=0	ran=1	passed=1	failed=0	history_watermark 
+SC-57	starfall-persistence	history_restart_rebuild	rc=0	ran=1	passed=1	failed=0	history_restart_rebuild 
+SC-62	starfall-persistence	history_notice_after_commit_only	rc=0	ran=1	passed=1	failed=0	history_notice_after_commit_only 
+SC-63	starfall-gateway	notice_no_gap_same_tick	rc=0	ran=1	passed=1	failed=0	notice_no_gap_same_tick 
+SC-100	starfall-sim	duplicate_command_id_across_different_sessions_is_rejected	rc=0	ran=1	passed=1	failed=0	simulation::tests::mining::duplicate_command_id_across_different_sessions_is_rejected 
+SC-100	starfall-persistence	dup_cross_actor_no_halt	rc=0	ran=1	passed=1	failed=0	dup_cross_actor_no_halt 
+SC-101	starfall-persistence	payload_serialize_failure_fails_batch	rc=0	ran=1	passed=1	failed=0	payload_serialize_failure_fails_batch 
+SC-102	starfall-persistence	no_commit_after_fatal	rc=0	ran=1	passed=1	failed=0	no_commit_after_fatal 
+SC-103	starfall-persistence	admin_shutdown_is_transient	rc=0	ran=1	passed=1	failed=0	admin_shutdown_is_transient 
+SC-105	starfall-persistence	history_conflict_halts_runner_only	rc=0	ran=1	passed=1	failed=0	history_conflict_halts_runner_only 
+SC-106	starfall-persistence	history_redelivery_is_silent	rc=0	ran=1	passed=1	failed=0	history_redelivery_is_silent 
+SC-111	starfall-persistence	history_same_source_different_content_halts	rc=0	ran=1	passed=1	failed=0	history_same_source_different_content_halts 
+SC-112	starfall-persistence	terminated_backend_is_retried	rc=0	ran=1	passed=1	failed=0	terminated_backend_is_retried 
+SC-114	starfall-testdb	refuses_non_test_database	rc=0	ran=1	passed=1	failed=0	tests::refuses_non_test_database 
+DONE

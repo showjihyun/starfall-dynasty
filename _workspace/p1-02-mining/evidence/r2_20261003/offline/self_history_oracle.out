@@ -1,0 +1,10 @@
+OK   일치 → 차집합 0 :: True 기대=True
+OK   역사에 발견 하나 빠짐 → 불일치 :: False 기대=False
+OK   역사가 두 번째 채굴을 근거로 → 불일치 :: False 기대=False
+OK   같은 키에 역사 두 행 → 불일치 :: False 기대=False
+OK   오라클에 없는 발견 → 불일치 :: False 기대=False
+OK   NULL 키 한 행끼리는 집합이 일치해 버린다(그래서 분모·NULL 탐침이 필요하다) :: True 기대=True
+OK   없는 열 → NotImplementedYet(구현·도구 모양 불일치), 결과 행이 아니다 :: NotImplementedYet 기대=NotImplementedYet
+OK   문법 오류 → QueryError (main_guard 가 FAIL 로) :: QueryError 기대=QueryError
+OK   대조: 옛 psql_rows 경로는 오류 문자열을 **행으로** 쪼갠다(그래서 strict 를 쓴다) :: True 기대=True
+selftest: PASS  케이스=9

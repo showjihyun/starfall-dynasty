@@ -43,6 +43,10 @@ struct TestServer {
     shutdown: Arc<AtomicBool>,
     batches: Arc<Mutex<Vec<PersistBatch>>>,
     tick_thread: Option<std::thread::JoinHandle<()>>,
+    /// p1-02(S10, qa SC-25 발견) — 영속화 정지(K5)를 흉내내는 핸들. 실제
+    /// `starfall-persistence`(server-db 소유)를 거치지 않고 게이트웨이가 이 값을 보고
+    /// 스스로 멈추는지만 이 파일에서 본다.
+    halted: Arc<AtomicBool>,
 }
 
 /// p0-02 자산 테스트의 기본 `WorldConstants` — `max_entities_per_snapshot: 64`.
@@ -96,6 +100,19 @@ fn default_world() -> WorldConstants {
         carry_forward_max_ticks: 10,
         rate_limit_per_tick_cap: 2,
         max_entities_per_snapshot: 64,
+        // 이 파일의 테스트는 채굴 명령을 보내지 않는다(p0-02/p1-01 자산) — 빈 표로 둔다.
+        // `every_registry_command_type_passes_through_the_gateway`(M-17)만 MINE_RESOURCE
+        // 를 보내는데, 그 테스트는 스폰 지점이 하나뿐인 전용 월드
+        // [`world_with_one_mineable_deposit`]를 따로 쓴다(이 공유 `default_world`의
+        // 두 스폰 지점 중 어디로 갈지는 actor_id 해시라 매장지 하나로는 결정적으로
+        // 덮을 수 없다).
+        minerals: std::collections::BTreeMap::new(),
+        deposits: std::collections::BTreeMap::new(),
+        mining_rules: starfall_sim::MiningRuleConstants {
+            mining_range_from_surface_m: 150.0,
+            max_ship_speed_mps: 10.0,
+            cooldown_ticks: 60,
+        },
     }
 }
 
@@ -152,6 +169,10 @@ impl TestServer {
             u64::try_from(world.spawn_points_m.len()).unwrap_or(0),
             u64::from(world.snapshot_interval_ticks),
             u64::try_from(world.max_entities_per_snapshot).unwrap_or(u64::MAX),
+            u64::try_from(world.minerals.len()).unwrap_or(0),
+            u64::try_from(world.deposits.len()).unwrap_or(0),
+            "",
+            0,
         );
 
         let (persist_tx, mut persist_rx) = mpsc::channel(512);
@@ -163,13 +184,24 @@ impl TestServer {
             }
         });
 
+        // p1-02(S10) — `Stats`가 이미 들고 있는 `persist_halted` 원자값을 그대로
+        // 재사용한다(별도 값을 만들면 tick 루프가 보는 값과 테스트가 세우는 값이
+        // 갈라진다).
+        let (_, _, _, halted, _) = stats.persist_handles();
+
         let shutdown = Arc::new(AtomicBool::new(false));
+        // 이 스위트는 역사 기록을 다루지 않는다(BACKFILL 씨앗 없음, LIVE 채널은 아무도
+        // 보내지 않는다) — S5의 역사 중계는 `history_runner.rs`(persistence)와
+        // 실서버 경로가 덮는다.
+        let (_history_live_tx, history_live_rx) = mpsc::channel(1);
         let (submit, tick_thread) = starfall_gateway::runtime::build(
             Simulation::new(world, 0),
             persist_tx,
             stats.clone(),
             tick_interval,
             Arc::clone(&shutdown),
+            Vec::new(),
+            history_live_rx,
         );
 
         let auth = DevAuth::from_secret(auth_enabled.then(|| SECRET.to_owned()));
@@ -191,7 +223,106 @@ impl TestServer {
             shutdown,
             batches,
             tick_thread: Some(tick_thread),
+            halted,
         }
+    }
+
+    /// p1-02(S5) — 역사 LIVE·BACKFILL 중계 테스트 전용. `initial_backfill`로 tick
+    /// 드라이버의 BACKFILL 씨앗을 채우고, 반환한 `Sender`로 LIVE 기록을 흘려 보낼 수
+    /// 있게 한다(다른 생성자는 이 송신단을 즉시 버려 아무도 못 쓰게 한다 — 그 테스트들은
+    /// 역사를 다루지 않는다).
+    async fn start_with_history(
+        auth_enabled: bool,
+        world: WorldConstants,
+        initial_backfill: Vec<starfall_contracts::historical::MineralDiscoveredEvent>,
+    ) -> (
+        Self,
+        mpsc::Sender<starfall_contracts::historical::MineralDiscoveredEvent>,
+    ) {
+        Self::start_with_history_and_interval(
+            auth_enabled,
+            world,
+            initial_backfill,
+            Duration::from_millis(50),
+        )
+        .await
+    }
+
+    /// [`start_with_history`]와 같지만 tick 간격을 직접 넣는다(p1-02 S12, SC-63
+    /// 전용) — **새 세션 열림과 새 LIVE 역사 기록이 같은 tick에 겹치는 창**을
+    /// 결정적으로 만들려면 그 tick이 오기 전에 둘 다(연결 요청 + LIVE 송신)를
+    /// 밀어 넣을 시간이 필요하다. 간격을 충분히 길게 잡으면 그 준비가 항상 다음
+    /// tick보다 먼저 끝난다.
+    async fn start_with_history_and_interval(
+        auth_enabled: bool,
+        world: WorldConstants,
+        initial_backfill: Vec<starfall_contracts::historical::MineralDiscoveredEvent>,
+        tick_interval: Duration,
+    ) -> (
+        Self,
+        mpsc::Sender<starfall_contracts::historical::MineralDiscoveredEvent>,
+    ) {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let stats = Stats::new();
+        stats.set_start_tick(0);
+        stats.set_data_loaded(
+            "test",
+            1,
+            u64::try_from(world.spawn_points_m.len()).unwrap_or(0),
+            u64::from(world.snapshot_interval_ticks),
+            u64::try_from(world.max_entities_per_snapshot).unwrap_or(u64::MAX),
+            u64::try_from(world.minerals.len()).unwrap_or(0),
+            u64::try_from(world.deposits.len()).unwrap_or(0),
+            "",
+            0,
+        );
+
+        let (persist_tx, mut persist_rx) = mpsc::channel(512);
+        let batches = Arc::new(Mutex::new(Vec::new()));
+        let sink = Arc::clone(&batches);
+        tokio::spawn(async move {
+            while let Some(batch) = persist_rx.recv().await {
+                sink.lock().unwrap().push(batch);
+            }
+        });
+
+        let (_, _, _, halted, _) = stats.persist_handles();
+        let shutdown = Arc::new(AtomicBool::new(false));
+        let (history_live_tx, history_live_rx) = mpsc::channel(256);
+        let (submit, tick_thread) = starfall_gateway::runtime::build(
+            Simulation::new(world, 0),
+            persist_tx,
+            stats.clone(),
+            tick_interval,
+            Arc::clone(&shutdown),
+            initial_backfill,
+            history_live_rx,
+        );
+
+        let auth = DevAuth::from_secret(auth_enabled.then(|| SECRET.to_owned()));
+        let probes = Probes::new(
+            "postgres://starfall:pw@127.0.0.1:1/starfall",
+            "redis://127.0.0.1:1/0",
+        )
+        .unwrap();
+        let state = AppState::new("0.1.0-test", probes).with_realtime(auth.clone(), stats, submit);
+
+        let addr = listener.local_addr().unwrap();
+        tokio::spawn(async move {
+            let _ = axum::serve(listener, realtime_router(state)).await;
+        });
+
+        (
+            Self {
+                addr,
+                auth,
+                shutdown,
+                batches,
+                tick_thread: Some(tick_thread),
+                halted,
+            },
+            history_live_tx,
+        )
     }
 
     fn token(&self, subject: &str) -> String {
@@ -225,7 +356,9 @@ impl TestServer {
                 DomainEventBody::SessionClosed(payload) => {
                     Some(("SESSION_CLOSED".to_owned(), payload.close_reason))
                 }
-                DomainEventBody::ShipSpawned(_) | DomainEventBody::ShipDespawned(_) => None,
+                DomainEventBody::ShipSpawned(_)
+                | DomainEventBody::ShipDespawned(_)
+                | DomainEventBody::MineralMined(_) => None,
             })
             .collect()
     }
@@ -243,6 +376,18 @@ impl TestServer {
                 DomainEventBody::ShipSpawned(payload) => Some(payload.ship_id.to_string()),
                 _ => None,
             })
+            .collect()
+    }
+
+    /// S7(qa SC-04) — 영속화 채널로 **실제로 나간** 배치들의 `tick` 값 전부(이벤트가
+    /// 비어 있는 배치도 포함 — 하트비트·종료 스윕이 그런 모양이다). 워터마크가 어느
+    /// tick까지 실제로 "커밋 시도됐는지"를 배치 도착 자체로 재는 접근자다.
+    fn batch_ticks(&self) -> Vec<u64> {
+        self.batches
+            .lock()
+            .unwrap()
+            .iter()
+            .map(|batch| batch.tick)
             .collect()
     }
 }
@@ -424,6 +569,26 @@ where
     }
 }
 
+/// S3b(스펙 §5.1a, ADR-0006 §4a) — `SESSION_READY` 직후 반드시 오는 두 메시지를
+/// 소비하고 **실제로 왔음을 단언**한다(architect 판정 기준 ③ — 건너뛰기만 하면 세션
+/// 시작 메시지 누락을 못 잡는다). 순서는 sim 이 내는 그대로: `INVENTORY_STATE` →
+/// `DEPOSIT_FIELD_STATE`.
+async fn expect_session_start_state_messages<S>(client: &mut S)
+where
+    S: futures_util::Stream<Item = Result<Message, tokio_tungstenite::tungstenite::Error>> + Unpin,
+{
+    let inventory = next_json(client).await;
+    assert_eq!(
+        inventory["message_type"], "INVENTORY_STATE",
+        "SESSION_READY 다음은 INVENTORY_STATE(스펙 §5.1a)"
+    );
+    let deposit_field = next_json(client).await;
+    assert_eq!(
+        deposit_field["message_type"], "DEPOSIT_FIELD_STATE",
+        "그다음은 DEPOSIT_FIELD_STATE(스펙 §5.1a)"
+    );
+}
+
 // ---------------------------------------------------------------------------
 // SC-14 / SC-16 — 인증
 // ---------------------------------------------------------------------------
@@ -540,6 +705,7 @@ async fn sc19_command_result_precedes_ping_reply_with_same_tick() {
         next_json(&mut client).await["message_type"],
         "SESSION_READY"
     );
+    expect_session_start_state_messages(&mut client).await;
 
     const CHECKED: u64 = 10;
     for n in 0..CHECKED {
@@ -1119,6 +1285,75 @@ async fn i44_world_full_exempts_a_resuming_actor() {
     server.shutdown_and_join().await;
 }
 
+/// p1-02(S10, qa SC-25 발견) — 영속화가 회복 불가로 정지하면(K5, ADR-0013 §5) tick
+/// 루프가 **스스로** 멈추고 더 이상 새 연결을 받지 않아야 한다.
+///
+/// qa 실측(실서버, `restart_cases.py --out <DIR> cas`): tick 469 에서 정지했는데도
+/// tick 1779 까지 계속 돌며 두 번째 `MINE_RESOURCE` 를 ACCEPT 했다(영속화는 이미
+/// 끝났으므로 그 결과는 DB에 영영 남지 않는다) — 사람이 stdin `shutdown` 을 보낼 때만
+/// 끝났고, 그마저 exit code 0 · "정상 종료" 로그였다. 이 테스트는 그 창을 재는 자리다:
+/// 실제 DB 오류를 일으키지 않고 `Stats::persist_handles().halted`(server-db의
+/// `starfall-persistence` 가 K5에서 세우는 바로 그 값)를 직접 세워 정지를 흉내내고,
+/// 게이트웨이(이 크레이트, 내 소유)가 그 신호만 보고 스스로 멈추는지를 본다.
+#[tokio::test]
+async fn persist_halted_stops_the_tick_loop_and_rejects_new_connections() {
+    let mut server = TestServer::start(true).await;
+
+    // 정지 전: 정상적으로 접속·해제된다(대조군 — "애초에 접속이 안 됐다"와 구분한다).
+    let token = server.token(SUBJECT);
+    let mut client = connect(&server, Some(&token)).await.unwrap();
+    assert_eq!(
+        next_json(&mut client).await["message_type"],
+        "SESSION_READY"
+    );
+    client.close(None).await.unwrap();
+    while let Some(Ok(_)) = client.next().await {}
+    wait_for_no_connections(&server).await;
+    assert!(
+        stats_json(&server).await["persist_halted"] == false,
+        "테스트 전제가 깨졌다 — 이미 정지 상태로 시작했다"
+    );
+
+    // K5 정지를 흉내낸다.
+    server.halted.store(true, Ordering::Release);
+
+    // tick 루프가 다음 tick 안에 스스로 끝나고 종료 스윕이 `accepting` 을 내린다.
+    let mut accepting_after_halt = true;
+    for _ in 0..CLOSE_POLL_LIMIT {
+        let body = stats_json(&server).await;
+        if body["accepting_connections"] == false {
+            accepting_after_halt = false;
+            break;
+        }
+        tokio::time::sleep(CLOSE_POLL_INTERVAL).await;
+    }
+    assert!(
+        !accepting_after_halt,
+        "persist_halted 뒤에도 accepting_connections 가 계속 true 다 — tick 루프가 \
+         스스로 멈추지 않았다(SC-25)"
+    );
+
+    // 새 접속은 즉시 503 ShuttingDown 으로 막혀야 한다 — "받고도 기록 안 되는" 창을
+    // 남기지 않는다는 것이 핵심 주장이다.
+    let other_token = server.token("01a0b1c2-2c01-7a45-8b67-9999999999ff");
+    assert_eq!(
+        connect(&server, Some(&other_token)).await.unwrap_err(),
+        503,
+        "persist_halted 뒤에도 새 연결이 받아들여졌다(SC-25)"
+    );
+
+    // "accepting 만 내려갔다"가 아니라 tick 스레드 자체가 실제로 끝났는지도 확인한다 —
+    // 그래야 "루프가 계속 돌면서 accepting 게이지만 먼저 내렸다"는 오독을 배제한다.
+    let handle = server
+        .tick_thread
+        .take()
+        .expect("tick_thread 는 아직 join 되지 않았어야 한다");
+    tokio::task::spawn_blocking(move || handle.join())
+        .await
+        .unwrap()
+        .expect("tick 스레드가 패닉 없이 끝나야 한다");
+}
+
 /// SC-27 / I-16 — 정상 종료는 살아 있던 **모든** 세션을 `SERVER_SHUTDOWN` 으로 닫는다.
 #[tokio::test]
 async fn sc27_shutdown_closes_every_open_session() {
@@ -1339,6 +1574,13 @@ fn set_ship_control_command(command_id: &str, input_seq: u32, thrust_z_milli: i3
     )))
 }
 
+/// `deposit_id`는 [`world_with_one_mineable_deposit`]의 `"test-deposit"` 고정값이다.
+fn mine_resource_command(command_id: &str) -> Message {
+    Message::Text(Utf8Bytes::from(format!(
+        r#"{{"command_id":"{command_id}","command_type":"MINE_RESOURCE","schema_version":1,"client_sent_at":null,"payload":{{"deposit_id":"test-deposit"}}}}"#
+    )))
+}
+
 /// 레지스트리 이름 → 그 타입의 **유효한** 명령 프레임.
 ///
 /// `None` 은 "이 스위트가 그 명령을 소켓으로 보낼 줄 모른다"는 뜻이고, 아래 순회
@@ -1349,6 +1591,7 @@ fn command_frame(registry_name: &str, command_id: &str, n: u32) -> Option<Messag
         starfall_contracts::registry::SET_SHIP_CONTROL => {
             Some(set_ship_control_command(command_id, n.max(1), 500))
         }
+        starfall_contracts::registry::MINE_RESOURCE => Some(mine_resource_command(command_id)),
         _ => None,
     }
 }
@@ -1360,6 +1603,175 @@ fn world_with_fast_snapshots() -> WorldConstants {
         snapshot_interval_ticks: 2,
         ..default_world()
     }
+}
+
+/// M-17(`every_registry_command_type_passes_through_the_gateway`) 전용 — 스폰
+/// 지점을 하나로 좁혀서(`sim::simulation::tests::mining_tests::world_with_one_deposit`
+/// 와 같은 이유: actor_id 해시로 스폰 지점이 갈리면 매장지 사거리 판정이 결정적이지
+/// 않다) 어느 actor 든 채굴이 확실히 수락되게 한다.
+fn world_with_one_mineable_deposit() -> WorldConstants {
+    const SPAWN_POINT: [f64; 3] = [2500.0, 250.0, 0.0];
+    WorldConstants {
+        spawn_points_m: vec![SPAWN_POINT],
+        minerals: std::collections::BTreeMap::from([(
+            DataId::parse("test-mineral").unwrap(),
+            starfall_sim::MineralConstants {
+                yield_per_extraction_kg: 25,
+                regen_kg: 5,
+                regen_interval_ticks: 10,
+            },
+        )]),
+        deposits: std::collections::BTreeMap::from([(
+            DataId::parse("test-deposit").unwrap(),
+            starfall_sim::DepositConstants {
+                mineral_id: DataId::parse("test-mineral").unwrap(),
+                position_m: starfall_sim::world::Vec3 {
+                    x: SPAWN_POINT[0],
+                    y: SPAWN_POINT[1],
+                    z: SPAWN_POINT[2],
+                },
+                radius_m: 10.0,
+                initial_reserve_kg: 100,
+            },
+        )]),
+        ..default_world()
+    }
+}
+
+/// SC-09(qa r2 FAIL 보강) 전용 — 상한 − 1 로 1회차 채굴이 꽉 차게 하고, 회복이
+/// 조금 더해지면 2회차에서 `checked_add` 가 넘치는 매장지. 회복은 기본값으로
+/// 둔다(0으로 죽이면 2회차가 6(RESOURCE_DEPLETED)에서 먼저 걸려 7을 재현할 수
+/// 없다 — sim 쪽 같은 사유 테스트와 같은 이유).
+fn world_with_capacity_exceeded_deposit() -> WorldConstants {
+    const SPAWN_POINT: [f64; 3] = [2500.0, 250.0, 0.0];
+    let cap_minus_one = i64::from(i32::MAX) - 1;
+    let mut world = WorldConstants {
+        spawn_points_m: vec![SPAWN_POINT],
+        minerals: std::collections::BTreeMap::from([(
+            DataId::parse("test-mineral").unwrap(),
+            starfall_sim::MineralConstants {
+                yield_per_extraction_kg: cap_minus_one,
+                // 간격을 1 tick 으로 좁힌다 — 아래에서 쿨다운(짧게 줄인다)이 끝날
+                // 때까지만 기다리므로, 그 몇 tick 안에 회복이 쌓이게 하려면 간격이
+                // 짧아야 한다(기본 10 tick 이면 전혀 안 쌓인다).
+                regen_kg: 5,
+                regen_interval_ticks: 1,
+            },
+        )]),
+        deposits: std::collections::BTreeMap::from([(
+            DataId::parse("test-deposit").unwrap(),
+            starfall_sim::DepositConstants {
+                mineral_id: DataId::parse("test-mineral").unwrap(),
+                position_m: starfall_sim::world::Vec3 {
+                    x: SPAWN_POINT[0],
+                    y: SPAWN_POINT[1],
+                    z: SPAWN_POINT[2],
+                },
+                radius_m: 10.0,
+                initial_reserve_kg: cap_minus_one,
+            },
+        )]),
+        ..default_world()
+    };
+    // 쿨다운도 짧게 줄인다 — 이 테스트 하네스(`TestServer`)의 영속화 싱크는
+    // 배치를 쌓기만 하고 커밋하지 않으므로(가짜 커밋이 없다), `recording_lag`
+    // 이 벽시계와 함께 한없이 자란다. 기본 쿨다운(60 tick)만큼 기다리면
+    // `RECORDING_BACKLOG`(임계 20)에 먼저 걸려 버린다 — 그래서 대기를 몇 tick
+    // 으로 줄인다.
+    world.mining_rules.cooldown_ticks = 5;
+    world
+}
+
+/// SC-09(qa r2 FAIL) — 계약이 지명한 `commands_rejected_total{CAPACITY_EXCEEDED}`
+/// +1 단언은 `starfall-sim` 크레이트 안에서는 할 수 없다 — 그 카운터는
+/// `starfall-gateway::Stats`(여기, `runtime.rs`가 tick 드라이버의 `COMMAND_RESULT`
+/// 를 보고 올린다) 소유다. sim 쪽 단위 테스트(`each_rejection_reason_…_reasons_3_6_7`)
+/// 는 사유 코드·상태 불변까지는 그 크레이트 안에서 보이지만, 이 카운터는 실제
+/// 소켓 경로를 거치는 이 크레이트의 통합 테스트가 맡는다.
+#[tokio::test]
+async fn mine_resource_capacity_exceeded_is_counted_in_commands_rejected_total() {
+    let mut server = TestServer::start_with_world_and_interval(
+        true,
+        world_with_capacity_exceeded_deposit(),
+        Duration::from_millis(20),
+    )
+    .await;
+    let token = server.token(SUBJECT);
+    let mut client = connect(&server, Some(&token)).await.expect("101 기대");
+    assert_eq!(
+        next_json(&mut client).await["message_type"],
+        "SESSION_READY"
+    );
+    expect_session_start_state_messages(&mut client).await;
+
+    // 1회차 — 상한 − 1 을 전부 채굴(수락). COMMAND_RESULT → INVENTORY_STATE →
+    // DEPOSIT_FIELD_STATE(§5.1a 순서)를 전부 드레인한다.
+    client
+        .send(mine_resource_command(&command_id(9201)))
+        .await
+        .unwrap();
+    let warm_up = next_json(&mut client).await;
+    assert_eq!(warm_up["message_type"], "COMMAND_RESULT");
+    assert_eq!(
+        warm_up["payload"]["status"], "ACCEPTED",
+        "⊘ 전제: 1회차 채굴이 수락돼야 한다: {warm_up}"
+    );
+    assert_eq!(
+        next_json(&mut client).await["message_type"],
+        "INVENTORY_STATE"
+    );
+    assert_eq!(
+        next_json(&mut client).await["message_type"],
+        "DEPOSIT_FIELD_STATE"
+    );
+
+    let before = stats_json(&server).await;
+    let capacity_exceeded_before = before["commands_rejected_total"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|entry| entry["label"] == "CAPACITY_EXCEEDED")
+        .and_then(|entry| entry["count"].as_u64())
+        .unwrap();
+
+    // 쿨다운(5 tick)이 끝나고 회복(5kg/tick)이 쌓일 시간을 준다 — tick 간격
+    // 20ms × 5 = 100ms, 여유를 더 둔다. `RECORDING_BACKLOG`(임계 20 tick)에
+    // 닿지 않을 만큼 짧게 둔다(위 월드 설명 참고).
+    tokio::time::sleep(Duration::from_millis(300)).await;
+
+    // 2회차 — 상한 − 1 에 회복분(양수)을 더하면 `checked_add` 가 상한을 넘는다.
+    client
+        .send(mine_resource_command(&command_id(9202)))
+        .await
+        .unwrap();
+    let second = next_json(&mut client).await;
+    assert_eq!(second["message_type"], "COMMAND_RESULT");
+    assert_eq!(
+        second["payload"]["reason_code"], "CAPACITY_EXCEEDED",
+        "⊘ 전제: 2회차가 실제로 CAPACITY_EXCEEDED 로 거절돼야 한다: {second}"
+    );
+
+    // 게이트웨이가 그 거절을 사유별 카운터로 올렸는지 — 계약이 지명한 단언.
+    for _ in 0..50 {
+        let body = stats_json(&server).await;
+        let count = body["commands_rejected_total"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|entry| entry["label"] == "CAPACITY_EXCEEDED")
+            .and_then(|entry| entry["count"].as_u64())
+            .unwrap();
+        if count == capacity_exceeded_before + 1 {
+            server.shutdown_and_join().await;
+            return;
+        }
+        tokio::time::sleep(Duration::from_millis(50)).await;
+    }
+    let after = stats_json(&server).await;
+    panic!(
+        "commands_rejected_total{{CAPACITY_EXCEEDED}} 가 +1 되지 않았다 — 이전: \
+         {capacity_exceeded_before}, 이후: {after}"
+    );
 }
 
 /// 다음 `WORLD_SNAPSHOT` 을 받는다 (다른 메시지는 건너뛴다).
@@ -1397,6 +1809,7 @@ async fn set_ship_control_over_a_real_socket_is_accepted_and_acked() {
         next_json(&mut client).await["message_type"],
         "SESSION_READY"
     );
+    expect_session_start_state_messages(&mut client).await;
 
     let before = stats_json(&server).await["commands_received_total"]
         .as_u64()
@@ -1458,7 +1871,10 @@ async fn every_registry_command_type_passes_through_the_gateway() {
         .collect();
     assert!(!commands.is_empty(), "레지스트리에 명령 타입이 있어야 한다");
 
-    let mut server = TestServer::start(true).await;
+    // MINE_RESOURCE 가 실제로 수락되려면 사거리 안에 매장지가 있어야 한다(M-17 은
+    // "게이트웨이를 지나 판정까지 도달하는지"를 보는 것이지 채굴 판정 자체를 보는
+    // 것이 아니므로, 수락으로 확실히 끝나는 결정적 월드를 쓴다).
+    let mut server = TestServer::start_with_world(true, world_with_one_mineable_deposit()).await;
     let token = server.token(SUBJECT);
 
     for (index, name) in commands.iter().enumerate() {
@@ -1469,6 +1885,7 @@ async fn every_registry_command_type_passes_through_the_gateway() {
             next_json(&mut client).await["message_type"],
             "SESSION_READY"
         );
+        expect_session_start_state_messages(&mut client).await;
 
         let id = command_id(9200 + index as u64);
         let frame = command_frame(name, &id, 1).unwrap_or_else(|| {
@@ -1656,6 +2073,7 @@ async fn r4_s6_first_connection_is_closed_with_4001_when_superseded() {
 
     let mut first = connect(&server, Some(&token)).await.unwrap();
     assert_eq!(next_json(&mut first).await["message_type"], "SESSION_READY");
+    expect_session_start_state_messages(&mut first).await;
 
     // 같은 actor 로 두 번째 연결 — 넘겨받기를 유발한다.
     let mut second = connect(&server, Some(&token)).await.unwrap();
@@ -1663,6 +2081,7 @@ async fn r4_s6_first_connection_is_closed_with_4001_when_superseded() {
         next_json(&mut second).await["message_type"],
         "SESSION_READY"
     );
+    expect_session_start_state_messages(&mut second).await;
 
     // 첫 연결이 close 4001 을 받아야 한다(ADR-0005 §2).
     let code = read_until_close(&mut first).await;
@@ -1836,4 +2255,206 @@ async fn s3_concurrent_entrants_cannot_exceed_world_capacity() {
     );
 
     server.shutdown_and_join().await;
+}
+
+// ---------------------------------------------------------------------------
+// p1-02(S5, ADR-0013 §6, AC-13) — 역사 기록 LIVE·BACKFILL 중계
+// ---------------------------------------------------------------------------
+
+fn mineral_discovered_fixture(
+    json: &str,
+) -> starfall_contracts::historical::MineralDiscoveredEvent {
+    serde_json::from_str(json).expect("계약 fixture는 그대로 역직렬화된다")
+}
+
+/// 다음 `HISTORICAL_EVENT_NOTICE` 를 받는다(WORLD_SNAPSHOT은 `next_json`이 이미 건너뛴다).
+async fn next_history_notice(client: &mut Client) -> serde_json::Value {
+    let message = next_json(client).await;
+    assert_eq!(message["message_type"], "HISTORICAL_EVENT_NOTICE");
+    message
+}
+
+/// AC-13(a)(b) — 세션이 열리기 **전에** 커밋된 기록은 SESSION_READY 뒤 BACKFILL로,
+/// 세션이 열린 **뒤에** 커밋된 기록은 LIVE로 온다. 커밋 전에는 아무것도 안 온다(러너가
+/// 커밋 뒤에만 이 채널에 쓴다는 것이 이 슬라이스의 "커밋 전 송신 없음" 보장의 근거다
+/// — 여기서는 그 생산자를 흉내 낸다).
+#[tokio::test]
+async fn historical_event_notice_backfill_then_live_then_backfill_for_a_late_session() {
+    let seed = mineral_discovered_fixture(include_str!(
+        "../../../../contracts/fixtures/MINERAL_DISCOVERED/starfall-glass.json"
+    ));
+    let (mut server, history_live_tx) =
+        TestServer::start_with_history(true, default_world(), vec![seed.clone()]).await;
+    let token = server.token(SUBJECT);
+
+    // 세션 1 — 이미 있던 기록(seed)을 SESSION_READY 뒤 BACKFILL로 받는다.
+    let mut first = connect(&server, Some(&token)).await.expect("101 기대");
+    assert_eq!(next_json(&mut first).await["message_type"], "SESSION_READY");
+    expect_session_start_state_messages(&mut first).await;
+    let backfill = next_history_notice(&mut first).await;
+    assert_eq!(backfill["payload"]["delivery"], "BACKFILL");
+    assert_eq!(
+        backfill["payload"]["historical_event"]["historical_event_id"],
+        "2775a80a-2a8a-5615-a86f-859ea777901d",
+        "seed 의 historical_event_id 그대로 와야 한다"
+    );
+
+    // 커밋 하나를 흉내 낸다 — 러너가 실제로 하듯, 이 채널에 쓰는 것 자체가 "커밋됨"의
+    // 정의다(이 슬라이스에서 게이트웨이는 그 사실을 재확인하지 않는다, I-65).
+    let live_record = mineral_discovered_fixture(include_str!(
+        "../../../../contracts/fixtures/MINERAL_DISCOVERED/glacine-seq-nonzero.json"
+    ));
+    history_live_tx.send(live_record.clone()).await.unwrap();
+
+    // 세션 1(이미 열려 있었다) — LIVE로 받는다.
+    let live = next_history_notice(&mut first).await;
+    assert_eq!(live["payload"]["delivery"], "LIVE");
+    assert_eq!(
+        live["payload"]["historical_event"]["historical_event_id"],
+        "a5fcc225-5038-5071-b5d1-059847588363"
+    );
+
+    // 세션 2 — LIVE 기록이 나간 **뒤에** 연결했다. 늦게 왔어도 둘 다(seed + live) 를
+    // BACKFILL 로 놓치지 않고 받는다(I-65 "누락 틈 없음") — 순서는 tick 오름차순이
+    // 아니라 커밋 순서(=여기서는 seed 가 초기 목록이라 먼저, live 가 다음)다.
+    let mut second = connect(&server, Some(&token)).await.expect("101 기대");
+    assert_eq!(
+        next_json(&mut second).await["message_type"],
+        "SESSION_READY"
+    );
+    expect_session_start_state_messages(&mut second).await;
+    let backfill_1 = next_history_notice(&mut second).await;
+    let backfill_2 = next_history_notice(&mut second).await;
+    let ids: Vec<&str> = [&backfill_1, &backfill_2]
+        .iter()
+        .map(|m| {
+            m["payload"]["historical_event"]["historical_event_id"]
+                .as_str()
+                .unwrap()
+        })
+        .collect();
+    assert!(
+        ids.contains(&"2775a80a-2a8a-5615-a86f-859ea777901d")
+            && ids.contains(&"a5fcc225-5038-5071-b5d1-059847588363"),
+        "늦게 연결한 세션은 seed·live 기록을 **둘 다** BACKFILL로 받아야 한다: {ids:?}"
+    );
+    for message in [&backfill_1, &backfill_2] {
+        assert_eq!(message["payload"]["delivery"], "BACKFILL");
+    }
+
+    server.shutdown_and_join().await;
+}
+
+/// p1-02(S12, SC-63, `02_server_ack.md` §4 Q-6 약속) — 새 세션이 열리는 tick에 새
+/// LIVE 역사 기록이 같이 커밋되면, 그 세션은 LIVE가 **아니라** BACKFILL로 정확히
+/// 한 번만 받아야 한다 — LIVE 대상은 "이번 tick **이전부터** 열려 있던" 세션뿐이고
+/// (`runtime.rs`의 `sessions_open_before_this_tick`), 새 세션은 애초에 그 목록에
+/// 없다. `notice_open_overlap_ticks_total`이 이 겹침이 **실제로 일어났음**을
+/// 증명한다 — qa notice-gap 봇은 이 값의 델타가 0보다 커야만 자기 판정을 유효로
+/// 본다(델타 0이면 "겹침이 없었다"일 뿐 "안전했다"가 아니다, CLAUDE.md 검증 규율).
+#[tokio::test]
+async fn notice_no_gap_same_tick() {
+    // tick 간격을 넉넉히 잡는다 — "연결 요청"과 "LIVE 송신"을 **같은 tick** 안에
+    // 밀어 넣으려면 둘 다 그 tick의 제출 수집이 끝나기 전에 각자의 채널
+    // (`control_rx`/`history_live_rx`)에 도착해야 한다.
+    let (mut server, history_live_tx) = TestServer::start_with_history_and_interval(
+        true,
+        default_world(),
+        Vec::new(),
+        Duration::from_secs(2),
+    )
+    .await;
+    let token = server.token(SUBJECT);
+
+    let live_record = mineral_discovered_fixture(include_str!(
+        "../../../../contracts/fixtures/MINERAL_DISCOVERED/starfall-glass.json"
+    ));
+
+    // 연결과 LIVE 송신을 거의 동시에 넣는다 — 첫 tick(2초 뒤)이 오기 전에 둘 다
+    // 도착한다.
+    let mut client = connect(&server, Some(&token)).await.expect("101 기대");
+    history_live_tx.send(live_record).await.unwrap();
+
+    assert_eq!(
+        next_json(&mut client).await["message_type"],
+        "SESSION_READY"
+    );
+    expect_session_start_state_messages(&mut client).await;
+
+    let notice = next_history_notice(&mut client).await;
+    assert_eq!(
+        notice["payload"]["delivery"], "BACKFILL",
+        "새 세션은 이번 tick의 LIVE 대상이 아니다 — BACKFILL로만 받아야 한다"
+    );
+    assert_eq!(
+        notice["payload"]["historical_event"]["historical_event_id"],
+        "2775a80a-2a8a-5615-a86f-859ea777901d"
+    );
+
+    // 정확히 한 번만 왔는지 — 같은 기록을 LIVE로 또 받으면 겹침에서 중복 전달이다.
+    let extra =
+        tokio::time::timeout(Duration::from_millis(300), next_history_notice(&mut client)).await;
+    assert!(
+        extra.is_err(),
+        "같은 기록을 두 번(BACKFILL 이후 LIVE도) 받았다 — 겹침에서 중복 전달"
+    );
+
+    // ⊘ 전제 확인: 이 tick이 실제로 "새 세션 열림 + 새 LIVE 기록" 겹침이었다 —
+    // 이게 없으면 위 단언들은 "겹침이 한 번도 없었다"에서도 자명하게 통과한다.
+    let after = stats_json(&server).await;
+    assert!(
+        after["notice_open_overlap_ticks_total"]
+            .as_u64()
+            .unwrap_or(0)
+            >= 1,
+        "⊘ 전제: notice_open_overlap_ticks_total 이 올라야 한다(겹침이 실제로 \
+         일어났다는 증거) — {after}"
+    );
+
+    server.shutdown_and_join().await;
+}
+
+// ---------------------------------------------------------------------------
+// p1-02(S7, qa SC-04) — 종료 시 마지막 tick의 워터마크
+// ---------------------------------------------------------------------------
+
+/// S7 — 정상 종료는 이벤트가 하나도 없고 하트비트(20 tick) 배수도 아닌 tick에서
+/// 끝나도, 그 마지막 tick의 배치를 **반드시** 영속화 채널로 보낸다. 예전에는
+/// `final_outcome.events`가 비면 배치 자체를 안 만들어(`runtime.rs`) 그 tick이
+/// 워터마크(`worlds.last_tick`)에 전혀 반영되지 않았다 — qa가 실서버로 재현한
+/// 증상: DB `last_tick=0`인데 종료 로그는 "tick=8까지 커밋 완료"라고 찍었다(거짓
+/// 로그, main.rs도 함께 고쳤다).
+#[tokio::test]
+async fn shutdown_always_sends_a_final_batch_even_on_a_non_heartbeat_empty_tick() {
+    let mut server =
+        TestServer::start_with_world_and_interval(true, default_world(), Duration::from_millis(30))
+            .await;
+
+    // 세션을 하나도 열지 않는다 — 이벤트가 전혀 없는 실행을 만든다. tick이 진행되도록
+    // 기다리되, 하트비트(HEARTBEAT_TICKS=20) 배수가 아닌 시점에서 종료해야 이 테스트가
+    // 실제로 그 경로를 겪는다(⊘, 아래 재확인).
+    let pre_shutdown_tick = loop {
+        let tick = stats_json(&server).await["tick"].as_u64().unwrap_or(0);
+        if tick > 0 && tick % 20 != 0 {
+            break tick;
+        }
+        tokio::time::sleep(Duration::from_millis(5)).await;
+    };
+
+    server.shutdown_and_join().await;
+
+    let ticks = server.batch_ticks();
+    let max_tick = ticks.iter().copied().max().unwrap_or(0);
+
+    assert!(
+        max_tick >= pre_shutdown_tick,
+        "종료 스윕이 마지막 tick({pre_shutdown_tick} 이상)의 배치를 안 보냈다 — \
+         받은 배치 tick들: {ticks:?}"
+    );
+    assert!(
+        max_tick % 20 != 0,
+        "⊘: 이 테스트는 '하트비트 배수가 아닌 tick도 워터마크에 반영된다'를 증명해야 \
+         하는데 우연히 하트비트 tick({max_tick})에서 끝났다 — 그러면 예전 코드도 \
+         우연히 통과했을 것이다(하트비트는 원래도 배치를 보냈다). 재시도가 필요하다"
+    );
 }

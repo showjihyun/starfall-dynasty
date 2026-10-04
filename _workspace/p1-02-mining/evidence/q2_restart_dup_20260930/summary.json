@@ -1,0 +1,329 @@
+{
+  "world_id": "01a0ef42-85e2-73cb-9340-c42b0e2e074a",
+  "mine-dup-reconnect": [
+    0,
+    {
+      "command_id": "01a0ef42-9002-763c-8256-8d00d998dd97",
+      "first": [
+        [
+          "ACCEPTED",
+          null
+        ]
+      ],
+      "inventory_changes_second_conn": 0,
+      "inventory_first_conn": [
+        0,
+        150
+      ],
+      "inventory_second_conn_end": 150,
+      "inventory_second_conn_start": 150,
+      "item": "[verdict] p1-02 SC-78 (b) 잔류 창 안 재접속(같은 함선 이어받기) 재전송 → DUPLICATE_COMMAND_ID, 산출 × 1",
+      "resend": [
+        [
+          "REJECTED",
+          "DUPLICATE_COMMAND_ID"
+        ]
+      ],
+      "resumed_same_ship": true,
+      "ship_ids": [
+        "01a0ef42-9024-741f-aeb1-71458d6be383",
+        "01a0ef42-9024-741f-aeb1-71458d6be383"
+      ],
+      "verdict": "PASS"
+    }
+  ],
+  "mine-dup-restart.run": [
+    0,
+    {
+      "note": "단계 기록 — 판정은 resume 단계",
+      "phase": "run",
+      "state": {
+        "command_id": "01a0ef43-694b-73d4-8496-73153b41465b",
+        "inventory_after": 150,
+        "inventory_before": 0,
+        "processed_rows_after_run": 2,
+        "results": [
+          [
+            "ACCEPTED",
+            null
+          ]
+        ]
+      },
+      "verdict": "PASS"
+    }
+  ],
+  "mine-dup-cross-actor.run": [
+    0,
+    {
+      "a": {
+        "actor": "01a0b1c2-b010-7000-8000-000000000051",
+        "results": [
+          [
+            "ACCEPTED",
+            null
+          ]
+        ],
+        "sent": true
+      },
+      "b": {
+        "actor": "01a0b1c2-b010-7000-8000-000000000052",
+        "results": [
+          [
+            "REJECTED",
+            "DUPLICATE_COMMAND_ID"
+          ]
+        ],
+        "sent": true
+      },
+      "command_id": "01a0ef43-f724-71d1-8759-2937fd99c821",
+      "item": "[verdict] p1-02 SC-108 다른 actor 둘이 같은 command_id → 둘째 DUPLICATE_COMMAND_ID, 서버 생존·커밋 계속(재기동 뒤 변형 포함)",
+      "liveness": {
+        "domain_events_persist_failed_total": 0,
+        "error": null,
+        "last_committed_tick": [
+          3020,
+          3060
+        ],
+        "persist_halted": [
+          false,
+          false
+        ],
+        "stats_ok": true
+      },
+      "signal_timeouts": [
+        0,
+        0
+      ],
+      "verdict": "PASS"
+    }
+  ],
+  "server_1_exit": 0,
+  "mine-dup-restart.resume": [
+    0,
+    {
+      "command_id": "01a0ef43-694b-73d4-8496-73153b41465b",
+      "inventory_after_restart_end": 150,
+      "inventory_after_restart_start": 150,
+      "inventory_changes": 0,
+      "item": "[verdict] p1-02 SC-78 (c) 정상 종료 → 재기동 → 재전송 → DUPLICATE_COMMAND_ID, processed_commands 행 수 불변",
+      "processed_rows_after_resend": 3,
+      "processed_rows_before_resend": 3,
+      "resend": [
+        [
+          "REJECTED",
+          "DUPLICATE_COMMAND_ID"
+        ]
+      ],
+      "restart_log_line": "2026-09-29T22:24:25.689347Z  INFO starfall_game_server: 월드 확인 — tick 을 이어서 시작한다 (ADR-0006 §2.3) world_id=01a0ef42-85e2-73cb-9340-c42b0e2e074a tick_hz=20 calendar_epoch=3800-01-01T00:00:00Z calendar_scale=60 last_tick=Some(3068) start_tick=3069",
+      "run_state": {
+        "command_id": "01a0ef43-694b-73d4-8496-73153b41465b",
+        "inventory_after": 150,
+        "inventory_before": 0,
+        "processed_rows_after_run": 2,
+        "results": [
+          [
+            "ACCEPTED",
+            null
+          ]
+        ]
+      },
+      "verdict": "PASS"
+    }
+  ],
+  "mine-dup-cross-actor.resume": [
+    0,
+    {
+      "b_results": [
+        [
+          "REJECTED",
+          "DUPLICATE_COMMAND_ID"
+        ]
+      ],
+      "b_sent": true,
+      "command_id": "01a0ef43-f724-71d1-8759-2937fd99c821",
+      "item": "[verdict] p1-02 SC-108 다른 actor 둘이 같은 command_id → 둘째 DUPLICATE_COMMAND_ID, 서버 생존·커밋 계속(재기동 뒤 변형 포함)",
+      "liveness": {
+        "domain_events_persist_failed_total": 0,
+        "error": null,
+        "last_committed_tick": [
+          3360,
+          3400
+        ],
+        "persist_halted": [
+          false,
+          false
+        ],
+        "stats_ok": true
+      },
+      "restart_log_line": "2026-09-29T22:24:25.689347Z  INFO starfall_game_server: 월드 확인 — tick 을 이어서 시작한다 (ADR-0006 §2.3) world_id=01a0ef42-85e2-73cb-9340-c42b0e2e074a tick_hz=20 calendar_epoch=3800-01-01T00:00:00Z calendar_scale=60 last_tick=Some(3068) start_tick=3069",
+      "variant": "재기동 뒤",
+      "verdict": "PASS"
+    }
+  ],
+  "server_2_exit": 0,
+  "provenance": {
+    "rule": "계약 §7b 규칙 9 이행 — 바이너리로 판정하는 항목은 HEAD 와 트리 청결 여부를 함께 남긴다",
+    "head": "e0037a43084ced7a44353f4c48b44beef6a292d8",
+    "head_subject": "Merge pull request #4 from showjihyun/p1-01-close",
+    "worktree_clean": false,
+    "status_porcelain": [
+      " M .github/pull_request_template.md",
+      " M .github/workflows/gates.yml",
+      " M _workspace/STATUS.md",
+      " M client/Assets/_Project/Scripts/Contracts/Generated/ContractTypes.cs",
+      " M client/Assets/_Project/Scripts/Greybox/GreyboxDataLoader.cs",
+      " M client/Assets/_Project/Scripts/Greybox/GreyboxSession.cs",
+      " M client/Assets/_Project/Scripts/Greybox/Starfall.Greybox.asmdef",
+      " M client/Assets/_Project/Tests/EditMode/ContractFixtureTests.cs",
+      " M client/Assets/_Project/Tests/EditMode/ContractFixtures.cs",
+      " M client/Assets/_Project/Tests/EditMode/Starfall.Tests.EditMode.asmdef",
+      " M contracts/common/primitives.schema.json",
+      " M contracts/messages/COMMAND_RESULT.schema.json",
+      " M contracts/registry/types.json",
+      " M contracts/registry/types.schema.json",
+      " M docs/adr/0002-contract-format-and-codegen.md",
+      " M docs/adr/0006-simulation-tick-and-command-queue.md",
+      " M docs/adr/0007-domain-event-persistence.md",
+      " M server/Cargo.lock",
+      " M server/Cargo.toml",
+      " M server/bins/game-server/src/data.rs",
+      " M server/bins/game-server/src/main.rs",
+      " M server/crates/contracts/Cargo.toml",
+      " M server/crates/contracts/src/commands.rs",
+      " M server/crates/contracts/src/data.rs",
+      " M server/crates/contracts/src/events.rs",
+      " M server/crates/contracts/src/lib.rs",
+      " M server/crates/contracts/src/messages.rs",
+      " M server/crates/contracts/src/primitives.rs",
+      " M server/crates/contracts/src/registry.rs",
+      " M server/crates/contracts/tests/contract_tests.rs",
+      " M server/crates/gateway/src/runtime.rs",
+      " M server/crates/gateway/src/stats.rs",
+      " M server/crates/gateway/src/ws.rs",
+      " M server/crates/gateway/tests/ws_integration.rs",
+      " M server/crates/persistence/Cargo.toml",
+      " M server/crates/persistence/src/lib.rs",
+      " M server/crates/sim/src/lib.rs",
+      " M server/crates/sim/src/simulation.rs",
+      " M server/crates/sim/tests/determinism.rs",
+      " M tests/e2e/block8_invariants.py",
+      " M tests/e2e/check_item_sources.py",
+      " M tests/e2e/check_sequence_gaps.py",
+      " M tests/e2e/check_sessions.py",
+      " M tests/e2e/concurrent_session.py",
+      " M tests/e2e/db.py",
+      " M tests/e2e/interface_matrix.py",
+      " M tests/e2e/rust_case_refs.py",
+      " M tests/e2e/server_boot.py",
+      " M tests/e2e/ship_events.py",
+      " M tests/e2e/validate_data_files.py",
+      " M tools/bots/src/conn.rs",
+      " M tools/bots/src/lib.rs",
+      " M tools/bots/src/main.rs",
+      " M tools/bots/src/scenario.rs",
+      " M tools/bots/src/wire.rs",
+      " M tools/bots/tests/ledger_accounting.rs",
+      " M tools/bots/tests/live_loopback.rs",
+      " M tools/bots/tests/snapshot_faults.rs",
+      " M tools/bots/tests/wire_fixtures.rs",
+      "?? _workspace/p1-02-mining/",
+      "?? client/Assets/_Project/Data/history.meta",
+      "?? client/Assets/_Project/Data/history/",
+      "?? client/Assets/_Project/Data/minerals.meta",
+      "?? client/Assets/_Project/Data/minerals/",
+      "?? client/Assets/_Project/Data/mining.meta",
+      "?? client/Assets/_Project/Data/mining/",
+      "?? client/Assets/_Project/Data/world/deposits.meta",
+      "?? client/Assets/_Project/Data/world/deposits/",
+      "?? client/Assets/_Project/Scripts/Contracts/Generated/DepositFieldStateMessage.cs",
+      "?? client/Assets/_Project/Scripts/Contracts/Generated/DepositFieldStateMessage.cs.meta",
+      "?? client/Assets/_Project/Scripts/Contracts/Generated/HistoricalEventNoticeMessage.cs",
+      "?? client/Assets/_Project/Scripts/Contracts/Generated/HistoricalEventNoticeMessage.cs.meta",
+      "?? client/Assets/_Project/Scripts/Contracts/Generated/InventoryStateMessage.cs",
+      "?? client/Assets/_Project/Scripts/Contracts/Generated/InventoryStateMessage.cs.meta",
+      "?? client/Assets/_Project/Scripts/Contracts/Generated/MineResourceCommand.cs",
+      "?? client/Assets/_Project/Scripts/Contracts/Generated/MineResourceCommand.cs.meta",
+      "?? client/Assets/_Project/Scripts/Contracts/Generated/MineralDiscoveredEvent.cs",
+      "?? client/Assets/_Project/Scripts/Contracts/Generated/MineralDiscoveredEvent.cs.meta",
+      "?? client/Assets/_Project/Scripts/Contracts/Generated/MineralMinedEvent.cs",
+      "?? client/Assets/_Project/Scripts/Contracts/Generated/MineralMinedEvent.cs.meta",
+      "?? client/Assets/_Project/Scripts/Greybox/GreyboxMiningSession.cs",
+      "?? client/Assets/_Project/Scripts/Greybox/GreyboxMiningSession.cs.meta",
+      "?? client/Assets/_Project/Scripts/Mining.meta",
+      "?? client/Assets/_Project/Scripts/Mining/",
+      "?? client/Assets/_Project/Scripts/Sim/DepositFieldTable.cs",
+      "?? client/Assets/_Project/Scripts/Sim/DepositFieldTable.cs.meta",
+      "?? client/Assets/_Project/Scripts/Sim/MineralCatalog.cs",
+      "?? client/Assets/_Project/Scripts/Sim/MineralCatalog.cs.meta",
+      "?? client/Assets/_Project/Scripts/Sim/MiningRulesData.cs",
+      "?? client/Assets/_Project/Scripts/Sim/MiningRulesData.cs.meta",
+      "?? client/Assets/_Project/Tests/EditMode/GreyboxMiningDataTests.cs",
+      "?? client/Assets/_Project/Tests/EditMode/GreyboxMiningDataTests.cs.meta",
+      "?? client/Assets/_Project/Tests/EditMode/MiningViewModelTests.cs",
+      "?? client/Assets/_Project/Tests/EditMode/MiningViewModelTests.cs.meta",
+      "?? client/Assets/_Project/Tests/PlayMode.meta",
+      "?? client/Assets/_Project/Tests/PlayMode/",
+      "?? contracts/commands/MINE_RESOURCE.schema.json",
+      "?? contracts/common/historical-event-envelope.schema.json",
+      "?? contracts/data/deposit-field.schema.json",
+      "?? contracts/data/mineral.schema.json",
+      "?? contracts/data/mining-rules.schema.json",
+      "?? contracts/data/significance-rule.schema.json",
+      "?? contracts/events/domain/MINERAL_MINED.schema.json",
+      "?? contracts/events/historical/",
+      "?? contracts/fixtures/COMMAND_RESULT/rejected-capacity-exceeded.json",
+      "?? contracts/fixtures/COMMAND_RESULT/rejected-cooldown-active.json",
+      "?? contracts/fixtures/COMMAND_RESULT/rejected-recording-backlog.json",
+      "?? contracts/fixtures/DEPOSIT_FIELD/",
+      "?? contracts/fixtures/DEPOSIT_FIELD_STATE/",
+      "?? contracts/fixtures/HISTORICAL_EVENT_NOTICE/",
+      "?? contracts/fixtures/INVENTORY_STATE/",
+      "?? contracts/fixtures/MINERAL/",
+      "?? contracts/fixtures/MINERAL_DISCOVERED/",
+      "?? contracts/fixtures/MINERAL_MINED/",
+      "?? contracts/fixtures/MINE_RESOURCE/",
+      "?? contracts/fixtures/MINING_RULES/",
+      "?? contracts/fixtures/SIGNIFICANCE_RULE/",
+      "?? contracts/messages/DEPOSIT_FIELD_STATE.schema.json",
+      "?? contracts/messages/HISTORICAL_EVENT_NOTICE.schema.json",
+      "?? contracts/messages/INVENTORY_STATE.schema.json",
+      "?? data/history/",
+      "?? data/minerals/",
+      "?? data/mining/",
+      "?? data/world/deposits/",
+      "?? docs/adr/0013-economic-state-persistence-and-durable-idempotency.md",
+      "?? docs/adr/0014-history-engine-skeleton.md",
+      "?? docs/design/p1-02-mining-design.md",
+      "?? docs/specs/p1-02-mining.md",
+      "?? server/crates/contracts/src/historical.rs",
+      "?? server/crates/history/",
+      "?? server/crates/persistence/src/history.rs",
+      "?? server/crates/persistence/tests/",
+      "?? server/crates/sim/src/mining.rs",
+      "?? server/crates/sim/tests/data/replay_mining/",
+      "?? server/crates/sim/tests/determinism_mining.rs",
+      "?? server/crates/testdb/",
+      "?? server/err.log",
+      "?? server/migrations/0002_economic_state.sql",
+      "?? server/migrations/0003_history.sql",
+      "?? tests/e2e/constraint_census.py",
+      "?? tests/e2e/data_file_pairs.py",
+      "?? tests/e2e/db_test_census.py",
+      "?? tests/e2e/history_oracle.py",
+      "?? tests/e2e/iface_p1_02.py",
+      "?? tests/e2e/mining_ledger.py",
+      "?? tests/e2e/new_world.py",
+      "?? tests/e2e/restart_cases.py",
+      "?? tools/bots/src/mine_cases.rs",
+      "?? tools/bots/src/mine_run.rs",
+      "?? tools/bots/src/mining.rs",
+      "?? tools/bots/src/nav.rs",
+      "?? tools/bots/src/restart_cases.rs",
+      "?? tools/bots/src/sql.rs",
+      "?? tools/bots/src/trace.rs",
+      "?? tools/bots/tests/mining_obs.rs"
+    ],
+    "server_binary_sha256_16": "25ee1addd59a5a22",
+    "caveat": "기록은 증명이 아니라 반증 가능성이다 — 이 바이너리가 이 트리에서 나왔다는 증명은 아니다(규칙 9 (나))"
+  }
+}

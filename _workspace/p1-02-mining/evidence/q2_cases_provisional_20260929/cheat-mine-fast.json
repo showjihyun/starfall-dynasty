@@ -1,0 +1,42 @@
+{
+  "case": "cheat-mine-fast",
+  "connect_error": null,
+  "deposit_id": "inner-belt-2",
+  "details": {
+    "condition_held_at_send": 1,
+    "exact_reason": 1,
+    "expected_reason": "SHIP_TOO_FAST",
+    "rows": [
+      {
+        "condition_at_send": true,
+        "deposit_id": "inner-belt-2",
+        "dist_m": 167.44182578436013,
+        "results": [
+          [
+            "REJECTED",
+            "SHIP_TOO_FAST"
+          ]
+        ],
+        "speed_mps": 32.88836677307038
+      }
+    ],
+    "sent": 1
+  },
+  "item": "[verdict] p1-02 SC-75 사거리 안을 30 m/s 로 지나가며 → SHIP_TOO_FAST (보낸 시점 속도 > 10 m/s)",
+  "label": "bot-013",
+  "nav": {
+    "arrive_dist_m": 167.44182578436013,
+    "arrive_speed_mps": 32.88836677307038,
+    "arrived": true,
+    "control_frames": 2534,
+    "max_speed_mps": 34.28812409566905,
+    "start_dist_m": 4859.55336672991
+  },
+  "session": {
+    "actor_id": "01a0b1c2-b010-7000-8000-000000000013",
+    "close_code": 1000,
+    "close_initiator": "client",
+    "session_id": "01a0ed7d-3dd9-73e1-bdc9-a4eab6238dce"
+  },
+  "verdict": "PASS"
+}

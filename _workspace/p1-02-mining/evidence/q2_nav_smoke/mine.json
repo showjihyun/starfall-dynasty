@@ -1,0 +1,192 @@
+{
+  "close": {
+    "code": 1000,
+    "initiator": "client"
+  },
+  "connect_error": null,
+  "deposit_field_states": 4,
+  "historical_event_notices": [
+    {
+      "correlation_id": null,
+      "message_id": "01a0ed74-c07c-74af-be60-373cfc279163",
+      "message_type": "HISTORICAL_EVENT_NOTICE",
+      "payload": {
+        "delivery": "LIVE",
+        "historical_event": {
+          "event_type": "MINERAL_DISCOVERED",
+          "fact_status": "CONFIRMED",
+          "historical_event_id": "e25ec37d-4b49-56df-b79a-f57b0711f6e5",
+          "importance_level": 2,
+          "location": {
+            "star_system_id": "cradle"
+          },
+          "occurred_at": "3800-01-01T00:52:00Z",
+          "participants": [
+            {
+              "entity_id": "01a0b1c2-b010-7000-8000-000000000000",
+              "entity_kind": "PLAYER",
+              "role": "DISCOVERER"
+            },
+            {
+              "entity_id": "01a0ed74-2e96-74cc-9778-af3319e9ce2f",
+              "entity_kind": "SHIP",
+              "role": "VESSEL"
+            }
+          ],
+          "payload": {
+            "deposit_id": "vela-orbit-2",
+            "mineral_id": "glacine",
+            "quantity_kg": 150
+          },
+          "recorded_at": "2026-09-29T13:57:26.752Z",
+          "rule_version": "mineral-discovery@1",
+          "schema_version": 1,
+          "source_event_ids": [
+            "01a0ed74-c04a-75f1-9b52-fc590f5b240e"
+          ],
+          "tick": 1041,
+          "visibility": "PUBLIC",
+          "world_id": "01a0ed73-d9fc-72df-9268-c4bdfd773ef4"
+        }
+      },
+      "schema_version": 1,
+      "tick": 1042
+    }
+  ],
+  "inventory_states": [
+    {
+      "frame_seq": 1,
+      "payload": {
+        "actor_id": "01a0b1c2-b010-7000-8000-000000000000",
+        "items": []
+      },
+      "tick": 295
+    },
+    {
+      "frame_seq": 991,
+      "payload": {
+        "actor_id": "01a0b1c2-b010-7000-8000-000000000000",
+        "items": [
+          {
+            "mineral_id": "glacine",
+            "quantity_kg": 150
+          }
+        ]
+      },
+      "tick": 1041
+    },
+    {
+      "frame_seq": 1027,
+      "payload": {
+        "actor_id": "01a0b1c2-b010-7000-8000-000000000000",
+        "items": [
+          {
+            "mineral_id": "glacine",
+            "quantity_kg": 300
+          }
+        ]
+      },
+      "tick": 1105
+    },
+    {
+      "frame_seq": 1062,
+      "payload": {
+        "actor_id": "01a0b1c2-b010-7000-8000-000000000000",
+        "items": [
+          {
+            "mineral_id": "glacine",
+            "quantity_kg": 450
+          }
+        ]
+      },
+      "tick": 1169
+    }
+  ],
+  "label": "bot-000",
+  "mine_sent": [
+    {
+      "command_id": "01a0ed74-c01f-7280-90ec-fd08d4783f94",
+      "dist_m": 139.2695329962731,
+      "last_snapshot_tick": 1040,
+      "results": [
+        {
+          "frame_seq": 990,
+          "reason": null,
+          "status": "ACCEPTED",
+          "tick": 1041
+        }
+      ],
+      "speed_mps": 0.0
+    },
+    {
+      "command_id": "01a0ed74-ccab-71ba-8ef8-a1a79400c342",
+      "dist_m": 139.2695329962731,
+      "last_snapshot_tick": 1104,
+      "results": [
+        {
+          "frame_seq": 1026,
+          "reason": null,
+          "status": "ACCEPTED",
+          "tick": 1105
+        }
+      ],
+      "speed_mps": 0.0
+    },
+    {
+      "command_id": "01a0ed74-d935-77ca-aca2-c5446ba8c6d5",
+      "dist_m": 139.2695329962731,
+      "last_snapshot_tick": 1168,
+      "results": [
+        {
+          "frame_seq": 1061,
+          "reason": null,
+          "status": "ACCEPTED",
+          "tick": 1169
+        },
+        {
+          "frame_seq": 1069,
+          "reason": "DUPLICATE_COMMAND_ID",
+          "status": "REJECTED",
+          "tick": 1179
+        }
+      ],
+      "speed_mps": 0.0
+    },
+    {
+      "command_id": "01a0ed74-d935-77ca-aca2-c5446ba8c6d5",
+      "dist_m": 139.2695329962731,
+      "last_snapshot_tick": 1178,
+      "results": [
+        {
+          "frame_seq": 1061,
+          "reason": null,
+          "status": "ACCEPTED",
+          "tick": 1169
+        },
+        {
+          "frame_seq": 1069,
+          "reason": "DUPLICATE_COMMAND_ID",
+          "status": "REJECTED",
+          "tick": 1179
+        }
+      ],
+      "speed_mps": 0.0
+    }
+  ],
+  "nav": {
+    "arrive_dist_m": 139.2695329962731,
+    "arrive_speed_mps": 1.991568477356478,
+    "arrived": true,
+    "control_frames": 614,
+    "deposit_id": "vela-orbit-2",
+    "max_speed_mps": 113.49162538266866,
+    "start_dist_m": 3729.912348044656,
+    "stop_radius_m": 140.0
+  },
+  "session": {
+    "actor_id": "01a0b1c2-b010-7000-8000-000000000000",
+    "ready_tick": 295,
+    "session_id": "01a0ed74-2e94-7287-99ae-c97f0449db47"
+  },
+  "tool": "bots mine (관측 — verdict 없음)"
+}

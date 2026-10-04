@@ -1,0 +1,42 @@
+{
+  "a": {
+    "actor": "01a0b1c2-b010-7000-8000-000000000051",
+    "results": [
+      [
+        "ACCEPTED",
+        null
+      ]
+    ],
+    "sent": true
+  },
+  "b": {
+    "actor": "01a0b1c2-b010-7000-8000-000000000052",
+    "results": [
+      [
+        "REJECTED",
+        "DUPLICATE_COMMAND_ID"
+      ]
+    ],
+    "sent": true
+  },
+  "command_id": "01a0ef93-584d-71ea-9438-60fe9871d795",
+  "item": "[verdict] p1-02 SC-108 다른 actor 둘이 같은 command_id → 둘째 DUPLICATE_COMMAND_ID, 서버 생존·커밋 계속(재기동 뒤 변형 포함)",
+  "liveness": {
+    "domain_events_persist_failed_total": 0,
+    "error": null,
+    "last_committed_tick": [
+      2800,
+      2840
+    ],
+    "persist_halted": [
+      false,
+      false
+    ],
+    "stats_ok": true
+  },
+  "signal_timeouts": [
+    0,
+    0
+  ],
+  "verdict": "PASS"
+}

@@ -574,6 +574,7 @@ fn a_report_with_ready_sessions_but_nothing_accepted_is_not_all_ok() {
         outcomes.push(ConnectionOutcome {
             ledger: l,
             snapshots: SnapshotLedger::new(None),
+            mining: starfall_bots::mining::MiningObs::default(),
             connect_ms: 1.0,
             ready_ms: Some(2.0),
             connect_error: None,

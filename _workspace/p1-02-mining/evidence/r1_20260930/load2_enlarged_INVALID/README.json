@@ -1,0 +1,6 @@
+{
+  "what": "SC-87·89 (d) 매장량 확대 사본 10 분 부하 — **무효(환경)**. 판정에 쓰지 않는다",
+  "data_copy": "data/ 복사본에서 world/deposits/cradle.json 의 광맥 8 곳 initial_reserve_kg 만 ×100 (sha 903dc4dc… → 270a7917…). 나머지 파일 sha 원본과 동일(load_data_sha.txt vs orig_data_sha_before.txt)",
+  "why_invalid": "**Docker 엔진 재시작(외부 요인)** — Docker Desktop 자체가 12:36~12:37 UTC 경 재시작(같은 시각 다른 프로젝트 컨테이너도 재기동, 리더 확인). 우리 컨테이너는 restart 정책이 없어 Exited(255) → history·리더가 up -d. postgres 로그: 12:28:19 마지막 정상 → 12:38:24 'not properly shut down; automatic recovery'. 서버는 12:31 부터 pool timed out, recording_lag 8981, SLOW_CONSUMER 로 연결 닫힘 → ⊘(31 연결 유지·수락 ≥ 3000) 미발생 → 미검증(환경)",
+  "evidence_db_after_recovery": "spike 4805 · md5 d1904d8f… · migrations 3 · worlds 38 · 테스트 DB 0 — 불변"
+}

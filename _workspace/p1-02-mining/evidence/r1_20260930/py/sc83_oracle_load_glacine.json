@@ -1,0 +1,11 @@
+{
+  "item": "p1-02 SC-83 (AC-16d) 광물 X 의 MINERAL_DISCOVERED 정확히 1 · 근거 = 첫 채굴 · 증거 1",
+  "mineral_id": "glacine",
+  "mineral_mined_rows_for_x": 174,
+  "discovered_rows": 1,
+  "source_equals_oracle_first": true,
+  "evidence_rows": 1,
+  "null_field_mineral_mined_rows": 0,
+  "verdict": "PASS",
+  "oracle_sql": "select distinct on (payload->>'star_system_id', payload->>'mineral_id') payload->>'star_system_id', payload->>'mineral_id', tick, sequence, event_id from domain_events where world_id = '01a0ef96-c9ad-7c5e-8e55-1b2afe94f0a9' and event_type = 'MINERAL_MINED' and (payload->>'quantity_kg')::bigint > 0 order by payload->>'star_system_id', payload->>'mineral_id', tick, sequence;"
+}

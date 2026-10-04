@@ -1,0 +1,10 @@
+{
+  "command_id": "01a0b1c2-9c01-7d11-8e21-3f3140516171",
+  "command_type": "MINE_RESOURCE",
+  "schema_version": 1,
+  "client_sent_at": "2026-09-27T09:12:40.118Z",
+  "payload": {
+    "deposit_id": "far-reach",
+    "mineral_id": "starfall-glass"
+  }
+}

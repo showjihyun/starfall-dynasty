@@ -1,0 +1,68 @@
+{
+  "message_id": "01a0b1c2-6c51-7132-8243-5a6b7c8d9eaf",
+  "message_type": "DEPOSIT_FIELD_STATE",
+  "schema_version": 1,
+  "tick": 1200,
+  "correlation_id": null,
+  "payload": {
+    "star_system_id": "cradle",
+    "deposits": [
+      {
+        "deposit_id": "far-reach",
+        "mineral_id": null,
+        "initial_reserve_kg": null,
+        "remaining_kg": null,
+        "first_extracted_tick": null
+      },
+      {
+        "deposit_id": "inner-belt-1",
+        "mineral_id": null,
+        "initial_reserve_kg": null,
+        "remaining_kg": null,
+        "first_extracted_tick": null
+      },
+      {
+        "deposit_id": "inner-belt-2",
+        "mineral_id": null,
+        "initial_reserve_kg": null,
+        "remaining_kg": null,
+        "first_extracted_tick": null
+      },
+      {
+        "deposit_id": "inner-belt-3",
+        "mineral_id": null,
+        "initial_reserve_kg": null,
+        "remaining_kg": null,
+        "first_extracted_tick": null
+      },
+      {
+        "deposit_id": "outer-field-1",
+        "mineral_id": null,
+        "initial_reserve_kg": null,
+        "remaining_kg": null,
+        "first_extracted_tick": null
+      },
+      {
+        "deposit_id": "outer-field-2",
+        "mineral_id": null,
+        "initial_reserve_kg": null,
+        "remaining_kg": null,
+        "first_extracted_tick": null
+      },
+      {
+        "deposit_id": "vela-orbit-1",
+        "mineral_id": null,
+        "initial_reserve_kg": null,
+        "remaining_kg": null,
+        "first_extracted_tick": null
+      },
+      {
+        "deposit_id": "vela-orbit-2",
+        "mineral_id": null,
+        "initial_reserve_kg": null,
+        "remaining_kg": null,
+        "first_extracted_tick": null
+      }
+    ]
+  }
+}
