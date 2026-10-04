@@ -33,6 +33,7 @@ model: sonnet
 3. **원복 증명**: 변이를 건 파일마다 변이 전·원복 후 sha256이 같다. 커밋 전 변경·untracked 파일에는 `git diff`가 증명이 되지 않는다.
 4. 계약이 지명한 바이너리·스크립트·카운터가 실제로 있다. DB 테스트는 `TestDb::create`에 계약 이름 그대로 넘긴다.
 5. 오래 걸리는 실행은 같은 턴 안에서 결과 파일 확인 루프로 기다린다. "알림이 오면 이어서"로 턴을 끝내지 않는다. 태스크가 모두 끝나면 종료한다.
+6. **화면 요소**(`starfall-dev/references/screen-elements.md` S3): 담당 `UI-nn`(표식·VFX·배너 등)마다 PlayMode 존재 단언이 계약 이름으로 돈다. 씬에 기대 개수만큼 만들어졌는지 단언한다. `03_techart_impl.md`의 "사람이 확인할 항목"에 요소별 체크 문장을 적는다. 화면을 건드린 모듈은 이 칸을 "없음"으로 둘 수 없다.
 
 ## 입력/출력 프로토콜
 - 입력: `docs/specs/{slice-id}.md`, `02_sprint_contract.md`(성능·비주얼 수용 기준), unity-client-engineer와 합의한 프리팹 구조
