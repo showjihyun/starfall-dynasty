@@ -1,0 +1,2183 @@
+{
+  "tool": "tests/e2e/run_round.py",
+  "format": 1,
+  "slice": "p1-02-mining",
+  "slice_label": "p1-02",
+  "round": "tool_check",
+  "contract": "_workspace/p1-02-mining/02_sprint_contract.md",
+  "config": "tests/e2e/round_configs/p1-02-mining.json",
+  "out": "_workspace/p1-02-mining/evidence/tool_check_20261005/dry_run",
+  "selected": [
+    "freeze",
+    "gates",
+    "census",
+    "repeat",
+    "unity",
+    "filters",
+    "sources",
+    "offline",
+    "bots",
+    "judges",
+    "db_stop",
+    "final"
+  ],
+  "dry_run": true,
+  "argv": [
+    "--slice",
+    "p1-02",
+    "--contract",
+    "_workspace/p1-02-mining/02_sprint_contract.md",
+    "--round",
+    "tool_check",
+    "--out",
+    "_workspace/p1-02-mining/evidence/tool_check_20261005/dry_run",
+    "--dry-run"
+  ],
+  "env_keys_loaded": [
+    "DATABASE_URL",
+    "POSTGRES_DB",
+    "POSTGRES_PASSWORD",
+    "POSTGRES_USER",
+    "REDIS_URL",
+    "STARFALL_DEV_AUTH_SECRET",
+    "STARFALL_HTTP_ADDR",
+    "STARFALL_LOG_FORMAT",
+    "STARFALL_PG_HOST_PORT",
+    "STARFALL_REDIS_HOST_PORT"
+  ],
+  "started": "2026-10-05T10:27:43+09:00",
+  "finished": "2026-10-05T10:27:43+09:00",
+  "complete": true,
+  "watch": {
+    "enabled": false,
+    "interval_s": null,
+    "checks": 0,
+    "violations": [],
+    "touched_same_content": []
+  },
+  "counts": {
+    "DRY": 12
+  },
+  "stages": [
+    {
+      "name": "freeze",
+      "status": "DRY",
+      "raw_status": "DRY",
+      "started": "2026-10-05T10:27:43+09:00",
+      "finished": "2026-10-05T10:27:43+09:00",
+      "seconds": 0.0,
+      "commands": [
+        {
+          "name": "head",
+          "argv": [
+            "git",
+            "rev-parse",
+            "HEAD"
+          ],
+          "cwd": ".",
+          "rc": null,
+          "status": "DRY",
+          "seconds": 0.0,
+          "log": ""
+        },
+        {
+          "name": "porcelain",
+          "argv": [
+            "git",
+            "status",
+            "--porcelain"
+          ],
+          "cwd": ".",
+          "rc": null,
+          "status": "DRY",
+          "seconds": 0.0,
+          "log": ""
+        },
+        {
+          "name": "fp_before",
+          "argv": [
+            "docker",
+            "compose",
+            "exec",
+            "-T",
+            "postgres",
+            "psql",
+            "-q",
+            "-v",
+            "ON_ERROR_STOP=1",
+            "-U",
+            "starfall",
+            "-d",
+            "starfall",
+            "-At",
+            "-F",
+            "|",
+            "-c",
+            "SET default_transaction_read_only = on",
+            "-c",
+            "select (select count(*) from domain_events where world_id = '01a0b1c2-3d4e-7f01-8a2b-9c0d1e2f3a4b') || '|' || (select md5(coalesce(string_agg(event_id::text, ',' order by event_id), '')) from domain_events where world_id = '01a0b1c2-3d4e-7f01-8a2b-9c0d1e2f3a4b') || '|' || (select count(*) from _sqlx_migrations) || '|' || (select count(*) from pg_database where datname like 'starfall_test_%')"
+          ],
+          "cwd": ".",
+          "rc": null,
+          "status": "DRY",
+          "seconds": 0.0,
+          "log": ""
+        }
+      ],
+      "metrics": {
+        "freeze_file": {
+          "path": "_workspace/p1-02-mining/FREEZE",
+          "present": false
+        },
+        "source_files": 424
+      },
+      "notes": [
+        "경고: _workspace/p1-02-mining/FREEZE 가 없다 — 동결 표지 없이 돈다(R6)"
+      ],
+      "violations": []
+    },
+    {
+      "name": "gates",
+      "status": "DRY",
+      "raw_status": "DRY",
+      "started": "2026-10-05T10:27:43+09:00",
+      "finished": "2026-10-05T10:27:43+09:00",
+      "seconds": 0.0,
+      "commands": [
+        {
+          "name": "fmt",
+          "argv": [
+            "cargo",
+            "fmt",
+            "--all",
+            "--check"
+          ],
+          "cwd": "server",
+          "rc": null,
+          "status": "DRY",
+          "seconds": 0.0,
+          "log": ""
+        },
+        {
+          "name": "clippy",
+          "argv": [
+            "cargo",
+            "clippy",
+            "--workspace",
+            "--all-targets",
+            "--",
+            "-D",
+            "warnings"
+          ],
+          "cwd": "server",
+          "rc": null,
+          "status": "DRY",
+          "seconds": 0.0,
+          "log": ""
+        },
+        {
+          "name": "test",
+          "argv": [
+            "cargo",
+            "test",
+            "--workspace",
+            "--locked",
+            "--no-fail-fast"
+          ],
+          "cwd": "server",
+          "rc": null,
+          "status": "DRY",
+          "seconds": 0.0,
+          "log": ""
+        },
+        {
+          "name": "release_starfall-sim",
+          "argv": [
+            "cargo",
+            "test",
+            "-p",
+            "starfall-sim",
+            "--release",
+            "--locked",
+            "--no-fail-fast"
+          ],
+          "cwd": "server",
+          "rc": null,
+          "status": "DRY",
+          "seconds": 0.0,
+          "log": ""
+        }
+      ],
+      "metrics": {},
+      "notes": [],
+      "violations": []
+    },
+    {
+      "name": "census",
+      "status": "DRY",
+      "raw_status": "DRY",
+      "started": "2026-10-05T10:27:43+09:00",
+      "finished": "2026-10-05T10:27:43+09:00",
+      "seconds": 0.0,
+      "commands": [
+        {
+          "name": "census",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "tests/e2e/db_test_census.py",
+            "--contract",
+            "_workspace/p1-02-mining/02_sprint_contract.md",
+            "--log",
+            "_workspace/p1-02-mining/evidence/tool_check_20261005/dry_run/gates/test.log",
+            "--evidence",
+            "_workspace/p1-02-mining/evidence/tool_check_20261005/dry_run/census/census.json"
+          ],
+          "cwd": ".",
+          "rc": null,
+          "status": "DRY",
+          "seconds": 0.0,
+          "log": ""
+        }
+      ],
+      "metrics": {},
+      "notes": [],
+      "violations": []
+    },
+    {
+      "name": "repeat",
+      "status": "DRY",
+      "raw_status": "DRY",
+      "started": "2026-10-05T10:27:43+09:00",
+      "finished": "2026-10-05T10:27:43+09:00",
+      "seconds": 0.0,
+      "commands": [
+        {
+          "name": "run1",
+          "argv": [
+            "cargo",
+            "test",
+            "--workspace",
+            "--locked",
+            "--no-fail-fast"
+          ],
+          "cwd": "server",
+          "rc": null,
+          "status": "DRY",
+          "seconds": 0.0,
+          "log": ""
+        },
+        {
+          "name": "run2",
+          "argv": [
+            "cargo",
+            "test",
+            "--workspace",
+            "--locked",
+            "--no-fail-fast"
+          ],
+          "cwd": "server",
+          "rc": null,
+          "status": "DRY",
+          "seconds": 0.0,
+          "log": ""
+        },
+        {
+          "name": "run3",
+          "argv": [
+            "cargo",
+            "test",
+            "--workspace",
+            "--locked",
+            "--no-fail-fast"
+          ],
+          "cwd": "server",
+          "rc": null,
+          "status": "DRY",
+          "seconds": 0.0,
+          "log": ""
+        },
+        {
+          "name": "run4",
+          "argv": [
+            "cargo",
+            "test",
+            "--workspace",
+            "--locked",
+            "--no-fail-fast"
+          ],
+          "cwd": "server",
+          "rc": null,
+          "status": "DRY",
+          "seconds": 0.0,
+          "log": ""
+        },
+        {
+          "name": "run5",
+          "argv": [
+            "cargo",
+            "test",
+            "--workspace",
+            "--locked",
+            "--no-fail-fast"
+          ],
+          "cwd": "server",
+          "rc": null,
+          "status": "DRY",
+          "seconds": 0.0,
+          "log": ""
+        },
+        {
+          "name": "run6",
+          "argv": [
+            "cargo",
+            "test",
+            "--workspace",
+            "--locked",
+            "--no-fail-fast"
+          ],
+          "cwd": "server",
+          "rc": null,
+          "status": "DRY",
+          "seconds": 0.0,
+          "log": ""
+        },
+        {
+          "name": "run7",
+          "argv": [
+            "cargo",
+            "test",
+            "--workspace",
+            "--locked",
+            "--no-fail-fast"
+          ],
+          "cwd": "server",
+          "rc": null,
+          "status": "DRY",
+          "seconds": 0.0,
+          "log": ""
+        },
+        {
+          "name": "run8",
+          "argv": [
+            "cargo",
+            "test",
+            "--workspace",
+            "--locked",
+            "--no-fail-fast"
+          ],
+          "cwd": "server",
+          "rc": null,
+          "status": "DRY",
+          "seconds": 0.0,
+          "log": ""
+        },
+        {
+          "name": "run9",
+          "argv": [
+            "cargo",
+            "test",
+            "--workspace",
+            "--locked",
+            "--no-fail-fast"
+          ],
+          "cwd": "server",
+          "rc": null,
+          "status": "DRY",
+          "seconds": 0.0,
+          "log": ""
+        },
+        {
+          "name": "run10",
+          "argv": [
+            "cargo",
+            "test",
+            "--workspace",
+            "--locked",
+            "--no-fail-fast"
+          ],
+          "cwd": "server",
+          "rc": null,
+          "status": "DRY",
+          "seconds": 0.0,
+          "log": ""
+        }
+      ],
+      "metrics": {},
+      "notes": [],
+      "violations": []
+    },
+    {
+      "name": "unity",
+      "status": "DRY",
+      "raw_status": "DRY",
+      "started": "2026-10-05T10:27:43+09:00",
+      "finished": "2026-10-05T10:27:43+09:00",
+      "seconds": 0.0,
+      "commands": [
+        {
+          "name": "EditMode",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Unity\\bin\\unity.EXE",
+            "test",
+            "client",
+            "--mode",
+            "EditMode",
+            "--report-format",
+            "junit",
+            "--output",
+            "_workspace/p1-02-mining/evidence/tool_check_20261005/dry_run/unity/editmode.xml"
+          ],
+          "cwd": ".",
+          "rc": null,
+          "status": "DRY",
+          "seconds": 0.0,
+          "log": ""
+        },
+        {
+          "name": "PlayMode",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Unity\\bin\\unity.EXE",
+            "test",
+            "client",
+            "--mode",
+            "PlayMode",
+            "--report-format",
+            "junit",
+            "--output",
+            "_workspace/p1-02-mining/evidence/tool_check_20261005/dry_run/unity/playmode.xml"
+          ],
+          "cwd": ".",
+          "rc": null,
+          "status": "DRY",
+          "seconds": 0.0,
+          "log": ""
+        }
+      ],
+      "metrics": {},
+      "notes": [],
+      "violations": []
+    },
+    {
+      "name": "filters",
+      "status": "DRY",
+      "raw_status": "DRY",
+      "started": "2026-10-05T10:27:43+09:00",
+      "finished": "2026-10-05T10:27:43+09:00",
+      "seconds": 0.0,
+      "commands": [
+        {
+          "name": "cargo_sc_map",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "tests/e2e/cargo_sc_map.py",
+            "run",
+            "--contract",
+            "_workspace/p1-02-mining/02_sprint_contract.md",
+            "--out",
+            "_workspace/p1-02-mining/evidence/tool_check_20261005/dry_run/filters"
+          ],
+          "cwd": ".",
+          "rc": null,
+          "status": "DRY",
+          "seconds": 0.0,
+          "log": ""
+        }
+      ],
+      "metrics": {},
+      "notes": [],
+      "violations": []
+    },
+    {
+      "name": "sources",
+      "status": "DRY",
+      "raw_status": "DRY",
+      "started": "2026-10-05T10:27:43+09:00",
+      "finished": "2026-10-05T10:27:43+09:00",
+      "seconds": 0.0,
+      "commands": [
+        {
+          "name": "check_item_sources",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "tests/e2e/check_item_sources.py",
+            "--contract",
+            "_workspace/p1-02-mining/02_sprint_contract.md",
+            "--slice",
+            "p1-02"
+          ],
+          "cwd": ".",
+          "rc": null,
+          "status": "DRY",
+          "seconds": 0.0,
+          "log": ""
+        }
+      ],
+      "metrics": {},
+      "notes": [],
+      "violations": []
+    },
+    {
+      "name": "offline",
+      "status": "DRY",
+      "raw_status": "DRY",
+      "started": "2026-10-05T10:27:43+09:00",
+      "finished": "2026-10-05T10:27:43+09:00",
+      "seconds": 0.0,
+      "commands": [
+        {
+          "name": "src_gate_p101",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "tests/e2e/check_item_sources.py",
+            "--contract",
+            "_workspace/p1-01-ship-movement/02_sprint_contract.md",
+            "--slice",
+            "p1-01"
+          ],
+          "cwd": ".",
+          "rc": null,
+          "status": "DRY",
+          "seconds": 0.0,
+          "log": ""
+        },
+        {
+          "name": "self_check_item_sources",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "tests/e2e/check_item_sources.py",
+            "--selftest"
+          ],
+          "cwd": ".",
+          "rc": null,
+          "status": "DRY",
+          "seconds": 0.0,
+          "log": ""
+        },
+        {
+          "name": "self_check_contract_items",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "tests/e2e/check_contract_items.py",
+            "--selftest"
+          ],
+          "cwd": ".",
+          "rc": null,
+          "status": "DRY",
+          "seconds": 0.0,
+          "log": ""
+        },
+        {
+          "name": "self_check_occurred_at",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "tests/e2e/check_occurred_at.py",
+            "--selftest"
+          ],
+          "cwd": ".",
+          "rc": null,
+          "status": "DRY",
+          "seconds": 0.0,
+          "log": ""
+        },
+        {
+          "name": "self_bandwidth",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "tests/e2e/bandwidth.py",
+            "--selftest"
+          ],
+          "cwd": ".",
+          "rc": null,
+          "status": "DRY",
+          "seconds": 0.0,
+          "log": ""
+        },
+        {
+          "name": "self_block8_invariants",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "tests/e2e/block8_invariants.py",
+            "selftest"
+          ],
+          "cwd": ".",
+          "rc": null,
+          "status": "DRY",
+          "seconds": 0.0,
+          "log": ""
+        },
+        {
+          "name": "self_server_boot",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "tests/e2e/server_boot.py",
+            "selftest"
+          ],
+          "cwd": ".",
+          "rc": null,
+          "status": "DRY",
+          "seconds": 0.0,
+          "log": ""
+        },
+        {
+          "name": "self_ship_events",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "tests/e2e/ship_events.py",
+            "selftest"
+          ],
+          "cwd": ".",
+          "rc": null,
+          "status": "DRY",
+          "seconds": 0.0,
+          "log": ""
+        },
+        {
+          "name": "self_two_client_view",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "tests/e2e/two_client_view.py",
+            "selftest"
+          ],
+          "cwd": ".",
+          "rc": null,
+          "status": "DRY",
+          "seconds": 0.0,
+          "log": ""
+        },
+        {
+          "name": "self_mining_ledger",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "tests/e2e/mining_ledger.py",
+            "selftest"
+          ],
+          "cwd": ".",
+          "rc": null,
+          "status": "DRY",
+          "seconds": 0.0,
+          "log": ""
+        },
+        {
+          "name": "self_history_oracle",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "tests/e2e/history_oracle.py",
+            "selftest"
+          ],
+          "cwd": ".",
+          "rc": null,
+          "status": "DRY",
+          "seconds": 0.0,
+          "log": ""
+        },
+        {
+          "name": "self_new_world",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "tests/e2e/new_world.py",
+            "selftest"
+          ],
+          "cwd": ".",
+          "rc": null,
+          "status": "DRY",
+          "seconds": 0.0,
+          "log": ""
+        },
+        {
+          "name": "self_data_file_pairs",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "tests/e2e/data_file_pairs.py",
+            "selftest"
+          ],
+          "cwd": ".",
+          "rc": null,
+          "status": "DRY",
+          "seconds": 0.0,
+          "log": ""
+        },
+        {
+          "name": "self_constraint_census",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "tests/e2e/constraint_census.py",
+            "selftest"
+          ],
+          "cwd": ".",
+          "rc": null,
+          "status": "DRY",
+          "seconds": 0.0,
+          "log": ""
+        },
+        {
+          "name": "self_db_test_census",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "tests/e2e/db_test_census.py",
+            "selftest"
+          ],
+          "cwd": ".",
+          "rc": null,
+          "status": "DRY",
+          "seconds": 0.0,
+          "log": ""
+        },
+        {
+          "name": "self_interface_matrix",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "tests/e2e/interface_matrix.py",
+            "selftest",
+            "--slice",
+            "p1-02"
+          ],
+          "cwd": ".",
+          "rc": null,
+          "status": "DRY",
+          "seconds": 0.0,
+          "log": ""
+        },
+        {
+          "name": "self_cargo_sc_map",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "tests/e2e/cargo_sc_map.py",
+            "selftest"
+          ],
+          "cwd": ".",
+          "rc": null,
+          "status": "DRY",
+          "seconds": 0.0,
+          "log": ""
+        },
+        {
+          "name": "self_run_round",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "tests/e2e/run_round.py",
+            "selftest"
+          ],
+          "cwd": ".",
+          "rc": null,
+          "status": "DRY",
+          "seconds": 0.0,
+          "log": ""
+        },
+        {
+          "name": "sc06_validate_data",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "tests/e2e/validate_data_files.py"
+          ],
+          "cwd": ".",
+          "rc": null,
+          "status": "DRY",
+          "seconds": 0.0,
+          "log": ""
+        },
+        {
+          "name": "sc97_interface_matrix",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "tests/e2e/interface_matrix.py",
+            "--slice",
+            "p1-02"
+          ],
+          "cwd": ".",
+          "rc": null,
+          "status": "DRY",
+          "seconds": 0.0,
+          "log": ""
+        },
+        {
+          "name": "coverage_strict",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            ".claude/skills/integration-qa/scripts/check_contract_coverage.py",
+            "--strict"
+          ],
+          "cwd": ".",
+          "rc": null,
+          "status": "DRY",
+          "seconds": 0.0,
+          "log": ""
+        },
+        {
+          "name": "sc34_golden_sha",
+          "argv": [
+            "sha256",
+            "server/crates/sim/tests/data/replay/*",
+            "vs",
+            "_workspace/p1-02-mining/evidence/r1_20260930/offline1.txt"
+          ],
+          "cwd": ".",
+          "rc": null,
+          "status": "DRY",
+          "seconds": 0.0,
+          "log": ""
+        },
+        {
+          "name": "sc94_self_causation",
+          "argv": [
+            "docker",
+            "compose",
+            "exec",
+            "-T",
+            "postgres",
+            "psql",
+            "-q",
+            "-v",
+            "ON_ERROR_STOP=1",
+            "-U",
+            "starfall",
+            "-d",
+            "starfall",
+            "-At",
+            "-F",
+            "|",
+            "-c",
+            "SET default_transaction_read_only = on",
+            "-c",
+            "select event_id from domain_events where causation_id = event_id order by 1"
+          ],
+          "cwd": ".",
+          "rc": null,
+          "status": "DRY",
+          "seconds": 0.0,
+          "log": ""
+        },
+        {
+          "name": "sc107_constraint_census",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "tests/e2e/constraint_census.py"
+          ],
+          "cwd": ".",
+          "rc": null,
+          "status": "DRY",
+          "seconds": 0.0,
+          "log": ""
+        },
+        {
+          "name": "sc65_codegen_run1",
+          "argv": [
+            "dotnet",
+            "run",
+            "ContractsCodegen.cs",
+            "--",
+            "--contracts",
+            "contracts",
+            "--out",
+            "C:\\Users\\CHOISO~1\\AppData\\Local\\Temp\\run_round_46warspq\\codegen\\run1"
+          ],
+          "cwd": "tools/codegen",
+          "rc": null,
+          "status": "DRY",
+          "seconds": 0.0,
+          "log": ""
+        },
+        {
+          "name": "sc65_codegen_run2",
+          "argv": [
+            "dotnet",
+            "run",
+            "ContractsCodegen.cs",
+            "--",
+            "--contracts",
+            "contracts",
+            "--out",
+            "C:\\Users\\CHOISO~1\\AppData\\Local\\Temp\\run_round_46warspq\\codegen\\run2"
+          ],
+          "cwd": "tools/codegen",
+          "rc": null,
+          "status": "DRY",
+          "seconds": 0.0,
+          "log": ""
+        }
+      ],
+      "metrics": {},
+      "notes": [],
+      "violations": []
+    },
+    {
+      "name": "bots",
+      "status": "DRY",
+      "raw_status": "DRY",
+      "started": "2026-10-05T10:27:43+09:00",
+      "finished": "2026-10-05T10:27:43+09:00",
+      "seconds": 0.0,
+      "commands": [
+        {
+          "name": "build_server",
+          "argv": [
+            "cargo",
+            "build",
+            "-p",
+            "starfall-game-server"
+          ],
+          "cwd": "server",
+          "rc": null,
+          "status": "DRY",
+          "seconds": 0.0,
+          "log": ""
+        },
+        {
+          "name": "build_bots",
+          "argv": [
+            "cargo",
+            "build"
+          ],
+          "cwd": "tools/bots",
+          "rc": null,
+          "status": "DRY",
+          "seconds": 0.0,
+          "log": ""
+        },
+        {
+          "name": "sc04_new_world",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "tests/e2e/new_world.py",
+            "--tag",
+            "tool_check-SC-04",
+            "--evidence",
+            "_workspace/p1-02-mining/evidence/tool_check_20261005/dry_run/bots/sc04/world.json"
+          ],
+          "cwd": ".",
+          "rc": null,
+          "status": "DRY",
+          "seconds": 0.0,
+          "log": ""
+        },
+        {
+          "name": "sc04_boot",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "tests/e2e/server_boot.py",
+            "p1-02-boot",
+            "--world",
+            "{world.sc04}",
+            "--log",
+            "_workspace/p1-02-mining/evidence/tool_check_20261005/dry_run/bots/sc04_boot.log",
+            "--evidence",
+            "_workspace/p1-02-mining/evidence/tool_check_20261005/dry_run/bots/sc04_boot.json"
+          ],
+          "cwd": ".",
+          "rc": null,
+          "status": "DRY",
+          "seconds": 0.0,
+          "log": ""
+        },
+        {
+          "name": "sc05_reject",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "tests/e2e/server_boot.py",
+            "p1-02-reject",
+            "--workdir",
+            "C:\\Users\\CHOISO~1\\AppData\\Local\\Temp\\run_round_46warspq/sc05_rej",
+            "--evidence",
+            "_workspace/p1-02-mining/evidence/tool_check_20261005/dry_run/bots/sc05_reject.json"
+          ],
+          "cwd": ".",
+          "rc": null,
+          "status": "DRY",
+          "seconds": 0.0,
+          "log": ""
+        },
+        {
+          "name": "sc07_pairs",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "tests/e2e/data_file_pairs.py",
+            "--boot-log",
+            "_workspace/p1-02-mining/evidence/tool_check_20261005/dry_run/bots/sc04_boot.log",
+            "--cargo-log",
+            "_workspace/p1-02-mining/evidence/tool_check_20261005/dry_run/gates/test.log",
+            "--evidence",
+            "_workspace/p1-02-mining/evidence/tool_check_20261005/dry_run/bots/sc07_pairs.json"
+          ],
+          "cwd": ".",
+          "rc": null,
+          "status": "DRY",
+          "seconds": 0.0,
+          "log": ""
+        },
+        {
+          "name": "cases_new_world",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "tests/e2e/new_world.py",
+            "--tag",
+            "tool_check-cases",
+            "--evidence",
+            "_workspace/p1-02-mining/evidence/tool_check_20261005/dry_run/bots/cases/world.json"
+          ],
+          "cwd": ".",
+          "rc": null,
+          "status": "DRY",
+          "seconds": 0.0,
+          "log": ""
+        },
+        {
+          "name": "cases_serve",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "tests/e2e/server_boot.py",
+            "serve",
+            "--world",
+            "{world.cases}",
+            "--stop-file",
+            "_workspace/p1-02-mining/evidence/tool_check_20261005/dry_run/bots/cases/stop",
+            "--ready-file",
+            "_workspace/p1-02-mining/evidence/tool_check_20261005/dry_run/bots/cases/ready",
+            "--log",
+            "_workspace/p1-02-mining/evidence/tool_check_20261005/dry_run/bots/cases/server.log",
+            "--max-seconds",
+            "1200"
+          ],
+          "cwd": ".",
+          "rc": null,
+          "status": "DRY",
+          "seconds": 0.0,
+          "log": ""
+        },
+        {
+          "name": "cases.mine-dup",
+          "argv": [
+            "tools/bots/target/debug/bots.exe",
+            "probe",
+            "--case",
+            "mine-dup",
+            "--deposit",
+            "vela-orbit-2",
+            "--label",
+            "bot-010",
+            "--out",
+            "_workspace/p1-02-mining/evidence/tool_check_20261005/dry_run/bots/cases/mine-dup.json"
+          ],
+          "cwd": ".",
+          "rc": null,
+          "status": "DRY",
+          "seconds": 0.0,
+          "log": ""
+        },
+        {
+          "name": "cases.cheat-mine-inject",
+          "argv": [
+            "tools/bots/target/debug/bots.exe",
+            "probe",
+            "--case",
+            "cheat-mine-inject",
+            "--deposit",
+            "vela-orbit-1",
+            "--label",
+            "bot-011",
+            "--out",
+            "_workspace/p1-02-mining/evidence/tool_check_20261005/dry_run/bots/cases/cheat-mine-inject.json"
+          ],
+          "cwd": ".",
+          "rc": null,
+          "status": "DRY",
+          "seconds": 0.0,
+          "log": ""
+        },
+        {
+          "name": "cases.cheat-mine-range",
+          "argv": [
+            "tools/bots/target/debug/bots.exe",
+            "probe",
+            "--case",
+            "cheat-mine-range",
+            "--deposit",
+            "inner-belt-1",
+            "--label",
+            "bot-012",
+            "--out",
+            "_workspace/p1-02-mining/evidence/tool_check_20261005/dry_run/bots/cases/cheat-mine-range.json"
+          ],
+          "cwd": ".",
+          "rc": null,
+          "status": "DRY",
+          "seconds": 0.0,
+          "log": ""
+        },
+        {
+          "name": "cases.cheat-mine-fast",
+          "argv": [
+            "tools/bots/target/debug/bots.exe",
+            "probe",
+            "--case",
+            "cheat-mine-fast",
+            "--deposit",
+            "inner-belt-2",
+            "--label",
+            "bot-013",
+            "--out",
+            "_workspace/p1-02-mining/evidence/tool_check_20261005/dry_run/bots/cases/cheat-mine-fast.json"
+          ],
+          "cwd": ".",
+          "rc": null,
+          "status": "DRY",
+          "seconds": 0.0,
+          "log": ""
+        },
+        {
+          "name": "cases.cheat-mine-unknown",
+          "argv": [
+            "tools/bots/target/debug/bots.exe",
+            "probe",
+            "--case",
+            "cheat-mine-unknown",
+            "--deposit",
+            "inner-belt-3",
+            "--label",
+            "bot-015",
+            "--out",
+            "_workspace/p1-02-mining/evidence/tool_check_20261005/dry_run/bots/cases/cheat-mine-unknown.json"
+          ],
+          "cwd": ".",
+          "rc": null,
+          "status": "DRY",
+          "seconds": 0.0,
+          "log": ""
+        },
+        {
+          "name": "cases.cheat-mine-cooldown",
+          "argv": [
+            "tools/bots/target/debug/bots.exe",
+            "probe",
+            "--case",
+            "cheat-mine-cooldown",
+            "--deposit",
+            "inner-belt-3",
+            "--label",
+            "bot-014",
+            "--out",
+            "_workspace/p1-02-mining/evidence/tool_check_20261005/dry_run/bots/cases/cheat-mine-cooldown.json"
+          ],
+          "cwd": ".",
+          "rc": null,
+          "status": "DRY",
+          "seconds": 0.0,
+          "log": ""
+        },
+        {
+          "name": "leak_new_world",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "tests/e2e/new_world.py",
+            "--tag",
+            "tool_check-leak",
+            "--evidence",
+            "_workspace/p1-02-mining/evidence/tool_check_20261005/dry_run/bots/leak/world.json"
+          ],
+          "cwd": ".",
+          "rc": null,
+          "status": "DRY",
+          "seconds": 0.0,
+          "log": ""
+        },
+        {
+          "name": "leak_serve",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "tests/e2e/server_boot.py",
+            "serve",
+            "--world",
+            "{world.leak}",
+            "--stop-file",
+            "_workspace/p1-02-mining/evidence/tool_check_20261005/dry_run/bots/leak/stop",
+            "--ready-file",
+            "_workspace/p1-02-mining/evidence/tool_check_20261005/dry_run/bots/leak/ready",
+            "--log",
+            "_workspace/p1-02-mining/evidence/tool_check_20261005/dry_run/bots/leak/server.log",
+            "--max-seconds",
+            "1200"
+          ],
+          "cwd": ".",
+          "rc": null,
+          "status": "DRY",
+          "seconds": 0.0,
+          "log": ""
+        },
+        {
+          "name": "leak.leak-scan",
+          "argv": [
+            "tools/bots/target/debug/bots.exe",
+            "probe",
+            "--case",
+            "leak-scan",
+            "--deposit",
+            "inner-belt-1",
+            "--label",
+            "bot-020",
+            "--out",
+            "_workspace/p1-02-mining/evidence/tool_check_20261005/dry_run/bots/leak/leak-scan.json"
+          ],
+          "cwd": ".",
+          "rc": null,
+          "status": "DRY",
+          "seconds": 0.0,
+          "log": ""
+        },
+        {
+          "name": "trace_new_world",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "tests/e2e/new_world.py",
+            "--tag",
+            "tool_check-trace",
+            "--evidence",
+            "_workspace/p1-02-mining/evidence/tool_check_20261005/dry_run/bots/trace/world.json"
+          ],
+          "cwd": ".",
+          "rc": null,
+          "status": "DRY",
+          "seconds": 0.0,
+          "log": ""
+        },
+        {
+          "name": "trace_serve",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "tests/e2e/server_boot.py",
+            "serve",
+            "--world",
+            "{world.trace}",
+            "--stop-file",
+            "_workspace/p1-02-mining/evidence/tool_check_20261005/dry_run/bots/trace/stop",
+            "--ready-file",
+            "_workspace/p1-02-mining/evidence/tool_check_20261005/dry_run/bots/trace/ready",
+            "--log",
+            "_workspace/p1-02-mining/evidence/tool_check_20261005/dry_run/bots/trace/server.log",
+            "--max-seconds",
+            "1200"
+          ],
+          "cwd": ".",
+          "rc": null,
+          "status": "DRY",
+          "seconds": 0.0,
+          "log": ""
+        },
+        {
+          "name": "trace.trace-abc",
+          "argv": [
+            "tools/bots/target/debug/bots.exe",
+            "probe",
+            "--case",
+            "trace-abc",
+            "--deposit",
+            "vela-orbit-2",
+            "--label",
+            "bot-030",
+            "--label-b",
+            "bot-031",
+            "--world",
+            "{world.trace}",
+            "--out",
+            "_workspace/p1-02-mining/evidence/tool_check_20261005/dry_run/bots/trace/trace-abc.json"
+          ],
+          "cwd": ".",
+          "rc": null,
+          "status": "DRY",
+          "seconds": 0.0,
+          "log": ""
+        },
+        {
+          "name": "trace.trace-c",
+          "argv": [
+            "tools/bots/target/debug/bots.exe",
+            "probe",
+            "--case",
+            "trace-c",
+            "--deposit",
+            "vela-orbit-2",
+            "--label",
+            "bot-032",
+            "--discoverer-label",
+            "bot-030",
+            "--world",
+            "{world.trace}",
+            "--out",
+            "_workspace/p1-02-mining/evidence/tool_check_20261005/dry_run/bots/trace/trace-c.json"
+          ],
+          "cwd": ".",
+          "rc": null,
+          "status": "DRY",
+          "seconds": 0.0,
+          "log": ""
+        },
+        {
+          "name": "race_new_world",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "tests/e2e/new_world.py",
+            "--tag",
+            "tool_check-race",
+            "--evidence",
+            "_workspace/p1-02-mining/evidence/tool_check_20261005/dry_run/bots/race/world.json"
+          ],
+          "cwd": ".",
+          "rc": null,
+          "status": "DRY",
+          "seconds": 0.0,
+          "log": ""
+        },
+        {
+          "name": "race_serve",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "tests/e2e/server_boot.py",
+            "serve",
+            "--world",
+            "{world.race}",
+            "--stop-file",
+            "_workspace/p1-02-mining/evidence/tool_check_20261005/dry_run/bots/race/stop",
+            "--ready-file",
+            "_workspace/p1-02-mining/evidence/tool_check_20261005/dry_run/bots/race/ready",
+            "--log",
+            "_workspace/p1-02-mining/evidence/tool_check_20261005/dry_run/bots/race/server.log",
+            "--max-seconds",
+            "1200"
+          ],
+          "cwd": ".",
+          "rc": null,
+          "status": "DRY",
+          "seconds": 0.0,
+          "log": ""
+        },
+        {
+          "name": "race.race-same-tick",
+          "argv": [
+            "tools/bots/target/debug/bots.exe",
+            "probe",
+            "--case",
+            "race-same-tick",
+            "--deposit",
+            "inner-belt-1",
+            "--label",
+            "bot-080",
+            "--world",
+            "{world.race}",
+            "--out",
+            "_workspace/p1-02-mining/evidence/tool_check_20261005/dry_run/bots/race/race-same-tick.json"
+          ],
+          "cwd": ".",
+          "rc": null,
+          "status": "DRY",
+          "seconds": 0.0,
+          "log": ""
+        },
+        {
+          "name": "lastkg_new_world",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "tests/e2e/new_world.py",
+            "--tag",
+            "tool_check-lastkg",
+            "--evidence",
+            "_workspace/p1-02-mining/evidence/tool_check_20261005/dry_run/bots/lastkg/world.json"
+          ],
+          "cwd": ".",
+          "rc": null,
+          "status": "DRY",
+          "seconds": 0.0,
+          "log": ""
+        },
+        {
+          "name": "lastkg_serve",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "tests/e2e/server_boot.py",
+            "serve",
+            "--world",
+            "{world.lastkg}",
+            "--stop-file",
+            "_workspace/p1-02-mining/evidence/tool_check_20261005/dry_run/bots/lastkg/stop",
+            "--ready-file",
+            "_workspace/p1-02-mining/evidence/tool_check_20261005/dry_run/bots/lastkg/ready",
+            "--log",
+            "_workspace/p1-02-mining/evidence/tool_check_20261005/dry_run/bots/lastkg/server.log",
+            "--max-seconds",
+            "1200"
+          ],
+          "cwd": ".",
+          "rc": null,
+          "status": "DRY",
+          "seconds": 0.0,
+          "log": ""
+        },
+        {
+          "name": "lastkg.last-kg",
+          "argv": [
+            "tools/bots/target/debug/bots.exe",
+            "probe",
+            "--case",
+            "last-kg",
+            "--deposit",
+            "vela-orbit-2",
+            "--label",
+            "bot-200",
+            "--world",
+            "{world.lastkg}",
+            "--out",
+            "_workspace/p1-02-mining/evidence/tool_check_20261005/dry_run/bots/lastkg/last-kg.json"
+          ],
+          "cwd": ".",
+          "rc": null,
+          "status": "DRY",
+          "seconds": 0.0,
+          "log": ""
+        },
+        {
+          "name": "idle_new_world",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "tests/e2e/new_world.py",
+            "--tag",
+            "tool_check-idle",
+            "--evidence",
+            "_workspace/p1-02-mining/evidence/tool_check_20261005/dry_run/bots/idle/world.json"
+          ],
+          "cwd": ".",
+          "rc": null,
+          "status": "DRY",
+          "seconds": 0.0,
+          "log": ""
+        },
+        {
+          "name": "idle_serve",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "tests/e2e/server_boot.py",
+            "serve",
+            "--world",
+            "{world.idle}",
+            "--stop-file",
+            "_workspace/p1-02-mining/evidence/tool_check_20261005/dry_run/bots/idle/stop",
+            "--ready-file",
+            "_workspace/p1-02-mining/evidence/tool_check_20261005/dry_run/bots/idle/ready",
+            "--log",
+            "_workspace/p1-02-mining/evidence/tool_check_20261005/dry_run/bots/idle/server.log",
+            "--max-seconds",
+            "1200"
+          ],
+          "cwd": ".",
+          "rc": null,
+          "status": "DRY",
+          "seconds": 0.0,
+          "log": ""
+        },
+        {
+          "name": "idle.backlog-idle",
+          "argv": [
+            "tools/bots/target/debug/bots.exe",
+            "probe",
+            "--case",
+            "backlog-idle",
+            "--deposit",
+            "vela-orbit-2",
+            "--label",
+            "bot-071",
+            "--out",
+            "_workspace/p1-02-mining/evidence/tool_check_20261005/dry_run/bots/idle/backlog-idle.json"
+          ],
+          "cwd": ".",
+          "rc": null,
+          "status": "DRY",
+          "seconds": 0.0,
+          "log": ""
+        },
+        {
+          "name": "gap_new_world",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "tests/e2e/new_world.py",
+            "--tag",
+            "tool_check-gap",
+            "--evidence",
+            "_workspace/p1-02-mining/evidence/tool_check_20261005/dry_run/bots/gap/world.json"
+          ],
+          "cwd": ".",
+          "rc": null,
+          "status": "DRY",
+          "seconds": 0.0,
+          "log": ""
+        },
+        {
+          "name": "gap_serve",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "tests/e2e/server_boot.py",
+            "serve",
+            "--world",
+            "{world.gap}",
+            "--stop-file",
+            "_workspace/p1-02-mining/evidence/tool_check_20261005/dry_run/bots/gap/stop",
+            "--ready-file",
+            "_workspace/p1-02-mining/evidence/tool_check_20261005/dry_run/bots/gap/ready",
+            "--log",
+            "_workspace/p1-02-mining/evidence/tool_check_20261005/dry_run/bots/gap/server.log",
+            "--max-seconds",
+            "1200"
+          ],
+          "cwd": ".",
+          "rc": null,
+          "status": "DRY",
+          "seconds": 0.0,
+          "log": ""
+        },
+        {
+          "name": "gap.notice-gap",
+          "argv": [
+            "tools/bots/target/debug/bots.exe",
+            "probe",
+            "--case",
+            "notice-gap",
+            "--deposit",
+            "vela-orbit-2",
+            "--label",
+            "bot-300",
+            "--out",
+            "_workspace/p1-02-mining/evidence/tool_check_20261005/dry_run/bots/gap/notice-gap.json"
+          ],
+          "cwd": ".",
+          "rc": null,
+          "status": "DRY",
+          "seconds": 0.0,
+          "log": ""
+        },
+        {
+          "name": "restart_dup",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "tests/e2e/restart_cases.py",
+            "--out",
+            "_workspace/p1-02-mining/evidence/tool_check_20261005/dry_run/bots/dup",
+            "dup"
+          ],
+          "cwd": ".",
+          "rc": null,
+          "status": "DRY",
+          "seconds": 0.0,
+          "log": ""
+        },
+        {
+          "name": "restart_cas",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "tests/e2e/restart_cases.py",
+            "--out",
+            "_workspace/p1-02-mining/evidence/tool_check_20261005/dry_run/bots/cas",
+            "cas"
+          ],
+          "cwd": ".",
+          "rc": null,
+          "status": "DRY",
+          "seconds": 0.0,
+          "log": ""
+        },
+        {
+          "name": "load_new_world",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "tests/e2e/new_world.py",
+            "--tag",
+            "tool_check-load",
+            "--evidence",
+            "_workspace/p1-02-mining/evidence/tool_check_20261005/dry_run/bots/load/world.json"
+          ],
+          "cwd": ".",
+          "rc": null,
+          "status": "DRY",
+          "seconds": 0.0,
+          "log": ""
+        },
+        {
+          "name": "load_serve",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "tests/e2e/server_boot.py",
+            "serve",
+            "--world",
+            "{world.load}",
+            "--stop-file",
+            "_workspace/p1-02-mining/evidence/tool_check_20261005/dry_run/bots/load/stop",
+            "--ready-file",
+            "_workspace/p1-02-mining/evidence/tool_check_20261005/dry_run/bots/load/ready",
+            "--log",
+            "_workspace/p1-02-mining/evidence/tool_check_20261005/dry_run/bots/load/server.log",
+            "--max-seconds",
+            "1200"
+          ],
+          "cwd": ".",
+          "rc": null,
+          "status": "DRY",
+          "seconds": 0.0,
+          "log": ""
+        },
+        {
+          "name": "load.mine-load",
+          "argv": [
+            "tools/bots/target/debug/bots.exe",
+            "probe",
+            "--case",
+            "mine-load",
+            "--deposit",
+            "vela-orbit-2",
+            "--label",
+            "bot-500",
+            "--world",
+            "{world.load}",
+            "--out",
+            "_workspace/p1-02-mining/evidence/tool_check_20261005/dry_run/bots/load/mine-load.json"
+          ],
+          "cwd": ".",
+          "rc": null,
+          "status": "DRY",
+          "seconds": 0.0,
+          "log": ""
+        }
+      ],
+      "metrics": {},
+      "notes": [],
+      "violations": []
+    },
+    {
+      "name": "judges",
+      "status": "DRY",
+      "raw_status": "DRY",
+      "started": "2026-10-05T10:27:43+09:00",
+      "finished": "2026-10-05T10:27:43+09:00",
+      "seconds": 0.0,
+      "commands": [
+        {
+          "name": "sc23_ledger_cases",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "tests/e2e/mining_ledger.py",
+            "--world",
+            "{world.cases}",
+            "ledger"
+          ],
+          "cwd": ".",
+          "rc": null,
+          "status": "DRY",
+          "seconds": 0.0,
+          "log": ""
+        },
+        {
+          "name": "sc24_conservation_cases",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "tests/e2e/mining_ledger.py",
+            "--world",
+            "{world.cases}",
+            "conservation"
+          ],
+          "cwd": ".",
+          "rc": null,
+          "status": "DRY",
+          "seconds": 0.0,
+          "log": ""
+        },
+        {
+          "name": "sc86_regen_load",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "tests/e2e/mining_ledger.py",
+            "--world",
+            "{world.load}",
+            "conservation",
+            "--require-regen"
+          ],
+          "cwd": ".",
+          "rc": null,
+          "status": "DRY",
+          "seconds": 0.0,
+          "log": ""
+        },
+        {
+          "name": "sc88_load",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "tests/e2e/mining_ledger.py",
+            "--world",
+            "{world.load}",
+            "load"
+          ],
+          "cwd": ".",
+          "rc": null,
+          "status": "DRY",
+          "seconds": 0.0,
+          "log": ""
+        },
+        {
+          "name": "sc90_discoveries_load",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "tests/e2e/mining_ledger.py",
+            "--world",
+            "{world.load}",
+            "discoveries"
+          ],
+          "cwd": ".",
+          "rc": null,
+          "status": "DRY",
+          "seconds": 0.0,
+          "log": ""
+        },
+        {
+          "name": "sc92_causation_load",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "tests/e2e/mining_ledger.py",
+            "--world",
+            "{world.load}",
+            "causation"
+          ],
+          "cwd": ".",
+          "rc": null,
+          "status": "DRY",
+          "seconds": 0.0,
+          "log": ""
+        },
+        {
+          "name": "sc92_causation_cases",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "tests/e2e/mining_ledger.py",
+            "--world",
+            "{world.cases}",
+            "causation"
+          ],
+          "cwd": ".",
+          "rc": null,
+          "status": "DRY",
+          "seconds": 0.0,
+          "log": ""
+        },
+        {
+          "name": "sc58_oracle_load",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "tests/e2e/history_oracle.py",
+            "--world",
+            "{world.load}"
+          ],
+          "cwd": ".",
+          "rc": null,
+          "status": "DRY",
+          "seconds": 0.0,
+          "log": ""
+        },
+        {
+          "name": "sc83_oracle_load_ferrosite",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "tests/e2e/history_oracle.py",
+            "--world",
+            "{world.load}",
+            "--mineral",
+            "ferrosite"
+          ],
+          "cwd": ".",
+          "rc": null,
+          "status": "DRY",
+          "seconds": 0.0,
+          "log": ""
+        },
+        {
+          "name": "sc83_oracle_load_glacine",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "tests/e2e/history_oracle.py",
+            "--world",
+            "{world.load}",
+            "--mineral",
+            "glacine"
+          ],
+          "cwd": ".",
+          "rc": null,
+          "status": "DRY",
+          "seconds": 0.0,
+          "log": ""
+        },
+        {
+          "name": "sc83_oracle_load_cobaltine",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "tests/e2e/history_oracle.py",
+            "--world",
+            "{world.load}",
+            "--mineral",
+            "cobaltine"
+          ],
+          "cwd": ".",
+          "rc": null,
+          "status": "DRY",
+          "seconds": 0.0,
+          "log": ""
+        },
+        {
+          "name": "sc83_oracle_load_starfall-glass",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "tests/e2e/history_oracle.py",
+            "--world",
+            "{world.load}",
+            "--mineral",
+            "starfall-glass"
+          ],
+          "cwd": ".",
+          "rc": null,
+          "status": "DRY",
+          "seconds": 0.0,
+          "log": ""
+        },
+        {
+          "name": "sc83_oracle_trace_glacine",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "tests/e2e/history_oracle.py",
+            "--world",
+            "{world.trace}",
+            "--mineral",
+            "glacine"
+          ],
+          "cwd": ".",
+          "rc": null,
+          "status": "DRY",
+          "seconds": 0.0,
+          "log": ""
+        },
+        {
+          "name": "sc93_gaps_load",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "tests/e2e/check_sequence_gaps.py",
+            "--world",
+            "{world.load}"
+          ],
+          "cwd": ".",
+          "rc": null,
+          "status": "DRY",
+          "seconds": 0.0,
+          "log": ""
+        },
+        {
+          "name": "sc93_gaps_cases",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "tests/e2e/check_sequence_gaps.py",
+            "--world",
+            "{world.cases}"
+          ],
+          "cwd": ".",
+          "rc": null,
+          "status": "DRY",
+          "seconds": 0.0,
+          "log": ""
+        },
+        {
+          "name": "sc91_cases",
+          "argv": [
+            "docker",
+            "compose",
+            "exec",
+            "-T",
+            "postgres",
+            "psql",
+            "-q",
+            "-v",
+            "ON_ERROR_STOP=1",
+            "-U",
+            "starfall",
+            "-d",
+            "starfall",
+            "-At",
+            "-F",
+            "|",
+            "-c",
+            "SET default_transaction_read_only = on",
+            "-c",
+            "select event_type, count(*) from domain_events where world_id = '{world.cases}' group by 1 order by 1"
+          ],
+          "cwd": ".",
+          "rc": null,
+          "status": "DRY",
+          "seconds": 0.0,
+          "log": ""
+        },
+        {
+          "name": "sc91_load",
+          "argv": [
+            "docker",
+            "compose",
+            "exec",
+            "-T",
+            "postgres",
+            "psql",
+            "-q",
+            "-v",
+            "ON_ERROR_STOP=1",
+            "-U",
+            "starfall",
+            "-d",
+            "starfall",
+            "-At",
+            "-F",
+            "|",
+            "-c",
+            "SET default_transaction_read_only = on",
+            "-c",
+            "select event_type, count(*) from domain_events where world_id = '{world.load}' group by 1 order by 1"
+          ],
+          "cwd": ".",
+          "rc": null,
+          "status": "DRY",
+          "seconds": 0.0,
+          "log": ""
+        },
+        {
+          "name": "sc91_trace",
+          "argv": [
+            "docker",
+            "compose",
+            "exec",
+            "-T",
+            "postgres",
+            "psql",
+            "-q",
+            "-v",
+            "ON_ERROR_STOP=1",
+            "-U",
+            "starfall",
+            "-d",
+            "starfall",
+            "-At",
+            "-F",
+            "|",
+            "-c",
+            "SET default_transaction_read_only = on",
+            "-c",
+            "select event_type, count(*) from domain_events where world_id = '{world.trace}' group by 1 order by 1"
+          ],
+          "cwd": ".",
+          "rc": null,
+          "status": "DRY",
+          "seconds": 0.0,
+          "log": ""
+        }
+      ],
+      "metrics": {},
+      "notes": [],
+      "violations": []
+    },
+    {
+      "name": "db_stop",
+      "status": "DRY",
+      "raw_status": "DRY",
+      "started": "2026-10-05T10:27:43+09:00",
+      "finished": "2026-10-05T10:27:43+09:00",
+      "seconds": 0.0,
+      "commands": [
+        {
+          "name": "fp_before_db_stop",
+          "argv": [
+            "docker",
+            "compose",
+            "exec",
+            "-T",
+            "postgres",
+            "psql",
+            "-q",
+            "-v",
+            "ON_ERROR_STOP=1",
+            "-U",
+            "starfall",
+            "-d",
+            "starfall",
+            "-At",
+            "-F",
+            "|",
+            "-c",
+            "SET default_transaction_read_only = on",
+            "-c",
+            "select (select count(*) from domain_events where world_id = '01a0b1c2-3d4e-7f01-8a2b-9c0d1e2f3a4b') || '|' || (select md5(coalesce(string_agg(event_id::text, ',' order by event_id), '')) from domain_events where world_id = '01a0b1c2-3d4e-7f01-8a2b-9c0d1e2f3a4b') || '|' || (select count(*) from _sqlx_migrations) || '|' || (select count(*) from pg_database where datname like 'starfall_test_%')"
+          ],
+          "cwd": ".",
+          "rc": null,
+          "status": "DRY",
+          "seconds": 0.0,
+          "log": ""
+        },
+        {
+          "name": "backlog_new_world",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "tests/e2e/new_world.py",
+            "--tag",
+            "tool_check-backlog",
+            "--evidence",
+            "_workspace/p1-02-mining/evidence/tool_check_20261005/dry_run/db_stop/backlog/world.json"
+          ],
+          "cwd": ".",
+          "rc": null,
+          "status": "DRY",
+          "seconds": 0.0,
+          "log": ""
+        },
+        {
+          "name": "backlog_serve",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "tests/e2e/server_boot.py",
+            "serve",
+            "--world",
+            "{world.backlog}",
+            "--stop-file",
+            "_workspace/p1-02-mining/evidence/tool_check_20261005/dry_run/db_stop/backlog/stop",
+            "--ready-file",
+            "_workspace/p1-02-mining/evidence/tool_check_20261005/dry_run/db_stop/backlog/ready",
+            "--log",
+            "_workspace/p1-02-mining/evidence/tool_check_20261005/dry_run/db_stop/backlog/server.log",
+            "--max-seconds",
+            "1200"
+          ],
+          "cwd": ".",
+          "rc": null,
+          "status": "DRY",
+          "seconds": 0.0,
+          "log": ""
+        },
+        {
+          "name": "backlog.backlog",
+          "argv": [
+            "tools/bots/target/debug/bots.exe",
+            "probe",
+            "--case",
+            "backlog",
+            "--deposit",
+            "vela-orbit-2",
+            "--label",
+            "bot-070",
+            "--out",
+            "_workspace/p1-02-mining/evidence/tool_check_20261005/dry_run/db_stop/backlog/backlog.json"
+          ],
+          "cwd": ".",
+          "rc": null,
+          "status": "DRY",
+          "seconds": 0.0,
+          "log": ""
+        },
+        {
+          "name": "compose_ps",
+          "argv": [
+            "docker",
+            "compose",
+            "ps",
+            "--format",
+            "{{.Name}} {{.Status}}"
+          ],
+          "cwd": ".",
+          "rc": null,
+          "status": "DRY",
+          "seconds": 0.0,
+          "log": ""
+        },
+        {
+          "name": "fp_after_db_stop",
+          "argv": [
+            "docker",
+            "compose",
+            "exec",
+            "-T",
+            "postgres",
+            "psql",
+            "-q",
+            "-v",
+            "ON_ERROR_STOP=1",
+            "-U",
+            "starfall",
+            "-d",
+            "starfall",
+            "-At",
+            "-F",
+            "|",
+            "-c",
+            "SET default_transaction_read_only = on",
+            "-c",
+            "select (select count(*) from domain_events where world_id = '01a0b1c2-3d4e-7f01-8a2b-9c0d1e2f3a4b') || '|' || (select md5(coalesce(string_agg(event_id::text, ',' order by event_id), '')) from domain_events where world_id = '01a0b1c2-3d4e-7f01-8a2b-9c0d1e2f3a4b') || '|' || (select count(*) from _sqlx_migrations) || '|' || (select count(*) from pg_database where datname like 'starfall_test_%')"
+          ],
+          "cwd": ".",
+          "rc": null,
+          "status": "DRY",
+          "seconds": 0.0,
+          "log": ""
+        }
+      ],
+      "metrics": {},
+      "notes": [],
+      "violations": []
+    },
+    {
+      "name": "final",
+      "status": "DRY",
+      "raw_status": "DRY",
+      "started": "2026-10-05T10:27:43+09:00",
+      "finished": "2026-10-05T10:27:43+09:00",
+      "seconds": 0.0,
+      "commands": [
+        {
+          "name": "porcelain_end",
+          "argv": [
+            "git",
+            "status",
+            "--porcelain"
+          ],
+          "cwd": ".",
+          "rc": null,
+          "status": "DRY",
+          "seconds": 0.0,
+          "log": ""
+        },
+        {
+          "name": "fp_after",
+          "argv": [
+            "docker",
+            "compose",
+            "exec",
+            "-T",
+            "postgres",
+            "psql",
+            "-q",
+            "-v",
+            "ON_ERROR_STOP=1",
+            "-U",
+            "starfall",
+            "-d",
+            "starfall",
+            "-At",
+            "-F",
+            "|",
+            "-c",
+            "SET default_transaction_read_only = on",
+            "-c",
+            "select (select count(*) from domain_events where world_id = '01a0b1c2-3d4e-7f01-8a2b-9c0d1e2f3a4b') || '|' || (select md5(coalesce(string_agg(event_id::text, ',' order by event_id), '')) from domain_events where world_id = '01a0b1c2-3d4e-7f01-8a2b-9c0d1e2f3a4b') || '|' || (select count(*) from _sqlx_migrations) || '|' || (select count(*) from pg_database where datname like 'starfall_test_%')"
+          ],
+          "cwd": ".",
+          "rc": null,
+          "status": "DRY",
+          "seconds": 0.0,
+          "log": ""
+        }
+      ],
+      "metrics": {},
+      "notes": [],
+      "violations": []
+    }
+  ]
+}
+DONE

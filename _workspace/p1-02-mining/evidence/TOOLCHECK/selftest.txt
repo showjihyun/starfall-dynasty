@@ -1,0 +1,26 @@
+OK   환경 구성: os.environ 불변, 자식에 AUTOBUILD·AUTOCONNECT·비밀값
+OK   자식 환경: 비밀값은 서버 환경과 같은 값
+OK   자식 환경: TWO_SESSION 제거, WS URL 이 서버 주소
+OK   비밀값이 프로세스 환경에 원래 없었다(누출 검사가 의미 있다)
+OK   비밀값 없으면 멈춘다
+OK   음성 대조: 부모 환경을 고치는 구성 함수는 걸린다
+OK   음성 대조: AUTOBUILD 빠진 환경은 걸린다
+OK   session 기록에 비밀값 없음, 출처는 .env
+OK   음성 대조: 비밀값이 든 기록은 누출로 걸린다
+OK   write_session 이 비밀값 섞인 문서를 거부한다
+OK   Editor 미설치 버전은 멈춘다(메시지에 버전)
+OK   Editor 경로를 버전 파일의 버전으로 고른다(다른 설치 무시)
+OK   레포 ProjectVersion.txt 를 읽는다
+OK   lockfile 없음 → absent
+OK   아무도 안 쥔 lockfile → stale(진행)
+OK   공유 거부된 lockfile → locked
+OK   실행 중 Editor 감지: 같은 프로젝트(대소문자·구분자 무관)만, 역할 구분
+OK   Editor 실행 중 → 멈춤
+OK   lockfile 만 잠김 → 멈춤
+OK   음성 대조: 다른 프로젝트의 Unity·stale lockfile 은 막지 않는다
+OK   --hours 6 → 21600 s
+OK   서버 기본 월드 id 를 config.rs 에서 읽는다
+OK   serve 출력 파싱
+OK   음성 대조: 서버 자진 종료는 표시된다
+OK   변수 이름이 C# 상수와 같다
+selftest: PASS  케이스=25

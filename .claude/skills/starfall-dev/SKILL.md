@@ -118,7 +118,7 @@ Anthropic 하네스 설계 원칙: **코드를 쓰기 전에 구현자와 평가
    - 계약 변경이 필요하면 → `architect`에게 요청. architect는 수정 후 모든 소비자에게 알린다.
    - 모듈 하나가 끝나면 → 구현자는 먼저 `references/qa-throughput.md` R3의 **계약 자기 점검**(계약 이름으로 실행 ≥1, 구현 변이, sha256 원복, 지명 도구 존재, DB 테스트 이름)을 `03_*_impl.md`에 표로 남긴다. 그다음 `qa`에게 "모듈 완료: 경로, 덮은 SC 목록, 자기 점검 표 위치"를 보낸다. `qa`는 즉시 그 표를 실행으로 확인하고 경계면을 검증한다. r1에서 처음 드러나는 FAIL을 없애는 것이 목적이다.
    - 구현자는 자기 태스크가 모두 끝나면 종료한다. FAIL이 나오면 인계 문서로 새로 띄운다(R7).
-   - `qa`는 Phase 4 동안 라운드 자동 실행기 `tests/e2e/run_round.py`를 만든다(R5).
+   - `qa`는 Phase 4 동안 라운드 자동 실행기 `tests/e2e/run_round.py`의 슬라이스 설정 `tests/e2e/round_configs/{slice}.json`을 만든다(R5). 계약 필터는 `tests/e2e/cargo_sc_map.py`로 미리 스캔해 유령 0을 확인한다.
    - 서버 엔드포인트·메시지가 준비되면 → `server`가 `client`에게 목록과 예시 payload를 보낸다.
 3. 리더는 TaskList로 진행을 보고, 멈춘 팀원에게 SendMessage로 상태를 묻거나 태스크를 재할당한다. 팀원이 태스크 완료 처리를 빠뜨려 의존 태스크가 막히면 실제 완료 여부를 확인 후 TaskUpdate로 정리한다.
 4. 각 구현자는 `03_{server|history|client|techart}_impl.md`를 남긴다.

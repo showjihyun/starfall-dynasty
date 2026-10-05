@@ -1,0 +1,17 @@
+{
+  "world_id": "01a107d3-cbf6-76fd-b833-464affba3542",
+  "server_pid_alive": true,
+  "serve_pid_alive": true,
+  "ready_file": true,
+  "stats": {
+    "live_connections": 1,
+    "ws_connections": 1,
+    "sessions_opened_total": 1,
+    "sessions_closed_total": 0
+  },
+  "historical_events": {},
+  "domain_events": {
+    "SESSION_OPENED": 1,
+    "SHIP_SPAWNED": 1
+  }
+}

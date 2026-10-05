@@ -97,3 +97,46 @@ python tests/e2e/run_block.py probes
 |---------|------|------|
 | `ship_events.py ledger` / `causation-selftest` | SC-81 | 인과 결함(null·**self**·dangling·타입·순서)을 표 전체에서 모아 **동결 장부 7건과 등식**. 구간을 주면 그 구간 결함 0. 존재만 보는 조인은 자기 참조를 통과시킨다. 7차: 세션 간선(`SUPERSEDED` ← 새 `SESSION_OPENED`, 나머지 원인 null)도 본다. `causation-selftest` 는 합성 17행을 CTE 로 덮어 같은 SQL 을 검사한다(DB 쓰기 없음) |
 | `concurrent_session.py run/check` | SC-88 | 같은 라벨 봇 둘 겹침 접속 → (a) 함선 1척 (b) `SUPERSEDED` 원인 = 새 `SESSION_OPENED` (c) close 4001 (e) 유령 0·종료 디스폰 원인 실재. **(d) 재접속 안 함은 Unity 로만**(봇은 원래 재접속하지 않는다) |
+
+## 라운드 도구 (2026-10-05, p1-02 기술 부채 1·2)
+
+| 스크립트 | 하는 일 | 비고 |
+|---------|--------|------|
+| `cargo_sc_map.py scan/run/map/selftest` | 계약 §1 방법 칸의 테스트 지명을 뽑아 **계약 명령 그대로** 필터마다 `cargo test` 를 돌린다. 필터마다 실행 수, 실패, 잡힌 테스트를 다른 SC 도 지명했는지(`also_named_by`)를 찍는다. 실행 0 = **유령**, 코드에 없는 맨 이름 = 정적 유령 | r1~r3 결함 셋을 고쳤다: 백틱 안의 맨 이름, `--test X` 같은 값 플래그, 열 밀림(`\|` 이스케이프·CR). 셸·TSV 를 거치지 않고 `subprocess` 인자 목록으로 실행한다. 종료 1 = 유령·실패 있음 |
+| `run_round.py` | 라운드 판정 **입력**을 한 번에 모은다. 단계: freeze → gates → census → repeat → unity → filters → sources → offline → bots → judges → db_stop(사람 단계) → final | 슬라이스 값은 `round_configs/<슬라이스 폴더>.json` 에 둔다. 판정(PASS/FAIL)은 리포트가 계약 문구로 한다 |
+
+```bash
+# 계약 필터 전수 실행 (DB 테스트 포함 — .env 를 읽고 STARFALL_DB_TESTS=required)
+python tests/e2e/cargo_sc_map.py run --contract _workspace/<slice>/02_sprint_contract.md --out <dir>
+
+# 라운드 한 번 (출력: _workspace/<slice>/evidence/<round>_<YYYYMMDD>/summary.json)
+python tests/e2e/run_round.py --slice p1-02 --contract _workspace/p1-02-mining/02_sprint_contract.md --round r4
+# r2 부터는 범위를 좁힌다 — freeze·final 은 --only 에 없어도 늘 돈다
+python tests/e2e/run_round.py ... --round r4 --only gates,census,filters,sources
+# 명령이 실제로 있는지만 본다
+python tests/e2e/run_round.py ... --round r4 --dry-run
+
+# 기다리는 쪽은 같은 턴에서 (R1). DONE 은 summary.json 의 마지막 줄이다
+until grep -qx DONE _workspace/<slice>/evidence/<round>_<날짜>/summary.json; do sleep 20; done
+```
+
+- **사람 단계(db_stop):** `--approve db_stop` 이 없으면 `<out>/WAITING_db_stop.txt` 를 쓰고, `<out>/go_db_stop`(또는 `skip_db_stop`) 파일을 `--gate-timeout` 초(기본 1800)까지 기다린다. 시간이 다 되면 `미검증(사람 대기)` 로 두고 계속한다. 진행 상황은 `<out>/progress.txt` 에서 본다.
+- **동결 감시(R6):** 15 초마다 소스 mtime(바뀌면 sha256 확인)과, 실행기의 자손이 아닌 `cargo`·`rustc`·`Unity` 프로세스를 본다. 위반이 겹친 단계는 `무효(동결 위반)` 이 된다. 원래 결과는 `raw_status` 에 남는다. 소스 변화와 외부 `cargo`·`rustc` 는 모든 단계를 무효로 한다. `client/` 를 보는 Unity 프로세스(Editor·AssetImportWorker)는 client 범위 단계(`unity`, `offline` 의 codegen 검사)만 무효로 하고, 서버 범위 단계(gates·census·repeat·filters·sources·bots·judges·db_stop·freeze·final)에서는 기록만 한다(`run_round.py` 의 `STAGE_WATCH`). `--strict-unity` 로 이 완화를 끈다. `_workspace/<slice>/FREEZE` 가 없으면 경고한다.
+- **summary.json 읽기:** 끝에 `DONE` 줄이 붙어 있어 `json.load` 로는 읽히지 않는다. `run_round.load_summary(path)` 나 `json.JSONDecoder().raw_decode(text)[0]` 를 쓴다.
+- **하지 않는 것:** 서버 하드 킬(봇 그룹은 stop 파일 → `server_boot` 가 stdin `shutdown`. 안 내려가면 죽이지 않고 FAIL 로 남긴다) · `docker compose down` · 실행기 SQL 의 쓰기(SELECT/WITH 만, 세션 read-only) · `STARFALL_REPLAY_BLESS`(자식 환경에서 지운다) · `.env` 값 출력.
+- **설정에 없는 것:** 부하 ×100 사본(SC-87·89)은 data 사본을 준비해야 해서 넣지 않았다. 정적 grep(SC-02·03·95)은 사람이 읽는 증거라 넣지 않았다. SC-109 탐침은 증거 DB 에 INSERT(롤백)하므로 넣지 않았다.
+
+## 사람 Unity 세션 준비 — `unity_session.py`
+
+빈 씬(환경 변수 미주입)과 세션 중 서버 종료를 막는 준비 도구다. 판정 도구가 아니다(`starfall-dev/references/screen-elements.md` S4).
+
+    python tests/e2e/unity_session.py start  --slice p1-02-mining --tag SC-68 --new-world   # 또는 --world <id>, --hours 6
+    python tests/e2e/unity_session.py status --slice p1-02-mining --tag SC-68   # Play 뒤: live_connections, 이 월드의 이벤트 종류별 개수
+    python tests/e2e/unity_session.py stop   --slice p1-02-mining --tag SC-68   # stop 파일 → stdin shutdown. Editor 는 사람이 닫는다
+
+- `start` 는 이 프로젝트의 Editor 가 열려 있거나 `client/Temp/UnityLockfile` 이 잠겨 있으면 "Editor 를 닫아 주세요" 하고 멈춘다(프로세스를 죽이지 않는다).
+- Editor 는 스크립트가 띄운다. `STARFALL_GREYBOX_AUTOBUILD=1`·`STARFALL_NET_AUTOCONNECT=1`·`STARFALL_WS_URL`·`.env` 의 dev 비밀값은 **그 자식 프로세스 환경에만** 들어간다. `-logFile` 은 `_workspace/{slice}/evidence/{tag}/unity_editor.log`(절대 경로)이고, 파일이 생겼는지 확인한다.
+- 증거: `evidence/{tag}/session.json`(월드·pid·stop/ready 파일·로그 경로·HEAD·porcelain, 비밀값은 출처만), `serve_stdout.log`, `server.log`(stop 뒤), `new_world.json`.
+- **절전 주의:** 서버 실행 한도(`--hours`, 기본 6)는 절전 중에도 흐를 수 있다(SC-68 1차에 이것으로 서버가 꺼졌다). 세션 동안 PC 절전을 끄거나 한도를 넉넉히 잡는다. 꺼졌는지는 `status` 의 `server_pid_alive`·`stats` 로 보이고, 같은 월드로 `stop` → `start --world <id>` 하면 된다.
+- `--skip-editor` 는 도구 자체 점검용(서버까지만).
+- 실측(2026-10-05, `evidence/TOOLCHECK2/`): Editor 기동 → 로그 생성 → 사람이 Play → `status` 에서 `live_connections 1`·`SESSION_OPENED 1`·`SHIP_SPAWNED 1` → `stop` 정상 종료. 증거에 비밀값 0건.

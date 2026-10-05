@@ -1,0 +1,22 @@
+[bots] stage=a-steady url=ws://127.0.0.1:8080/ws bots=1 seed=42 duration=25s interval=500ms send_hz=[20.0]
+=== bots a-steady ===
+connections attempted : 1
+sessions ready        : 1
+correlations collected: 1
+commands sent         : 50
+COMMAND_RESULT        : 50 (accepted 50 / rejected 0)
+PING_REPLY            : 50
+loss(missing results) : 0  missing replies: 0
+duplicates            : results 0 / replies 0   unmatched: results 0 / replies 0
+order violations (I-15): 0
+tick mismatches (AC-6c) : 0  (compared 50)
+probe_seq mismatches   : 0
+unknown message types  : {"DEPOSIT_FIELD_STATE": 1, "INVENTORY_STATE": 1}
+rtt ms  n=50 p50=Some(18.991) p99=Some(50.19) max=Some(50.19)
+ack ms  n=50 p50=Some(18.974) p99=Some(50.171) max=Some(50.171)
+connect ms p50=Some(3.649) max=Some(3.649)   ready ms p50=Some(50.498) max=Some(50.498)
+server-initiated closes: 0
+wire errors            : 0
+GATES one_to_one=true results_partition=true accepted_reply_pairing=true (ping pairs 50) accepted_exercised=true (accepted 50) all_ok=true
+evidence -> _workspace/p1-02-mining/evidence/TOOLCHECK/bot
+clock_base_unix_ms=1791132708690 (commands.csv 의 *_us 에 이 값을 더하면 벽시계가 된다)

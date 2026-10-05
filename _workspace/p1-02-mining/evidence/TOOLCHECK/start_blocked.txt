@@ -1,0 +1,4 @@
+[1] Editor 점검: lockfile=locked · 이 프로젝트의 Unity 프로세스=[{'pid': 43528, 'role': 'editor'}, {'pid': 32852, 'role': 'asset-import-worker'}, {'pid': 37580, 'role': 'asset-import-worker'}]
+    - 이 프로젝트를 연 Unity Editor 가 실행 중이다(pid [43528])
+    - client/Temp/UnityLockfile 를 다른 프로세스가 쥐고 있다
+멈춤: Unity Editor 를 닫아 주세요. 닫은 뒤 같은 명령을 다시 실행합니다. (이 스크립트는 Unity 프로세스를 종료하지 않습니다)

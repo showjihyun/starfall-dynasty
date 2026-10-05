@@ -1,0 +1,26 @@
+[10:22:21] == freeze
+[10:22:21]   head: rc=0 PASS 0s
+[10:22:21]   porcelain: rc=0 PASS 0s
+[10:22:21] !! 경고: _workspace/p1-02-mining/FREEZE 없음
+[10:22:22]   fp_before: rc=0 PASS 0s
+[10:22:22] == freeze: 무효(동결 위반) (원래 PASS)
+[10:22:22] == gates
+[10:22:23]   fmt: rc=0 PASS 0s
+[10:22:28]   clippy: rc=0 PASS 5s
+[10:23:38]   test: rc=0 PASS 70s
+[10:23:48]   release_starfall-sim: rc=0 PASS 10s
+[10:23:49] == gates: 무효(동결 위반) (원래 PASS)
+[10:23:49] == census
+[10:23:49]   census: rc=0 PASS 0s
+[10:23:49] == census: 무효(동결 위반) (원래 PASS)
+[10:23:49] == filters
+[10:25:30]   cargo_sc_map: rc=0 PASS 101s
+[10:25:31] == filters: 무효(동결 위반) (원래 PASS)
+[10:25:31] == sources
+[10:25:31]   check_item_sources: rc=0 PASS 0s
+[10:25:31] == sources: 무효(동결 위반) (원래 PASS)
+[10:25:31] == final
+[10:25:31]   porcelain_end: rc=0 PASS 0s
+[10:25:32]   fp_after: rc=0 PASS 0s
+[10:25:32] == final: 무효(동결 위반) (원래 PASS)
+[10:25:32] DONE

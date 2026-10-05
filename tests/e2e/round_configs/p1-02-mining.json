@@ -1,0 +1,80 @@
+{
+  "_about": "run_round.py 의 p1-02-mining 슬라이스 값. r2(2026-10-03) qa 가 돌린 명령을 옮긴 것이다 — 봇: r2_bots.sh + run_cases.sh, 판정: r1_py.sh, DB 정지: backlog 케이스, 오프라인: r2 offline/summary.txt 의 명령. 태그의 r2- 는 {round}- 로 바꿨다. 부하 ×100 사본(SC-87·89, 리더 결정 (d))은 data 사본 준비가 필요해 넣지 않았다.",
+  "slice_label": "p1-02",
+  "evidence_db": {
+    "_about": "p0-02 spike 월드 — freeze/final·db_stop 전후 지문(행 수 · event_id md5 · 마이그레이션 수 · 남은 테스트 DB 수)",
+    "world_id": "01a0b1c2-3d4e-7f01-8a2b-9c0d1e2f3a4b"
+  },
+  "gates": {"release_crates": ["starfall-sim"]},
+  "unity_modes": ["EditMode", "PlayMode"],
+  "offline": [
+    {"name": "src_gate_p101", "argv": ["python", "tests/e2e/check_item_sources.py", "--contract", "_workspace/p1-01-ship-movement/02_sprint_contract.md", "--slice", "p1-01"], "exit": "plain"},
+    {"name": "self_check_item_sources", "argv": ["python", "tests/e2e/check_item_sources.py", "--selftest"], "exit": "plain"},
+    {"name": "self_check_contract_items", "argv": ["python", "tests/e2e/check_contract_items.py", "--selftest"], "exit": "plain"},
+    {"name": "self_check_occurred_at", "argv": ["python", "tests/e2e/check_occurred_at.py", "--selftest"], "exit": "plain"},
+    {"name": "self_bandwidth", "argv": ["python", "tests/e2e/bandwidth.py", "--selftest"], "exit": "plain"},
+    {"name": "self_block8_invariants", "argv": ["python", "tests/e2e/block8_invariants.py", "selftest"], "exit": "plain"},
+    {"name": "self_server_boot", "argv": ["python", "tests/e2e/server_boot.py", "selftest"], "exit": "plain"},
+    {"name": "self_ship_events", "argv": ["python", "tests/e2e/ship_events.py", "selftest"], "exit": "plain"},
+    {"name": "self_two_client_view", "argv": ["python", "tests/e2e/two_client_view.py", "selftest"], "exit": "plain"},
+    {"name": "self_mining_ledger", "argv": ["python", "tests/e2e/mining_ledger.py", "selftest"], "exit": "plain"},
+    {"name": "self_history_oracle", "argv": ["python", "tests/e2e/history_oracle.py", "selftest"], "exit": "plain"},
+    {"name": "self_new_world", "argv": ["python", "tests/e2e/new_world.py", "selftest"], "exit": "plain"},
+    {"name": "self_data_file_pairs", "argv": ["python", "tests/e2e/data_file_pairs.py", "selftest"], "exit": "plain"},
+    {"name": "self_constraint_census", "argv": ["python", "tests/e2e/constraint_census.py", "selftest"], "exit": "plain"},
+    {"name": "self_db_test_census", "argv": ["python", "tests/e2e/db_test_census.py", "selftest"], "exit": "plain"},
+    {"name": "self_interface_matrix", "argv": ["python", "tests/e2e/interface_matrix.py", "selftest", "--slice", "p1-02"], "exit": "plain"},
+    {"name": "self_cargo_sc_map", "argv": ["python", "tests/e2e/cargo_sc_map.py", "selftest"], "exit": "plain"},
+    {"name": "self_run_round", "argv": ["python", "tests/e2e/run_round.py", "selftest"], "exit": "plain"},
+    {"name": "sc06_validate_data", "argv": ["python", "tests/e2e/validate_data_files.py"], "exit": "plain"},
+    {"name": "sc97_interface_matrix", "argv": ["python", "tests/e2e/interface_matrix.py", "--slice", "p1-02"], "exit": "plain"},
+    {"name": "coverage_strict", "argv": ["python", ".claude/skills/integration-qa/scripts/check_contract_coverage.py", "--strict"], "exit": "plain"},
+    {"name": "sc34_golden_sha", "type": "sha_compare", "glob": "server/crates/sim/tests/data/replay/*", "baseline": "_workspace/p1-02-mining/evidence/r1_20260930/offline1.txt"},
+    {"name": "sc94_self_causation", "type": "sql", "query": "select event_id from domain_events where causation_id = event_id order by 1", "compare_to": "_workspace/p1-02-mining/evidence/r2_20261003/offline/sc94.txt"},
+    {"name": "sc107_constraint_census", "argv": ["python", "tests/e2e/constraint_census.py"], "stdout": "sc107.json", "stderr": "sc107.err", "exit": "e2e"},
+    {"name": "sc65_codegen", "type": "codegen_compare", "generated": "client/Assets/_Project/Scripts/Contracts/Generated"}
+  ],
+  "bots": {
+    "prebuild": true,
+    "steps": [
+      {"type": "world", "name": "sc04", "tag": "{round}-SC-04"},
+      {"name": "sc04_boot", "argv": ["python", "tests/e2e/server_boot.py", "p1-02-boot", "--world", "{world.sc04}", "--log", "{E}/sc04_boot.log", "--evidence", "{E}/sc04_boot.json"], "stdout": "-", "stderr": "sc04.err", "timeout": 300},
+      {"name": "sc05_reject", "argv": ["python", "tests/e2e/server_boot.py", "p1-02-reject", "--workdir", "{tmp}/sc05_rej", "--evidence", "{E}/sc05_reject.json"], "stdout": "-", "stderr": "sc05.err", "timeout": 900},
+      {"name": "sc07_pairs", "argv": ["python", "tests/e2e/data_file_pairs.py", "--boot-log", "{E}/sc04_boot.log", "--cargo-log", "{test_log}", "--evidence", "{E}/sc07_pairs.json"], "timeout": 300},
+      {"type": "group", "name": "cases", "tag": "{round}-cases", "cases": ["mine-dup:vela-orbit-2:bot-010", "cheat-mine-inject:vela-orbit-1:bot-011", "cheat-mine-range:inner-belt-1:bot-012", "cheat-mine-fast:inner-belt-2:bot-013", "cheat-mine-unknown:inner-belt-3:bot-015", "cheat-mine-cooldown:inner-belt-3:bot-014"]},
+      {"type": "group", "name": "leak", "tag": "{round}-leak", "cases": ["leak-scan:inner-belt-1:bot-020"]},
+      {"type": "group", "name": "trace", "tag": "{round}-trace", "cases": ["trace-abc:vela-orbit-2:bot-030:--label-b bot-031 --world WORLD", "trace-c:vela-orbit-2:bot-032:--discoverer-label bot-030 --world WORLD"]},
+      {"type": "group", "name": "race", "tag": "{round}-race", "cases": ["race-same-tick:inner-belt-1:bot-080:--world WORLD"]},
+      {"type": "group", "name": "lastkg", "tag": "{round}-lastkg", "cases": ["last-kg:vela-orbit-2:bot-200:--world WORLD"]},
+      {"type": "group", "name": "idle", "tag": "{round}-idle", "cases": ["backlog-idle:vela-orbit-2:bot-071"]},
+      {"type": "group", "name": "gap", "tag": "{round}-gap", "cases": ["notice-gap:vela-orbit-2:bot-300:"], "retry_exit4": 1},
+      {"name": "restart_dup", "argv": ["python", "tests/e2e/restart_cases.py", "--out", "{E}/dup", "dup"], "timeout": 1800},
+      {"name": "restart_cas", "argv": ["python", "tests/e2e/restart_cases.py", "--out", "{E}/cas", "cas"], "timeout": 1800},
+      {"type": "group", "name": "load", "tag": "{round}-load", "cases": ["mine-load:vela-orbit-2:bot-500:--world WORLD"], "env": {"STARFALL_MINE_LOAD_SECS": "600"}, "max_seconds": 1200}
+    ]
+  },
+  "judges": [
+    {"name": "sc23_ledger_cases", "argv": ["python", "tests/e2e/mining_ledger.py", "--world", "{world.cases}", "ledger"], "stdout": "sc23_ledger_cases.json"},
+    {"name": "sc24_conservation_cases", "argv": ["python", "tests/e2e/mining_ledger.py", "--world", "{world.cases}", "conservation"], "stdout": "sc24_conservation_cases.json"},
+    {"name": "sc86_regen_load", "argv": ["python", "tests/e2e/mining_ledger.py", "--world", "{world.load}", "conservation", "--require-regen"], "stdout": "sc86_regen_load.json"},
+    {"name": "sc88_load", "argv": ["python", "tests/e2e/mining_ledger.py", "--world", "{world.load}", "load"], "stdout": "sc88_load.json"},
+    {"name": "sc90_discoveries_load", "argv": ["python", "tests/e2e/mining_ledger.py", "--world", "{world.load}", "discoveries"], "stdout": "sc90_discoveries_load.json"},
+    {"name": "sc92_causation_load", "argv": ["python", "tests/e2e/mining_ledger.py", "--world", "{world.load}", "causation"], "stdout": "sc92_causation_load.json"},
+    {"name": "sc92_causation_cases", "argv": ["python", "tests/e2e/mining_ledger.py", "--world", "{world.cases}", "causation"], "stdout": "sc92_causation_cases.json"},
+    {"name": "sc58_oracle_load", "argv": ["python", "tests/e2e/history_oracle.py", "--world", "{world.load}"], "stdout": "sc58_oracle_load.json"},
+    {"name": "sc83_oracle_load_ferrosite", "argv": ["python", "tests/e2e/history_oracle.py", "--world", "{world.load}", "--mineral", "ferrosite"], "stdout": "sc83_oracle_load_ferrosite.json"},
+    {"name": "sc83_oracle_load_glacine", "argv": ["python", "tests/e2e/history_oracle.py", "--world", "{world.load}", "--mineral", "glacine"], "stdout": "sc83_oracle_load_glacine.json"},
+    {"name": "sc83_oracle_load_cobaltine", "argv": ["python", "tests/e2e/history_oracle.py", "--world", "{world.load}", "--mineral", "cobaltine"], "stdout": "sc83_oracle_load_cobaltine.json"},
+    {"name": "sc83_oracle_load_starfall-glass", "argv": ["python", "tests/e2e/history_oracle.py", "--world", "{world.load}", "--mineral", "starfall-glass"], "stdout": "sc83_oracle_load_starfall-glass.json"},
+    {"name": "sc83_oracle_trace_glacine", "argv": ["python", "tests/e2e/history_oracle.py", "--world", "{world.trace}", "--mineral", "glacine"], "stdout": "sc83_oracle_trace_glacine.json"},
+    {"name": "sc93_gaps_load", "argv": ["python", "tests/e2e/check_sequence_gaps.py", "--world", "{world.load}"], "stdout": "sc93_gaps_load.json"},
+    {"name": "sc93_gaps_cases", "argv": ["python", "tests/e2e/check_sequence_gaps.py", "--world", "{world.cases}"], "stdout": "sc93_gaps_cases.json"},
+    {"name": "sc91", "type": "sql", "for_each": ["cases", "load", "trace"], "query": "select event_type, count(*) from domain_events where world_id = '{w}' group by 1 order by 1"}
+  ],
+  "db_stop": {
+    "_about": "봇 backlog 케이스가 docker compose stop/start postgres 를 한다(SC-29~31). 사람 단계 — 공지 뒤 승인.",
+    "steps": [
+      {"type": "group", "name": "backlog", "tag": "{round}-backlog", "cases": ["backlog:vela-orbit-2:bot-070"], "case_timeout": 580}
+    ]
+  }
+}
