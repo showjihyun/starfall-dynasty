@@ -1,0 +1,21 @@
+{
+  "item": "p1-02 SC-113 (Q-2) CI DB 테스트 RAN 이름 대조 — 누락 0 · SKIPPED 0",
+  "verdict": "PASS",
+  "expected": 27,
+  "ran_lines": 36,
+  "expected_and_ran": 27,
+  "missing": [],
+  "skipped": [],
+  "ran_but_not_in_contract": [
+    "accepted_mine_commits_events_and_state",
+    "admin_shutdown_is_transient",
+    "admin_shutdown_is_transient_fatal_pair",
+    "error_classification",
+    "history_replay_detects_content_mismatch",
+    "history_replay_matches_stored_records",
+    "history_replay_pool_rejects_writes",
+    "missing_world_row_halts_instead_of_panicking",
+    "testdb::smoke::creates_migrates_and_drops_an_isolated_database"
+  ],
+  "ok": true
+}

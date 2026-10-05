@@ -1,0 +1,761 @@
+{
+  "tool": "tests/e2e/run_round.py",
+  "format": 1,
+  "slice": "p1-02-mining",
+  "slice_label": "p1-02",
+  "round": "tool_check",
+  "contract": "_workspace/p1-02-mining/02_sprint_contract.md",
+  "config": "tests/e2e/round_configs/p1-02-mining.json",
+  "out": "_workspace/p1-02-mining/evidence/tool_check_20261005",
+  "selected": [
+    "freeze",
+    "gates",
+    "census",
+    "filters",
+    "sources",
+    "final"
+  ],
+  "dry_run": false,
+  "argv": [
+    "--slice",
+    "p1-02",
+    "--contract",
+    "_workspace/p1-02-mining/02_sprint_contract.md",
+    "--round",
+    "tool_check",
+    "--only",
+    "gates,census,filters,sources"
+  ],
+  "env_keys_loaded": [
+    "DATABASE_URL",
+    "POSTGRES_DB",
+    "POSTGRES_PASSWORD",
+    "POSTGRES_USER",
+    "REDIS_URL",
+    "STARFALL_DEV_AUTH_SECRET",
+    "STARFALL_HTTP_ADDR",
+    "STARFALL_LOG_FORMAT",
+    "STARFALL_PG_HOST_PORT",
+    "STARFALL_REDIS_HOST_PORT"
+  ],
+  "started": "2026-10-05T10:22:21+09:00",
+  "finished": "2026-10-05T10:25:32+09:00",
+  "complete": true,
+  "watch": {
+    "enabled": true,
+    "interval_s": 15.0,
+    "checks": 19,
+    "violations": [
+      {
+        "kind": "external_process",
+        "pid": 43528,
+        "name": "Unity.exe",
+        "cmd": "\"C:\\Program Files\\Unity\\Hub\\Editor\\6000.6.1f1\\Editor\\Unity.exe\" -projectPath C:\\WorkSpace\\SpaceHistoric\\client -logFile C:\\WorkSpace\\SpaceHistoric\\_workspace\\p1-02-mining\\evidence\\sc68\\unity_editor.log",
+        "editor": true,
+        "window": [
+          1791163341.8094444,
+          1791163532.5706644
+        ],
+        "seen": 1791163342.5621922
+      },
+      {
+        "kind": "external_process",
+        "pid": 32852,
+        "name": "Unity.exe",
+        "cmd": "\"C:\\Program Files\\Unity\\Hub\\Editor\\6000.6.1f1\\Editor\\Unity.exe\" \"-adb2\" \"-batchMode\" \"-noUpm\" \"-name\" \"AssetImportWorkerHW0\" \"-projectPath\" \"C:/WorkSpace/SpaceHistoric/client\" \"-logFile\" \"Logs/AssetImportWorkerHW0.log\" \"-srvPort\" \"57080\" \"-parentPid\" \"43528\" \"-analyticsCloudUserId\" \"anonymous\" \"-ana",
+        "editor": false,
+        "window": [
+          1791163341.8094444,
+          1791163532.5706644
+        ],
+        "seen": 1791163342.5621922
+      },
+      {
+        "kind": "external_process",
+        "pid": 37580,
+        "name": "Unity.exe",
+        "cmd": "\"C:\\Program Files\\Unity\\Hub\\Editor\\6000.6.1f1\\Editor\\Unity.exe\" \"-adb2\" \"-batchMode\" \"-noUpm\" \"-name\" \"AssetImportWorkerHW1\" \"-projectPath\" \"C:/WorkSpace/SpaceHistoric/client\" \"-logFile\" \"Logs/AssetImportWorkerHW1.log\" \"-srvPort\" \"57080\" \"-parentPid\" \"43528\" \"-analyticsCloudUserId\" \"14568650797139\" ",
+        "editor": false,
+        "window": [
+          1791163341.8094444,
+          1791163532.5706644
+        ],
+        "seen": 1791163342.5621922
+      }
+    ],
+    "touched_same_content": []
+  },
+  "counts": {
+    "무효(동결 위반)": 6,
+    "SKIP": 6
+  },
+  "stages": [
+    {
+      "name": "freeze",
+      "status": "무효(동결 위반)",
+      "raw_status": "PASS",
+      "started": "2026-10-05T10:22:21+09:00",
+      "finished": "2026-10-05T10:22:22+09:00",
+      "seconds": 0.8,
+      "commands": [
+        {
+          "name": "head",
+          "argv": [
+            "git",
+            "rev-parse",
+            "HEAD"
+          ],
+          "cwd": ".",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 0.0,
+          "log": "_workspace/p1-02-mining/evidence/tool_check_20261005/freeze/head.txt"
+        },
+        {
+          "name": "porcelain",
+          "argv": [
+            "git",
+            "status",
+            "--porcelain"
+          ],
+          "cwd": ".",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 0.2,
+          "log": "_workspace/p1-02-mining/evidence/tool_check_20261005/freeze/porcelain.txt"
+        },
+        {
+          "name": "fp_before",
+          "argv": [
+            "docker",
+            "compose",
+            "exec",
+            "-T",
+            "postgres",
+            "psql",
+            "-q",
+            "-v",
+            "ON_ERROR_STOP=1",
+            "-U",
+            "starfall",
+            "-d",
+            "starfall",
+            "-At",
+            "-F",
+            "|",
+            "-c",
+            "SET default_transaction_read_only = on",
+            "-c",
+            "select (select count(*) from domain_events where world_id = '01a0b1c2-3d4e-7f01-8a2b-9c0d1e2f3a4b') || '|' || (select md5(coalesce(string_agg(event_id::text, ',' order by event_id), '')) from domain_events where world_id = '01a0b1c2-3d4e-7f01-8a2b-9c0d1e2f3a4b') || '|' || (select count(*) from _sqlx_migrations) || '|' || (select count(*) from pg_database where datname like 'starfall_test_%')"
+          ],
+          "cwd": ".",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 0.5,
+          "log": "_workspace/p1-02-mining/evidence/tool_check_20261005/freeze/fp_before.txt"
+        }
+      ],
+      "metrics": {
+        "freeze_file": {
+          "path": "_workspace/p1-02-mining/FREEZE",
+          "present": false
+        },
+        "source_files": 424,
+        "fp_before": "4805|d1904d8f18d55911ea101ff9c8435f5e|3|0"
+      },
+      "notes": [
+        "경고: _workspace/p1-02-mining/FREEZE 가 없다 — 동결 표지 없이 돈다(R6)"
+      ],
+      "violations": [
+        {
+          "kind": "external_process",
+          "pid": 43528,
+          "name": "Unity.exe",
+          "cmd": "\"C:\\Program Files\\Unity\\Hub\\Editor\\6000.6.1f1\\Editor\\Unity.exe\" -projectPath C:\\WorkSpace\\SpaceHistoric\\client -logFile C:\\WorkSpace\\SpaceHistoric\\_workspace\\p1-02-mining\\evidence\\sc68\\unity_editor.log",
+          "editor": true,
+          "window": [
+            1791163341.8094444,
+            1791163532.5706644
+          ],
+          "seen": 1791163342.5621922
+        },
+        {
+          "kind": "external_process",
+          "pid": 32852,
+          "name": "Unity.exe",
+          "cmd": "\"C:\\Program Files\\Unity\\Hub\\Editor\\6000.6.1f1\\Editor\\Unity.exe\" \"-adb2\" \"-batchMode\" \"-noUpm\" \"-name\" \"AssetImportWorkerHW0\" \"-projectPath\" \"C:/WorkSpace/SpaceHistoric/client\" \"-logFile\" \"Logs/AssetImportWorkerHW0.log\" \"-srvPort\" \"57080\" \"-parentPid\" \"43528\" \"-analyticsCloudUserId\" \"anonymous\" \"-ana",
+          "editor": false,
+          "window": [
+            1791163341.8094444,
+            1791163532.5706644
+          ],
+          "seen": 1791163342.5621922
+        },
+        {
+          "kind": "external_process",
+          "pid": 37580,
+          "name": "Unity.exe",
+          "cmd": "\"C:\\Program Files\\Unity\\Hub\\Editor\\6000.6.1f1\\Editor\\Unity.exe\" \"-adb2\" \"-batchMode\" \"-noUpm\" \"-name\" \"AssetImportWorkerHW1\" \"-projectPath\" \"C:/WorkSpace/SpaceHistoric/client\" \"-logFile\" \"Logs/AssetImportWorkerHW1.log\" \"-srvPort\" \"57080\" \"-parentPid\" \"43528\" \"-analyticsCloudUserId\" \"14568650797139\" ",
+          "editor": false,
+          "window": [
+            1791163341.8094444,
+            1791163532.5706644
+          ],
+          "seen": 1791163342.5621922
+        }
+      ]
+    },
+    {
+      "name": "gates",
+      "status": "무효(동결 위반)",
+      "raw_status": "PASS",
+      "started": "2026-10-05T10:22:22+09:00",
+      "finished": "2026-10-05T10:23:48+09:00",
+      "seconds": 85.7,
+      "commands": [
+        {
+          "name": "fmt",
+          "argv": [
+            "cargo",
+            "fmt",
+            "--all",
+            "--check"
+          ],
+          "cwd": "server",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 0.5,
+          "log": "_workspace/p1-02-mining/evidence/tool_check_20261005/gates/fmt.log"
+        },
+        {
+          "name": "clippy",
+          "argv": [
+            "cargo",
+            "clippy",
+            "--workspace",
+            "--all-targets",
+            "--",
+            "-D",
+            "warnings"
+          ],
+          "cwd": "server",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 5.0,
+          "log": "_workspace/p1-02-mining/evidence/tool_check_20261005/gates/clippy.log"
+        },
+        {
+          "name": "test",
+          "argv": [
+            "cargo",
+            "test",
+            "--workspace",
+            "--locked",
+            "--no-fail-fast"
+          ],
+          "cwd": "server",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 69.8,
+          "log": "_workspace/p1-02-mining/evidence/tool_check_20261005/gates/test.log"
+        },
+        {
+          "name": "release_starfall-sim",
+          "argv": [
+            "cargo",
+            "test",
+            "-p",
+            "starfall-sim",
+            "--release",
+            "--locked",
+            "--no-fail-fast"
+          ],
+          "cwd": "server",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 10.4,
+          "log": "_workspace/p1-02-mining/evidence/tool_check_20261005/gates/release_starfall-sim.log"
+        }
+      ],
+      "metrics": {
+        "test": {
+          "passed": 297,
+          "failed": 0,
+          "ignored": 6,
+          "failed_names": []
+        },
+        "release": {
+          "starfall-sim": {
+            "passed": 80,
+            "failed": 0,
+            "ignored": 2,
+            "failed_names": []
+          }
+        }
+      },
+      "notes": [],
+      "violations": [
+        {
+          "kind": "external_process",
+          "pid": 43528,
+          "name": "Unity.exe",
+          "cmd": "\"C:\\Program Files\\Unity\\Hub\\Editor\\6000.6.1f1\\Editor\\Unity.exe\" -projectPath C:\\WorkSpace\\SpaceHistoric\\client -logFile C:\\WorkSpace\\SpaceHistoric\\_workspace\\p1-02-mining\\evidence\\sc68\\unity_editor.log",
+          "editor": true,
+          "window": [
+            1791163341.8094444,
+            1791163532.5706644
+          ],
+          "seen": 1791163342.5621922
+        },
+        {
+          "kind": "external_process",
+          "pid": 32852,
+          "name": "Unity.exe",
+          "cmd": "\"C:\\Program Files\\Unity\\Hub\\Editor\\6000.6.1f1\\Editor\\Unity.exe\" \"-adb2\" \"-batchMode\" \"-noUpm\" \"-name\" \"AssetImportWorkerHW0\" \"-projectPath\" \"C:/WorkSpace/SpaceHistoric/client\" \"-logFile\" \"Logs/AssetImportWorkerHW0.log\" \"-srvPort\" \"57080\" \"-parentPid\" \"43528\" \"-analyticsCloudUserId\" \"anonymous\" \"-ana",
+          "editor": false,
+          "window": [
+            1791163341.8094444,
+            1791163532.5706644
+          ],
+          "seen": 1791163342.5621922
+        },
+        {
+          "kind": "external_process",
+          "pid": 37580,
+          "name": "Unity.exe",
+          "cmd": "\"C:\\Program Files\\Unity\\Hub\\Editor\\6000.6.1f1\\Editor\\Unity.exe\" \"-adb2\" \"-batchMode\" \"-noUpm\" \"-name\" \"AssetImportWorkerHW1\" \"-projectPath\" \"C:/WorkSpace/SpaceHistoric/client\" \"-logFile\" \"Logs/AssetImportWorkerHW1.log\" \"-srvPort\" \"57080\" \"-parentPid\" \"43528\" \"-analyticsCloudUserId\" \"14568650797139\" ",
+          "editor": false,
+          "window": [
+            1791163341.8094444,
+            1791163532.5706644
+          ],
+          "seen": 1791163342.5621922
+        }
+      ]
+    },
+    {
+      "name": "census",
+      "status": "무효(동결 위반)",
+      "raw_status": "PASS",
+      "started": "2026-10-05T10:23:49+09:00",
+      "finished": "2026-10-05T10:23:49+09:00",
+      "seconds": 0.1,
+      "commands": [
+        {
+          "name": "census",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "tests/e2e/db_test_census.py",
+            "--contract",
+            "_workspace/p1-02-mining/02_sprint_contract.md",
+            "--log",
+            "_workspace/p1-02-mining/evidence/tool_check_20261005/gates/test.log",
+            "--evidence",
+            "_workspace/p1-02-mining/evidence/tool_check_20261005/census/census.json"
+          ],
+          "cwd": ".",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 0.1,
+          "log": "_workspace/p1-02-mining/evidence/tool_check_20261005/census/census.out"
+        }
+      ],
+      "metrics": {
+        "verdict": "PASS",
+        "expected": 27,
+        "expected_and_ran": 27,
+        "ran_lines": 36,
+        "missing": 0,
+        "skipped": 0
+      },
+      "notes": [],
+      "violations": [
+        {
+          "kind": "external_process",
+          "pid": 43528,
+          "name": "Unity.exe",
+          "cmd": "\"C:\\Program Files\\Unity\\Hub\\Editor\\6000.6.1f1\\Editor\\Unity.exe\" -projectPath C:\\WorkSpace\\SpaceHistoric\\client -logFile C:\\WorkSpace\\SpaceHistoric\\_workspace\\p1-02-mining\\evidence\\sc68\\unity_editor.log",
+          "editor": true,
+          "window": [
+            1791163341.8094444,
+            1791163532.5706644
+          ],
+          "seen": 1791163342.5621922
+        },
+        {
+          "kind": "external_process",
+          "pid": 32852,
+          "name": "Unity.exe",
+          "cmd": "\"C:\\Program Files\\Unity\\Hub\\Editor\\6000.6.1f1\\Editor\\Unity.exe\" \"-adb2\" \"-batchMode\" \"-noUpm\" \"-name\" \"AssetImportWorkerHW0\" \"-projectPath\" \"C:/WorkSpace/SpaceHistoric/client\" \"-logFile\" \"Logs/AssetImportWorkerHW0.log\" \"-srvPort\" \"57080\" \"-parentPid\" \"43528\" \"-analyticsCloudUserId\" \"anonymous\" \"-ana",
+          "editor": false,
+          "window": [
+            1791163341.8094444,
+            1791163532.5706644
+          ],
+          "seen": 1791163342.5621922
+        },
+        {
+          "kind": "external_process",
+          "pid": 37580,
+          "name": "Unity.exe",
+          "cmd": "\"C:\\Program Files\\Unity\\Hub\\Editor\\6000.6.1f1\\Editor\\Unity.exe\" \"-adb2\" \"-batchMode\" \"-noUpm\" \"-name\" \"AssetImportWorkerHW1\" \"-projectPath\" \"C:/WorkSpace/SpaceHistoric/client\" \"-logFile\" \"Logs/AssetImportWorkerHW1.log\" \"-srvPort\" \"57080\" \"-parentPid\" \"43528\" \"-analyticsCloudUserId\" \"14568650797139\" ",
+          "editor": false,
+          "window": [
+            1791163341.8094444,
+            1791163532.5706644
+          ],
+          "seen": 1791163342.5621922
+        }
+      ]
+    },
+    {
+      "name": "repeat",
+      "status": "SKIP",
+      "raw_status": "SKIP",
+      "started": "",
+      "finished": "",
+      "seconds": 0.0,
+      "commands": [],
+      "metrics": {},
+      "notes": [],
+      "violations": []
+    },
+    {
+      "name": "unity",
+      "status": "SKIP",
+      "raw_status": "SKIP",
+      "started": "",
+      "finished": "",
+      "seconds": 0.0,
+      "commands": [],
+      "metrics": {},
+      "notes": [],
+      "violations": []
+    },
+    {
+      "name": "filters",
+      "status": "무효(동결 위반)",
+      "raw_status": "PASS",
+      "started": "2026-10-05T10:23:49+09:00",
+      "finished": "2026-10-05T10:25:30+09:00",
+      "seconds": 101.3,
+      "commands": [
+        {
+          "name": "cargo_sc_map",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "tests/e2e/cargo_sc_map.py",
+            "run",
+            "--contract",
+            "_workspace/p1-02-mining/02_sprint_contract.md",
+            "--out",
+            "_workspace/p1-02-mining/evidence/tool_check_20261005/filters"
+          ],
+          "cwd": ".",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 101.2,
+          "log": "_workspace/p1-02-mining/evidence/tool_check_20261005/filters/cargo_sc_map.out"
+        }
+      ],
+      "metrics": {
+        "rows": 114,
+        "filters_rust": 71,
+        "filters_rust_cargo": 63,
+        "filters_rust_bare": 8,
+        "filters_unity_bare": 7,
+        "executed": 71,
+        "ran_ge_1": 71,
+        "static_ghosts": [],
+        "ghosts": [],
+        "failed_tests": [],
+        "nonzero_rc": [],
+        "cross_sc": [
+          [
+            "SC-18",
+            "restart_reloads_economic_state_so_cas_succeeds_and_duplicates_are_rejected",
+            [
+              "SC-26"
+            ]
+          ],
+          [
+            "SC-26",
+            "restart_reloads_economic_state_so_cas_succeeds_and_duplicates_are_rejected",
+            [
+              "SC-18"
+            ]
+          ]
+        ],
+        "unity_bare": null
+      },
+      "notes": [],
+      "violations": [
+        {
+          "kind": "external_process",
+          "pid": 43528,
+          "name": "Unity.exe",
+          "cmd": "\"C:\\Program Files\\Unity\\Hub\\Editor\\6000.6.1f1\\Editor\\Unity.exe\" -projectPath C:\\WorkSpace\\SpaceHistoric\\client -logFile C:\\WorkSpace\\SpaceHistoric\\_workspace\\p1-02-mining\\evidence\\sc68\\unity_editor.log",
+          "editor": true,
+          "window": [
+            1791163341.8094444,
+            1791163532.5706644
+          ],
+          "seen": 1791163342.5621922
+        },
+        {
+          "kind": "external_process",
+          "pid": 32852,
+          "name": "Unity.exe",
+          "cmd": "\"C:\\Program Files\\Unity\\Hub\\Editor\\6000.6.1f1\\Editor\\Unity.exe\" \"-adb2\" \"-batchMode\" \"-noUpm\" \"-name\" \"AssetImportWorkerHW0\" \"-projectPath\" \"C:/WorkSpace/SpaceHistoric/client\" \"-logFile\" \"Logs/AssetImportWorkerHW0.log\" \"-srvPort\" \"57080\" \"-parentPid\" \"43528\" \"-analyticsCloudUserId\" \"anonymous\" \"-ana",
+          "editor": false,
+          "window": [
+            1791163341.8094444,
+            1791163532.5706644
+          ],
+          "seen": 1791163342.5621922
+        },
+        {
+          "kind": "external_process",
+          "pid": 37580,
+          "name": "Unity.exe",
+          "cmd": "\"C:\\Program Files\\Unity\\Hub\\Editor\\6000.6.1f1\\Editor\\Unity.exe\" \"-adb2\" \"-batchMode\" \"-noUpm\" \"-name\" \"AssetImportWorkerHW1\" \"-projectPath\" \"C:/WorkSpace/SpaceHistoric/client\" \"-logFile\" \"Logs/AssetImportWorkerHW1.log\" \"-srvPort\" \"57080\" \"-parentPid\" \"43528\" \"-analyticsCloudUserId\" \"14568650797139\" ",
+          "editor": false,
+          "window": [
+            1791163341.8094444,
+            1791163532.5706644
+          ],
+          "seen": 1791163342.5621922
+        }
+      ]
+    },
+    {
+      "name": "sources",
+      "status": "무효(동결 위반)",
+      "raw_status": "PASS",
+      "started": "2026-10-05T10:25:31+09:00",
+      "finished": "2026-10-05T10:25:31+09:00",
+      "seconds": 0.1,
+      "commands": [
+        {
+          "name": "check_item_sources",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "tests/e2e/check_item_sources.py",
+            "--contract",
+            "_workspace/p1-02-mining/02_sprint_contract.md",
+            "--slice",
+            "p1-02"
+          ],
+          "cwd": ".",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 0.1,
+          "log": "_workspace/p1-02-mining/evidence/tool_check_20261005/sources/check_item_sources.out"
+        }
+      ],
+      "metrics": {},
+      "notes": [],
+      "violations": [
+        {
+          "kind": "external_process",
+          "pid": 43528,
+          "name": "Unity.exe",
+          "cmd": "\"C:\\Program Files\\Unity\\Hub\\Editor\\6000.6.1f1\\Editor\\Unity.exe\" -projectPath C:\\WorkSpace\\SpaceHistoric\\client -logFile C:\\WorkSpace\\SpaceHistoric\\_workspace\\p1-02-mining\\evidence\\sc68\\unity_editor.log",
+          "editor": true,
+          "window": [
+            1791163341.8094444,
+            1791163532.5706644
+          ],
+          "seen": 1791163342.5621922
+        },
+        {
+          "kind": "external_process",
+          "pid": 32852,
+          "name": "Unity.exe",
+          "cmd": "\"C:\\Program Files\\Unity\\Hub\\Editor\\6000.6.1f1\\Editor\\Unity.exe\" \"-adb2\" \"-batchMode\" \"-noUpm\" \"-name\" \"AssetImportWorkerHW0\" \"-projectPath\" \"C:/WorkSpace/SpaceHistoric/client\" \"-logFile\" \"Logs/AssetImportWorkerHW0.log\" \"-srvPort\" \"57080\" \"-parentPid\" \"43528\" \"-analyticsCloudUserId\" \"anonymous\" \"-ana",
+          "editor": false,
+          "window": [
+            1791163341.8094444,
+            1791163532.5706644
+          ],
+          "seen": 1791163342.5621922
+        },
+        {
+          "kind": "external_process",
+          "pid": 37580,
+          "name": "Unity.exe",
+          "cmd": "\"C:\\Program Files\\Unity\\Hub\\Editor\\6000.6.1f1\\Editor\\Unity.exe\" \"-adb2\" \"-batchMode\" \"-noUpm\" \"-name\" \"AssetImportWorkerHW1\" \"-projectPath\" \"C:/WorkSpace/SpaceHistoric/client\" \"-logFile\" \"Logs/AssetImportWorkerHW1.log\" \"-srvPort\" \"57080\" \"-parentPid\" \"43528\" \"-analyticsCloudUserId\" \"14568650797139\" ",
+          "editor": false,
+          "window": [
+            1791163341.8094444,
+            1791163532.5706644
+          ],
+          "seen": 1791163342.5621922
+        }
+      ]
+    },
+    {
+      "name": "offline",
+      "status": "SKIP",
+      "raw_status": "SKIP",
+      "started": "",
+      "finished": "",
+      "seconds": 0.0,
+      "commands": [],
+      "metrics": {},
+      "notes": [],
+      "violations": []
+    },
+    {
+      "name": "bots",
+      "status": "SKIP",
+      "raw_status": "SKIP",
+      "started": "",
+      "finished": "",
+      "seconds": 0.0,
+      "commands": [],
+      "metrics": {},
+      "notes": [],
+      "violations": []
+    },
+    {
+      "name": "judges",
+      "status": "SKIP",
+      "raw_status": "SKIP",
+      "started": "",
+      "finished": "",
+      "seconds": 0.0,
+      "commands": [],
+      "metrics": {},
+      "notes": [],
+      "violations": []
+    },
+    {
+      "name": "db_stop",
+      "status": "SKIP",
+      "raw_status": "SKIP",
+      "started": "",
+      "finished": "",
+      "seconds": 0.0,
+      "commands": [],
+      "metrics": {},
+      "notes": [],
+      "violations": []
+    },
+    {
+      "name": "final",
+      "status": "무효(동결 위반)",
+      "raw_status": "PASS",
+      "started": "2026-10-05T10:25:31+09:00",
+      "finished": "2026-10-05T10:25:32+09:00",
+      "seconds": 0.4,
+      "commands": [
+        {
+          "name": "porcelain_end",
+          "argv": [
+            "git",
+            "status",
+            "--porcelain"
+          ],
+          "cwd": ".",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 0.0,
+          "log": "_workspace/p1-02-mining/evidence/tool_check_20261005/final/porcelain_end.txt"
+        },
+        {
+          "name": "src_sha_compare",
+          "argv": [
+            "sha256",
+            "freeze/src_sha_start.txt",
+            "final/src_sha_end.txt"
+          ],
+          "cwd": ".",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 0.0,
+          "log": "_workspace/p1-02-mining/evidence/tool_check_20261005/final/src_sha_end.txt"
+        },
+        {
+          "name": "fp_after",
+          "argv": [
+            "docker",
+            "compose",
+            "exec",
+            "-T",
+            "postgres",
+            "psql",
+            "-q",
+            "-v",
+            "ON_ERROR_STOP=1",
+            "-U",
+            "starfall",
+            "-d",
+            "starfall",
+            "-At",
+            "-F",
+            "|",
+            "-c",
+            "SET default_transaction_read_only = on",
+            "-c",
+            "select (select count(*) from domain_events where world_id = '01a0b1c2-3d4e-7f01-8a2b-9c0d1e2f3a4b') || '|' || (select md5(coalesce(string_agg(event_id::text, ',' order by event_id), '')) from domain_events where world_id = '01a0b1c2-3d4e-7f01-8a2b-9c0d1e2f3a4b') || '|' || (select count(*) from _sqlx_migrations) || '|' || (select count(*) from pg_database where datname like 'starfall_test_%')"
+          ],
+          "cwd": ".",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 0.3,
+          "log": "_workspace/p1-02-mining/evidence/tool_check_20261005/final/fp_after.txt"
+        }
+      ],
+      "metrics": {
+        "source_files": 424,
+        "source_changed": [],
+        "fp": {
+          "before": "4805|d1904d8f18d55911ea101ff9c8435f5e|3|0",
+          "after": "4805|d1904d8f18d55911ea101ff9c8435f5e|3|0",
+          "same": true
+        }
+      },
+      "notes": [],
+      "violations": [
+        {
+          "kind": "external_process",
+          "pid": 43528,
+          "name": "Unity.exe",
+          "cmd": "\"C:\\Program Files\\Unity\\Hub\\Editor\\6000.6.1f1\\Editor\\Unity.exe\" -projectPath C:\\WorkSpace\\SpaceHistoric\\client -logFile C:\\WorkSpace\\SpaceHistoric\\_workspace\\p1-02-mining\\evidence\\sc68\\unity_editor.log",
+          "editor": true,
+          "window": [
+            1791163341.8094444,
+            1791163532.5706644
+          ],
+          "seen": 1791163342.5621922
+        },
+        {
+          "kind": "external_process",
+          "pid": 32852,
+          "name": "Unity.exe",
+          "cmd": "\"C:\\Program Files\\Unity\\Hub\\Editor\\6000.6.1f1\\Editor\\Unity.exe\" \"-adb2\" \"-batchMode\" \"-noUpm\" \"-name\" \"AssetImportWorkerHW0\" \"-projectPath\" \"C:/WorkSpace/SpaceHistoric/client\" \"-logFile\" \"Logs/AssetImportWorkerHW0.log\" \"-srvPort\" \"57080\" \"-parentPid\" \"43528\" \"-analyticsCloudUserId\" \"anonymous\" \"-ana",
+          "editor": false,
+          "window": [
+            1791163341.8094444,
+            1791163532.5706644
+          ],
+          "seen": 1791163342.5621922
+        },
+        {
+          "kind": "external_process",
+          "pid": 37580,
+          "name": "Unity.exe",
+          "cmd": "\"C:\\Program Files\\Unity\\Hub\\Editor\\6000.6.1f1\\Editor\\Unity.exe\" \"-adb2\" \"-batchMode\" \"-noUpm\" \"-name\" \"AssetImportWorkerHW1\" \"-projectPath\" \"C:/WorkSpace/SpaceHistoric/client\" \"-logFile\" \"Logs/AssetImportWorkerHW1.log\" \"-srvPort\" \"57080\" \"-parentPid\" \"43528\" \"-analyticsCloudUserId\" \"14568650797139\" ",
+          "editor": false,
+          "window": [
+            1791163341.8094444,
+            1791163532.5706644
+          ],
+          "seen": 1791163342.5621922
+        }
+      ]
+    }
+  ]
+}
+DONE

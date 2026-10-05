@@ -154,6 +154,9 @@ jobs:
           python tests/e2e/constraint_census.py selftest
           python tests/e2e/db_test_census.py selftest
           python tests/e2e/interface_matrix.py selftest --slice p1-02
+          python tests/e2e/cargo_sc_map.py selftest
+          python tests/e2e/run_round.py selftest
+          python tests/e2e/unity_session.py selftest
       # p1-02 SC-06 — data/ 10 파일 전부가 계약 스키마를 통과한다(DB 불필요).
       - name: data/ 스키마 (p1-02 SC-06)
         if: success() || failure()

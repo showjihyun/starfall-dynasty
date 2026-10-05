@@ -1,0 +1,13 @@
+   Compiling starfall-contracts v0.1.0 (C:\WorkSpace\SpaceHistoric\server\crates\contracts)
+   Compiling starfall-persistence v0.1.0 (C:\WorkSpace\SpaceHistoric\server\crates\persistence)
+   Compiling starfall-sim v0.1.0 (C:\WorkSpace\SpaceHistoric\server\crates\sim)
+   Compiling starfall-history v0.1.0 (C:\WorkSpace\SpaceHistoric\server\crates\history)
+   Compiling starfall-gateway v0.1.0 (C:\WorkSpace\SpaceHistoric\server\crates\gateway)
+   Compiling starfall-game-server v0.1.0 (C:\WorkSpace\SpaceHistoric\server\bins\game-server)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 15.75s
+[1] Editor 점검: lockfile=locked · 이 프로젝트의 Unity 프로세스=[{'pid': 43528, 'role': 'editor'}, {'pid': 32852, 'role': 'asset-import-worker'}, {'pid': 37580, 'role': 'asset-import-worker'}]
+[2] cargo build -p starfall-game-server --locked
+    test-hooks 없음
+[3] 월드 01a107d3-cbf6-76fd-b833-464affba3542 (new_world.py → _workspace/p1-02-mining/evidence/TOOLCHECK/new_world.json)
+[4] READY 127.0.0.1:8080 server pid=34692 serve pid=54544 (detached+breakaway) 한도 3600s = 1.0h
+[8] _workspace/p1-02-mining/evidence/TOOLCHECK/session.json — Editor 는 띄우지 않았다(--skip-editor)

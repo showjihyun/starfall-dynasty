@@ -1,0 +1,68 @@
+{
+  "purpose": "사람 Unity 세션 준비(unity_session.py) — 판정 아님",
+  "slice": "p1-02-mining",
+  "tag": "TOOLCHECK",
+  "started_at": "2026-10-05T01:51:04+09:00",
+  "world_id": "01a107d3-cbf6-76fd-b833-464affba3542",
+  "world_source": "new_world.py → _workspace/p1-02-mining/evidence/TOOLCHECK/new_world.json",
+  "server": {
+    "addr": "127.0.0.1:8080",
+    "pid": 34692,
+    "serve_pid": 54544,
+    "detach": "detached+breakaway",
+    "max_seconds": 3600,
+    "stop_file": "_workspace/p1-02-mining/evidence/TOOLCHECK/server.stop",
+    "ready_file": "_workspace/p1-02-mining/evidence/TOOLCHECK/server.ready",
+    "serve_stdout": "_workspace/p1-02-mining/evidence/TOOLCHECK/serve_stdout.log",
+    "log": "_workspace/p1-02-mining/evidence/TOOLCHECK/server.log",
+    "binary": "server/target/debug/starfall-game-server.exe",
+    "test_hooks": false
+  },
+  "editor": {
+    "skipped": true,
+    "reason": "--skip-editor (도구 자체 점검용)"
+  },
+  "git": {
+    "head": "406bf908a83590e49c5ed0705014beceb578983c",
+    "porcelain": [
+      "?? _workspace/p1-02-mining/evidence/TOOLCHECK/",
+      "?? tests/e2e/unity_session.py"
+    ]
+  },
+  "preflight": {
+    "lockfile": "locked",
+    "unity_processes_for_project": [
+      {
+        "pid": 43528,
+        "role": "editor"
+      },
+      {
+        "pid": 32852,
+        "role": "asset-import-worker"
+      },
+      {
+        "pid": 37580,
+        "role": "asset-import-worker"
+      }
+    ]
+  },
+  "secret": {
+    "variable": "STARFALL_DEV_AUTH_SECRET",
+    "source": ".env",
+    "injected_into": "Editor 자식 프로세스 환경만",
+    "value": "기록하지 않음"
+  },
+  "stop": {
+    "stopped_at": "2026-10-05T01:52:16+09:00",
+    "serve_was_already_exited": false,
+    "serve_still_alive": false,
+    "shutdown_exit": 0,
+    "server_self_exited_before_stop": false,
+    "hard_terminated": false,
+    "server_pid_alive": false,
+    "server_log": "_workspace/p1-02-mining/evidence/TOOLCHECK/server.log",
+    "server_log_exists": true,
+    "ready_file_removed": true,
+    "editor": "사용자에게 맡김(이 스크립트는 닫지 않는다)"
+  }
+}

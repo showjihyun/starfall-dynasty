@@ -1,0 +1,6 @@
+ M tests/e2e/cargo_sc_map.py
+?? _workspace/p1-02-mining/evidence/TOOLCHECK/
+?? _workspace/p1-02-mining/evidence/tool_check_20261005/
+?? tests/e2e/round_configs/
+?? tests/e2e/run_round.py
+?? tests/e2e/unity_session.py

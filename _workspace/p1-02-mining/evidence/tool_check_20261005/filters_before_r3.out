@@ -1,0 +1,75 @@
+[1/66] SC-05 starfall-game-server  data::tests::reject_c → ran=16 rc=0
+[2/66] SC-05 starfall-game-server  data::tests::reject_c01_deposit_unknown_mineral → ran=1 rc=0
+[3/66] SC-05 starfall-game-server  data::tests::reject_c16_* → ran=1 rc=0
+[4/66] SC-05 starfall-game-server  data::tests::accepts_unmodified_copy → ran=1 rc=0
+[5/66] SC-08 starfall-sim  mining::accept_* → ran=1 rc=0
+[6/66] SC-09 starfall-sim  mining::reject_* → ran=2 rc=0
+[7/66] SC-09 starfall-sim --release (전체) → ran=80 rc=0
+[8/66] SC-10 starfall-sim  mining::reject_order_* → ran=1 rc=0
+[9/66] SC-11 starfall-sim  mining::reject_does_not_start_cooldown → ran=1 rc=0
+[10/66] SC-12 starfall-sim  mining::partial_then_depleted → ran=1 rc=0
+[11/66] SC-13 starfall-sim  mining::same_tick_submission_order → ran=1 rc=0
+[12/66] SC-14 starfall-sim  mining::tests::regen_closed_form_matches_stepwise → ran=1 rc=0
+[13/66] SC-15 starfall-sim  mining::range_uses_pre_integration_state → ran=1 rc=0
+[14/66] SC-16 starfall-sim  mining::dup_same_session → ran=1 rc=0
+[15/66] SC-17 starfall-sim  mining::dup_across_reconnect → ran=1 rc=0
+[16/66] SC-18 starfall-persistence  restart_reloads_economic_state_so_cas_succeeds_and_duplicates_are_rejected → ran=1 rc=0
+[17/66] SC-19 starfall-sim  mining::dup_two_sessions_same_tick → ran=1 rc=0
+[18/66] SC-20 starfall-persistence  batch_recommit_is_noop → ran=1 rc=0
+[19/66] SC-20 starfall-persistence  ambiguous_commit_retry_counts_once → ran=1 rc=0
+[20/66] SC-21 starfall-persistence  dup_reaching_db_halts → ran=1 rc=0
+[21/66] SC-21 starfall-persistence  dup_across_restart → ran=1 rc=0
+[22/66] SC-100 starfall-sim  duplicate_command_id_across_different_sessions_is_rejected → ran=1 rc=0
+[23/66] SC-100 starfall-persistence  dup_cross_actor_no_halt → ran=1 rc=0
+[24/66] SC-100 starfall-persistence  cross_world_same_command_id_accepted → ran=1 rc=0
+[25/66] SC-22 starfall-sim  mining::rejected_resend_* → ran=1 rc=0
+[26/66] SC-25 starfall-persistence  cas_mismatch_halts → ran=1 rc=0
+[27/66] SC-26 starfall-persistence  restart_reloads_economic_state_so_cas_succeeds_and_duplicates_are_rejected → ran=1 rc=0
+[28/66] SC-26 starfall-persistence  load_economic_state_matches_the_database → ran=1 rc=0
+[29/66] SC-26 starfall-persistence  load_economic_state_on_empty_world_returns_empty_lists → ran=1 rc=0
+[30/66] SC-27 starfall-persistence  recorded_at_failure_fails_batch → ran=1 rc=0
+[31/66] SC-101 starfall-persistence  payload_serialize_failure_fails_batch → ran=1 rc=0
+[32/66] SC-101 starfall-persistence  payload_null_rejected_by_db → ran=1 rc=0
+[33/66] SC-102 starfall-persistence  no_commit_after_fatal → ran=1 rc=0
+[34/66] SC-103 starfall-persistence  admin_shutdown_is_transient → ran=1 rc=0
+[35/66] SC-112 starfall-persistence  terminated_backend_is_retried → ran=1 rc=0
+[36/66] SC-28 starfall-gateway  recording_lag_boundary_* → ran=1 rc=0
+[37/66] SC-33 starfall-sim --test mining_replay (전체) → ran=1 rc=0
+[38/66] SC-34 starfall-sim  (전체) → ran=80 rc=0
+[39/66] SC-36 starfall-contracts  invalid_fixtures_layered → ran=1 rc=0
+[40/66] SC-37 starfall-contracts  required_removal_mutations → ran=1 rc=0
+[41/66] SC-38 starfall-contracts  registry_responses → ran=1 rc=0
+[42/66] SC-39 starfall-sim  mining::deposit_field_state_reveal → ran=1 rc=0
+[43/66] SC-41 starfall-history  first_extraction_discovers → ran=1 rc=0
+[44/66] SC-42 starfall-history  second_extraction_is_silent → ran=1 rc=0
+[45/66] SC-43 starfall-history  other_mineral_discovers → ran=1 rc=0
+[46/66] SC-44 starfall-history  same_tick_lower_sequence_wins → ran=1 rc=0
+[47/66] SC-45 starfall-history  reprocessing_is_idempotent → ran=1 rc=0
+[48/66] SC-46 starfall-history  batch_boundary_invariance → ran=1 rc=0
+[49/66] SC-47 starfall-persistence  history_runner_ordering_permutations → ran=1 rc=0
+[50/66] SC-48 starfall-history  out_of_order_input_rejected → ran=1 rc=0
+[51/66] SC-49 starfall-history  level0_filter → ran=1 rc=0
+[52/66] SC-50 starfall-history  rule_golden → ran=2 rc=0
+[53/66] SC-50 starfall-history  rule_golden_detects_value_change_without_version_bump → ran=1 rc=0
+[54/66] SC-51 starfall-persistence  history_first_discovery_rows → ran=1 rc=0
+[55/66] SC-52 starfall-persistence  history_tables_append_only → ran=1 rc=0
+[56/66] SC-53 starfall-persistence  history_dedupe_unique → ran=1 rc=0
+[57/66] SC-54 starfall-persistence  history_crash_before_commit → ran=1 rc=0
+[58/66] SC-55 starfall-persistence  history_fail_stop → ran=1 rc=0
+[59/66] SC-56 starfall-persistence  history_watermark → ran=1 rc=0
+[60/66] SC-57 starfall-persistence  history_restart_rebuild → ran=1 rc=0
+[61/66] SC-105 starfall-persistence  history_conflict_halts_runner_only → ran=1 rc=0
+[62/66] SC-106 starfall-persistence  history_redelivery_is_silent → ran=1 rc=0
+[63/66] SC-111 starfall-persistence  history_same_source_different_content_halts → ran=1 rc=0
+[64/66] SC-62 starfall-persistence  history_notice_after_commit_only → ran=1 rc=0
+[65/66] SC-63 starfall-gateway  notice_no_gap_same_tick → ran=1 rc=0
+[66/66] SC-114 starfall-testdb  refuses_non_test_database → ran=1 rc=0
+계약 §1 행 114 · Rust 필터 66(cargo 59 + 맨 이름 7) · Unity 맨 이름 7 · 맨 토큰 42 {'GHOST': 1, 'NON_CODE': 1, 'NON_TEST_IDENT': 26, 'TEST_FN': 14}
+  유령(코드에 없음): SC-28 recording_halted_rejects_state_change
+실행 66 · 실행 ≥ 1 = 66 · 유령(실행 0) 0 · 실패 테스트 0 · rc≠0 0 · 다른 SC 도 잡는 테스트 6
+  교차: SC-09 의 필터가 잡은 simulation::tests::mining::reject_does_not_start_cooldown — SC-11 도 지명
+  교차: SC-09 의 필터가 잡은 simulation::tests::mining::reject_order_adjacent_pairs_pick_the_earlier_one — SC-10 도 지명
+  교차: SC-10 의 필터가 잡은 simulation::tests::mining::reject_order_adjacent_pairs_pick_the_earlier_one — SC-09 도 지명
+  교차: SC-11 의 필터가 잡은 simulation::tests::mining::reject_does_not_start_cooldown — SC-09 도 지명
+  교차: SC-18 의 필터가 잡은 restart_reloads_economic_state_so_cas_succeeds_and_duplicates_are_rejected — SC-26 도 지명
+  교차: SC-26 의 필터가 잡은 restart_reloads_economic_state_so_cas_succeeds_and_duplicates_are_rejected — SC-18 도 지명

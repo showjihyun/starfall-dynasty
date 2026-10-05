@@ -1,0 +1,2876 @@
+{
+  "summary": {
+    "rows": 114,
+    "filters_rust": 66,
+    "filters_rust_cargo": 59,
+    "filters_rust_bare": 7,
+    "filters_unity_bare": 7,
+    "bare_tokens": 42,
+    "bare_by_category": {
+      "GHOST": 1,
+      "NON_CODE": 1,
+      "NON_TEST_IDENT": 26,
+      "TEST_FN": 14
+    },
+    "static_ghosts": [
+      [
+        "SC-28",
+        "recording_halted_rejects_state_change"
+      ]
+    ],
+    "executed": 66,
+    "ran_ge_1": 66,
+    "ghosts": [],
+    "failed_tests": [],
+    "nonzero_rc": [],
+    "cross_sc": [
+      [
+        "SC-09",
+        "simulation::tests::mining::reject_does_not_start_cooldown",
+        [
+          "SC-11"
+        ]
+      ],
+      [
+        "SC-09",
+        "simulation::tests::mining::reject_order_adjacent_pairs_pick_the_earlier_one",
+        [
+          "SC-10"
+        ]
+      ],
+      [
+        "SC-10",
+        "simulation::tests::mining::reject_order_adjacent_pairs_pick_the_earlier_one",
+        [
+          "SC-09"
+        ]
+      ],
+      [
+        "SC-11",
+        "simulation::tests::mining::reject_does_not_start_cooldown",
+        [
+          "SC-09"
+        ]
+      ],
+      [
+        "SC-18",
+        "restart_reloads_economic_state_so_cas_succeeds_and_duplicates_are_rejected",
+        [
+          "SC-26"
+        ]
+      ],
+      [
+        "SC-26",
+        "restart_reloads_economic_state_so_cas_succeeds_and_duplicates_are_rejected",
+        [
+          "SC-18"
+        ]
+      ]
+    ]
+  },
+  "bare": [
+    {
+      "sc": "SC-05",
+      "token": "data::tests::reject_c01_deposit_unknown_mineral",
+      "category": "TEST_FN",
+      "defined_in": [
+        "server/bins/game-server/src/data.rs"
+      ]
+    },
+    {
+      "sc": "SC-05",
+      "token": "data::tests::reject_c16_*",
+      "category": "TEST_FN",
+      "defined_in": [
+        "server/bins/game-server/src/data.rs"
+      ]
+    },
+    {
+      "sc": "SC-05",
+      "token": "data::tests::accepts_unmodified_copy",
+      "category": "TEST_FN",
+      "defined_in": [
+        "server/bins/game-server/src/data.rs"
+      ]
+    },
+    {
+      "sc": "SC-20",
+      "token": "ambiguous_commit_retry_counts_once",
+      "category": "TEST_FN",
+      "defined_in": [
+        "server/crates/persistence/tests/economic_state.rs"
+      ]
+    },
+    {
+      "sc": "SC-20",
+      "token": "persisted_total",
+      "category": "NON_TEST_IDENT",
+      "defined_in": []
+    },
+    {
+      "sc": "SC-100",
+      "token": "cross_world_same_command_id_accepted",
+      "category": "TEST_FN",
+      "defined_in": [
+        "server/crates/persistence/tests/economic_state.rs"
+      ]
+    },
+    {
+      "sc": "SC-25",
+      "token": "actor_id",
+      "category": "NON_TEST_IDENT",
+      "defined_in": []
+    },
+    {
+      "sc": "SC-25",
+      "token": "mineral_id",
+      "category": "NON_TEST_IDENT",
+      "defined_in": []
+    },
+    {
+      "sc": "SC-25",
+      "token": "persist_fatal_total",
+      "category": "NON_TEST_IDENT",
+      "defined_in": []
+    },
+    {
+      "sc": "SC-101",
+      "token": "payload_null_rejected_by_db",
+      "category": "TEST_FN",
+      "defined_in": [
+        "server/crates/persistence/tests/economic_state.rs"
+      ]
+    },
+    {
+      "sc": "SC-102",
+      "token": "SESSION_CLOSED",
+      "category": "NON_TEST_IDENT",
+      "defined_in": []
+    },
+    {
+      "sc": "SC-102",
+      "token": "domain_events",
+      "category": "NON_TEST_IDENT",
+      "defined_in": []
+    },
+    {
+      "sc": "SC-28",
+      "token": "recording_halted_rejects_state_change",
+      "category": "GHOST",
+      "defined_in": []
+    },
+    {
+      "sc": "SC-30",
+      "token": "SET_SHIP_CONTROL",
+      "category": "NON_TEST_IDENT",
+      "defined_in": []
+    },
+    {
+      "sc": "SC-30",
+      "token": "WORLD_SNAPSHOT",
+      "category": "NON_TEST_IDENT",
+      "defined_in": []
+    },
+    {
+      "sc": "SC-31",
+      "token": "recording_lag",
+      "category": "NON_TEST_IDENT",
+      "defined_in": []
+    },
+    {
+      "sc": "SC-32",
+      "token": "command_id",
+      "category": "NON_TEST_IDENT",
+      "defined_in": []
+    },
+    {
+      "sc": "SC-32",
+      "token": "processed_commands",
+      "category": "NON_TEST_IDENT",
+      "defined_in": []
+    },
+    {
+      "sc": "SC-37",
+      "token": "DEPOSIT_FIELD_STATE",
+      "category": "NON_TEST_IDENT",
+      "defined_in": []
+    },
+    {
+      "sc": "SC-37",
+      "token": "required_nullable",
+      "category": "NON_TEST_IDENT",
+      "defined_in": []
+    },
+    {
+      "sc": "SC-37",
+      "token": "deserialize_with",
+      "category": "NON_TEST_IDENT",
+      "defined_in": []
+    },
+    {
+      "sc": "SC-40",
+      "token": "mineral_id",
+      "category": "NON_TEST_IDENT",
+      "defined_in": []
+    },
+    {
+      "sc": "SC-40",
+      "token": "DEPOSIT_FIELD_STATE",
+      "category": "NON_TEST_IDENT",
+      "defined_in": []
+    },
+    {
+      "sc": "SC-41",
+      "token": "evidence_id",
+      "category": "NON_TEST_IDENT",
+      "defined_in": []
+    },
+    {
+      "sc": "SC-50",
+      "token": "rule_golden_detects_value_change_without_version_bump",
+      "category": "TEST_FN",
+      "defined_in": [
+        "server/crates/history/tests/mineral_discovery.rs"
+      ]
+    },
+    {
+      "sc": "SC-63",
+      "token": "notice_open_overlap_ticks_total",
+      "category": "NON_TEST_IDENT",
+      "defined_in": []
+    },
+    {
+      "sc": "SC-64",
+      "token": "recorded_at",
+      "category": "NON_TEST_IDENT",
+      "defined_in": []
+    },
+    {
+      "sc": "SC-67",
+      "token": "UnknownClosedValue_*",
+      "category": "TEST_FN",
+      "defined_in": [
+        "client/Assets/_Project/Tests/EditMode/ContractFixtureTests.cs"
+      ]
+    },
+    {
+      "sc": "SC-69",
+      "token": "InventoryPanel_ChangesOnlyOnInventoryState",
+      "category": "TEST_FN",
+      "defined_in": [
+        "client/Assets/_Project/Tests/EditMode/MiningViewModelTests.cs"
+      ]
+    },
+    {
+      "sc": "SC-70",
+      "token": "DiscoveryFeed_DedupesByHistoricalEventId",
+      "category": "TEST_FN",
+      "defined_in": [
+        "client/Assets/_Project/Tests/PlayMode/GreyboxMiningSessionPlayModeTests.cs"
+      ]
+    },
+    {
+      "sc": "SC-110",
+      "token": "PilotLabel_LastFourChars",
+      "category": "TEST_FN",
+      "defined_in": [
+        "client/Assets/_Project/Tests/EditMode/MiningViewModelTests.cs"
+      ]
+    },
+    {
+      "sc": "SC-110",
+      "token": "DiscoveryList_KeysByActorIdNotLabel",
+      "category": "TEST_FN",
+      "defined_in": [
+        "client/Assets/_Project/Tests/EditMode/MiningViewModelTests.cs"
+      ]
+    },
+    {
+      "sc": "SC-71",
+      "token": "DepositTableEntry_HasNoServerOnlyFields",
+      "category": "TEST_FN",
+      "defined_in": [
+        "client/Assets/_Project/Tests/EditMode/GreyboxMiningDataTests.cs"
+      ]
+    },
+    {
+      "sc": "SC-71",
+      "token": "DepositMarker_FollowsMessageNotDataCopy",
+      "category": "TEST_FN",
+      "defined_in": [
+        "client/Assets/_Project/Tests/PlayMode/GreyboxMiningSessionPlayModeTests.cs"
+      ]
+    },
+    {
+      "sc": "SC-79",
+      "token": "actor_id",
+      "category": "NON_TEST_IDENT",
+      "defined_in": []
+    },
+    {
+      "sc": "SC-87",
+      "token": "initial_reserve_kg",
+      "category": "NON_TEST_IDENT",
+      "defined_in": []
+    },
+    {
+      "sc": "SC-87",
+      "token": "STARFALL_DATA_DIR",
+      "category": "NON_TEST_IDENT",
+      "defined_in": []
+    },
+    {
+      "sc": "SC-89",
+      "token": "recording_lag",
+      "category": "NON_TEST_IDENT",
+      "defined_in": []
+    },
+    {
+      "sc": "SC-90",
+      "token": "MINERAL_MINED",
+      "category": "NON_TEST_IDENT",
+      "defined_in": []
+    },
+    {
+      "sc": "SC-107",
+      "token": "pg_constraint",
+      "category": "NON_TEST_IDENT",
+      "defined_in": []
+    },
+    {
+      "sc": "SC-107",
+      "token": "pg_trigger",
+      "category": "NON_TEST_IDENT",
+      "defined_in": []
+    },
+    {
+      "sc": "SC-109",
+      "token": "check_violation",
+      "category": "NON_CODE",
+      "defined_in": []
+    }
+  ],
+  "filters": [
+    {
+      "sc": "SC-05",
+      "source": "cargo",
+      "token": "cargo test -p starfall-game-server data::tests::reject_c",
+      "kind": "rust",
+      "crate": "starfall-game-server",
+      "workspace": "server",
+      "cargo_flags": [],
+      "name": "data::tests::reject_c",
+      "libtest_flags": [],
+      "note": "",
+      "run_name": "data::tests::reject_c",
+      "argv": [
+        "test",
+        "-p",
+        "starfall-game-server",
+        "--locked",
+        "--",
+        "data::tests::reject_c"
+      ],
+      "cwd": "server",
+      "rc": 0,
+      "seconds": 0.4,
+      "log": "_workspace\\p1-02-mining\\evidence\\tool_check_20261005\\filters_before_r3\\logs\\001_SC-05_starfall-game-server__data_tests_reject_c.log",
+      "ran": 16,
+      "ok": 16,
+      "failed": [],
+      "ignored": [],
+      "names": [
+        "data::tests::reject_c05_cooldown_fractional",
+        "data::tests::reject_c06_regen_interval_fractional",
+        "data::tests::reject_c10_overlapping_mining_zones",
+        "data::tests::reject_c04_deposit_outside_soft_boundary",
+        "data::tests::reject_c11_rule_version_wrong_prefix",
+        "data::tests::reject_c01_deposit_unknown_mineral",
+        "data::tests::reject_c12_produces_event_type_not_registered",
+        "data::tests::reject_c08_duplicate_mineral_id",
+        "data::tests::reject_c02_mineral_without_deposit",
+        "data::tests::reject_c03_deposit_wrong_star_system",
+        "data::tests::reject_c09_duplicate_deposit_id",
+        "data::tests::reject_c07_regen_exceeds_initial_reserve",
+        "data::tests::reject_c15_mining_rules_schema_violation",
+        "data::tests::reject_c16_significance_rule_schema_violation",
+        "data::tests::reject_c13_mineral_schema_violation",
+        "data::tests::reject_c14_deposit_field_schema_violation"
+      ],
+      "ghost": false,
+      "scope": "named",
+      "also_named_by": {}
+    },
+    {
+      "sc": "SC-05",
+      "source": "bare",
+      "token": "data::tests::reject_c01_deposit_unknown_mineral",
+      "kind": "rust",
+      "crate": "starfall-game-server",
+      "workspace": "server",
+      "cargo_flags": [],
+      "name": "data::tests::reject_c01_deposit_unknown_mineral",
+      "libtest_flags": [],
+      "note": "",
+      "run_name": "data::tests::reject_c01_deposit_unknown_mineral",
+      "argv": [
+        "test",
+        "-p",
+        "starfall-game-server",
+        "--locked",
+        "--",
+        "data::tests::reject_c01_deposit_unknown_mineral"
+      ],
+      "cwd": "server",
+      "rc": 0,
+      "seconds": 0.4,
+      "log": "_workspace\\p1-02-mining\\evidence\\tool_check_20261005\\filters_before_r3\\logs\\002_SC-05_starfall-game-server__data_tests_reject_c01_deposit_unknown_mineral.log",
+      "ran": 1,
+      "ok": 1,
+      "failed": [],
+      "ignored": [],
+      "names": [
+        "data::tests::reject_c01_deposit_unknown_mineral"
+      ],
+      "ghost": false,
+      "scope": "named",
+      "also_named_by": {}
+    },
+    {
+      "sc": "SC-05",
+      "source": "bare",
+      "token": "data::tests::reject_c16_*",
+      "kind": "rust",
+      "crate": "starfall-game-server",
+      "workspace": "server",
+      "cargo_flags": [],
+      "name": "data::tests::reject_c16_*",
+      "libtest_flags": [],
+      "note": "",
+      "run_name": "data::tests::reject_c16_",
+      "argv": [
+        "test",
+        "-p",
+        "starfall-game-server",
+        "--locked",
+        "--",
+        "data::tests::reject_c16_"
+      ],
+      "cwd": "server",
+      "rc": 0,
+      "seconds": 0.4,
+      "log": "_workspace\\p1-02-mining\\evidence\\tool_check_20261005\\filters_before_r3\\logs\\003_SC-05_starfall-game-server__data_tests_reject_c16__.log",
+      "ran": 1,
+      "ok": 1,
+      "failed": [],
+      "ignored": [],
+      "names": [
+        "data::tests::reject_c16_significance_rule_schema_violation"
+      ],
+      "ghost": false,
+      "scope": "named",
+      "also_named_by": {}
+    },
+    {
+      "sc": "SC-05",
+      "source": "bare",
+      "token": "data::tests::accepts_unmodified_copy",
+      "kind": "rust",
+      "crate": "starfall-game-server",
+      "workspace": "server",
+      "cargo_flags": [],
+      "name": "data::tests::accepts_unmodified_copy",
+      "libtest_flags": [],
+      "note": "",
+      "run_name": "data::tests::accepts_unmodified_copy",
+      "argv": [
+        "test",
+        "-p",
+        "starfall-game-server",
+        "--locked",
+        "--",
+        "data::tests::accepts_unmodified_copy"
+      ],
+      "cwd": "server",
+      "rc": 0,
+      "seconds": 0.4,
+      "log": "_workspace\\p1-02-mining\\evidence\\tool_check_20261005\\filters_before_r3\\logs\\004_SC-05_starfall-game-server__data_tests_accepts_unmodified_copy.log",
+      "ran": 1,
+      "ok": 1,
+      "failed": [],
+      "ignored": [],
+      "names": [
+        "data::tests::accepts_unmodified_copy"
+      ],
+      "ghost": false,
+      "scope": "named",
+      "also_named_by": {}
+    },
+    {
+      "sc": "SC-08",
+      "source": "cargo",
+      "token": "cargo test -p starfall-sim mining::accept_*",
+      "kind": "rust",
+      "crate": "starfall-sim",
+      "workspace": "server",
+      "cargo_flags": [],
+      "name": "mining::accept_*",
+      "libtest_flags": [],
+      "note": "",
+      "run_name": "mining::accept_",
+      "argv": [
+        "test",
+        "-p",
+        "starfall-sim",
+        "--locked",
+        "--",
+        "mining::accept_"
+      ],
+      "cwd": "server",
+      "rc": 0,
+      "seconds": 0.3,
+      "log": "_workspace\\p1-02-mining\\evidence\\tool_check_20261005\\filters_before_r3\\logs\\005_SC-08_starfall-sim__mining_accept__.log",
+      "ran": 1,
+      "ok": 1,
+      "failed": [],
+      "ignored": [],
+      "names": [
+        "simulation::tests::mining::accept_mine_produces_event_and_both_messages"
+      ],
+      "ghost": false,
+      "scope": "named",
+      "also_named_by": {}
+    },
+    {
+      "sc": "SC-09",
+      "source": "cargo",
+      "token": "cargo test -p starfall-sim mining::reject_*",
+      "kind": "rust",
+      "crate": "starfall-sim",
+      "workspace": "server",
+      "cargo_flags": [],
+      "name": "mining::reject_*",
+      "libtest_flags": [],
+      "note": "",
+      "run_name": "mining::reject_",
+      "argv": [
+        "test",
+        "-p",
+        "starfall-sim",
+        "--locked",
+        "--",
+        "mining::reject_"
+      ],
+      "cwd": "server",
+      "rc": 0,
+      "seconds": 0.3,
+      "log": "_workspace\\p1-02-mining\\evidence\\tool_check_20261005\\filters_before_r3\\logs\\006_SC-09_starfall-sim__mining_reject__.log",
+      "ran": 2,
+      "ok": 2,
+      "failed": [],
+      "ignored": [],
+      "names": [
+        "simulation::tests::mining::reject_does_not_start_cooldown",
+        "simulation::tests::mining::reject_order_adjacent_pairs_pick_the_earlier_one"
+      ],
+      "ghost": false,
+      "scope": "named",
+      "also_named_by": {
+        "simulation::tests::mining::reject_does_not_start_cooldown": [
+          "SC-11"
+        ],
+        "simulation::tests::mining::reject_order_adjacent_pairs_pick_the_earlier_one": [
+          "SC-10"
+        ]
+      }
+    },
+    {
+      "sc": "SC-09",
+      "source": "cargo",
+      "token": "cargo test -p starfall-sim --release",
+      "kind": "rust",
+      "crate": "starfall-sim",
+      "workspace": "server",
+      "cargo_flags": [
+        "--release"
+      ],
+      "name": "",
+      "libtest_flags": [],
+      "note": "",
+      "run_name": "",
+      "argv": [
+        "test",
+        "-p",
+        "starfall-sim",
+        "--locked",
+        "--release",
+        "--"
+      ],
+      "cwd": "server",
+      "rc": 0,
+      "seconds": 0.3,
+      "log": "_workspace\\p1-02-mining\\evidence\\tool_check_20261005\\filters_before_r3\\logs\\007_SC-09_starfall-sim_--release_ALL.log",
+      "ran": 80,
+      "ok": 80,
+      "failed": [],
+      "ignored": [
+        "replay_worker",
+        "mining_replay_worker"
+      ],
+      "names": [
+        "mining::tests::effective_remaining_applies_partial_intervals",
+        "mining::tests::effective_remaining_caps_at_initial_reserve",
+        "mining::tests::effective_remaining_is_identity_within_the_same_interval",
+        "session::tests::remember_detects_duplicates",
+        "mining::tests::within_speed_limit_includes_the_boundary",
+        "mining::tests::effective_remaining_never_regresses_when_now_is_before_as_of",
+        "simulation::tests::after_resume_input_seq_one_is_accepted",
+        "session::tests::remember_evicts_oldest_beyond_capacity",
+        "mining::tests::within_mining_range_uses_squared_comparison_and_includes_the_boundary",
+        "simulation::tests::later_lower_seq_is_stale_after_a_higher_seq_already_won_this_tick",
+        "simulation::tests::carry_forward_expires_after_configured_ticks_then_decays_by_damping_only",
+        "simulation::tests::commands_beyond_the_per_tick_cap_are_rate_limited",
+        "simulation::tests::mining::accept_mine_produces_event_and_both_messages",
+        "mining::tests::regen_closed_form_matches_stepwise_simulation",
+        "simulation::tests::mining::capacity_exceeded_rejects_without_panicking",
+        "simulation::tests::ac3_d1_reconnect_does_not_perturb_f64_physics_state",
+        "simulation::tests::mining::cooldown_before_range_in_judgement_order",
+        "simulation::tests::mining::dup_same_session_resend_is_rejected_as_duplicate",
+        "simulation::tests::mining::deposit_field_state_reveal_mixes_unconfirmed_and_revealed_and_stays_revealed_after_full_regen",
+        "simulation::tests::mining::dup_across_reconnect_within_linger_window_is_rejected",
+        "simulation::tests::mining::dup_two_sessions_same_tick_accept_one_duplicate_one",
+        "simulation::tests::mining::duplicate_command_id_across_different_sessions_is_rejected",
+        "simulation::tests::mining::each_rejection_reason_leaves_prior_accepted_state_untouched",
+        "simulation::tests::mining::out_of_range_deposit_is_rejected",
+        "simulation::tests::mining::each_rejection_reason_leaves_prior_accepted_state_untouched_reasons_3_6_7",
+        "simulation::tests::mining::range_uses_pre_integration_state",
+        "simulation::tests::mining::partial_then_depleted_when_remaining_is_less_than_extraction_yield",
+        "simulation::tests::mining::reject_does_not_start_cooldown",
+        "simulation::tests::mining::rejected_mine_changes_nothing",
+        "simulation::tests::mining::reject_order_adjacent_pairs_pick_the_earlier_one",
+        "simulation::tests::mining::rejected_resend_branches",
+        "simulation::tests::mining::resource_depleted_when_remaining_reaches_zero",
+        "simulation::tests::mining::reversing_submission_order_reverses_the_winner",
+        "simulation::tests::mining::same_tick_submission_order_determines_the_winner_not_ship_id",
+        "simulation::tests::mining::ship_too_fast_is_rejected",
+        "simulation::tests::mining::target_unknown_deposit_id_is_rejected",
+        "simulation::tests::only_the_last_of_five_inputs_in_one_tick_wins",
+        "simulation::tests::opening_a_session_spawns_a_ship_caused_by_session_opened",
+        "simulation::tests::r4_s3_release_arm_signals_without_fabricating_an_event",
+        "simulation::tests::r4_s6_close_before_open_resumes_without_superseding",
+        "simulation::tests::r4_s6_open_before_close_supersedes_the_old_session",
+        "simulation::tests::reconnect_within_linger_window_resumes_the_same_ship",
+        "simulation::tests::r4_s1_concurrent_sessions_do_not_orphan_or_fabricate_causation",
+        "simulation::tests::ship_moves_forward_through_the_tick_loop",
+        "simulation::tests::shutdown_despawns_both_active_and_lingering_ships",
+        "simulation::tests::snapshot_ships_are_sorted_by_ship_id",
+        "simulation::tests::snapshot_ticks_send_one_snapshot_per_open_session",
+        "simulation::tests::spawn_position_matches_a_configured_spawn_point",
+        "simulation::tests::step_is_deterministic_for_the_same_inputs",
+        "simulation::tests::session_close_lingers_then_expires_into_a_single_despawn",
+        "simulation::tests::tick_advances_by_exactly_one_from_start_tick",
+        "world::integrate::tests::attitude_settles_without_overshoot",
+        "world::integrate::tests::auto_level_does_not_oscillate_when_holding_attitude",
+        "world::integrate::tests::brake_ignores_thrust_and_applies_single_damping",
+        "world::integrate::tests::coasting_decays_gradually_not_instantly",
+        "world::integrate::tests::degenerate_aim_keeps_current_attitude_and_is_flagged",
+        "world::integrate::tests::diagonal_thrust_is_clamped_to_main_thrust_magnitude",
+        "world::integrate::tests::forward_thrust_only_moves_z_and_matches_hand_calculation",
+        "world::integrate::tests::hard_boundary_removes_only_radial_velocity",
+        "world::integrate::tests::soft_boundary_pulls_toward_origin_without_blocking_thrust",
+        "world::quantise::tests::clamps_to_contract_range",
+        "world::quantise::tests::quantise_dequantise_round_trip_within_half_ulp",
+        "world::quantise::tests::round_half_away_from_zero_matches_adr_0009_table",
+        "world::quat::tests::hamilton_product_matches_hand_computation",
+        "world::quat::tests::identity_rotation_is_a_no_op",
+        "world::integrate::tests::speed_never_exceeds_max_speed",
+        "world::quat::tests::ninety_degree_yaw_rotates_forward_to_right",
+        "world::quat::tests::renormalize_falls_back_to_identity_when_degenerate",
+        "world::spawn::tests::choose_spawn_point_avoids_occupied_points",
+        "world::spawn::tests::choose_spawn_point_picks_a_free_point_when_available",
+        "world::spawn::tests::different_actors_usually_differ",
+        "world::spawn::tests::facing_toward_origin_handles_true_antipode",
+        "world::spawn::tests::facing_toward_origin_points_back_at_the_spawn_point",
+        "world::spawn::tests::same_actor_same_world_always_same_index",
+        "world::spawn::tests::spawn_hash_is_pinned_for_fixed_inputs",
+        "world::vec3::tests::cross_product_is_right_handed_algebraically",
+        "world::vec3::tests::length_and_normalize_round_trip",
+        "world::vec3::tests::normalize_rejects_below_threshold",
+        "ac8_two_process_replay_produces_byte_identical_snapshots",
+        "sc33_two_process_replay_with_mining_is_byte_identical"
+      ],
+      "ghost": false,
+      "scope": "whole",
+      "also_named_by": {}
+    },
+    {
+      "sc": "SC-10",
+      "source": "cargo",
+      "token": "cargo test -p starfall-sim mining::reject_order_*",
+      "kind": "rust",
+      "crate": "starfall-sim",
+      "workspace": "server",
+      "cargo_flags": [],
+      "name": "mining::reject_order_*",
+      "libtest_flags": [],
+      "note": "",
+      "run_name": "mining::reject_order_",
+      "argv": [
+        "test",
+        "-p",
+        "starfall-sim",
+        "--locked",
+        "--",
+        "mining::reject_order_"
+      ],
+      "cwd": "server",
+      "rc": 0,
+      "seconds": 0.2,
+      "log": "_workspace\\p1-02-mining\\evidence\\tool_check_20261005\\filters_before_r3\\logs\\008_SC-10_starfall-sim__mining_reject_order__.log",
+      "ran": 1,
+      "ok": 1,
+      "failed": [],
+      "ignored": [],
+      "names": [
+        "simulation::tests::mining::reject_order_adjacent_pairs_pick_the_earlier_one"
+      ],
+      "ghost": false,
+      "scope": "named",
+      "also_named_by": {
+        "simulation::tests::mining::reject_order_adjacent_pairs_pick_the_earlier_one": [
+          "SC-09"
+        ]
+      }
+    },
+    {
+      "sc": "SC-11",
+      "source": "cargo",
+      "token": "cargo test -p starfall-sim mining::reject_does_not_start_cooldown",
+      "kind": "rust",
+      "crate": "starfall-sim",
+      "workspace": "server",
+      "cargo_flags": [],
+      "name": "mining::reject_does_not_start_cooldown",
+      "libtest_flags": [],
+      "note": "",
+      "run_name": "mining::reject_does_not_start_cooldown",
+      "argv": [
+        "test",
+        "-p",
+        "starfall-sim",
+        "--locked",
+        "--",
+        "mining::reject_does_not_start_cooldown"
+      ],
+      "cwd": "server",
+      "rc": 0,
+      "seconds": 0.2,
+      "log": "_workspace\\p1-02-mining\\evidence\\tool_check_20261005\\filters_before_r3\\logs\\009_SC-11_starfall-sim__mining_reject_does_not_start_cooldown.log",
+      "ran": 1,
+      "ok": 1,
+      "failed": [],
+      "ignored": [],
+      "names": [
+        "simulation::tests::mining::reject_does_not_start_cooldown"
+      ],
+      "ghost": false,
+      "scope": "named",
+      "also_named_by": {
+        "simulation::tests::mining::reject_does_not_start_cooldown": [
+          "SC-09"
+        ]
+      }
+    },
+    {
+      "sc": "SC-12",
+      "source": "cargo",
+      "token": "cargo test -p starfall-sim mining::partial_then_depleted",
+      "kind": "rust",
+      "crate": "starfall-sim",
+      "workspace": "server",
+      "cargo_flags": [],
+      "name": "mining::partial_then_depleted",
+      "libtest_flags": [],
+      "note": "",
+      "run_name": "mining::partial_then_depleted",
+      "argv": [
+        "test",
+        "-p",
+        "starfall-sim",
+        "--locked",
+        "--",
+        "mining::partial_then_depleted"
+      ],
+      "cwd": "server",
+      "rc": 0,
+      "seconds": 0.3,
+      "log": "_workspace\\p1-02-mining\\evidence\\tool_check_20261005\\filters_before_r3\\logs\\010_SC-12_starfall-sim__mining_partial_then_depleted.log",
+      "ran": 1,
+      "ok": 1,
+      "failed": [],
+      "ignored": [],
+      "names": [
+        "simulation::tests::mining::partial_then_depleted_when_remaining_is_less_than_extraction_yield"
+      ],
+      "ghost": false,
+      "scope": "named",
+      "also_named_by": {}
+    },
+    {
+      "sc": "SC-13",
+      "source": "cargo",
+      "token": "cargo test -p starfall-sim mining::same_tick_submission_order",
+      "kind": "rust",
+      "crate": "starfall-sim",
+      "workspace": "server",
+      "cargo_flags": [],
+      "name": "mining::same_tick_submission_order",
+      "libtest_flags": [],
+      "note": "",
+      "run_name": "mining::same_tick_submission_order",
+      "argv": [
+        "test",
+        "-p",
+        "starfall-sim",
+        "--locked",
+        "--",
+        "mining::same_tick_submission_order"
+      ],
+      "cwd": "server",
+      "rc": 0,
+      "seconds": 0.4,
+      "log": "_workspace\\p1-02-mining\\evidence\\tool_check_20261005\\filters_before_r3\\logs\\011_SC-13_starfall-sim__mining_same_tick_submission_order.log",
+      "ran": 1,
+      "ok": 1,
+      "failed": [],
+      "ignored": [],
+      "names": [
+        "simulation::tests::mining::same_tick_submission_order_determines_the_winner_not_ship_id"
+      ],
+      "ghost": false,
+      "scope": "named",
+      "also_named_by": {}
+    },
+    {
+      "sc": "SC-14",
+      "source": "cargo",
+      "token": "cargo test -p starfall-sim mining::tests::regen_closed_form_matches_stepwise",
+      "kind": "rust",
+      "crate": "starfall-sim",
+      "workspace": "server",
+      "cargo_flags": [],
+      "name": "mining::tests::regen_closed_form_matches_stepwise",
+      "libtest_flags": [],
+      "note": "",
+      "run_name": "mining::tests::regen_closed_form_matches_stepwise",
+      "argv": [
+        "test",
+        "-p",
+        "starfall-sim",
+        "--locked",
+        "--",
+        "mining::tests::regen_closed_form_matches_stepwise"
+      ],
+      "cwd": "server",
+      "rc": 0,
+      "seconds": 0.2,
+      "log": "_workspace\\p1-02-mining\\evidence\\tool_check_20261005\\filters_before_r3\\logs\\012_SC-14_starfall-sim__mining_tests_regen_closed_form_matches_stepwise.log",
+      "ran": 1,
+      "ok": 1,
+      "failed": [],
+      "ignored": [],
+      "names": [
+        "mining::tests::regen_closed_form_matches_stepwise_simulation"
+      ],
+      "ghost": false,
+      "scope": "named",
+      "also_named_by": {}
+    },
+    {
+      "sc": "SC-15",
+      "source": "cargo",
+      "token": "cargo test -p starfall-sim mining::range_uses_pre_integration_state",
+      "kind": "rust",
+      "crate": "starfall-sim",
+      "workspace": "server",
+      "cargo_flags": [],
+      "name": "mining::range_uses_pre_integration_state",
+      "libtest_flags": [],
+      "note": "",
+      "run_name": "mining::range_uses_pre_integration_state",
+      "argv": [
+        "test",
+        "-p",
+        "starfall-sim",
+        "--locked",
+        "--",
+        "mining::range_uses_pre_integration_state"
+      ],
+      "cwd": "server",
+      "rc": 0,
+      "seconds": 0.2,
+      "log": "_workspace\\p1-02-mining\\evidence\\tool_check_20261005\\filters_before_r3\\logs\\013_SC-15_starfall-sim__mining_range_uses_pre_integration_state.log",
+      "ran": 1,
+      "ok": 1,
+      "failed": [],
+      "ignored": [],
+      "names": [
+        "simulation::tests::mining::range_uses_pre_integration_state"
+      ],
+      "ghost": false,
+      "scope": "named",
+      "also_named_by": {}
+    },
+    {
+      "sc": "SC-16",
+      "source": "cargo",
+      "token": "cargo test -p starfall-sim mining::dup_same_session",
+      "kind": "rust",
+      "crate": "starfall-sim",
+      "workspace": "server",
+      "cargo_flags": [],
+      "name": "mining::dup_same_session",
+      "libtest_flags": [],
+      "note": "",
+      "run_name": "mining::dup_same_session",
+      "argv": [
+        "test",
+        "-p",
+        "starfall-sim",
+        "--locked",
+        "--",
+        "mining::dup_same_session"
+      ],
+      "cwd": "server",
+      "rc": 0,
+      "seconds": 0.2,
+      "log": "_workspace\\p1-02-mining\\evidence\\tool_check_20261005\\filters_before_r3\\logs\\014_SC-16_starfall-sim__mining_dup_same_session.log",
+      "ran": 1,
+      "ok": 1,
+      "failed": [],
+      "ignored": [],
+      "names": [
+        "simulation::tests::mining::dup_same_session_resend_is_rejected_as_duplicate"
+      ],
+      "ghost": false,
+      "scope": "named",
+      "also_named_by": {}
+    },
+    {
+      "sc": "SC-17",
+      "source": "cargo",
+      "token": "cargo test -p starfall-sim mining::dup_across_reconnect",
+      "kind": "rust",
+      "crate": "starfall-sim",
+      "workspace": "server",
+      "cargo_flags": [],
+      "name": "mining::dup_across_reconnect",
+      "libtest_flags": [],
+      "note": "",
+      "run_name": "mining::dup_across_reconnect",
+      "argv": [
+        "test",
+        "-p",
+        "starfall-sim",
+        "--locked",
+        "--",
+        "mining::dup_across_reconnect"
+      ],
+      "cwd": "server",
+      "rc": 0,
+      "seconds": 0.2,
+      "log": "_workspace\\p1-02-mining\\evidence\\tool_check_20261005\\filters_before_r3\\logs\\015_SC-17_starfall-sim__mining_dup_across_reconnect.log",
+      "ran": 1,
+      "ok": 1,
+      "failed": [],
+      "ignored": [],
+      "names": [
+        "simulation::tests::mining::dup_across_reconnect_within_linger_window_is_rejected"
+      ],
+      "ghost": false,
+      "scope": "named",
+      "also_named_by": {}
+    },
+    {
+      "sc": "SC-18",
+      "source": "cargo",
+      "token": "cargo test -p starfall-persistence restart_reloads_economic_state_so_cas_succeeds_and_duplicates_are_rejected",
+      "kind": "rust",
+      "crate": "starfall-persistence",
+      "workspace": "server",
+      "cargo_flags": [],
+      "name": "restart_reloads_economic_state_so_cas_succeeds_and_duplicates_are_rejected",
+      "libtest_flags": [],
+      "note": "",
+      "run_name": "restart_reloads_economic_state_so_cas_succeeds_and_duplicates_are_rejected",
+      "argv": [
+        "test",
+        "-p",
+        "starfall-persistence",
+        "--locked",
+        "--",
+        "restart_reloads_economic_state_so_cas_succeeds_and_duplicates_are_rejected"
+      ],
+      "cwd": "server",
+      "rc": 0,
+      "seconds": 1.2,
+      "log": "_workspace\\p1-02-mining\\evidence\\tool_check_20261005\\filters_before_r3\\logs\\016_SC-18_starfall-persistence__restart_reloads_economic_state_so_cas_succeeds_and_duplicates_are_rejected.log",
+      "ran": 1,
+      "ok": 1,
+      "failed": [],
+      "ignored": [],
+      "names": [
+        "restart_reloads_economic_state_so_cas_succeeds_and_duplicates_are_rejected"
+      ],
+      "ghost": false,
+      "scope": "named",
+      "also_named_by": {
+        "restart_reloads_economic_state_so_cas_succeeds_and_duplicates_are_rejected": [
+          "SC-26"
+        ]
+      }
+    },
+    {
+      "sc": "SC-19",
+      "source": "cargo",
+      "token": "cargo test -p starfall-sim mining::dup_two_sessions_same_tick",
+      "kind": "rust",
+      "crate": "starfall-sim",
+      "workspace": "server",
+      "cargo_flags": [],
+      "name": "mining::dup_two_sessions_same_tick",
+      "libtest_flags": [],
+      "note": "",
+      "run_name": "mining::dup_two_sessions_same_tick",
+      "argv": [
+        "test",
+        "-p",
+        "starfall-sim",
+        "--locked",
+        "--",
+        "mining::dup_two_sessions_same_tick"
+      ],
+      "cwd": "server",
+      "rc": 0,
+      "seconds": 0.2,
+      "log": "_workspace\\p1-02-mining\\evidence\\tool_check_20261005\\filters_before_r3\\logs\\017_SC-19_starfall-sim__mining_dup_two_sessions_same_tick.log",
+      "ran": 1,
+      "ok": 1,
+      "failed": [],
+      "ignored": [],
+      "names": [
+        "simulation::tests::mining::dup_two_sessions_same_tick_accept_one_duplicate_one"
+      ],
+      "ghost": false,
+      "scope": "named",
+      "also_named_by": {}
+    },
+    {
+      "sc": "SC-20",
+      "source": "cargo",
+      "token": "cargo test -p starfall-persistence batch_recommit_is_noop",
+      "kind": "rust",
+      "crate": "starfall-persistence",
+      "workspace": "server",
+      "cargo_flags": [],
+      "name": "batch_recommit_is_noop",
+      "libtest_flags": [],
+      "note": "",
+      "run_name": "batch_recommit_is_noop",
+      "argv": [
+        "test",
+        "-p",
+        "starfall-persistence",
+        "--locked",
+        "--",
+        "batch_recommit_is_noop"
+      ],
+      "cwd": "server",
+      "rc": 0,
+      "seconds": 1.0,
+      "log": "_workspace\\p1-02-mining\\evidence\\tool_check_20261005\\filters_before_r3\\logs\\018_SC-20_starfall-persistence__batch_recommit_is_noop.log",
+      "ran": 1,
+      "ok": 1,
+      "failed": [],
+      "ignored": [],
+      "names": [
+        "batch_recommit_is_noop"
+      ],
+      "ghost": false,
+      "scope": "named",
+      "also_named_by": {}
+    },
+    {
+      "sc": "SC-20",
+      "source": "bare",
+      "token": "ambiguous_commit_retry_counts_once",
+      "kind": "rust",
+      "crate": "starfall-persistence",
+      "workspace": "server",
+      "cargo_flags": [],
+      "name": "ambiguous_commit_retry_counts_once",
+      "libtest_flags": [],
+      "note": "",
+      "run_name": "ambiguous_commit_retry_counts_once",
+      "argv": [
+        "test",
+        "-p",
+        "starfall-persistence",
+        "--locked",
+        "--",
+        "ambiguous_commit_retry_counts_once"
+      ],
+      "cwd": "server",
+      "rc": 0,
+      "seconds": 1.1,
+      "log": "_workspace\\p1-02-mining\\evidence\\tool_check_20261005\\filters_before_r3\\logs\\019_SC-20_starfall-persistence__ambiguous_commit_retry_counts_once.log",
+      "ran": 1,
+      "ok": 1,
+      "failed": [],
+      "ignored": [],
+      "names": [
+        "ambiguous_commit_retry_counts_once"
+      ],
+      "ghost": false,
+      "scope": "named",
+      "also_named_by": {}
+    },
+    {
+      "sc": "SC-21",
+      "source": "cargo",
+      "token": "cargo test -p starfall-persistence dup_reaching_db_halts",
+      "kind": "rust",
+      "crate": "starfall-persistence",
+      "workspace": "server",
+      "cargo_flags": [],
+      "name": "dup_reaching_db_halts",
+      "libtest_flags": [],
+      "note": "",
+      "run_name": "dup_reaching_db_halts",
+      "argv": [
+        "test",
+        "-p",
+        "starfall-persistence",
+        "--locked",
+        "--",
+        "dup_reaching_db_halts"
+      ],
+      "cwd": "server",
+      "rc": 0,
+      "seconds": 1.0,
+      "log": "_workspace\\p1-02-mining\\evidence\\tool_check_20261005\\filters_before_r3\\logs\\020_SC-21_starfall-persistence__dup_reaching_db_halts.log",
+      "ran": 1,
+      "ok": 1,
+      "failed": [],
+      "ignored": [],
+      "names": [
+        "dup_reaching_db_halts"
+      ],
+      "ghost": false,
+      "scope": "named",
+      "also_named_by": {}
+    },
+    {
+      "sc": "SC-21",
+      "source": "cargo",
+      "token": "cargo test -p starfall-persistence dup_across_restart",
+      "kind": "rust",
+      "crate": "starfall-persistence",
+      "workspace": "server",
+      "cargo_flags": [],
+      "name": "dup_across_restart",
+      "libtest_flags": [],
+      "note": "",
+      "run_name": "dup_across_restart",
+      "argv": [
+        "test",
+        "-p",
+        "starfall-persistence",
+        "--locked",
+        "--",
+        "dup_across_restart"
+      ],
+      "cwd": "server",
+      "rc": 0,
+      "seconds": 1.2,
+      "log": "_workspace\\p1-02-mining\\evidence\\tool_check_20261005\\filters_before_r3\\logs\\021_SC-21_starfall-persistence__dup_across_restart.log",
+      "ran": 1,
+      "ok": 1,
+      "failed": [],
+      "ignored": [],
+      "names": [
+        "dup_across_restart"
+      ],
+      "ghost": false,
+      "scope": "named",
+      "also_named_by": {}
+    },
+    {
+      "sc": "SC-100",
+      "source": "cargo",
+      "token": "cargo test -p starfall-sim duplicate_command_id_across_different_sessions_is_rejected",
+      "kind": "rust",
+      "crate": "starfall-sim",
+      "workspace": "server",
+      "cargo_flags": [],
+      "name": "duplicate_command_id_across_different_sessions_is_rejected",
+      "libtest_flags": [],
+      "note": "",
+      "run_name": "duplicate_command_id_across_different_sessions_is_rejected",
+      "argv": [
+        "test",
+        "-p",
+        "starfall-sim",
+        "--locked",
+        "--",
+        "duplicate_command_id_across_different_sessions_is_rejected"
+      ],
+      "cwd": "server",
+      "rc": 0,
+      "seconds": 0.2,
+      "log": "_workspace\\p1-02-mining\\evidence\\tool_check_20261005\\filters_before_r3\\logs\\022_SC-100_starfall-sim__duplicate_command_id_across_different_sessions_is_rejected.log",
+      "ran": 1,
+      "ok": 1,
+      "failed": [],
+      "ignored": [],
+      "names": [
+        "simulation::tests::mining::duplicate_command_id_across_different_sessions_is_rejected"
+      ],
+      "ghost": false,
+      "scope": "named",
+      "also_named_by": {}
+    },
+    {
+      "sc": "SC-100",
+      "source": "cargo",
+      "token": "cargo test -p starfall-persistence dup_cross_actor_no_halt",
+      "kind": "rust",
+      "crate": "starfall-persistence",
+      "workspace": "server",
+      "cargo_flags": [],
+      "name": "dup_cross_actor_no_halt",
+      "libtest_flags": [],
+      "note": "",
+      "run_name": "dup_cross_actor_no_halt",
+      "argv": [
+        "test",
+        "-p",
+        "starfall-persistence",
+        "--locked",
+        "--",
+        "dup_cross_actor_no_halt"
+      ],
+      "cwd": "server",
+      "rc": 0,
+      "seconds": 1.2,
+      "log": "_workspace\\p1-02-mining\\evidence\\tool_check_20261005\\filters_before_r3\\logs\\023_SC-100_starfall-persistence__dup_cross_actor_no_halt.log",
+      "ran": 1,
+      "ok": 1,
+      "failed": [],
+      "ignored": [],
+      "names": [
+        "dup_cross_actor_no_halt"
+      ],
+      "ghost": false,
+      "scope": "named",
+      "also_named_by": {}
+    },
+    {
+      "sc": "SC-100",
+      "source": "bare",
+      "token": "cross_world_same_command_id_accepted",
+      "kind": "rust",
+      "crate": "starfall-persistence",
+      "workspace": "server",
+      "cargo_flags": [],
+      "name": "cross_world_same_command_id_accepted",
+      "libtest_flags": [],
+      "note": "",
+      "run_name": "cross_world_same_command_id_accepted",
+      "argv": [
+        "test",
+        "-p",
+        "starfall-persistence",
+        "--locked",
+        "--",
+        "cross_world_same_command_id_accepted"
+      ],
+      "cwd": "server",
+      "rc": 0,
+      "seconds": 1.5,
+      "log": "_workspace\\p1-02-mining\\evidence\\tool_check_20261005\\filters_before_r3\\logs\\024_SC-100_starfall-persistence__cross_world_same_command_id_accepted.log",
+      "ran": 1,
+      "ok": 1,
+      "failed": [],
+      "ignored": [],
+      "names": [
+        "cross_world_same_command_id_accepted"
+      ],
+      "ghost": false,
+      "scope": "named",
+      "also_named_by": {}
+    },
+    {
+      "sc": "SC-22",
+      "source": "cargo",
+      "token": "cargo test -p starfall-sim mining::rejected_resend_*",
+      "kind": "rust",
+      "crate": "starfall-sim",
+      "workspace": "server",
+      "cargo_flags": [],
+      "name": "mining::rejected_resend_*",
+      "libtest_flags": [],
+      "note": "",
+      "run_name": "mining::rejected_resend_",
+      "argv": [
+        "test",
+        "-p",
+        "starfall-sim",
+        "--locked",
+        "--",
+        "mining::rejected_resend_"
+      ],
+      "cwd": "server",
+      "rc": 0,
+      "seconds": 0.2,
+      "log": "_workspace\\p1-02-mining\\evidence\\tool_check_20261005\\filters_before_r3\\logs\\025_SC-22_starfall-sim__mining_rejected_resend__.log",
+      "ran": 1,
+      "ok": 1,
+      "failed": [],
+      "ignored": [],
+      "names": [
+        "simulation::tests::mining::rejected_resend_branches"
+      ],
+      "ghost": false,
+      "scope": "named",
+      "also_named_by": {}
+    },
+    {
+      "sc": "SC-25",
+      "source": "cargo",
+      "token": "cargo test -p starfall-persistence cas_mismatch_halts",
+      "kind": "rust",
+      "crate": "starfall-persistence",
+      "workspace": "server",
+      "cargo_flags": [],
+      "name": "cas_mismatch_halts",
+      "libtest_flags": [],
+      "note": "",
+      "run_name": "cas_mismatch_halts",
+      "argv": [
+        "test",
+        "-p",
+        "starfall-persistence",
+        "--locked",
+        "--",
+        "cas_mismatch_halts"
+      ],
+      "cwd": "server",
+      "rc": 0,
+      "seconds": 1.3,
+      "log": "_workspace\\p1-02-mining\\evidence\\tool_check_20261005\\filters_before_r3\\logs\\026_SC-25_starfall-persistence__cas_mismatch_halts.log",
+      "ran": 1,
+      "ok": 1,
+      "failed": [],
+      "ignored": [],
+      "names": [
+        "cas_mismatch_halts_the_world"
+      ],
+      "ghost": false,
+      "scope": "named",
+      "also_named_by": {}
+    },
+    {
+      "sc": "SC-26",
+      "source": "cargo",
+      "token": "cargo test -p starfall-persistence restart_reloads_economic_state_so_cas_succeeds_and_duplicates_are_rejected",
+      "kind": "rust",
+      "crate": "starfall-persistence",
+      "workspace": "server",
+      "cargo_flags": [],
+      "name": "restart_reloads_economic_state_so_cas_succeeds_and_duplicates_are_rejected",
+      "libtest_flags": [],
+      "note": "",
+      "run_name": "restart_reloads_economic_state_so_cas_succeeds_and_duplicates_are_rejected",
+      "argv": [
+        "test",
+        "-p",
+        "starfall-persistence",
+        "--locked",
+        "--",
+        "restart_reloads_economic_state_so_cas_succeeds_and_duplicates_are_rejected"
+      ],
+      "cwd": "server",
+      "rc": 0,
+      "seconds": 1.1,
+      "log": "_workspace\\p1-02-mining\\evidence\\tool_check_20261005\\filters_before_r3\\logs\\027_SC-26_starfall-persistence__restart_reloads_economic_state_so_cas_succeeds_and_duplicates_are_rejected.log",
+      "ran": 1,
+      "ok": 1,
+      "failed": [],
+      "ignored": [],
+      "names": [
+        "restart_reloads_economic_state_so_cas_succeeds_and_duplicates_are_rejected"
+      ],
+      "ghost": false,
+      "scope": "named",
+      "also_named_by": {
+        "restart_reloads_economic_state_so_cas_succeeds_and_duplicates_are_rejected": [
+          "SC-18"
+        ]
+      }
+    },
+    {
+      "sc": "SC-26",
+      "source": "cargo",
+      "token": "cargo test -p starfall-persistence load_economic_state_matches_the_database",
+      "kind": "rust",
+      "crate": "starfall-persistence",
+      "workspace": "server",
+      "cargo_flags": [],
+      "name": "load_economic_state_matches_the_database",
+      "libtest_flags": [],
+      "note": "",
+      "run_name": "load_economic_state_matches_the_database",
+      "argv": [
+        "test",
+        "-p",
+        "starfall-persistence",
+        "--locked",
+        "--",
+        "load_economic_state_matches_the_database"
+      ],
+      "cwd": "server",
+      "rc": 0,
+      "seconds": 1.1,
+      "log": "_workspace\\p1-02-mining\\evidence\\tool_check_20261005\\filters_before_r3\\logs\\028_SC-26_starfall-persistence__load_economic_state_matches_the_database.log",
+      "ran": 1,
+      "ok": 1,
+      "failed": [],
+      "ignored": [],
+      "names": [
+        "load_economic_state_matches_the_database"
+      ],
+      "ghost": false,
+      "scope": "named",
+      "also_named_by": {}
+    },
+    {
+      "sc": "SC-26",
+      "source": "cargo",
+      "token": "cargo test -p starfall-persistence load_economic_state_on_empty_world_returns_empty_lists",
+      "kind": "rust",
+      "crate": "starfall-persistence",
+      "workspace": "server",
+      "cargo_flags": [],
+      "name": "load_economic_state_on_empty_world_returns_empty_lists",
+      "libtest_flags": [],
+      "note": "",
+      "run_name": "load_economic_state_on_empty_world_returns_empty_lists",
+      "argv": [
+        "test",
+        "-p",
+        "starfall-persistence",
+        "--locked",
+        "--",
+        "load_economic_state_on_empty_world_returns_empty_lists"
+      ],
+      "cwd": "server",
+      "rc": 0,
+      "seconds": 1.0,
+      "log": "_workspace\\p1-02-mining\\evidence\\tool_check_20261005\\filters_before_r3\\logs\\029_SC-26_starfall-persistence__load_economic_state_on_empty_world_returns_empty_lists.log",
+      "ran": 1,
+      "ok": 1,
+      "failed": [],
+      "ignored": [],
+      "names": [
+        "load_economic_state_on_empty_world_returns_empty_lists"
+      ],
+      "ghost": false,
+      "scope": "named",
+      "also_named_by": {}
+    },
+    {
+      "sc": "SC-27",
+      "source": "cargo",
+      "token": "cargo test -p starfall-persistence recorded_at_failure_fails_batch",
+      "kind": "rust",
+      "crate": "starfall-persistence",
+      "workspace": "server",
+      "cargo_flags": [],
+      "name": "recorded_at_failure_fails_batch",
+      "libtest_flags": [],
+      "note": "",
+      "run_name": "recorded_at_failure_fails_batch",
+      "argv": [
+        "test",
+        "-p",
+        "starfall-persistence",
+        "--locked",
+        "--",
+        "recorded_at_failure_fails_batch"
+      ],
+      "cwd": "server",
+      "rc": 0,
+      "seconds": 1.2,
+      "log": "_workspace\\p1-02-mining\\evidence\\tool_check_20261005\\filters_before_r3\\logs\\030_SC-27_starfall-persistence__recorded_at_failure_fails_batch.log",
+      "ran": 1,
+      "ok": 1,
+      "failed": [],
+      "ignored": [],
+      "names": [
+        "recorded_at_failure_fails_batch"
+      ],
+      "ghost": false,
+      "scope": "named",
+      "also_named_by": {}
+    },
+    {
+      "sc": "SC-101",
+      "source": "cargo",
+      "token": "cargo test -p starfall-persistence payload_serialize_failure_fails_batch",
+      "kind": "rust",
+      "crate": "starfall-persistence",
+      "workspace": "server",
+      "cargo_flags": [],
+      "name": "payload_serialize_failure_fails_batch",
+      "libtest_flags": [],
+      "note": "",
+      "run_name": "payload_serialize_failure_fails_batch",
+      "argv": [
+        "test",
+        "-p",
+        "starfall-persistence",
+        "--locked",
+        "--",
+        "payload_serialize_failure_fails_batch"
+      ],
+      "cwd": "server",
+      "rc": 0,
+      "seconds": 1.0,
+      "log": "_workspace\\p1-02-mining\\evidence\\tool_check_20261005\\filters_before_r3\\logs\\031_SC-101_starfall-persistence__payload_serialize_failure_fails_batch.log",
+      "ran": 1,
+      "ok": 1,
+      "failed": [],
+      "ignored": [],
+      "names": [
+        "payload_serialize_failure_fails_batch"
+      ],
+      "ghost": false,
+      "scope": "named",
+      "also_named_by": {}
+    },
+    {
+      "sc": "SC-101",
+      "source": "bare",
+      "token": "payload_null_rejected_by_db",
+      "kind": "rust",
+      "crate": "starfall-persistence",
+      "workspace": "server",
+      "cargo_flags": [],
+      "name": "payload_null_rejected_by_db",
+      "libtest_flags": [],
+      "note": "",
+      "run_name": "payload_null_rejected_by_db",
+      "argv": [
+        "test",
+        "-p",
+        "starfall-persistence",
+        "--locked",
+        "--",
+        "payload_null_rejected_by_db"
+      ],
+      "cwd": "server",
+      "rc": 0,
+      "seconds": 1.0,
+      "log": "_workspace\\p1-02-mining\\evidence\\tool_check_20261005\\filters_before_r3\\logs\\032_SC-101_starfall-persistence__payload_null_rejected_by_db.log",
+      "ran": 1,
+      "ok": 1,
+      "failed": [],
+      "ignored": [],
+      "names": [
+        "payload_null_rejected_by_db"
+      ],
+      "ghost": false,
+      "scope": "named",
+      "also_named_by": {}
+    },
+    {
+      "sc": "SC-102",
+      "source": "cargo",
+      "token": "cargo test -p starfall-persistence no_commit_after_fatal",
+      "kind": "rust",
+      "crate": "starfall-persistence",
+      "workspace": "server",
+      "cargo_flags": [],
+      "name": "no_commit_after_fatal",
+      "libtest_flags": [],
+      "note": "",
+      "run_name": "no_commit_after_fatal",
+      "argv": [
+        "test",
+        "-p",
+        "starfall-persistence",
+        "--locked",
+        "--",
+        "no_commit_after_fatal"
+      ],
+      "cwd": "server",
+      "rc": 0,
+      "seconds": 1.1,
+      "log": "_workspace\\p1-02-mining\\evidence\\tool_check_20261005\\filters_before_r3\\logs\\033_SC-102_starfall-persistence__no_commit_after_fatal.log",
+      "ran": 1,
+      "ok": 1,
+      "failed": [],
+      "ignored": [],
+      "names": [
+        "no_commit_after_fatal"
+      ],
+      "ghost": false,
+      "scope": "named",
+      "also_named_by": {}
+    },
+    {
+      "sc": "SC-103",
+      "source": "cargo",
+      "token": "cargo test -p starfall-persistence admin_shutdown_is_transient",
+      "kind": "rust",
+      "crate": "starfall-persistence",
+      "workspace": "server",
+      "cargo_flags": [],
+      "name": "admin_shutdown_is_transient",
+      "libtest_flags": [],
+      "note": "",
+      "run_name": "admin_shutdown_is_transient",
+      "argv": [
+        "test",
+        "-p",
+        "starfall-persistence",
+        "--locked",
+        "--",
+        "admin_shutdown_is_transient"
+      ],
+      "cwd": "server",
+      "rc": 0,
+      "seconds": 2.1,
+      "log": "_workspace\\p1-02-mining\\evidence\\tool_check_20261005\\filters_before_r3\\logs\\034_SC-103_starfall-persistence__admin_shutdown_is_transient.log",
+      "ran": 1,
+      "ok": 1,
+      "failed": [],
+      "ignored": [],
+      "names": [
+        "admin_shutdown_is_transient"
+      ],
+      "ghost": false,
+      "scope": "named",
+      "also_named_by": {}
+    },
+    {
+      "sc": "SC-112",
+      "source": "cargo",
+      "token": "cargo test -p starfall-persistence terminated_backend_is_retried",
+      "kind": "rust",
+      "crate": "starfall-persistence",
+      "workspace": "server",
+      "cargo_flags": [],
+      "name": "terminated_backend_is_retried",
+      "libtest_flags": [],
+      "note": "",
+      "run_name": "terminated_backend_is_retried",
+      "argv": [
+        "test",
+        "-p",
+        "starfall-persistence",
+        "--locked",
+        "--",
+        "terminated_backend_is_retried"
+      ],
+      "cwd": "server",
+      "rc": 0,
+      "seconds": 16.5,
+      "log": "_workspace\\p1-02-mining\\evidence\\tool_check_20261005\\filters_before_r3\\logs\\035_SC-112_starfall-persistence__terminated_backend_is_retried.log",
+      "ran": 1,
+      "ok": 1,
+      "failed": [],
+      "ignored": [],
+      "names": [
+        "terminated_backend_is_retried"
+      ],
+      "ghost": false,
+      "scope": "named",
+      "also_named_by": {}
+    },
+    {
+      "sc": "SC-28",
+      "source": "cargo",
+      "token": "cargo test -p starfall-gateway recording_lag_boundary_*",
+      "kind": "rust",
+      "crate": "starfall-gateway",
+      "workspace": "server",
+      "cargo_flags": [],
+      "name": "recording_lag_boundary_*",
+      "libtest_flags": [],
+      "note": "",
+      "run_name": "recording_lag_boundary_",
+      "argv": [
+        "test",
+        "-p",
+        "starfall-gateway",
+        "--locked",
+        "--",
+        "recording_lag_boundary_"
+      ],
+      "cwd": "server",
+      "rc": 0,
+      "seconds": 0.6,
+      "log": "_workspace\\p1-02-mining\\evidence\\tool_check_20261005\\filters_before_r3\\logs\\036_SC-28_starfall-gateway__recording_lag_boundary__.log",
+      "ran": 1,
+      "ok": 1,
+      "failed": [],
+      "ignored": [],
+      "names": [
+        "ws::tests::recording_lag_boundary_rejects_mine_resource_but_accepts_ship_control"
+      ],
+      "ghost": false,
+      "scope": "named",
+      "also_named_by": {}
+    },
+    {
+      "sc": "SC-33",
+      "source": "cargo",
+      "token": "cargo test -p starfall-sim --test mining_replay",
+      "kind": "rust",
+      "crate": "starfall-sim",
+      "workspace": "server",
+      "cargo_flags": [
+        "--test",
+        "mining_replay"
+      ],
+      "name": "",
+      "libtest_flags": [],
+      "note": "",
+      "run_name": "",
+      "argv": [
+        "test",
+        "-p",
+        "starfall-sim",
+        "--locked",
+        "--test",
+        "mining_replay",
+        "--"
+      ],
+      "cwd": "server",
+      "rc": 0,
+      "seconds": 0.2,
+      "log": "_workspace\\p1-02-mining\\evidence\\tool_check_20261005\\filters_before_r3\\logs\\037_SC-33_starfall-sim_--test_mining_replay_ALL.log",
+      "ran": 1,
+      "ok": 1,
+      "failed": [],
+      "ignored": [
+        "mining_replay_worker"
+      ],
+      "names": [
+        "sc33_two_process_replay_with_mining_is_byte_identical"
+      ],
+      "ghost": false,
+      "scope": "whole",
+      "also_named_by": {}
+    },
+    {
+      "sc": "SC-34",
+      "source": "cargo",
+      "token": "cargo test -p starfall-sim",
+      "kind": "rust",
+      "crate": "starfall-sim",
+      "workspace": "server",
+      "cargo_flags": [],
+      "name": "",
+      "libtest_flags": [],
+      "note": "",
+      "run_name": "",
+      "argv": [
+        "test",
+        "-p",
+        "starfall-sim",
+        "--locked",
+        "--"
+      ],
+      "cwd": "server",
+      "rc": 0,
+      "seconds": 0.4,
+      "log": "_workspace\\p1-02-mining\\evidence\\tool_check_20261005\\filters_before_r3\\logs\\038_SC-34_starfall-sim__ALL.log",
+      "ran": 80,
+      "ok": 80,
+      "failed": [],
+      "ignored": [
+        "replay_worker",
+        "mining_replay_worker"
+      ],
+      "names": [
+        "mining::tests::effective_remaining_applies_partial_intervals",
+        "mining::tests::effective_remaining_never_regresses_when_now_is_before_as_of",
+        "mining::tests::effective_remaining_is_identity_within_the_same_interval",
+        "mining::tests::regen_closed_form_matches_stepwise_simulation",
+        "mining::tests::within_speed_limit_includes_the_boundary",
+        "session::tests::remember_detects_duplicates",
+        "mining::tests::within_mining_range_uses_squared_comparison_and_includes_the_boundary",
+        "mining::tests::effective_remaining_caps_at_initial_reserve",
+        "simulation::tests::commands_beyond_the_per_tick_cap_are_rate_limited",
+        "simulation::tests::after_resume_input_seq_one_is_accepted",
+        "simulation::tests::carry_forward_expires_after_configured_ticks_then_decays_by_damping_only",
+        "simulation::tests::later_lower_seq_is_stale_after_a_higher_seq_already_won_this_tick",
+        "simulation::tests::mining::accept_mine_produces_event_and_both_messages",
+        "simulation::tests::mining::capacity_exceeded_rejects_without_panicking",
+        "simulation::tests::mining::dup_across_reconnect_within_linger_window_is_rejected",
+        "simulation::tests::mining::dup_same_session_resend_is_rejected_as_duplicate",
+        "simulation::tests::mining::cooldown_before_range_in_judgement_order",
+        "simulation::tests::mining::dup_two_sessions_same_tick_accept_one_duplicate_one",
+        "simulation::tests::mining::duplicate_command_id_across_different_sessions_is_rejected",
+        "simulation::tests::mining::out_of_range_deposit_is_rejected",
+        "simulation::tests::mining::deposit_field_state_reveal_mixes_unconfirmed_and_revealed_and_stays_revealed_after_full_regen",
+        "simulation::tests::mining::range_uses_pre_integration_state",
+        "simulation::tests::ac3_d1_reconnect_does_not_perturb_f64_physics_state",
+        "simulation::tests::mining::reject_does_not_start_cooldown",
+        "simulation::tests::mining::rejected_mine_changes_nothing",
+        "simulation::tests::mining::each_rejection_reason_leaves_prior_accepted_state_untouched",
+        "simulation::tests::mining::partial_then_depleted_when_remaining_is_less_than_extraction_yield",
+        "simulation::tests::mining::rejected_resend_branches",
+        "simulation::tests::mining::reversing_submission_order_reverses_the_winner",
+        "simulation::tests::mining::ship_too_fast_is_rejected",
+        "session::tests::remember_evicts_oldest_beyond_capacity",
+        "simulation::tests::mining::same_tick_submission_order_determines_the_winner_not_ship_id",
+        "simulation::tests::mining::resource_depleted_when_remaining_reaches_zero",
+        "simulation::tests::mining::target_unknown_deposit_id_is_rejected",
+        "simulation::tests::only_the_last_of_five_inputs_in_one_tick_wins",
+        "simulation::tests::opening_a_session_spawns_a_ship_caused_by_session_opened",
+        "simulation::tests::mining::each_rejection_reason_leaves_prior_accepted_state_untouched_reasons_3_6_7",
+        "simulation::tests::r4_s6_close_before_open_resumes_without_superseding",
+        "simulation::tests::r4_s3_despawn_ship_panics_in_debug_when_the_linger_cause_is_missing",
+        "simulation::tests::r4_s6_open_before_close_supersedes_the_old_session",
+        "simulation::tests::reconnect_within_linger_window_resumes_the_same_ship",
+        "simulation::tests::mining::reject_order_adjacent_pairs_pick_the_earlier_one",
+        "simulation::tests::shutdown_despawns_both_active_and_lingering_ships",
+        "simulation::tests::ship_moves_forward_through_the_tick_loop",
+        "simulation::tests::snapshot_ticks_send_one_snapshot_per_open_session",
+        "simulation::tests::spawn_position_matches_a_configured_spawn_point",
+        "simulation::tests::tick_advances_by_exactly_one_from_start_tick",
+        "simulation::tests::snapshot_ships_are_sorted_by_ship_id",
+        "world::integrate::tests::attitude_settles_without_overshoot",
+        "simulation::tests::step_is_deterministic_for_the_same_inputs",
+        "world::integrate::tests::brake_ignores_thrust_and_applies_single_damping",
+        "world::integrate::tests::auto_level_does_not_oscillate_when_holding_attitude",
+        "world::integrate::tests::coasting_decays_gradually_not_instantly",
+        "world::integrate::tests::degenerate_aim_keeps_current_attitude_and_is_flagged",
+        "world::integrate::tests::diagonal_thrust_is_clamped_to_main_thrust_magnitude",
+        "world::integrate::tests::forward_thrust_only_moves_z_and_matches_hand_calculation",
+        "world::integrate::tests::hard_boundary_removes_only_radial_velocity",
+        "world::integrate::tests::soft_boundary_pulls_toward_origin_without_blocking_thrust",
+        "world::quantise::tests::clamps_to_contract_range",
+        "world::quantise::tests::quantise_dequantise_round_trip_within_half_ulp",
+        "world::quantise::tests::round_half_away_from_zero_matches_adr_0009_table",
+        "world::quat::tests::hamilton_product_matches_hand_computation",
+        "world::quat::tests::identity_rotation_is_a_no_op",
+        "world::quat::tests::ninety_degree_yaw_rotates_forward_to_right",
+        "world::quat::tests::renormalize_falls_back_to_identity_when_degenerate",
+        "world::spawn::tests::choose_spawn_point_avoids_occupied_points",
+        "world::spawn::tests::choose_spawn_point_picks_a_free_point_when_available",
+        "world::spawn::tests::different_actors_usually_differ",
+        "world::spawn::tests::facing_toward_origin_handles_true_antipode",
+        "world::spawn::tests::facing_toward_origin_points_back_at_the_spawn_point",
+        "world::spawn::tests::same_actor_same_world_always_same_index",
+        "world::spawn::tests::spawn_hash_is_pinned_for_fixed_inputs",
+        "world::vec3::tests::cross_product_is_right_handed_algebraically",
+        "world::vec3::tests::length_and_normalize_round_trip",
+        "world::vec3::tests::normalize_rejects_below_threshold",
+        "world::integrate::tests::speed_never_exceeds_max_speed",
+        "simulation::tests::session_close_lingers_then_expires_into_a_single_despawn",
+        "simulation::tests::r4_s1_concurrent_sessions_do_not_orphan_or_fabricate_causation",
+        "ac8_two_process_replay_produces_byte_identical_snapshots",
+        "sc33_two_process_replay_with_mining_is_byte_identical"
+      ],
+      "ghost": false,
+      "scope": "whole",
+      "also_named_by": {}
+    },
+    {
+      "sc": "SC-36",
+      "source": "cargo",
+      "token": "cargo test -p starfall-contracts invalid_fixtures_layered",
+      "kind": "rust",
+      "crate": "starfall-contracts",
+      "workspace": "server",
+      "cargo_flags": [],
+      "name": "invalid_fixtures_layered",
+      "libtest_flags": [],
+      "note": "",
+      "run_name": "invalid_fixtures_layered",
+      "argv": [
+        "test",
+        "-p",
+        "starfall-contracts",
+        "--locked",
+        "--",
+        "invalid_fixtures_layered"
+      ],
+      "cwd": "server",
+      "rc": 0,
+      "seconds": 1.0,
+      "log": "_workspace\\p1-02-mining\\evidence\\tool_check_20261005\\filters_before_r3\\logs\\039_SC-36_starfall-contracts__invalid_fixtures_layered.log",
+      "ran": 1,
+      "ok": 1,
+      "failed": [],
+      "ignored": [],
+      "names": [
+        "invalid_fixtures_layered"
+      ],
+      "ghost": false,
+      "scope": "named",
+      "also_named_by": {}
+    },
+    {
+      "sc": "SC-37",
+      "source": "cargo",
+      "token": "cargo test -p starfall-contracts required_removal_mutations",
+      "kind": "rust",
+      "crate": "starfall-contracts",
+      "workspace": "server",
+      "cargo_flags": [],
+      "name": "required_removal_mutations",
+      "libtest_flags": [],
+      "note": "",
+      "run_name": "required_removal_mutations",
+      "argv": [
+        "test",
+        "-p",
+        "starfall-contracts",
+        "--locked",
+        "--",
+        "required_removal_mutations"
+      ],
+      "cwd": "server",
+      "rc": 0,
+      "seconds": 0.9,
+      "log": "_workspace\\p1-02-mining\\evidence\\tool_check_20261005\\filters_before_r3\\logs\\040_SC-37_starfall-contracts__required_removal_mutations.log",
+      "ran": 1,
+      "ok": 1,
+      "failed": [],
+      "ignored": [],
+      "names": [
+        "required_removal_mutations"
+      ],
+      "ghost": false,
+      "scope": "named",
+      "also_named_by": {}
+    },
+    {
+      "sc": "SC-38",
+      "source": "cargo",
+      "token": "cargo test -p starfall-contracts registry_responses",
+      "kind": "rust",
+      "crate": "starfall-contracts",
+      "workspace": "server",
+      "cargo_flags": [],
+      "name": "registry_responses",
+      "libtest_flags": [],
+      "note": "",
+      "run_name": "registry_responses",
+      "argv": [
+        "test",
+        "-p",
+        "starfall-contracts",
+        "--locked",
+        "--",
+        "registry_responses"
+      ],
+      "cwd": "server",
+      "rc": 0,
+      "seconds": 1.0,
+      "log": "_workspace\\p1-02-mining\\evidence\\tool_check_20261005\\filters_before_r3\\logs\\041_SC-38_starfall-contracts__registry_responses.log",
+      "ran": 1,
+      "ok": 1,
+      "failed": [],
+      "ignored": [],
+      "names": [
+        "registry_responses"
+      ],
+      "ghost": false,
+      "scope": "named",
+      "also_named_by": {}
+    },
+    {
+      "sc": "SC-39",
+      "source": "cargo",
+      "token": "cargo test -p starfall-sim mining::deposit_field_state_reveal",
+      "kind": "rust",
+      "crate": "starfall-sim",
+      "workspace": "server",
+      "cargo_flags": [],
+      "name": "mining::deposit_field_state_reveal",
+      "libtest_flags": [],
+      "note": "",
+      "run_name": "mining::deposit_field_state_reveal",
+      "argv": [
+        "test",
+        "-p",
+        "starfall-sim",
+        "--locked",
+        "--",
+        "mining::deposit_field_state_reveal"
+      ],
+      "cwd": "server",
+      "rc": 0,
+      "seconds": 0.2,
+      "log": "_workspace\\p1-02-mining\\evidence\\tool_check_20261005\\filters_before_r3\\logs\\042_SC-39_starfall-sim__mining_deposit_field_state_reveal.log",
+      "ran": 1,
+      "ok": 1,
+      "failed": [],
+      "ignored": [],
+      "names": [
+        "simulation::tests::mining::deposit_field_state_reveal_mixes_unconfirmed_and_revealed_and_stays_revealed_after_full_regen"
+      ],
+      "ghost": false,
+      "scope": "named",
+      "also_named_by": {}
+    },
+    {
+      "sc": "SC-41",
+      "source": "cargo",
+      "token": "cargo test -p starfall-history first_extraction_discovers",
+      "kind": "rust",
+      "crate": "starfall-history",
+      "workspace": "server",
+      "cargo_flags": [],
+      "name": "first_extraction_discovers",
+      "libtest_flags": [],
+      "note": "",
+      "run_name": "first_extraction_discovers",
+      "argv": [
+        "test",
+        "-p",
+        "starfall-history",
+        "--locked",
+        "--",
+        "first_extraction_discovers"
+      ],
+      "cwd": "server",
+      "rc": 0,
+      "seconds": 0.2,
+      "log": "_workspace\\p1-02-mining\\evidence\\tool_check_20261005\\filters_before_r3\\logs\\043_SC-41_starfall-history__first_extraction_discovers.log",
+      "ran": 1,
+      "ok": 1,
+      "failed": [],
+      "ignored": [],
+      "names": [
+        "first_extraction_discovers"
+      ],
+      "ghost": false,
+      "scope": "named",
+      "also_named_by": {}
+    },
+    {
+      "sc": "SC-42",
+      "source": "cargo",
+      "token": "cargo test -p starfall-history second_extraction_is_silent",
+      "kind": "rust",
+      "crate": "starfall-history",
+      "workspace": "server",
+      "cargo_flags": [],
+      "name": "second_extraction_is_silent",
+      "libtest_flags": [],
+      "note": "",
+      "run_name": "second_extraction_is_silent",
+      "argv": [
+        "test",
+        "-p",
+        "starfall-history",
+        "--locked",
+        "--",
+        "second_extraction_is_silent"
+      ],
+      "cwd": "server",
+      "rc": 0,
+      "seconds": 0.2,
+      "log": "_workspace\\p1-02-mining\\evidence\\tool_check_20261005\\filters_before_r3\\logs\\044_SC-42_starfall-history__second_extraction_is_silent.log",
+      "ran": 1,
+      "ok": 1,
+      "failed": [],
+      "ignored": [],
+      "names": [
+        "second_extraction_is_silent"
+      ],
+      "ghost": false,
+      "scope": "named",
+      "also_named_by": {}
+    },
+    {
+      "sc": "SC-43",
+      "source": "cargo",
+      "token": "cargo test -p starfall-history other_mineral_discovers",
+      "kind": "rust",
+      "crate": "starfall-history",
+      "workspace": "server",
+      "cargo_flags": [],
+      "name": "other_mineral_discovers",
+      "libtest_flags": [],
+      "note": "",
+      "run_name": "other_mineral_discovers",
+      "argv": [
+        "test",
+        "-p",
+        "starfall-history",
+        "--locked",
+        "--",
+        "other_mineral_discovers"
+      ],
+      "cwd": "server",
+      "rc": 0,
+      "seconds": 0.4,
+      "log": "_workspace\\p1-02-mining\\evidence\\tool_check_20261005\\filters_before_r3\\logs\\045_SC-43_starfall-history__other_mineral_discovers.log",
+      "ran": 1,
+      "ok": 1,
+      "failed": [],
+      "ignored": [],
+      "names": [
+        "other_mineral_discovers"
+      ],
+      "ghost": false,
+      "scope": "named",
+      "also_named_by": {}
+    },
+    {
+      "sc": "SC-44",
+      "source": "cargo",
+      "token": "cargo test -p starfall-history same_tick_lower_sequence_wins",
+      "kind": "rust",
+      "crate": "starfall-history",
+      "workspace": "server",
+      "cargo_flags": [],
+      "name": "same_tick_lower_sequence_wins",
+      "libtest_flags": [],
+      "note": "",
+      "run_name": "same_tick_lower_sequence_wins",
+      "argv": [
+        "test",
+        "-p",
+        "starfall-history",
+        "--locked",
+        "--",
+        "same_tick_lower_sequence_wins"
+      ],
+      "cwd": "server",
+      "rc": 0,
+      "seconds": 0.2,
+      "log": "_workspace\\p1-02-mining\\evidence\\tool_check_20261005\\filters_before_r3\\logs\\046_SC-44_starfall-history__same_tick_lower_sequence_wins.log",
+      "ran": 1,
+      "ok": 1,
+      "failed": [],
+      "ignored": [],
+      "names": [
+        "same_tick_lower_sequence_wins"
+      ],
+      "ghost": false,
+      "scope": "named",
+      "also_named_by": {}
+    },
+    {
+      "sc": "SC-45",
+      "source": "cargo",
+      "token": "cargo test -p starfall-history reprocessing_is_idempotent",
+      "kind": "rust",
+      "crate": "starfall-history",
+      "workspace": "server",
+      "cargo_flags": [],
+      "name": "reprocessing_is_idempotent",
+      "libtest_flags": [],
+      "note": "",
+      "run_name": "reprocessing_is_idempotent",
+      "argv": [
+        "test",
+        "-p",
+        "starfall-history",
+        "--locked",
+        "--",
+        "reprocessing_is_idempotent"
+      ],
+      "cwd": "server",
+      "rc": 0,
+      "seconds": 0.2,
+      "log": "_workspace\\p1-02-mining\\evidence\\tool_check_20261005\\filters_before_r3\\logs\\047_SC-45_starfall-history__reprocessing_is_idempotent.log",
+      "ran": 1,
+      "ok": 1,
+      "failed": [],
+      "ignored": [],
+      "names": [
+        "reprocessing_is_idempotent"
+      ],
+      "ghost": false,
+      "scope": "named",
+      "also_named_by": {}
+    },
+    {
+      "sc": "SC-46",
+      "source": "cargo",
+      "token": "cargo test -p starfall-history batch_boundary_invariance",
+      "kind": "rust",
+      "crate": "starfall-history",
+      "workspace": "server",
+      "cargo_flags": [],
+      "name": "batch_boundary_invariance",
+      "libtest_flags": [],
+      "note": "",
+      "run_name": "batch_boundary_invariance",
+      "argv": [
+        "test",
+        "-p",
+        "starfall-history",
+        "--locked",
+        "--",
+        "batch_boundary_invariance"
+      ],
+      "cwd": "server",
+      "rc": 0,
+      "seconds": 0.2,
+      "log": "_workspace\\p1-02-mining\\evidence\\tool_check_20261005\\filters_before_r3\\logs\\048_SC-46_starfall-history__batch_boundary_invariance.log",
+      "ran": 1,
+      "ok": 1,
+      "failed": [],
+      "ignored": [],
+      "names": [
+        "batch_boundary_invariance"
+      ],
+      "ghost": false,
+      "scope": "named",
+      "also_named_by": {}
+    },
+    {
+      "sc": "SC-47",
+      "source": "cargo",
+      "token": "cargo test -p starfall-persistence history_runner_ordering_permutations",
+      "kind": "rust",
+      "crate": "starfall-persistence",
+      "workspace": "server",
+      "cargo_flags": [],
+      "name": "history_runner_ordering_permutations",
+      "libtest_flags": [],
+      "note": "",
+      "run_name": "history_runner_ordering_permutations",
+      "argv": [
+        "test",
+        "-p",
+        "starfall-persistence",
+        "--locked",
+        "--",
+        "history_runner_ordering_permutations"
+      ],
+      "cwd": "server",
+      "rc": 0,
+      "seconds": 7.9,
+      "log": "_workspace\\p1-02-mining\\evidence\\tool_check_20261005\\filters_before_r3\\logs\\049_SC-47_starfall-persistence__history_runner_ordering_permutations.log",
+      "ran": 1,
+      "ok": 1,
+      "failed": [],
+      "ignored": [],
+      "names": [
+        "history_runner_ordering_permutations"
+      ],
+      "ghost": false,
+      "scope": "named",
+      "also_named_by": {}
+    },
+    {
+      "sc": "SC-48",
+      "source": "cargo",
+      "token": "cargo test -p starfall-history out_of_order_input_rejected",
+      "kind": "rust",
+      "crate": "starfall-history",
+      "workspace": "server",
+      "cargo_flags": [],
+      "name": "out_of_order_input_rejected",
+      "libtest_flags": [],
+      "note": "",
+      "run_name": "out_of_order_input_rejected",
+      "argv": [
+        "test",
+        "-p",
+        "starfall-history",
+        "--locked",
+        "--",
+        "out_of_order_input_rejected"
+      ],
+      "cwd": "server",
+      "rc": 0,
+      "seconds": 0.5,
+      "log": "_workspace\\p1-02-mining\\evidence\\tool_check_20261005\\filters_before_r3\\logs\\050_SC-48_starfall-history__out_of_order_input_rejected.log",
+      "ran": 1,
+      "ok": 1,
+      "failed": [],
+      "ignored": [],
+      "names": [
+        "out_of_order_input_rejected"
+      ],
+      "ghost": false,
+      "scope": "named",
+      "also_named_by": {}
+    },
+    {
+      "sc": "SC-49",
+      "source": "cargo",
+      "token": "cargo test -p starfall-history level0_filter",
+      "kind": "rust",
+      "crate": "starfall-history",
+      "workspace": "server",
+      "cargo_flags": [],
+      "name": "level0_filter",
+      "libtest_flags": [],
+      "note": "",
+      "run_name": "level0_filter",
+      "argv": [
+        "test",
+        "-p",
+        "starfall-history",
+        "--locked",
+        "--",
+        "level0_filter"
+      ],
+      "cwd": "server",
+      "rc": 0,
+      "seconds": 0.3,
+      "log": "_workspace\\p1-02-mining\\evidence\\tool_check_20261005\\filters_before_r3\\logs\\051_SC-49_starfall-history__level0_filter.log",
+      "ran": 1,
+      "ok": 1,
+      "failed": [],
+      "ignored": [],
+      "names": [
+        "level0_filter"
+      ],
+      "ghost": false,
+      "scope": "named",
+      "also_named_by": {}
+    },
+    {
+      "sc": "SC-50",
+      "source": "cargo",
+      "token": "cargo test -p starfall-history rule_golden",
+      "kind": "rust",
+      "crate": "starfall-history",
+      "workspace": "server",
+      "cargo_flags": [],
+      "name": "rule_golden",
+      "libtest_flags": [],
+      "note": "",
+      "run_name": "rule_golden",
+      "argv": [
+        "test",
+        "-p",
+        "starfall-history",
+        "--locked",
+        "--",
+        "rule_golden"
+      ],
+      "cwd": "server",
+      "rc": 0,
+      "seconds": 0.6,
+      "log": "_workspace\\p1-02-mining\\evidence\\tool_check_20261005\\filters_before_r3\\logs\\052_SC-50_starfall-history__rule_golden.log",
+      "ran": 2,
+      "ok": 2,
+      "failed": [],
+      "ignored": [],
+      "names": [
+        "golden::rule_golden_detects_value_change_without_version_bump",
+        "golden::rule_golden"
+      ],
+      "ghost": false,
+      "scope": "named",
+      "also_named_by": {}
+    },
+    {
+      "sc": "SC-50",
+      "source": "bare",
+      "token": "rule_golden_detects_value_change_without_version_bump",
+      "kind": "rust",
+      "crate": "starfall-history",
+      "workspace": "server",
+      "cargo_flags": [],
+      "name": "rule_golden_detects_value_change_without_version_bump",
+      "libtest_flags": [],
+      "note": "",
+      "run_name": "rule_golden_detects_value_change_without_version_bump",
+      "argv": [
+        "test",
+        "-p",
+        "starfall-history",
+        "--locked",
+        "--",
+        "rule_golden_detects_value_change_without_version_bump"
+      ],
+      "cwd": "server",
+      "rc": 0,
+      "seconds": 0.2,
+      "log": "_workspace\\p1-02-mining\\evidence\\tool_check_20261005\\filters_before_r3\\logs\\053_SC-50_starfall-history__rule_golden_detects_value_change_without_version_bump.log",
+      "ran": 1,
+      "ok": 1,
+      "failed": [],
+      "ignored": [],
+      "names": [
+        "golden::rule_golden_detects_value_change_without_version_bump"
+      ],
+      "ghost": false,
+      "scope": "named",
+      "also_named_by": {}
+    },
+    {
+      "sc": "SC-51",
+      "source": "cargo",
+      "token": "cargo test -p starfall-persistence history_first_discovery_rows",
+      "kind": "rust",
+      "crate": "starfall-persistence",
+      "workspace": "server",
+      "cargo_flags": [],
+      "name": "history_first_discovery_rows",
+      "libtest_flags": [],
+      "note": "",
+      "run_name": "history_first_discovery_rows",
+      "argv": [
+        "test",
+        "-p",
+        "starfall-persistence",
+        "--locked",
+        "--",
+        "history_first_discovery_rows"
+      ],
+      "cwd": "server",
+      "rc": 0,
+      "seconds": 1.1,
+      "log": "_workspace\\p1-02-mining\\evidence\\tool_check_20261005\\filters_before_r3\\logs\\054_SC-51_starfall-persistence__history_first_discovery_rows.log",
+      "ran": 1,
+      "ok": 1,
+      "failed": [],
+      "ignored": [],
+      "names": [
+        "history_first_discovery_rows"
+      ],
+      "ghost": false,
+      "scope": "named",
+      "also_named_by": {}
+    },
+    {
+      "sc": "SC-52",
+      "source": "cargo",
+      "token": "cargo test -p starfall-persistence history_tables_append_only",
+      "kind": "rust",
+      "crate": "starfall-persistence",
+      "workspace": "server",
+      "cargo_flags": [],
+      "name": "history_tables_append_only",
+      "libtest_flags": [],
+      "note": "",
+      "run_name": "history_tables_append_only",
+      "argv": [
+        "test",
+        "-p",
+        "starfall-persistence",
+        "--locked",
+        "--",
+        "history_tables_append_only"
+      ],
+      "cwd": "server",
+      "rc": 0,
+      "seconds": 1.1,
+      "log": "_workspace\\p1-02-mining\\evidence\\tool_check_20261005\\filters_before_r3\\logs\\055_SC-52_starfall-persistence__history_tables_append_only.log",
+      "ran": 1,
+      "ok": 1,
+      "failed": [],
+      "ignored": [],
+      "names": [
+        "history_tables_append_only"
+      ],
+      "ghost": false,
+      "scope": "named",
+      "also_named_by": {}
+    },
+    {
+      "sc": "SC-53",
+      "source": "cargo",
+      "token": "cargo test -p starfall-persistence history_dedupe_unique",
+      "kind": "rust",
+      "crate": "starfall-persistence",
+      "workspace": "server",
+      "cargo_flags": [],
+      "name": "history_dedupe_unique",
+      "libtest_flags": [],
+      "note": "",
+      "run_name": "history_dedupe_unique",
+      "argv": [
+        "test",
+        "-p",
+        "starfall-persistence",
+        "--locked",
+        "--",
+        "history_dedupe_unique"
+      ],
+      "cwd": "server",
+      "rc": 0,
+      "seconds": 1.1,
+      "log": "_workspace\\p1-02-mining\\evidence\\tool_check_20261005\\filters_before_r3\\logs\\056_SC-53_starfall-persistence__history_dedupe_unique.log",
+      "ran": 1,
+      "ok": 1,
+      "failed": [],
+      "ignored": [],
+      "names": [
+        "history_dedupe_unique"
+      ],
+      "ghost": false,
+      "scope": "named",
+      "also_named_by": {}
+    },
+    {
+      "sc": "SC-54",
+      "source": "cargo",
+      "token": "cargo test -p starfall-persistence history_crash_before_commit",
+      "kind": "rust",
+      "crate": "starfall-persistence",
+      "workspace": "server",
+      "cargo_flags": [],
+      "name": "history_crash_before_commit",
+      "libtest_flags": [],
+      "note": "",
+      "run_name": "history_crash_before_commit",
+      "argv": [
+        "test",
+        "-p",
+        "starfall-persistence",
+        "--locked",
+        "--",
+        "history_crash_before_commit"
+      ],
+      "cwd": "server",
+      "rc": 0,
+      "seconds": 1.0,
+      "log": "_workspace\\p1-02-mining\\evidence\\tool_check_20261005\\filters_before_r3\\logs\\057_SC-54_starfall-persistence__history_crash_before_commit.log",
+      "ran": 1,
+      "ok": 1,
+      "failed": [],
+      "ignored": [],
+      "names": [
+        "history_crash_before_commit"
+      ],
+      "ghost": false,
+      "scope": "named",
+      "also_named_by": {}
+    },
+    {
+      "sc": "SC-55",
+      "source": "cargo",
+      "token": "cargo test -p starfall-persistence history_fail_stop",
+      "kind": "rust",
+      "crate": "starfall-persistence",
+      "workspace": "server",
+      "cargo_flags": [],
+      "name": "history_fail_stop",
+      "libtest_flags": [],
+      "note": "",
+      "run_name": "history_fail_stop",
+      "argv": [
+        "test",
+        "-p",
+        "starfall-persistence",
+        "--locked",
+        "--",
+        "history_fail_stop"
+      ],
+      "cwd": "server",
+      "rc": 0,
+      "seconds": 1.2,
+      "log": "_workspace\\p1-02-mining\\evidence\\tool_check_20261005\\filters_before_r3\\logs\\058_SC-55_starfall-persistence__history_fail_stop.log",
+      "ran": 1,
+      "ok": 1,
+      "failed": [],
+      "ignored": [],
+      "names": [
+        "history_fail_stop"
+      ],
+      "ghost": false,
+      "scope": "named",
+      "also_named_by": {}
+    },
+    {
+      "sc": "SC-56",
+      "source": "cargo",
+      "token": "cargo test -p starfall-persistence history_watermark",
+      "kind": "rust",
+      "crate": "starfall-persistence",
+      "workspace": "server",
+      "cargo_flags": [],
+      "name": "history_watermark",
+      "libtest_flags": [],
+      "note": "",
+      "run_name": "history_watermark",
+      "argv": [
+        "test",
+        "-p",
+        "starfall-persistence",
+        "--locked",
+        "--",
+        "history_watermark"
+      ],
+      "cwd": "server",
+      "rc": 0,
+      "seconds": 9.1,
+      "log": "_workspace\\p1-02-mining\\evidence\\tool_check_20261005\\filters_before_r3\\logs\\059_SC-56_starfall-persistence__history_watermark.log",
+      "ran": 1,
+      "ok": 1,
+      "failed": [],
+      "ignored": [],
+      "names": [
+        "history_watermark"
+      ],
+      "ghost": false,
+      "scope": "named",
+      "also_named_by": {}
+    },
+    {
+      "sc": "SC-57",
+      "source": "cargo",
+      "token": "cargo test -p starfall-persistence history_restart_rebuild",
+      "kind": "rust",
+      "crate": "starfall-persistence",
+      "workspace": "server",
+      "cargo_flags": [],
+      "name": "history_restart_rebuild",
+      "libtest_flags": [],
+      "note": "",
+      "run_name": "history_restart_rebuild",
+      "argv": [
+        "test",
+        "-p",
+        "starfall-persistence",
+        "--locked",
+        "--",
+        "history_restart_rebuild"
+      ],
+      "cwd": "server",
+      "rc": 0,
+      "seconds": 1.3,
+      "log": "_workspace\\p1-02-mining\\evidence\\tool_check_20261005\\filters_before_r3\\logs\\060_SC-57_starfall-persistence__history_restart_rebuild.log",
+      "ran": 1,
+      "ok": 1,
+      "failed": [],
+      "ignored": [],
+      "names": [
+        "history_restart_rebuild"
+      ],
+      "ghost": false,
+      "scope": "named",
+      "also_named_by": {}
+    },
+    {
+      "sc": "SC-105",
+      "source": "cargo",
+      "token": "cargo test -p starfall-persistence history_conflict_halts_runner_only",
+      "kind": "rust",
+      "crate": "starfall-persistence",
+      "workspace": "server",
+      "cargo_flags": [],
+      "name": "history_conflict_halts_runner_only",
+      "libtest_flags": [],
+      "note": "",
+      "run_name": "history_conflict_halts_runner_only",
+      "argv": [
+        "test",
+        "-p",
+        "starfall-persistence",
+        "--locked",
+        "--",
+        "history_conflict_halts_runner_only"
+      ],
+      "cwd": "server",
+      "rc": 0,
+      "seconds": 1.2,
+      "log": "_workspace\\p1-02-mining\\evidence\\tool_check_20261005\\filters_before_r3\\logs\\061_SC-105_starfall-persistence__history_conflict_halts_runner_only.log",
+      "ran": 1,
+      "ok": 1,
+      "failed": [],
+      "ignored": [],
+      "names": [
+        "history_conflict_halts_runner_only"
+      ],
+      "ghost": false,
+      "scope": "named",
+      "also_named_by": {}
+    },
+    {
+      "sc": "SC-106",
+      "source": "cargo",
+      "token": "cargo test -p starfall-persistence history_redelivery_is_silent",
+      "kind": "rust",
+      "crate": "starfall-persistence",
+      "workspace": "server",
+      "cargo_flags": [],
+      "name": "history_redelivery_is_silent",
+      "libtest_flags": [],
+      "note": "",
+      "run_name": "history_redelivery_is_silent",
+      "argv": [
+        "test",
+        "-p",
+        "starfall-persistence",
+        "--locked",
+        "--",
+        "history_redelivery_is_silent"
+      ],
+      "cwd": "server",
+      "rc": 0,
+      "seconds": 1.1,
+      "log": "_workspace\\p1-02-mining\\evidence\\tool_check_20261005\\filters_before_r3\\logs\\062_SC-106_starfall-persistence__history_redelivery_is_silent.log",
+      "ran": 1,
+      "ok": 1,
+      "failed": [],
+      "ignored": [],
+      "names": [
+        "history_redelivery_is_silent"
+      ],
+      "ghost": false,
+      "scope": "named",
+      "also_named_by": {}
+    },
+    {
+      "sc": "SC-111",
+      "source": "cargo",
+      "token": "cargo test -p starfall-persistence history_same_source_different_content_halts",
+      "kind": "rust",
+      "crate": "starfall-persistence",
+      "workspace": "server",
+      "cargo_flags": [],
+      "name": "history_same_source_different_content_halts",
+      "libtest_flags": [],
+      "note": "",
+      "run_name": "history_same_source_different_content_halts",
+      "argv": [
+        "test",
+        "-p",
+        "starfall-persistence",
+        "--locked",
+        "--",
+        "history_same_source_different_content_halts"
+      ],
+      "cwd": "server",
+      "rc": 0,
+      "seconds": 1.1,
+      "log": "_workspace\\p1-02-mining\\evidence\\tool_check_20261005\\filters_before_r3\\logs\\063_SC-111_starfall-persistence__history_same_source_different_content_halts.log",
+      "ran": 1,
+      "ok": 1,
+      "failed": [],
+      "ignored": [],
+      "names": [
+        "history_same_source_different_content_halts"
+      ],
+      "ghost": false,
+      "scope": "named",
+      "also_named_by": {}
+    },
+    {
+      "sc": "SC-62",
+      "source": "cargo",
+      "token": "cargo test -p starfall-persistence history_notice_after_commit_only",
+      "kind": "rust",
+      "crate": "starfall-persistence",
+      "workspace": "server",
+      "cargo_flags": [],
+      "name": "history_notice_after_commit_only",
+      "libtest_flags": [],
+      "note": "",
+      "run_name": "history_notice_after_commit_only",
+      "argv": [
+        "test",
+        "-p",
+        "starfall-persistence",
+        "--locked",
+        "--",
+        "history_notice_after_commit_only"
+      ],
+      "cwd": "server",
+      "rc": 0,
+      "seconds": 1.5,
+      "log": "_workspace\\p1-02-mining\\evidence\\tool_check_20261005\\filters_before_r3\\logs\\064_SC-62_starfall-persistence__history_notice_after_commit_only.log",
+      "ran": 1,
+      "ok": 1,
+      "failed": [],
+      "ignored": [],
+      "names": [
+        "history_notice_after_commit_only"
+      ],
+      "ghost": false,
+      "scope": "named",
+      "also_named_by": {}
+    },
+    {
+      "sc": "SC-63",
+      "source": "cargo",
+      "token": "cargo test -p starfall-gateway notice_no_gap_same_tick",
+      "kind": "rust",
+      "crate": "starfall-gateway",
+      "workspace": "server",
+      "cargo_flags": [],
+      "name": "notice_no_gap_same_tick",
+      "libtest_flags": [],
+      "note": "",
+      "run_name": "notice_no_gap_same_tick",
+      "argv": [
+        "test",
+        "-p",
+        "starfall-gateway",
+        "--locked",
+        "--",
+        "notice_no_gap_same_tick"
+      ],
+      "cwd": "server",
+      "rc": 0,
+      "seconds": 4.8,
+      "log": "_workspace\\p1-02-mining\\evidence\\tool_check_20261005\\filters_before_r3\\logs\\065_SC-63_starfall-gateway__notice_no_gap_same_tick.log",
+      "ran": 1,
+      "ok": 1,
+      "failed": [],
+      "ignored": [],
+      "names": [
+        "notice_no_gap_same_tick"
+      ],
+      "ghost": false,
+      "scope": "named",
+      "also_named_by": {}
+    },
+    {
+      "sc": "SC-114",
+      "source": "cargo",
+      "token": "cargo test -p starfall-testdb refuses_non_test_database",
+      "kind": "rust",
+      "crate": "starfall-testdb",
+      "workspace": "server",
+      "cargo_flags": [],
+      "name": "refuses_non_test_database",
+      "libtest_flags": [],
+      "note": "",
+      "run_name": "refuses_non_test_database",
+      "argv": [
+        "test",
+        "-p",
+        "starfall-testdb",
+        "--locked",
+        "--",
+        "refuses_non_test_database"
+      ],
+      "cwd": "server",
+      "rc": 0,
+      "seconds": 0.4,
+      "log": "_workspace\\p1-02-mining\\evidence\\tool_check_20261005\\filters_before_r3\\logs\\066_SC-114_starfall-testdb__refuses_non_test_database.log",
+      "ran": 1,
+      "ok": 1,
+      "failed": [],
+      "ignored": [],
+      "names": [
+        "tests::refuses_non_test_database"
+      ],
+      "ghost": false,
+      "scope": "named",
+      "also_named_by": {}
+    }
+  ]
+}

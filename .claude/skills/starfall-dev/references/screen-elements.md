@@ -28,7 +28,7 @@
 
 ### S4. 사람 사전 세션은 r1 전에 한 번 한다 (Phase 4 끝, 리더)
 - 화면 요소를 가진 모듈이 모두 완료되면, 리더가 r1 동결 **전에** 사용자에게 15분 사전 세션을 청한다.
-- 준비는 리더가 한다.
+- 준비는 리더가 `tests/e2e/unity_session.py start --slice <id> --tag <SC> --new-world`로 한다. 이 도구가 아래 순서를 그대로 수행하고, 사용자가 Play를 누르면 `status`로 접속을 확인하고, 끝나면 `stop`으로 서버를 내린다. 수동으로 할 때의 순서는 다음과 같다.
   - 발견 같은 1회성 사건을 보려면 새 월드를 만든다.
   - 서버는 `server_boot.py serve`로 띄운다. 실행 한도는 넉넉히 잡고, 끝날 때 stop 파일로 stdin `shutdown`을 보낸다.
   - **Editor는 리더가 띄운다.** 사용자에게 Editor를 닫아 달라고 한 뒤 `STARFALL_GREYBOX_AUTOBUILD=1`·`STARFALL_NET_AUTOCONNECT=1`과 `.env`의 dev 비밀값을 **그 프로세스 환경에만** 넣고, `-logFile`을 증거 디렉터리로 준다. 로그 파일이 생겼는지와 서버의 `live_connections`로 접속을 확인한다.

@@ -1,0 +1,197 @@
+{
+  "stage": "a-steady",
+  "url": "ws://127.0.0.1:8080/ws",
+  "bots": 1,
+  "seed": 42,
+  "duration_secs": 25,
+  "interval_ms": 500,
+  "send_hz": [
+    20.0
+  ],
+  "clock_base_unix_ms": 1791132708690,
+  "finished_unix_ms": 1791132735542,
+  "connect_ms": {
+    "count": 1,
+    "min_ms": 3.649,
+    "p50_ms": 3.649,
+    "p90_ms": 3.649,
+    "p99_ms": 3.649,
+    "max_ms": 3.649,
+    "mean_ms": 3.649
+  },
+  "ready_ms": {
+    "count": 1,
+    "min_ms": 50.498,
+    "p50_ms": 50.498,
+    "p90_ms": 50.498,
+    "p99_ms": 50.498,
+    "max_ms": 50.498,
+    "mean_ms": 50.498
+  },
+  "gates": {
+    "one_to_one": true,
+    "accepted_reply_pairing": true,
+    "results_partition": true,
+    "accepted_exercised": true,
+    "order_violations": 0,
+    "tick_mismatches": 0,
+    "ticks_compared": 50,
+    "server_initiated_closes": 0,
+    "connections_attempted": 1,
+    "sessions_ready": 1,
+    "correlations_collected": 1,
+    "wire_errors": 0,
+    "all_ok": true
+  },
+  "aggregate": {
+    "bot": "<aggregate of 1>",
+    "distinct_command_ids": 50,
+    "sent_total": 50,
+    "results_total": 50,
+    "replies_total": 50,
+    "accepted": 50,
+    "accepted_expecting_reply": 50,
+    "rejected": 0,
+    "rejected_by_reason": {},
+    "unknown_status": 0,
+    "missing_results": 0,
+    "missing_replies": 0,
+    "duplicate_results": 0,
+    "duplicate_replies": 0,
+    "unmatched_results": 0,
+    "unmatched_replies": 0,
+    "probe_seq_mismatches": 0,
+    "order_violations": 0,
+    "tick_mismatches": 0,
+    "ticks_compared": 50,
+    "unknown_message_types": {
+      "DEPOSIT_FIELD_STATE": 1,
+      "INVENTORY_STATE": 1
+    },
+    "wire_errors": [],
+    "errors": [],
+    "rtt": {
+      "count": 50,
+      "min_ms": 0.968,
+      "p50_ms": 18.991,
+      "p90_ms": 40.301,
+      "p99_ms": 50.19,
+      "max_ms": 50.19,
+      "mean_ms": 21.779640000000004
+    },
+    "ack": {
+      "count": 50,
+      "min_ms": 0.955,
+      "p50_ms": 18.974,
+      "p90_ms": 40.284,
+      "p99_ms": 50.171,
+      "max_ms": 50.171,
+      "mean_ms": 21.760699999999996
+    }
+  },
+  "snapshots": {
+    "observer_actor_id": null,
+    "controlled_ship_id": null,
+    "snapshots_received": 268,
+    "snapshot_bytes_received": 236692,
+    "intervals_checked": 267,
+    "interval_violations": 0,
+    "first_snapshots_excluded": 1,
+    "snapshot_interval_ticks": 2,
+    "ship_order_violations": 0,
+    "controlled_ship_missing": 0,
+    "ack_regressions": 0,
+    "ack_last": null,
+    "presence_values": {
+      "ACTIVE": 268
+    },
+    "lingering_seen": false,
+    "empty_ship_ticks": 0,
+    "max_ships_seen": 1,
+    "own_path_length_m": 0.0,
+    "own_displacement_m": 0.0,
+    "own_speed_max_mps": 0.0,
+    "own_max_radius_m": 2512.4693279910903,
+    "nearest_ship_min_m": null,
+    "first_contact_2000m_tick": null,
+    "errors": []
+  },
+  "snapshots_per_bot": [
+    {
+      "observer_actor_id": "01a0b1c2-b010-7000-8000-000000000000",
+      "controlled_ship_id": "01a107d4-2f86-763e-9481-0605961529d2",
+      "snapshots_received": 268,
+      "snapshot_bytes_received": 236692,
+      "intervals_checked": 267,
+      "interval_violations": 0,
+      "first_snapshots_excluded": 1,
+      "snapshot_interval_ticks": 2,
+      "ship_order_violations": 0,
+      "controlled_ship_missing": 0,
+      "ack_regressions": 0,
+      "ack_last": null,
+      "presence_values": {
+        "ACTIVE": 268
+      },
+      "lingering_seen": false,
+      "empty_ship_ticks": 0,
+      "max_ships_seen": 1,
+      "own_path_length_m": 0.0,
+      "own_displacement_m": 0.0,
+      "own_speed_max_mps": 0.0,
+      "own_max_radius_m": 2512.4693279910903,
+      "nearest_ship_min_m": null,
+      "first_contact_2000m_tick": null,
+      "errors": []
+    }
+  ],
+  "per_bot": [
+    {
+      "bot": "bot-000",
+      "distinct_command_ids": 50,
+      "sent_total": 50,
+      "results_total": 50,
+      "replies_total": 50,
+      "accepted": 50,
+      "accepted_expecting_reply": 50,
+      "rejected": 0,
+      "rejected_by_reason": {},
+      "unknown_status": 0,
+      "missing_results": 0,
+      "missing_replies": 0,
+      "duplicate_results": 0,
+      "duplicate_replies": 0,
+      "unmatched_results": 0,
+      "unmatched_replies": 0,
+      "probe_seq_mismatches": 0,
+      "order_violations": 0,
+      "tick_mismatches": 0,
+      "ticks_compared": 50,
+      "unknown_message_types": {
+        "DEPOSIT_FIELD_STATE": 1,
+        "INVENTORY_STATE": 1
+      },
+      "wire_errors": [],
+      "errors": [],
+      "rtt": {
+        "count": 50,
+        "min_ms": 0.968,
+        "p50_ms": 18.991,
+        "p90_ms": 40.301,
+        "p99_ms": 50.19,
+        "max_ms": 50.19,
+        "mean_ms": 21.779640000000004
+      },
+      "ack": {
+        "count": 50,
+        "min_ms": 0.955,
+        "p50_ms": 18.974,
+        "p90_ms": 40.284,
+        "p99_ms": 50.171,
+        "max_ms": 50.171,
+        "mean_ms": 21.760699999999996
+      }
+    }
+  ],
+  "connect_errors": []
+}
