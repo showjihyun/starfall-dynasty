@@ -139,4 +139,4 @@ until grep -qx DONE _workspace/<slice>/evidence/<round>_<날짜>/summary.json; d
 - 증거: `evidence/{tag}/session.json`(월드·pid·stop/ready 파일·로그 경로·HEAD·porcelain, 비밀값은 출처만), `serve_stdout.log`, `server.log`(stop 뒤), `new_world.json`.
 - **절전 주의:** 서버 실행 한도(`--hours`, 기본 6)는 절전 중에도 흐를 수 있다(SC-68 1차에 이것으로 서버가 꺼졌다). 세션 동안 PC 절전을 끄거나 한도를 넉넉히 잡는다. 꺼졌는지는 `status` 의 `server_pid_alive`·`stats` 로 보이고, 같은 월드로 `stop` → `start --world <id>` 하면 된다.
 - `--skip-editor` 는 도구 자체 점검용(서버까지만).
-- 한계: Editor 기동 단계(실제 Unity 실행·로그 생성·Play 시 씬 생성)는 2026-10-05 도구 점검 때 Editor 가 열려 있어 실측하지 못했다. 다음 사람 세션 전에 Editor 를 닫고 `start --new-world --tag TOOLCHECK2` 로 한 번 확인한다.
+- 실측(2026-10-05, `evidence/TOOLCHECK2/`): Editor 기동 → 로그 생성 → 사람이 Play → `status` 에서 `live_connections 1`·`SESSION_OPENED 1`·`SHIP_SPAWNED 1` → `stop` 정상 종료. 증거에 비밀값 0건.

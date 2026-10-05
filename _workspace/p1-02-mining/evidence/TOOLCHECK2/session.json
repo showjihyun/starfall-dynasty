@@ -1,0 +1,68 @@
+{
+  "purpose": "사람 Unity 세션 준비(unity_session.py) — 판정 아님",
+  "slice": "p1-02-mining",
+  "tag": "TOOLCHECK2",
+  "started_at": "2026-10-05T19:28:39+09:00",
+  "world_id": "01a10b9b-cef3-7500-aa4b-5307375b9b02",
+  "world_source": "new_world.py → _workspace/p1-02-mining/evidence/TOOLCHECK2/new_world.json",
+  "server": {
+    "addr": "127.0.0.1:8080",
+    "pid": 36276,
+    "serve_pid": 40132,
+    "detach": "detached+breakaway",
+    "max_seconds": 3600,
+    "stop_file": "_workspace/p1-02-mining/evidence/TOOLCHECK2/server.stop",
+    "ready_file": "_workspace/p1-02-mining/evidence/TOOLCHECK2/server.ready",
+    "serve_stdout": "_workspace/p1-02-mining/evidence/TOOLCHECK2/serve_stdout.log",
+    "log": "_workspace/p1-02-mining/evidence/TOOLCHECK2/server.log",
+    "binary": "server/target/debug/starfall-game-server.exe",
+    "test_hooks": false
+  },
+  "editor": {
+    "exe": "C:\\Program Files\\Unity\\Hub\\Editor\\6000.6.1f1\\Editor\\Unity.exe",
+    "version": "6000.6.1f1",
+    "pid": 6784,
+    "detach": "detached+breakaway",
+    "log": "_workspace/p1-02-mining/evidence/TOOLCHECK2/unity_editor.log",
+    "log_created": true,
+    "alive_after_wait": true,
+    "env_injected": [
+      "STARFALL_GREYBOX_AUTOBUILD",
+      "STARFALL_NET_AUTOCONNECT",
+      "STARFALL_WS_URL",
+      "STARFALL_DEV_AUTH_SECRET"
+    ],
+    "env_removed": [
+      "STARFALL_TWO_SESSION_AUTOBUILD"
+    ]
+  },
+  "git": {
+    "head": "9c80e2fbd2b7d5f5a3c18c75f210042f5437cd97",
+    "porcelain": [
+      "?? _workspace/p1-02-mining/evidence/TOOLCHECK2/"
+    ]
+  },
+  "preflight": {
+    "lockfile": "absent",
+    "unity_processes_for_project": []
+  },
+  "secret": {
+    "variable": "STARFALL_DEV_AUTH_SECRET",
+    "source": ".env",
+    "injected_into": "Editor 자식 프로세스 환경만",
+    "value": "기록하지 않음"
+  },
+  "stop": {
+    "stopped_at": "2026-10-05T19:32:00+09:00",
+    "serve_was_already_exited": false,
+    "serve_still_alive": false,
+    "shutdown_exit": 0,
+    "server_self_exited_before_stop": false,
+    "hard_terminated": false,
+    "server_pid_alive": false,
+    "server_log": "_workspace/p1-02-mining/evidence/TOOLCHECK2/server.log",
+    "server_log_exists": true,
+    "ready_file_removed": true,
+    "editor": "사용자에게 맡김(이 스크립트는 닫지 않는다)"
+  }
+}
