@@ -26,6 +26,9 @@ import sys
 from pathlib import Path
 
 LABEL = {"item": "p1-02 SC-113 (Q-2) CI DB 테스트 RAN 이름 대조 — 누락 0 · SKIPPED 0"}
+# p1-03 계약에는 이 대조의 SC 가 없다(§3.4 — CI 게이트) → 관측 라벨(`참고`)이라 출처 게이트의 verdict 가 아니다.
+LABELS = {"p1-02": LABEL,
+          "p1-03": {"item": "참고 — p1-03 계약 §3.4 CI DB 테스트 RAN 이름 대조 — 누락 0 · SKIPPED 0"}}
 
 CONTRACT_ROW = re.compile(r"^\|\s*SC-(\d+)\s*\|")
 DB_NAME = re.compile(r"`(?:cargo test -p [\w-]+ )?([a-z_][a-z0-9_]*)` \[DB\]")
@@ -100,6 +103,7 @@ def main() -> int:
     ap.add_argument("--contract")
     ap.add_argument("--log")
     ap.add_argument("--evidence")
+    ap.add_argument("--label", choices=sorted(LABELS), default="p1-02")
     args = ap.parse_args()
     if args.mode == "selftest":
         return selftest()
@@ -107,7 +111,7 @@ def main() -> int:
         ap.error("--contract 와 --log 가 필요하다")
     res = judge(contract_db_tests(Path(args.contract).read_text(encoding="utf-8")),
                 Path(args.log).read_text(encoding="utf-8", errors="replace"))
-    out = dict(LABEL)
+    out = dict(LABELS[args.label])
     out["verdict"] = "PASS" if res["ok"] else "FAIL"
     out.update(res)
     text = json.dumps(out, indent=2, ensure_ascii=False)

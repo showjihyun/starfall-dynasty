@@ -1,0 +1,63 @@
+{
+  "actor_id": "01a0b1c2-b010-7000-8000-000000000115",
+  "baseline_accepted": true,
+  "bot_errors": [],
+  "case": "Fast",
+  "cheat_reasons": [
+    "SHIP_TOO_FAST"
+  ],
+  "close": {
+    "code": 1000,
+    "initiator": "client",
+    "reason": ""
+  },
+  "condition_occurred": true,
+  "connect_error": null,
+  "dist_at_send_m": 217.84154451343758,
+  "goto_failures": 0,
+  "item": "[verdict] p1-03 SC-108 30 m/s 통과 중 판매 → SHIP_TOO_FAST, 상태 불변",
+  "label": "bot-115",
+  "mine_until_shortfalls": 0,
+  "sells": [
+    {
+      "command_id": "01a124c0-188d-7461-8e24-a10e12a59de5",
+      "dist_to_exchange_m": 249.93061768418846,
+      "mineral_id": "ferrosite",
+      "quantity_kg": 200,
+      "results": [
+        {
+          "reason": null,
+          "status": "ACCEPTED",
+          "tick": 13431
+        }
+      ],
+      "snapshot_tick": 13430,
+      "speed_mps": 0.0
+    },
+    {
+      "command_id": "01a124c1-6893-7758-b968-86dfca1cd872",
+      "dist_to_exchange_m": 217.84154451343758,
+      "mineral_id": "ferrosite",
+      "quantity_kg": 100,
+      "results": [
+        {
+          "reason": "SHIP_TOO_FAST",
+          "status": "REJECTED",
+          "tick": 15151
+        }
+      ],
+      "snapshot_tick": 15150,
+      "speed_mps": 30.0747646707335
+    }
+  ],
+  "speed_at_send_mps": 30.0747646707335,
+  "state": {
+    "allowed": "기준 판매의 응답 1 벌",
+    "final_balance": 2000,
+    "final_ferrosite": 200,
+    "receipts_after_baseline": 1,
+    "wallet_messages_after_baseline": 1
+  },
+  "verdict": "PASS",
+  "wire_errors": []
+}

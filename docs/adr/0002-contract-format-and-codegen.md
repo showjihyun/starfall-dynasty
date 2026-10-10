@@ -118,6 +118,7 @@ DTO는 `client/Assets/_Project/Scripts/Contracts/Generated/`에 **생성**하고
 - 모든 속성에 `[JsonProperty("snake_case", Required = ...)]`를 명시한다. 이름 변환 규칙에 의존하지 않는다.
 - 생성 파일은 `#nullable disable`로 시작한다. 참조 타입의 널 가능성은 `Required.AllowNull`로만 표현하고 `string?`을 쓰지 않는다. 값 타입은 `Guid?`/`long?`. (`#nullable enable`이면 초기화되지 않은 참조 속성마다 `CS8618`이 뜨고 — client 프로브에서 9건 — "신규 경고 0" 기준이 바로 깨진다.)
 - 레지스트리 이름 → DTO 타입 대응표(`ContractTypes.ByName`)를 함께 생성한다.
+- **중첩 클래스 이름이 같은 클래스의 속성 이름과 충돌하면 생성기가 실패한다. 해결은 스키마 `title` 로 한다**(이름 규칙은 바꾸지 않는다). *(p1-03 추가, 2026-10-06 — `MARKET_STATE` 의 `$defs/LastSale` 이 속성 `LastSale` 과 겹쳐 C# CS0102 로 Unity 전체가 컴파일되지 않았다. 계약 쪽 해결: 제목 `MarketLastSale`. 검사 구현: client4)*
 - 출력은 결정적(정렬 고정, LF, 타임스탬프·도구 버전 미출력)이다.
 - `--check`는 **내용과 파일 집합을 모두** 비교한다. 파일 집합을 안 보면 타입 이름이 바뀐 뒤 옛 `.cs`가 남아도 통과하고, 그 고아 파일은 컴파일되므로 아무도 모른다.
 - 생성기는 `.meta` 파일을 만들거나 지우지 않는다(Unity가 관리). 파일을 지울 때는 `.cs`만 지운다.

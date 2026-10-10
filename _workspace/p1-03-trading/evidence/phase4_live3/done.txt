@@ -1,0 +1,5 @@
+leak: rc=1
+trace: rc=0
+trace: rc=0
+race: rc=0
+DONE

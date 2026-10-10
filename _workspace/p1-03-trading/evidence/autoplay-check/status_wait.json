@@ -1,0 +1,22 @@
+{
+  "world_id": "01a120ed-ec2f-7d21-b39a-52ef1e265e2f",
+  "server_pid_alive": true,
+  "serve_pid_alive": true,
+  "ready_file": true,
+  "stats": {
+    "live_connections": 0,
+    "ws_connections": 0,
+    "sessions_opened_total": 0,
+    "sessions_closed_total": 0
+  },
+  "editor_pid_alive": true,
+  "historical_events": {},
+  "domain_events": {},
+  "wait_connected": {
+    "connected": false,
+    "reason": "timeout",
+    "waited_s": 181.8,
+    "polls": 83,
+    "last": 0
+  }
+}

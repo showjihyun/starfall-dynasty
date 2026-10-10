@@ -112,29 +112,23 @@ namespace Starfall.Tests.PlayMode
         {
             // qa r1's exact concern (02_client_ack.md): "사본 값 = 메시지 값이라 출처 구분 불가"
             // (if the local copy's value happens to equal the message's value, you cannot tell
-            // whether the display read the message or the copy). The real client copy of
-            // far-reach is "starfall-glass" - the SAME value the canonical revealed-and-depleted
-            // .json fixture carries - so the two sources must be made to genuinely disagree.
+            // whether the display read the message or the copy).
             //
-            // qa round 4 correction (2026-09-27) of this test's OWN round-3 version: that version
-            // swapped the LOCAL COPY (via dataOverride, to avoid the round-2 file-write risk), but
-            // DepositTableEntry has no field to carry a mineral into at all (Sim/DepositFieldTable
-            // .cs) - so parsing the swapped copy text and the real copy text into a
-            // DepositFieldTable produces the SAME DepositFieldTable either way. The swap silently
-            // evaporated at parse time, and the two sources (copy on disk vs. message) were left
-            // agreeing again (starfall-glass both ways) - a vacuous pass, exactly the ⊘ state the
-            // sprint contract warns about. qa's fix, adopted here: swap the MESSAGE instead. The
-            // session loads the REAL, unmodified data copy (dataOverride unused in this test -
-            // the real GreyboxDataLoader.LoadMining path runs, reading files but never writing
-            // any), and only the incoming DEPOSIT_FIELD_STATE JSON is altered in memory before
-            // being handed to the fake transport. If any code path read the real copy's
-            // "starfall-glass" instead of the (swapped) message's "cobaltine", it would leak
-            // through as "Starfall Glass" and this test goes red.
+            // p1-03-trading UPDATE (client4, 2026-10-06): DEPOSIT_FIELD moved to schema_version 2
+            // (ADR-0015 section 2) - the real client copy's far-reach entry no longer carries
+            // mineral_id AT ALL (it moved to the server-only DEPOSIT_RESERVE table), so the
+            // original "both sources say starfall-glass" input control this test's comment
+            // described is no longer the premise; the input control below now asserts the
+            // STRONGER guarantee instead (no mineral_id field present in the copy at all - not
+            // just "the value differs"), and the structural guard (DepositTableEntry has no field
+            // to carry one into, confirmed above by DepositTableEntry_HasNoServerOnlyFields) is
+            // doubly in force. The rest of the test (swap the MESSAGE, not the copy - qa round 4's
+            // fix, 2026-09-27) is unaffected: DEPOSIT_FIELD_STATE's schema never changed.
             string copyPath = Path.Combine(RepoRoot(), "client", "Assets", "_Project", "Data", "world", "deposits", "cradle.json");
             string realCopyText = File.ReadAllText(copyPath); // read-only - never written
-            Assert.That(realCopyText, Does.Contain("\"mineral_id\": \"starfall-glass\""),
-                "input control: the real client copy's far-reach entry must actually say starfall-glass - " +
-                "this is what makes the swap below meaningful (otherwise the two sources never agreed to begin with).");
+            Assert.That(realCopyText, Does.Not.Contain("mineral_id"),
+                "input control: the real client copy (schema_version 2, ADR-0015 section 2) must not " +
+                "carry mineral_id for ANY deposit any more - if it does, the data copy did not move to v2.");
 
             string revealedJsonOriginal = File.ReadAllText(FixturePath("DEPOSIT_FIELD_STATE", "revealed-and-depleted.json"));
             Assert.That(revealedJsonOriginal, Does.Contain("\"mineral_id\": \"starfall-glass\""),

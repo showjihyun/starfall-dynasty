@@ -34,7 +34,9 @@ use starfall_contracts::messages::{
     CommandResultMessage, CommandResultPayload, CommandResultType, RejectReasonCode,
 };
 use starfall_contracts::primitives::{ConstSchemaVersion, Tick, UuidV7};
-use starfall_contracts::{MineResourceCommand, PingServerCommand, SetShipControlCommand, registry};
+use starfall_contracts::{
+    MineResourceCommand, PingServerCommand, SellMineralCommand, SetShipControlCommand, registry,
+};
 use starfall_sim::{InboundCommand, ServerMessage};
 use tokio::sync::{Notify, mpsc};
 
@@ -399,6 +401,9 @@ fn encode(message: &ServerMessage) -> Option<String> {
         ServerMessage::InventoryState(value) => serde_json::to_string(value.as_ref()).ok(),
         ServerMessage::DepositFieldState(value) => serde_json::to_string(value.as_ref()).ok(),
         ServerMessage::HistoricalEventNotice(value) => serde_json::to_string(value.as_ref()).ok(),
+        ServerMessage::WalletState(value) => serde_json::to_string(value.as_ref()).ok(),
+        ServerMessage::SaleReceipt(value) => serde_json::to_string(value.as_ref()).ok(),
+        ServerMessage::MarketState(value) => serde_json::to_string(value.as_ref()).ok(),
     }
 }
 
@@ -665,9 +670,9 @@ fn handle_text(
 
     stats.record_command_received();
 
-    // p1-02(S5, ADR-0013 §6 K2) — 상태 변경 명령(지금은 MINE_RESOURCE 뿐)만
-    // `recording_lag`을 본다. 이동(`SET_SHIP_CONTROL`)은 DB에 의존하지 않으므로
-    // 거부 대상이 아니다(p1-01 I-31, AC-6(b)).
+    // p1-02(S5, ADR-0013 §6 K2) — 상태 변경 명령(`MINE_RESOURCE`·p1-03
+    // `SELL_MINERAL`)만 `recording_lag`을 본다. 이동(`SET_SHIP_CONTROL`)은 DB에
+    // 의존하지 않으므로 거부 대상이 아니다(p1-01 I-31, AC-6(b)).
     //
     // p1-02(S10 (a), qa cas-halt 실서버 발견) — `persist_halted()`(K5, ADR-0013
     // §5)도 직접 본다. `recording_lag > LIMIT` 만 보면 정지가 막 결정된 직후
@@ -675,8 +680,10 @@ fn handle_text(
     // 통과할 수 있었다 — qa 실측: tick 469 정지, tick 1779 명령이 여전히
     // ACCEPTED. 정지는 "언젠가 밀린다"가 아니라 "다시는 커밋되지 않는다"이므로
     // recording_lag 값과 무관하게 즉시 거부해야 한다.
-    if matches!(command, InboundCommand::MineResource(_))
-        && (stats.persist_halted() || stats.recording_lag() > RECORDING_BACKLOG_LIMIT)
+    if matches!(
+        command,
+        InboundCommand::MineResource(_) | InboundCommand::SellMineral(_)
+    ) && (stats.persist_halted() || stats.recording_lag() > RECORDING_BACKLOG_LIMIT)
     {
         return send_rejection(
             out_tx,
@@ -739,6 +746,9 @@ fn parse_command(command_type: Option<&str>, text: &str) -> CommandParse {
         }
         Some(registry::MINE_RESOURCE) => {
             parsed::<MineResourceCommand, _>(text, InboundCommand::MineResource)
+        }
+        Some(registry::SELL_MINERAL) => {
+            parsed::<SellMineralCommand, _>(text, InboundCommand::SellMineral)
         }
         _ => CommandParse::UnknownType,
     }
@@ -1180,6 +1190,133 @@ mod tests {
         assert_eq!(
             in_flight.load(Ordering::Acquire),
             1,
+            "임계 이하에서는 RECORDING_BACKLOG 로 거부되지 않고 판정 큐에 들어간다"
+        );
+        let message = out_rx.try_recv();
+        assert!(
+            message.is_err(),
+            "게이트웨이 층에서 거부 응답을 만들지 않았어야 한다(판정은 sim 몫): {message:?}"
+        );
+    }
+
+    fn sell_mineral_text(command_id_suffix: u64) -> String {
+        format!(
+            r#"{{"command_id":"01a0b1c2-0000-7{command_id_suffix:03x}-8000-{command_id_suffix:012x}",
+            "command_type":"SELL_MINERAL","schema_version":1,"client_sent_at":null,
+            "payload":{{"market_id":"test-market","mineral_id":"test-mineral","quantity_kg":10}}}}"#
+        )
+    }
+
+    /// SC-38(p1-03, ADR-0016 §1) — `recording_lag`이 임계를 넘으면 `SELL_MINERAL`도
+    /// `MINE_RESOURCE`와 같이 `RECORDING_BACKLOG`로 거부된다(같은 상태의
+    /// `SET_SHIP_CONTROL`은 수락), `recording_lag` 이 임계와 정확히 같으면(초과가
+    /// 아니다) 이 사유로 거부되지 않는다.
+    #[test]
+    fn sell_mineral_recording_backlog_rejects_over_limit_accepts_at_limit() {
+        let stats = Stats::new();
+        stats.set_start_tick(0);
+        stats.record_tick(0, 0, 0);
+        let (submit, _commands_rx) = SubmitHandle::for_test(stats.clone());
+        let in_flight = AtomicU32::new(0);
+        let mut tick_budget = TickCommandBudget::default();
+        let (out_tx, mut out_rx) = mpsc::channel(1024);
+        let session_id = UuidV7::parse("01a0b1c2-0000-7000-8000-000000000001").unwrap();
+
+        // recording_lag = 21(임계 20 보다 1 크다) — MINE_RESOURCE 테스트와 같은
+        // 경계 세움(정확히 임계+1, 20~25 사이 어디든 통과하는 느슨한 임계는 못
+        // 잡는다).
+        stats.set_last_enqueued_tick(1);
+        stats.record_tick(22, 0, 0);
+        assert_eq!(
+            stats.recording_lag(),
+            RECORDING_BACKLOG_LIMIT + 1,
+            "⊘ 전제: recording_lag 이 정확히 21(임계+1)이어야 한다"
+        );
+
+        let outcome = handle_text(
+            &sell_mineral_text(1),
+            &submit,
+            &stats,
+            session_id,
+            &out_tx,
+            &in_flight,
+            &mut tick_budget,
+        );
+        assert_eq!(outcome, FrameOutcome::Handled);
+        assert_eq!(
+            in_flight.load(Ordering::Acquire),
+            0,
+            "RECORDING_BACKLOG 거부는 in_flight 를 올리지 않는다"
+        );
+        let message = out_rx
+            .try_recv()
+            .expect("거부 COMMAND_RESULT 가 있어야 한다");
+        let ServerMessage::CommandResult(result) = message else {
+            panic!("COMMAND_RESULT 가 아니다: {message:?}");
+        };
+        assert_eq!(
+            result.payload.reason_code,
+            Some(RejectReasonCode::RecordingBacklog)
+        );
+
+        // 대조 — 같은 상태의 SET_SHIP_CONTROL 은 거부되지 않는다(이동은 DB 에
+        // 의존하지 않는다, p1-01 I-31 — 판매는 지갑·인벤토리를 바꾸므로 의존한다).
+        let ship_control_text = format!(
+            r#"{{"command_id":"01a0b1c2-0000-7002-8000-{:012x}",
+            "command_type":"SET_SHIP_CONTROL","schema_version":1,"client_sent_at":null,
+            "payload":{{"input_seq":1,"thrust_x_milli":0,"thrust_y_milli":0,"thrust_z_milli":0,
+            "roll_milli":0,"aim_x_micro":0,"aim_y_micro":0,"aim_z_micro":0,"aim_w_micro":1000000,
+            "brake":false,"flight_assist":true}}}}"#,
+            2u64
+        );
+        let outcome = handle_text(
+            &ship_control_text,
+            &submit,
+            &stats,
+            session_id,
+            &out_tx,
+            &in_flight,
+            &mut tick_budget,
+        );
+        assert_eq!(outcome, FrameOutcome::Handled);
+        assert_eq!(
+            in_flight.load(Ordering::Acquire),
+            1,
+            "lag 21 에서도 SET_SHIP_CONTROL 은 판정 큐에 들어간다(거부되지 않았다)"
+        );
+        assert!(
+            out_rx.try_recv().is_err(),
+            "게이트웨이 층에서 거부 응답을 만들지 않았어야 한다"
+        );
+
+        // recording_lag 을 임계와 정확히 같게(20) 돌려놓는다 — 이 사유로 더는
+        // 거부되지 않아야 한다(경계 포함 확인, 초과가 아니다). 먼저 앞선 배치
+        // (tick 1)를 커밋된 것으로 쳐서 대기 큐 맨 앞에서 가지치기되게 한다
+        // (`oldest_pending_tick`이 이미 커밋된 항목을 스스로 민다) — 그래야
+        // `set_last_enqueued_tick(2)`로 새로 넣은 tick 2가 "가장 오래된 대기
+        // 배치"가 된다.
+        let (_, _, last_committed, _, _) = stats.persist_handles();
+        last_committed.store(1, Ordering::Release);
+        stats.set_last_enqueued_tick(2);
+        stats.record_tick(22, 0, 0);
+        assert_eq!(
+            stats.recording_lag(),
+            RECORDING_BACKLOG_LIMIT,
+            "⊘ 전제: recording_lag 이 임계와 정확히 같다"
+        );
+        let outcome = handle_text(
+            &sell_mineral_text(3),
+            &submit,
+            &stats,
+            session_id,
+            &out_tx,
+            &in_flight,
+            &mut tick_budget,
+        );
+        assert_eq!(outcome, FrameOutcome::Handled);
+        assert_eq!(
+            in_flight.load(Ordering::Acquire),
+            2,
             "임계 이하에서는 RECORDING_BACKLOG 로 거부되지 않고 판정 큐에 들어간다"
         );
         let message = out_rx.try_recv();

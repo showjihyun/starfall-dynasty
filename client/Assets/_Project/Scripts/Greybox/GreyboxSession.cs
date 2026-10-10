@@ -249,7 +249,17 @@ namespace Starfall.Greybox
             // owns mining state and its own Update()/OnGUI() - kept out of this already-large
             // class the same way ShipInputSampler is its own component. star_system_id defaults
             // to "cradle" (this slice's only system) when data/ is incomplete.
-            gameObject.AddComponent<GreyboxMiningSession>().Init(_client, _starSystem?.Id ?? "cradle", () => ControlledShipState, cameraProvider: () => ChaseCamera);
+            GreyboxMiningSession miningSession = gameObject.AddComponent<GreyboxMiningSession>();
+            miningSession.Init(_client, _starSystem?.Id ?? "cradle", () => ControlledShipState, cameraProvider: () => ChaseCamera);
+
+            // C3 (p1-03-trading) connection point: same pattern as GreyboxMiningSession above.
+            // Reads Mining's already-applied INVENTORY_STATE/HISTORICAL_EVENT_NOTICE state through
+            // its accessors rather than registering a second handler for either type (see
+            // GreyboxTradingSession's file header - RealtimeClient.Register is single-slot).
+            gameObject.AddComponent<GreyboxTradingSession>().Init(
+                _client, "cradle-exchange", () => ControlledShipState,
+                () => miningSession.DiscoveriesForTests, () => miningSession.InventoryForTests.Items,
+                cameraProvider: () => ChaseCamera);
         }
 
         /// <summary>C3 connection point: lets GreyboxMiningSession reach the transport this

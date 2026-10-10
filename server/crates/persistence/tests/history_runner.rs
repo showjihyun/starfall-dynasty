@@ -1770,3 +1770,499 @@ async fn history_replay_pool_rejects_writes() {
     read_only.close().await;
     db.drop().await;
 }
+
+// ---------------------------------------------------------------------------
+// H-30~H-33 (p1-03-trading, 태스크 #51 H1) — `MINERAL_SOLD` 는 Level 0, 러너가
+// `unjudged` 로 통과한다(ADR-0016 §3, `_workspace/p1-03-trading/02h_history_review.md`
+// §2.3). `mineral-discovery@1` 코드 변경 없음 예상 — 이 네 테스트가 실패하면 그것이
+// 발견이다(server3·architect3 에게 알린다).
+//
+// 판매 행은 이 파일의 기존 관례(`insert_mineral_mined` — 직접 SQL)를 그대로 따라
+// `insert_mineral_sold` 로 넣는다. `decode_row`(`history.rs`)가 `event_type !=
+// MINERAL_MINED` 인 행은 payload 를 전혀 역직렬화하지 않고 좌표만 돌려주므로(
+// `DomainEvent::unjudged`), payload 내용 자체는 이 네 테스트의 판정에 영향이 없다 —
+// `contracts/fixtures/MINERAL_SOLD/first-sale-sells-all.json` 모양을 그대로 흉내 내
+// "실제 판매 행과 같은 모양"임만 지킨다. `Simulation::step()` 을 거치는 실제 커밋
+// 경로의 정확성(계약 모양·CAS)은 `S4 economic_state.rs`/`trading_sale.rs`(serverdb3)가
+// 이미 잰다 — 이 파일은 그 아래 층(커밋된 행이 있을 때 역사 러너가 무엇을 하는가)만
+// 잰다(파일 머리말과 같은 분리).
+// ---------------------------------------------------------------------------
+
+#[derive(Clone)]
+struct SoldRow<'a> {
+    event_id: UuidV7,
+    tick: u64,
+    sequence: u64,
+    actor_id: UuidV7,
+    ship_id: UuidV7,
+    star_system_id: &'a str,
+    market_id: &'a str,
+    mineral_id: &'a str,
+    quantity_kg: i64,
+}
+
+/// `domain_events` 에 `MINERAL_SOLD` 행 하나를 직접 넣는다. `schema_version` 을 인자로
+/// 받는다 — H-32 가 2 로 넣어 fail-stop 대조(판정 대상이 아닌 타입은 정지하지 않음)를
+/// 만든다.
+async fn insert_mineral_sold(
+    pool: &PgPool,
+    world_id: UuidV7,
+    row: &SoldRow<'_>,
+    schema_version: i32,
+) {
+    let proceeds_cr = row.quantity_kg * 9;
+    let payload = serde_json::json!({
+        "ship_id": row.ship_id.to_string(),
+        "session_id": "01a0b1c2-4a11-7b22-9c33-0d44e55f6a77",
+        "star_system_id": row.star_system_id,
+        "market_id": row.market_id,
+        "mineral_id": row.mineral_id,
+        "pricing_version": format!("{}@1", row.market_id),
+        "quantity_kg": row.quantity_kg,
+        "proceeds_cr": proceeds_cr,
+        "base_price_cr_per_kg": 10,
+        "floor_price_cr_per_kg": 3,
+        "price_before_cr_per_kg": 9,
+        "price_after_cr_per_kg": 9,
+        "saturation_before_kg": 0,
+        "saturation_after_kg": row.quantity_kg,
+        "quantity_before_kg": row.quantity_kg,
+        "quantity_after_kg": 0,
+        "wallet_before_cr": 0,
+        "wallet_after_cr": proceeds_cr,
+    });
+    sqlx::query(
+        "INSERT INTO domain_events (
+             event_id, event_type, schema_version, world_id, tick, sequence,
+             occurred_at, recorded_at, correlation_id, causation_id, actor_id, payload
+         ) VALUES ($1, 'MINERAL_SOLD', $2, $3, $4, $5, '3800-01-01T20:00:00Z', now(), $6, $7, $8, $9)",
+    )
+    .bind(row.event_id.get())
+    .bind(schema_version)
+    .bind(world_id.get())
+    .bind(i64::try_from(row.tick).unwrap())
+    .bind(i64::try_from(row.sequence).unwrap())
+    .bind(id(CORRELATION_ID).get())
+    .bind(id(CAUSATION_ID).get())
+    .bind(row.actor_id.get())
+    .bind(sqlx::types::Json(payload))
+    .execute(pool)
+    .await
+    .expect("MINERAL_SOLD 행 삽입 실패");
+}
+
+/// H-30 — 채굴(A, t=10) → 판매 3(t=11..13) → 채굴(B, t=14) 뒤 러너 1 회: 커서가 마지막
+/// 판매 좌표보다 뒤로 전진하고, B 도 판매 뒤에 판정된다(양성 대조). `MINERAL_SOLD` 의
+/// event_id 는 `historical_event_sources` 에 하나도 없어야 한다(분모 3).
+#[tokio::test]
+async fn h30_runner_passes_sales_and_judges_after() {
+    let name = "h30_runner_passes_sales_and_judges_after";
+    let Some(db) = starfall_testdb::TestDb::create(name).await else {
+        return;
+    };
+    let world_id = fresh_world_id(name);
+    seed_world(&db.pool, world_id).await;
+
+    let actor_id = id("01a0b1c2-2c01-7a45-8b67-89abcdef0123");
+    let ship_id = id("01a0b1c2-8b01-7a11-8b22-9c33d44e55f6");
+
+    insert_mineral_mined(
+        &db.pool,
+        world_id,
+        &MinedRow {
+            event_id: id("01a0b1c2-a101-7e01-8f11-505162738401"),
+            tick: 10,
+            sequence: 0,
+            actor_id,
+            ship_id,
+            star_system_id: "cradle",
+            deposit_id: "far-reach",
+            mineral_id: "starfall-glass",
+            quantity_kg: 25,
+        },
+    )
+    .await;
+
+    let sold_ids = [
+        id("01a0b1c2-a102-7e02-8f12-505162738402"),
+        id("01a0b1c2-a103-7e03-8f13-505162738403"),
+        id("01a0b1c2-a104-7e04-8f14-505162738404"),
+    ];
+    for (offset, sold_id) in sold_ids.iter().enumerate() {
+        insert_mineral_sold(
+            &db.pool,
+            world_id,
+            &SoldRow {
+                event_id: *sold_id,
+                tick: 11 + u64::try_from(offset).unwrap(),
+                sequence: 0,
+                actor_id,
+                ship_id,
+                star_system_id: "cradle",
+                market_id: "cradle-exchange",
+                mineral_id: "starfall-glass",
+                quantity_kg: 5,
+            },
+            1,
+        )
+        .await;
+    }
+
+    let actor_b = id("01a0b1c2-2c02-7b46-9c68-9abcdef01234");
+    let ship_b = id("01a0b1c2-8b02-7a12-9b23-ac34d55e66f7");
+    insert_mineral_mined(
+        &db.pool,
+        world_id,
+        &MinedRow {
+            event_id: id("01a0b1c2-a105-7e05-8f15-505162738405"),
+            tick: 14,
+            sequence: 0,
+            actor_id: actor_b,
+            ship_id: ship_b,
+            star_system_id: "cradle",
+            deposit_id: "vela-orbit-1",
+            mineral_id: "glacine",
+            quantity_kg: 100,
+        },
+    )
+    .await;
+    advance_watermark(&db.pool, world_id, 14).await;
+
+    // ⊘ 배제: 판매 3행이 실제로 커밋됐음을 먼저 단언한다(0행이면 이 테스트는 아무것도
+    // 안 재는 것이다).
+    let sold_count: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM domain_events WHERE world_id = $1 AND event_type = 'MINERAL_SOLD'",
+    )
+    .bind(world_id.get())
+    .fetch_one(&db.pool)
+    .await
+    .unwrap();
+    assert_eq!(sold_count, 3, "판매 3행이 커밋돼 있어야 한다");
+
+    let (_, handles, live) = drive_until(db.pool.clone(), world_id, discovery_rule(), |h| {
+        h.records_total.load(Ordering::Relaxed) >= 2
+    })
+    .await;
+
+    assert_eq!(
+        handles.records_total.load(Ordering::Relaxed),
+        2,
+        "발견 2 가 아니라 1 이면 B 가 판정되지 않은 것(커서 정지)이다"
+    );
+    assert_eq!(handles.detector_halted_total.load(Ordering::Relaxed), 0);
+    assert_eq!(handles.conflicts_total.load(Ordering::Relaxed), 0);
+    assert!(!handles.halted.load(Ordering::Relaxed));
+    assert_eq!(live.len(), 2, "LIVE 채널로 A·B 2건 나가야 한다");
+
+    let cursor_row = sqlx::query(
+        "SELECT tick, sequence FROM history_cursor WHERE world_id = $1 AND consumer = 'mineral-discovery'",
+    )
+    .bind(world_id.get())
+    .fetch_one(&db.pool)
+    .await
+    .unwrap();
+    let cursor: (i64, i64) = (
+        cursor_row.try_get("tick").unwrap(),
+        cursor_row.try_get("sequence").unwrap(),
+    );
+    assert!(
+        cursor >= (14, 0),
+        "커서 = {cursor:?} — 마지막 판매 좌표(13,0)보다 뒤여야 한다"
+    );
+
+    let discovered: i64 = sqlx::query_scalar("SELECT count(*) FROM historical_events")
+        .fetch_one(&db.pool)
+        .await
+        .unwrap();
+    assert_eq!(discovered, 2, "MINERAL_DISCOVERED 2행(A·B)");
+
+    let sold_event_ids: Vec<uuid::Uuid> = sold_ids.iter().map(|sold_id| sold_id.get()).collect();
+    let sold_as_source: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM historical_event_sources WHERE source_event_id = ANY($1)",
+    )
+    .bind(&sold_event_ids)
+    .fetch_one(&db.pool)
+    .await
+    .unwrap();
+    assert_eq!(
+        sold_as_source, 0,
+        "분모 3 — MINERAL_SOLD 의 event_id 는 historical_event_sources 에 하나도 없어야 한다"
+    );
+
+    db.drop().await;
+}
+
+/// H-31 — 판매 행만 있는 구간(판매 2행) 뒤 러너 1 회: 기록 0행이어도 커서가 마지막
+/// 판매 좌표로 전진한다(커서가 멈추면 다음 채굴의 발견이 영원히 판정되지 않는다).
+#[tokio::test]
+async fn h31_runner_advances_over_sales_only() {
+    let name = "h31_runner_advances_over_sales_only";
+    let Some(db) = starfall_testdb::TestDb::create(name).await else {
+        return;
+    };
+    let world_id = fresh_world_id(name);
+    seed_world(&db.pool, world_id).await;
+
+    let actor_id = id("01a0b1c2-2c01-7a45-8b67-89abcdef0123");
+    let ship_id = id("01a0b1c2-8b01-7a11-8b22-9c33d44e55f6");
+    insert_mineral_sold(
+        &db.pool,
+        world_id,
+        &SoldRow {
+            event_id: id("01a0b1c2-a201-7e01-8f11-505162738411"),
+            tick: 20,
+            sequence: 0,
+            actor_id,
+            ship_id,
+            star_system_id: "cradle",
+            market_id: "cradle-exchange",
+            mineral_id: "starfall-glass",
+            quantity_kg: 5,
+        },
+        1,
+    )
+    .await;
+    insert_mineral_sold(
+        &db.pool,
+        world_id,
+        &SoldRow {
+            event_id: id("01a0b1c2-a202-7e02-8f12-505162738412"),
+            tick: 21,
+            sequence: 0,
+            actor_id,
+            ship_id,
+            star_system_id: "cradle",
+            market_id: "cradle-exchange",
+            mineral_id: "starfall-glass",
+            quantity_kg: 5,
+        },
+        1,
+    )
+    .await;
+    advance_watermark(&db.pool, world_id, 21).await;
+
+    // ⊘ 배제: 러너 구동 전 커서가 아직 판매 좌표보다 앞(= 없음)임을 먼저 확인한다.
+    let before: Option<i64> = sqlx::query_scalar(
+        "SELECT tick FROM history_cursor WHERE world_id = $1 AND consumer = 'mineral-discovery'",
+    )
+    .bind(world_id.get())
+    .fetch_optional(&db.pool)
+    .await
+    .unwrap();
+    assert!(before.is_none(), "구동 전 커서는 아직 없어야 한다");
+
+    let sold_count: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM domain_events WHERE world_id = $1 AND event_type = 'MINERAL_SOLD'",
+    )
+    .bind(world_id.get())
+    .fetch_one(&db.pool)
+    .await
+    .unwrap();
+    assert_eq!(sold_count, 2, "판매 2행이 커밋돼 있어야 한다");
+
+    let (_, handles, live) = drive_until(db.pool.clone(), world_id, discovery_rule(), |h| {
+        h.catchup_rows_total.load(Ordering::Relaxed) >= 2
+    })
+    .await;
+
+    assert_eq!(handles.records_total.load(Ordering::Relaxed), 0, "역사 0행");
+    assert!(!handles.halted.load(Ordering::Relaxed));
+    assert!(live.is_empty());
+
+    let cursor_row = sqlx::query(
+        "SELECT tick, sequence FROM history_cursor WHERE world_id = $1 AND consumer = 'mineral-discovery'",
+    )
+    .bind(world_id.get())
+    .fetch_one(&db.pool)
+    .await
+    .expect("커서가 전진해 행이 생겼어야 한다(기록 0 이어도 전진)");
+    let cursor: (i64, i64) = (
+        cursor_row.try_get("tick").unwrap(),
+        cursor_row.try_get("sequence").unwrap(),
+    );
+    assert!(
+        cursor >= (21, 0),
+        "커서 = {cursor:?} — 마지막 판매 좌표로 전진해야 한다"
+    );
+
+    let discovered: i64 = sqlx::query_scalar("SELECT count(*) FROM historical_events")
+        .fetch_one(&db.pool)
+        .await
+        .unwrap();
+    assert_eq!(discovered, 0, "역사 0행");
+
+    db.drop().await;
+}
+
+/// H-32 — `schema_version = 2` 인 `MINERAL_SOLD`(SQL 직접 INSERT) + 그 뒤 첫 채굴: 러너가
+/// **멈추지 않고** 뒤의 채굴로 발견 1행. 판정 대상이 아닌 타입의 버전 불일치는 역사
+/// 정지 사유가 아니다(ADR-0014 §1 fail-stop 은 "판정 대상 타입" 한정). **짝**: 같은
+/// 자리의 `MINERAL_MINED` 쪽 fail-stop 은 기존 `history_fail_stop`(이 파일, p1-02)이
+/// 같은 실행에서 정지를 관측한다 — `02_sprint_contract.md` SC-54 가 그 테스트를 짝으로
+/// 지명했다(새 v2 전용 MINERAL_MINED 테스트를 추가 작성하지 않는다).
+#[tokio::test]
+async fn h32_sold_v2_does_not_halt_runner() {
+    let name = "h32_sold_v2_does_not_halt_runner";
+    let Some(db) = starfall_testdb::TestDb::create(name).await else {
+        return;
+    };
+    let world_id = fresh_world_id(name);
+    seed_world(&db.pool, world_id).await;
+
+    let actor_id = id("01a0b1c2-2c01-7a45-8b67-89abcdef0123");
+    let ship_id = id("01a0b1c2-8b01-7a11-8b22-9c33d44e55f6");
+    let sold_v2_id = id("01a0b1c2-a301-7e01-8f11-505162738421");
+    insert_mineral_sold(
+        &db.pool,
+        world_id,
+        &SoldRow {
+            event_id: sold_v2_id,
+            tick: 30,
+            sequence: 0,
+            actor_id,
+            ship_id,
+            star_system_id: "cradle",
+            market_id: "cradle-exchange",
+            mineral_id: "starfall-glass",
+            quantity_kg: 5,
+        },
+        2, // schema_version = 2 — 판정 대상 타입이 아니므로 fail-stop 사유가 아니다.
+    )
+    .await;
+    insert_mineral_mined(
+        &db.pool,
+        world_id,
+        &MinedRow {
+            event_id: id("01a0b1c2-a302-7e02-8f12-505162738422"),
+            tick: 31,
+            sequence: 0,
+            actor_id,
+            ship_id,
+            star_system_id: "cradle",
+            deposit_id: "far-reach",
+            mineral_id: "starfall-glass",
+            quantity_kg: 25,
+        },
+    )
+    .await;
+    advance_watermark(&db.pool, world_id, 31).await;
+
+    // ⊘ 배제: 그 행이 실제로 schema_version = 2 로 들어갔다.
+    let actual_version: i32 =
+        sqlx::query_scalar("SELECT schema_version FROM domain_events WHERE event_id = $1")
+            .bind(sold_v2_id.get())
+            .fetch_one(&db.pool)
+            .await
+            .unwrap();
+    assert_eq!(
+        actual_version, 2,
+        "주입 행이 실제로 schema_version=2 여야 한다"
+    );
+
+    let (_, handles, live) = drive_until(db.pool.clone(), world_id, discovery_rule(), |h| {
+        h.records_total.load(Ordering::Relaxed) >= 1 || h.halted.load(Ordering::Relaxed)
+    })
+    .await;
+
+    assert_eq!(
+        handles.records_total.load(Ordering::Relaxed),
+        1,
+        "뒤의 채굴이 발견으로 판정돼야 한다 — 러너가 멈추지 않았다"
+    );
+    assert_eq!(handles.detector_halted_total.load(Ordering::Relaxed), 0);
+    assert!(
+        !handles.halted.load(Ordering::Relaxed),
+        "판정 대상이 아닌 MINERAL_SOLD 의 schema_version 불일치로 러너가 멈추면 안 된다"
+    );
+    assert_eq!(live.len(), 1);
+
+    db.drop().await;
+}
+
+/// H-33 — H-30 과 같은 모양의 월드(채굴 + 판매)에 `history-replay` 를 돌려도 일치하고,
+/// 출력의 `domain_events_replayed` 에 판매 행이 실제로 섞여 있다(`MINERAL_SOLD` 수 ≥ 1,
+/// 0 이면 FAIL — 판매 없는 월드에서 재생하면 이 대조가 무효다).
+#[tokio::test]
+async fn h33_replay_matches_with_sales() {
+    let name = "h33_replay_matches_with_sales";
+    let Some(db) = starfall_testdb::TestDb::create(name).await else {
+        return;
+    };
+    let world_id = fresh_world_id(name);
+    seed_world(&db.pool, world_id).await;
+
+    let actor_id = id("01a0b1c2-2c01-7a45-8b67-89abcdef0123");
+    let ship_id = id("01a0b1c2-8b01-7a11-8b22-9c33d44e55f6");
+
+    insert_mineral_mined(
+        &db.pool,
+        world_id,
+        &MinedRow {
+            event_id: id("01a0b1c2-a401-7e01-8f11-505162738431"),
+            tick: 40,
+            sequence: 0,
+            actor_id,
+            ship_id,
+            star_system_id: "cradle",
+            deposit_id: "far-reach",
+            mineral_id: "starfall-glass",
+            quantity_kg: 25,
+        },
+    )
+    .await;
+    insert_mineral_sold(
+        &db.pool,
+        world_id,
+        &SoldRow {
+            event_id: id("01a0b1c2-a402-7e02-8f12-505162738432"),
+            tick: 41,
+            sequence: 0,
+            actor_id,
+            ship_id,
+            star_system_id: "cradle",
+            market_id: "cradle-exchange",
+            mineral_id: "starfall-glass",
+            quantity_kg: 10,
+        },
+        1,
+    )
+    .await;
+    advance_watermark(&db.pool, world_id, 41).await;
+
+    let (_, handles, _) = drive_until(db.pool.clone(), world_id, discovery_rule(), |h| {
+        h.records_total.load(Ordering::Relaxed) >= 1
+    })
+    .await;
+    assert_eq!(handles.records_total.load(Ordering::Relaxed), 1);
+
+    // ⊘ 배제: 재생 대상 월드에 판매 행이 실제로 있다(0 이면 FAIL — 이 대조가 무효다).
+    let sold_count: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM domain_events WHERE world_id = $1 AND event_type = 'MINERAL_SOLD'",
+    )
+    .bind(world_id.get())
+    .fetch_one(&db.pool)
+    .await
+    .unwrap();
+    assert!(
+        sold_count >= 1,
+        "판매 없는 월드에서 재생하면 이 대조가 무효다(0 이면 FAIL)"
+    );
+
+    let report =
+        starfall_persistence::history::replay_and_compare(&db.pool, world_id, discovery_rule())
+            .await
+            .expect("재생 실패");
+
+    assert!(
+        report.is_match(),
+        "재생 결과가 저장된 기록·증거와 일치해야 한다: {:?}",
+        report.mismatches
+    );
+    assert_eq!(
+        report.domain_events_replayed, 2,
+        "재생이 읽은 domain_events 행 수(채굴 1 + 판매 1) — 판매 행이 실제로 재생 집합에 섞여 있다"
+    );
+    assert_eq!(report.records_replayed, 1);
+
+    db.drop().await;
+}

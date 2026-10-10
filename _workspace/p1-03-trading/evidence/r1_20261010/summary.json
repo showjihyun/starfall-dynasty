@@ -1,0 +1,2266 @@
+{
+  "tool": "tests/e2e/run_round.py",
+  "format": 1,
+  "slice": "p1-03-trading",
+  "slice_label": "p1-03",
+  "round": "r1",
+  "contract": "_workspace/p1-03-trading/02_sprint_contract.md",
+  "config": "tests/e2e/round_configs/p1-03-trading.json",
+  "out": "_workspace/p1-03-trading/evidence/r1_20261010",
+  "selected": [
+    "freeze",
+    "gates",
+    "census",
+    "repeat",
+    "unity",
+    "filters",
+    "sources",
+    "offline",
+    "bots",
+    "judges",
+    "db_stop",
+    "final"
+  ],
+  "dry_run": false,
+  "argv": [
+    "--slice",
+    "p1-03",
+    "--contract",
+    "_workspace/p1-03-trading/02_sprint_contract.md",
+    "--config",
+    "tests/e2e/round_configs/p1-03-trading.json",
+    "--round",
+    "r1",
+    "--gate-timeout",
+    "7200"
+  ],
+  "env_keys_loaded": [
+    "DATABASE_URL",
+    "POSTGRES_DB",
+    "POSTGRES_PASSWORD",
+    "POSTGRES_USER",
+    "REDIS_URL",
+    "STARFALL_DEV_AUTH_SECRET",
+    "STARFALL_HTTP_ADDR",
+    "STARFALL_LOG_FORMAT",
+    "STARFALL_PG_HOST_PORT",
+    "STARFALL_REDIS_HOST_PORT"
+  ],
+  "started": "2026-10-10T16:04:19+09:00",
+  "finished": "2026-10-10T17:40:54+09:00",
+  "complete": true,
+  "watch": {
+    "enabled": true,
+    "interval_s": 15.0,
+    "checks": 385,
+    "violations": [],
+    "touched_same_content": [],
+    "relax_unity": true,
+    "stage_category": {
+      "freeze": "server",
+      "gates": "server",
+      "census": "server",
+      "repeat": "server",
+      "unity": "client",
+      "filters": "server",
+      "sources": "server",
+      "offline": "client",
+      "bots": "server",
+      "judges": "server",
+      "db_stop": "server",
+      "final": "server"
+    }
+  },
+  "counts": {
+    "PASS": 7,
+    "FAIL": 2,
+    "미검증(조건 미발생)": 1,
+    "SKIP": 2
+  },
+  "stages": [
+    {
+      "name": "freeze",
+      "status": "PASS",
+      "raw_status": "PASS",
+      "started": "2026-10-10T16:04:19+09:00",
+      "finished": "2026-10-10T16:04:22+09:00",
+      "seconds": 3.6,
+      "commands": [
+        {
+          "name": "head",
+          "argv": [
+            "git",
+            "rev-parse",
+            "HEAD"
+          ],
+          "cwd": ".",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 0.3,
+          "log": "_workspace/p1-03-trading/evidence/r1_20261010/freeze/head.txt"
+        },
+        {
+          "name": "porcelain",
+          "argv": [
+            "git",
+            "status",
+            "--porcelain"
+          ],
+          "cwd": ".",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 0.7,
+          "log": "_workspace/p1-03-trading/evidence/r1_20261010/freeze/porcelain.txt"
+        },
+        {
+          "name": "fp_before",
+          "argv": [
+            "docker",
+            "compose",
+            "exec",
+            "-T",
+            "postgres",
+            "psql",
+            "-q",
+            "-v",
+            "ON_ERROR_STOP=1",
+            "-U",
+            "starfall",
+            "-d",
+            "starfall",
+            "-At",
+            "-F",
+            "|",
+            "-c",
+            "SET default_transaction_read_only = on",
+            "-c",
+            "select (select count(*) from domain_events where world_id = '01a0b1c2-3d4e-7f01-8a2b-9c0d1e2f3a4b') || '|' || (select md5(coalesce(string_agg(event_id::text, ',' order by event_id), '')) from domain_events where world_id = '01a0b1c2-3d4e-7f01-8a2b-9c0d1e2f3a4b') || '|' || (select count(*) from _sqlx_migrations) || '|' || (select count(*) from pg_database where datname like 'starfall_test_%')"
+          ],
+          "cwd": ".",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 0.6,
+          "log": "_workspace/p1-03-trading/evidence/r1_20261010/freeze/fp_before.txt"
+        }
+      ],
+      "metrics": {
+        "freeze_file": {
+          "path": "_workspace/p1-03-trading/FREEZE",
+          "present": true
+        },
+        "source_files": 532,
+        "fp_before": "4805|d1904d8f18d55911ea101ff9c8435f5e|4|0"
+      },
+      "notes": [],
+      "violations": []
+    },
+    {
+      "name": "gates",
+      "status": "PASS",
+      "raw_status": "PASS",
+      "started": "2026-10-10T16:04:23+09:00",
+      "finished": "2026-10-10T16:05:48+09:00",
+      "seconds": 85.6,
+      "commands": [
+        {
+          "name": "fmt",
+          "argv": [
+            "cargo",
+            "fmt",
+            "--all",
+            "--check"
+          ],
+          "cwd": "server",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 1.4,
+          "log": "_workspace/p1-03-trading/evidence/r1_20261010/gates/fmt.log"
+        },
+        {
+          "name": "clippy",
+          "argv": [
+            "cargo",
+            "clippy",
+            "--workspace",
+            "--all-targets",
+            "--",
+            "-D",
+            "warnings"
+          ],
+          "cwd": "server",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 7.3,
+          "log": "_workspace/p1-03-trading/evidence/r1_20261010/gates/clippy.log"
+        },
+        {
+          "name": "test",
+          "argv": [
+            "cargo",
+            "test",
+            "--workspace",
+            "--locked",
+            "--no-fail-fast"
+          ],
+          "cwd": "server",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 73.5,
+          "log": "_workspace/p1-03-trading/evidence/r1_20261010/gates/test.log"
+        },
+        {
+          "name": "release_starfall-sim",
+          "argv": [
+            "cargo",
+            "test",
+            "-p",
+            "starfall-sim",
+            "--release",
+            "--locked",
+            "--no-fail-fast"
+          ],
+          "cwd": "server",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 3.4,
+          "log": "_workspace/p1-03-trading/evidence/r1_20261010/gates/release_starfall-sim.log"
+        }
+      ],
+      "metrics": {
+        "test": {
+          "passed": 386,
+          "failed": 0,
+          "ignored": 7,
+          "failed_names": []
+        },
+        "release": {
+          "starfall-sim": {
+            "passed": 133,
+            "failed": 0,
+            "ignored": 3,
+            "failed_names": []
+          }
+        }
+      },
+      "notes": [],
+      "violations": []
+    },
+    {
+      "name": "census",
+      "status": "PASS",
+      "raw_status": "PASS",
+      "started": "2026-10-10T16:05:49+09:00",
+      "finished": "2026-10-10T16:05:49+09:00",
+      "seconds": 0.1,
+      "commands": [
+        {
+          "name": "census",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "tests/e2e/db_test_census.py",
+            "--contract",
+            "_workspace/p1-03-trading/02_sprint_contract.md",
+            "--log",
+            "_workspace/p1-03-trading/evidence/r1_20261010/gates/test.log",
+            "--evidence",
+            "_workspace/p1-03-trading/evidence/r1_20261010/census/census.json"
+          ],
+          "cwd": ".",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 0.1,
+          "log": "_workspace/p1-03-trading/evidence/r1_20261010/census/census.out"
+        }
+      ],
+      "metrics": {
+        "verdict": "PASS",
+        "expected": 16,
+        "expected_and_ran": 16,
+        "ran_lines": 51,
+        "missing": 0,
+        "skipped": 0
+      },
+      "notes": [],
+      "violations": []
+    },
+    {
+      "name": "repeat",
+      "status": "PASS",
+      "raw_status": "PASS",
+      "started": "2026-10-10T16:05:49+09:00",
+      "finished": "2026-10-10T16:15:53+09:00",
+      "seconds": 603.7,
+      "commands": [
+        {
+          "name": "run1",
+          "argv": [
+            "cargo",
+            "test",
+            "--workspace",
+            "--locked",
+            "--no-fail-fast"
+          ],
+          "cwd": "server",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 58.2,
+          "log": "_workspace/p1-03-trading/evidence/r1_20261010/repeat/run1.log"
+        },
+        {
+          "name": "run2",
+          "argv": [
+            "cargo",
+            "test",
+            "--workspace",
+            "--locked",
+            "--no-fail-fast"
+          ],
+          "cwd": "server",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 63.6,
+          "log": "_workspace/p1-03-trading/evidence/r1_20261010/repeat/run2.log"
+        },
+        {
+          "name": "run3",
+          "argv": [
+            "cargo",
+            "test",
+            "--workspace",
+            "--locked",
+            "--no-fail-fast"
+          ],
+          "cwd": "server",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 57.9,
+          "log": "_workspace/p1-03-trading/evidence/r1_20261010/repeat/run3.log"
+        },
+        {
+          "name": "run4",
+          "argv": [
+            "cargo",
+            "test",
+            "--workspace",
+            "--locked",
+            "--no-fail-fast"
+          ],
+          "cwd": "server",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 60.7,
+          "log": "_workspace/p1-03-trading/evidence/r1_20261010/repeat/run4.log"
+        },
+        {
+          "name": "run5",
+          "argv": [
+            "cargo",
+            "test",
+            "--workspace",
+            "--locked",
+            "--no-fail-fast"
+          ],
+          "cwd": "server",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 59.3,
+          "log": "_workspace/p1-03-trading/evidence/r1_20261010/repeat/run5.log"
+        },
+        {
+          "name": "run6",
+          "argv": [
+            "cargo",
+            "test",
+            "--workspace",
+            "--locked",
+            "--no-fail-fast"
+          ],
+          "cwd": "server",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 58.5,
+          "log": "_workspace/p1-03-trading/evidence/r1_20261010/repeat/run6.log"
+        },
+        {
+          "name": "run7",
+          "argv": [
+            "cargo",
+            "test",
+            "--workspace",
+            "--locked",
+            "--no-fail-fast"
+          ],
+          "cwd": "server",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 59.7,
+          "log": "_workspace/p1-03-trading/evidence/r1_20261010/repeat/run7.log"
+        },
+        {
+          "name": "run8",
+          "argv": [
+            "cargo",
+            "test",
+            "--workspace",
+            "--locked",
+            "--no-fail-fast"
+          ],
+          "cwd": "server",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 66.2,
+          "log": "_workspace/p1-03-trading/evidence/r1_20261010/repeat/run8.log"
+        },
+        {
+          "name": "run9",
+          "argv": [
+            "cargo",
+            "test",
+            "--workspace",
+            "--locked",
+            "--no-fail-fast"
+          ],
+          "cwd": "server",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 61.7,
+          "log": "_workspace/p1-03-trading/evidence/r1_20261010/repeat/run9.log"
+        },
+        {
+          "name": "run10",
+          "argv": [
+            "cargo",
+            "test",
+            "--workspace",
+            "--locked",
+            "--no-fail-fast"
+          ],
+          "cwd": "server",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 57.9,
+          "log": "_workspace/p1-03-trading/evidence/r1_20261010/repeat/run10.log"
+        }
+      ],
+      "metrics": {
+        "runs": [
+          {
+            "run": 1,
+            "rc": 0,
+            "passed": 386,
+            "failed": 0,
+            "ignored": 7,
+            "failed_names": []
+          },
+          {
+            "run": 2,
+            "rc": 0,
+            "passed": 386,
+            "failed": 0,
+            "ignored": 7,
+            "failed_names": []
+          },
+          {
+            "run": 3,
+            "rc": 0,
+            "passed": 386,
+            "failed": 0,
+            "ignored": 7,
+            "failed_names": []
+          },
+          {
+            "run": 4,
+            "rc": 0,
+            "passed": 386,
+            "failed": 0,
+            "ignored": 7,
+            "failed_names": []
+          },
+          {
+            "run": 5,
+            "rc": 0,
+            "passed": 386,
+            "failed": 0,
+            "ignored": 7,
+            "failed_names": []
+          },
+          {
+            "run": 6,
+            "rc": 0,
+            "passed": 386,
+            "failed": 0,
+            "ignored": 7,
+            "failed_names": []
+          },
+          {
+            "run": 7,
+            "rc": 0,
+            "passed": 386,
+            "failed": 0,
+            "ignored": 7,
+            "failed_names": []
+          },
+          {
+            "run": 8,
+            "rc": 0,
+            "passed": 386,
+            "failed": 0,
+            "ignored": 7,
+            "failed_names": []
+          },
+          {
+            "run": 9,
+            "rc": 0,
+            "passed": 386,
+            "failed": 0,
+            "ignored": 7,
+            "failed_names": []
+          },
+          {
+            "run": 10,
+            "rc": 0,
+            "passed": 386,
+            "failed": 0,
+            "ignored": 7,
+            "failed_names": []
+          }
+        ],
+        "passed_set": [
+          386
+        ]
+      },
+      "notes": [],
+      "violations": []
+    },
+    {
+      "name": "unity",
+      "status": "PASS",
+      "raw_status": "PASS",
+      "started": "2026-10-10T16:15:53+09:00",
+      "finished": "2026-10-10T16:16:18+09:00",
+      "seconds": 24.7,
+      "commands": [
+        {
+          "name": "EditMode",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Unity\\bin\\unity.EXE",
+            "test",
+            "client",
+            "--mode",
+            "EditMode",
+            "--report-format",
+            "junit",
+            "--output",
+            "_workspace/p1-03-trading/evidence/r1_20261010/unity/editmode.xml"
+          ],
+          "cwd": ".",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 12.6,
+          "log": "_workspace/p1-03-trading/evidence/r1_20261010/unity/editmode.log"
+        },
+        {
+          "name": "PlayMode",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Unity\\bin\\unity.EXE",
+            "test",
+            "client",
+            "--mode",
+            "PlayMode",
+            "--report-format",
+            "junit",
+            "--output",
+            "_workspace/p1-03-trading/evidence/r1_20261010/unity/playmode.xml"
+          ],
+          "cwd": ".",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 11.8,
+          "log": "_workspace/p1-03-trading/evidence/r1_20261010/unity/playmode.log"
+        }
+      ],
+      "metrics": {
+        "EditMode": {
+          "present": true,
+          "tests": 492,
+          "failures": 0,
+          "skipped": 2
+        },
+        "PlayMode": {
+          "present": true,
+          "tests": 17,
+          "failures": 0,
+          "skipped": 0
+        }
+      },
+      "notes": [],
+      "violations": []
+    },
+    {
+      "name": "filters",
+      "status": "FAIL",
+      "raw_status": "FAIL",
+      "started": "2026-10-10T16:16:18+09:00",
+      "finished": "2026-10-10T16:17:14+09:00",
+      "seconds": 55.1,
+      "commands": [
+        {
+          "name": "cargo_sc_map",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "tests/e2e/cargo_sc_map.py",
+            "run",
+            "--contract",
+            "_workspace/p1-03-trading/02_sprint_contract.md",
+            "--out",
+            "_workspace/p1-03-trading/evidence/r1_20261010/filters",
+            "--unity-xml",
+            "_workspace/p1-03-trading/evidence/r1_20261010/unity/editmode.xml",
+            "--unity-xml",
+            "_workspace/p1-03-trading/evidence/r1_20261010/unity/playmode.xml"
+          ],
+          "cwd": ".",
+          "rc": 1,
+          "status": "FAIL",
+          "seconds": 55.1,
+          "log": "_workspace/p1-03-trading/evidence/r1_20261010/filters/cargo_sc_map.out"
+        }
+      ],
+      "metrics": {
+        "rows": 133,
+        "filters_rust": 66,
+        "filters_rust_cargo": 61,
+        "filters_rust_bare": 5,
+        "filters_unity_bare": 35,
+        "executed": 66,
+        "ran_ge_1": 65,
+        "static_ghosts": [],
+        "ghosts": [
+          [
+            "SC-40",
+            "starfall-sim",
+            "trading_replay_worker"
+          ]
+        ],
+        "failed_tests": [],
+        "nonzero_rc": [],
+        "cross_sc": [],
+        "unity_bare": {
+          "checked": 35,
+          "ghosts": []
+        }
+      },
+      "notes": [],
+      "violations": []
+    },
+    {
+      "name": "sources",
+      "status": "PASS",
+      "raw_status": "PASS",
+      "started": "2026-10-10T16:17:14+09:00",
+      "finished": "2026-10-10T16:17:14+09:00",
+      "seconds": 0.1,
+      "commands": [
+        {
+          "name": "check_item_sources",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "tests/e2e/check_item_sources.py",
+            "--contract",
+            "_workspace/p1-03-trading/02_sprint_contract.md",
+            "--slice",
+            "p1-03"
+          ],
+          "cwd": ".",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 0.1,
+          "log": "_workspace/p1-03-trading/evidence/r1_20261010/sources/check_item_sources.out"
+        }
+      ],
+      "metrics": {},
+      "notes": [],
+      "violations": []
+    },
+    {
+      "name": "offline",
+      "status": "PASS",
+      "raw_status": "PASS",
+      "started": "2026-10-10T16:17:15+09:00",
+      "finished": "2026-10-10T16:17:46+09:00",
+      "seconds": 31.3,
+      "commands": [
+        {
+          "name": "src_gate_p103",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "tests/e2e/check_item_sources.py",
+            "--contract",
+            "_workspace/p1-03-trading/02_sprint_contract.md",
+            "--slice",
+            "p1-03"
+          ],
+          "cwd": ".",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 0.1,
+          "log": "_workspace/p1-03-trading/evidence/r1_20261010/offline/src_gate_p103.log"
+        },
+        {
+          "name": "src_gate_p102_regress",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "tests/e2e/check_item_sources.py",
+            "--contract",
+            "_workspace/p1-02-mining/02_sprint_contract.md",
+            "--slice",
+            "p1-02"
+          ],
+          "cwd": ".",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 0.1,
+          "log": "_workspace/p1-03-trading/evidence/r1_20261010/offline/src_gate_p102_regress.log"
+        },
+        {
+          "name": "self_check_item_sources",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "tests/e2e/check_item_sources.py",
+            "--selftest"
+          ],
+          "cwd": ".",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 0.1,
+          "log": "_workspace/p1-03-trading/evidence/r1_20261010/offline/self_check_item_sources.log"
+        },
+        {
+          "name": "self_server_boot",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "tests/e2e/server_boot.py",
+            "selftest"
+          ],
+          "cwd": ".",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 0.1,
+          "log": "_workspace/p1-03-trading/evidence/r1_20261010/offline/self_server_boot.log"
+        },
+        {
+          "name": "self_trade_ledger",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "tests/e2e/trade_ledger.py",
+            "selftest"
+          ],
+          "cwd": ".",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 0.1,
+          "log": "_workspace/p1-03-trading/evidence/r1_20261010/offline/self_trade_ledger.log"
+        },
+        {
+          "name": "self_restart_cases_p103",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "tests/e2e/restart_cases.py",
+            "selftest"
+          ],
+          "cwd": ".",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 0.1,
+          "log": "_workspace/p1-03-trading/evidence/r1_20261010/offline/self_restart_cases_p103.log"
+        },
+        {
+          "name": "self_validate_data_files",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "tests/e2e/validate_data_files.py",
+            "--selftest"
+          ],
+          "cwd": ".",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 1.7,
+          "log": "_workspace/p1-03-trading/evidence/r1_20261010/offline/self_validate_data_files.log"
+        },
+        {
+          "name": "self_data_copy_scope",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "tests/e2e/data_copy_scope.py",
+            "--selftest"
+          ],
+          "cwd": ".",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 0.2,
+          "log": "_workspace/p1-03-trading/evidence/r1_20261010/offline/self_data_copy_scope.log"
+        },
+        {
+          "name": "self_data_file_pairs",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "tests/e2e/data_file_pairs.py",
+            "selftest"
+          ],
+          "cwd": ".",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 0.1,
+          "log": "_workspace/p1-03-trading/evidence/r1_20261010/offline/self_data_file_pairs.log"
+        },
+        {
+          "name": "self_constraint_census",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "tests/e2e/constraint_census.py",
+            "selftest"
+          ],
+          "cwd": ".",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 0.1,
+          "log": "_workspace/p1-03-trading/evidence/r1_20261010/offline/self_constraint_census.log"
+        },
+        {
+          "name": "self_db_test_census",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "tests/e2e/db_test_census.py",
+            "selftest"
+          ],
+          "cwd": ".",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 0.1,
+          "log": "_workspace/p1-03-trading/evidence/r1_20261010/offline/self_db_test_census.log"
+        },
+        {
+          "name": "self_interface_matrix_p103",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "tests/e2e/interface_matrix.py",
+            "selftest",
+            "--slice",
+            "p1-03"
+          ],
+          "cwd": ".",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 0.2,
+          "log": "_workspace/p1-03-trading/evidence/r1_20261010/offline/self_interface_matrix_p103.log"
+        },
+        {
+          "name": "self_new_world",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "tests/e2e/new_world.py",
+            "selftest"
+          ],
+          "cwd": ".",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 0.1,
+          "log": "_workspace/p1-03-trading/evidence/r1_20261010/offline/self_new_world.log"
+        },
+        {
+          "name": "self_cargo_sc_map",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "tests/e2e/cargo_sc_map.py",
+            "selftest"
+          ],
+          "cwd": ".",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 0.8,
+          "log": "_workspace/p1-03-trading/evidence/r1_20261010/offline/self_cargo_sc_map.log"
+        },
+        {
+          "name": "self_run_round",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "tests/e2e/run_round.py",
+            "selftest"
+          ],
+          "cwd": ".",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 21.7,
+          "log": "_workspace/p1-03-trading/evidence/r1_20261010/offline/self_run_round.log"
+        },
+        {
+          "name": "sc57_copy_scope",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "tests/e2e/data_copy_scope.py"
+          ],
+          "cwd": ".",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 0.1,
+          "log": "_workspace/p1-03-trading/evidence/r1_20261010/offline/sc57.json"
+        },
+        {
+          "name": "sc58_glob_census",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "tests/e2e/validate_data_files.py",
+            "--glob-census"
+          ],
+          "cwd": ".",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 0.2,
+          "log": "_workspace/p1-03-trading/evidence/r1_20261010/offline/sc58.json"
+        },
+        {
+          "name": "sc59_validate_data",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "tests/e2e/validate_data_files.py"
+          ],
+          "cwd": ".",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 0.2,
+          "log": "_workspace/p1-03-trading/evidence/r1_20261010/offline/sc59.json"
+        },
+        {
+          "name": "sc127_coverage_strict",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            ".claude/skills/integration-qa/scripts/check_contract_coverage.py",
+            "--strict"
+          ],
+          "cwd": ".",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 2.6,
+          "log": "_workspace/p1-03-trading/evidence/r1_20261010/offline/sc127_coverage_strict.log"
+        },
+        {
+          "name": "sc128_interface_matrix",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "tests/e2e/interface_matrix.py",
+            "--slice",
+            "p1-03"
+          ],
+          "cwd": ".",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 0.1,
+          "log": "_workspace/p1-03-trading/evidence/r1_20261010/offline/sc128.json"
+        },
+        {
+          "name": "sc41_golden_move",
+          "argv": [
+            "sha256",
+            "server/crates/sim/tests/data/replay/*",
+            "vs",
+            "_workspace/p1-03-trading/evidence/baseline_20261005/golden_sha256.txt"
+          ],
+          "cwd": ".",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 0.0,
+          "log": "_workspace/p1-03-trading/evidence/r1_20261010/offline/sc41_golden_move.txt"
+        },
+        {
+          "name": "sc41_golden_mining",
+          "argv": [
+            "sha256",
+            "server/crates/sim/tests/data/replay_mining/*",
+            "vs",
+            "_workspace/p1-03-trading/evidence/baseline_20261005/golden_sha256.txt"
+          ],
+          "cwd": ".",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 0.0,
+          "log": "_workspace/p1-03-trading/evidence/r1_20261010/offline/sc41_golden_mining.txt"
+        },
+        {
+          "name": "sc41_golden_history",
+          "argv": [
+            "sha256",
+            "server/crates/history/tests/data/golden/*",
+            "vs",
+            "_workspace/p1-03-trading/evidence/baseline_20261005/golden_sha256.txt"
+          ],
+          "cwd": ".",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 0.0,
+          "log": "_workspace/p1-03-trading/evidence/r1_20261010/offline/sc41_golden_history.txt"
+        },
+        {
+          "name": "sc125_self_causation",
+          "argv": [
+            "docker",
+            "compose",
+            "exec",
+            "-T",
+            "postgres",
+            "psql",
+            "-q",
+            "-v",
+            "ON_ERROR_STOP=1",
+            "-U",
+            "starfall",
+            "-d",
+            "starfall",
+            "-At",
+            "-F",
+            "|",
+            "-c",
+            "SET default_transaction_read_only = on",
+            "-c",
+            "select event_id from domain_events where causation_id = event_id order by 1"
+          ],
+          "cwd": ".",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 0.3,
+          "log": "_workspace/p1-03-trading/evidence/r1_20261010/offline/sc125_self_causation.txt"
+        },
+        {
+          "name": "sc126_constraint_census",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "tests/e2e/constraint_census.py",
+            "--slice",
+            "p1-03"
+          ],
+          "cwd": ".",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 1.4,
+          "log": "_workspace/p1-03-trading/evidence/r1_20261010/offline/sc126.json"
+        },
+        {
+          "name": "sc60_codegen_run1",
+          "argv": [
+            "dotnet",
+            "run",
+            "ContractsCodegen.cs",
+            "--",
+            "--contracts",
+            "contracts",
+            "--out",
+            "C:\\Users\\CHOISO~1\\AppData\\Local\\Temp\\run_round_srbwizku\\codegen\\run1"
+          ],
+          "cwd": "tools/codegen",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 0.6,
+          "log": "_workspace/p1-03-trading/evidence/r1_20261010/offline/sc60_codegen_run1.log"
+        },
+        {
+          "name": "sc60_codegen_run2",
+          "argv": [
+            "dotnet",
+            "run",
+            "ContractsCodegen.cs",
+            "--",
+            "--contracts",
+            "contracts",
+            "--out",
+            "C:\\Users\\CHOISO~1\\AppData\\Local\\Temp\\run_round_srbwizku\\codegen\\run2"
+          ],
+          "cwd": "tools/codegen",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 0.3,
+          "log": "_workspace/p1-03-trading/evidence/r1_20261010/offline/sc60_codegen_run2.log"
+        },
+        {
+          "name": "sc60_codegen_compare",
+          "argv": [
+            "sha256",
+            "tmp/run1",
+            "tmp/run2",
+            "client/Assets/_Project/Scripts/Contracts/Generated"
+          ],
+          "cwd": ".",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 0.0,
+          "log": ""
+        }
+      ],
+      "metrics": {
+        "sc41_golden_move": {
+          "files": 3,
+          "all_in_baseline": true
+        },
+        "sc41_golden_mining": {
+          "files": 4,
+          "all_in_baseline": true
+        },
+        "sc41_golden_history": {
+          "files": 2,
+          "all_in_baseline": true
+        },
+        "sc60_codegen": {
+          "generated_files": 22,
+          "run1_eq_run2": true,
+          "eq_committed": true
+        }
+      },
+      "notes": [
+        "sc125_self_causation: 기준 _workspace/p1-02-mining/evidence/r2_20261003/offline/sc94.txt 와 같다"
+      ],
+      "violations": []
+    },
+    {
+      "name": "bots",
+      "status": "미검증(조건 미발생)",
+      "raw_status": "미검증(조건 미발생)",
+      "started": "2026-10-10T16:17:47+09:00",
+      "finished": "2026-10-10T17:40:20+09:00",
+      "seconds": 4953.8,
+      "commands": [
+        {
+          "name": "build_server",
+          "argv": [
+            "cargo",
+            "build",
+            "-p",
+            "starfall-game-server"
+          ],
+          "cwd": "server",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 0.8,
+          "log": "_workspace/p1-03-trading/evidence/r1_20261010/bots/build_server.log"
+        },
+        {
+          "name": "build_bots",
+          "argv": [
+            "cargo",
+            "build"
+          ],
+          "cwd": "tools/bots",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 1.1,
+          "log": "_workspace/p1-03-trading/evidence/r1_20261010/bots/build_bots.log"
+        },
+        {
+          "name": "sc04_new_world",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "tests/e2e/new_world.py",
+            "--tag",
+            "r1-SC-04",
+            "--evidence",
+            "_workspace/p1-03-trading/evidence/r1_20261010/bots/sc04/world.json"
+          ],
+          "cwd": ".",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 2.1,
+          "log": "_workspace/p1-03-trading/evidence/r1_20261010/bots/sc04/world.out"
+        },
+        {
+          "name": "sc04_boot",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "tests/e2e/server_boot.py",
+            "p1-03-boot",
+            "--world",
+            "01a124ac-d565-7625-ae48-87836b2cb9ed",
+            "--log",
+            "_workspace/p1-03-trading/evidence/r1_20261010/bots/sc04_boot.log",
+            "--evidence",
+            "_workspace/p1-03-trading/evidence/r1_20261010/bots/sc04_boot.json"
+          ],
+          "cwd": ".",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 1.3,
+          "log": "_workspace/p1-03-trading/evidence/r1_20261010/bots/sc04.err"
+        },
+        {
+          "name": "sc05_reject",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "tests/e2e/server_boot.py",
+            "p1-03-reject",
+            "--workdir",
+            "C:\\Users\\CHOISO~1\\AppData\\Local\\Temp\\run_round_srbwizku/sc05_rej",
+            "--evidence",
+            "_workspace/p1-03-trading/evidence/r1_20261010/bots/sc05_reject.json"
+          ],
+          "cwd": ".",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 5.6,
+          "log": "_workspace/p1-03-trading/evidence/r1_20261010/bots/sc05.err"
+        },
+        {
+          "name": "sc129_pairs",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "tests/e2e/data_file_pairs.py",
+            "--slice",
+            "p1-03",
+            "--boot-log",
+            "_workspace/p1-03-trading/evidence/r1_20261010/bots/sc04_boot.log",
+            "--cargo-log",
+            "_workspace/p1-03-trading/evidence/r1_20261010/gates/test.log",
+            "--evidence",
+            "_workspace/p1-03-trading/evidence/r1_20261010/bots/sc129_pairs.json"
+          ],
+          "cwd": ".",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 0.1,
+          "log": "_workspace/p1-03-trading/evidence/r1_20261010/bots/sc129_pairs.log"
+        },
+        {
+          "name": "cycle_new_world",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "tests/e2e/new_world.py",
+            "--tag",
+            "r1-trade-cycle",
+            "--evidence",
+            "_workspace/p1-03-trading/evidence/r1_20261010/bots/cycle/world.json"
+          ],
+          "cwd": ".",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 1.4,
+          "log": "_workspace/p1-03-trading/evidence/r1_20261010/bots/cycle/world.out"
+        },
+        {
+          "name": "cycle_serve",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "tests/e2e/server_boot.py",
+            "serve",
+            "--world",
+            "01a124ac-f92b-798f-a4c6-aa22e9775025",
+            "--stop-file",
+            "_workspace/p1-03-trading/evidence/r1_20261010/bots/cycle/stop",
+            "--ready-file",
+            "_workspace/p1-03-trading/evidence/r1_20261010/bots/cycle/ready",
+            "--log",
+            "_workspace/p1-03-trading/evidence/r1_20261010/bots/cycle/server.log",
+            "--max-seconds",
+            "1500"
+          ],
+          "cwd": ".",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 578.5,
+          "log": "_workspace/p1-03-trading/evidence/r1_20261010/bots/cycle/serve.out"
+        },
+        {
+          "name": "cycle.trade-cycle",
+          "argv": [
+            "tools/bots/target/debug/bots.exe",
+            "probe",
+            "--case",
+            "trade-cycle",
+            "--deposit",
+            "inner-belt-1",
+            "--label",
+            "bot-100",
+            "--label-b",
+            "bot-101",
+            "--label-c",
+            "bot-102",
+            "--world",
+            "01a124ac-f92b-798f-a4c6-aa22e9775025",
+            "--out",
+            "_workspace/p1-03-trading/evidence/r1_20261010/bots/cycle/trade-cycle.json"
+          ],
+          "cwd": ".",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 577.1,
+          "log": "_workspace/p1-03-trading/evidence/r1_20261010/bots/cycle/trade-cycle.err"
+        },
+        {
+          "name": "cases_new_world",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "tests/e2e/new_world.py",
+            "--tag",
+            "r1-sell-cases",
+            "--evidence",
+            "_workspace/p1-03-trading/evidence/r1_20261010/bots/cases/world.json"
+          ],
+          "cwd": ".",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 1.3,
+          "log": "_workspace/p1-03-trading/evidence/r1_20261010/bots/cases/world.out"
+        },
+        {
+          "name": "cases_serve",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "tests/e2e/server_boot.py",
+            "serve",
+            "--world",
+            "01a124b5-d2b8-786d-adea-70af67b5d0e1",
+            "--stop-file",
+            "_workspace/p1-03-trading/evidence/r1_20261010/bots/cases/stop",
+            "--ready-file",
+            "_workspace/p1-03-trading/evidence/r1_20261010/bots/cases/ready",
+            "--log",
+            "_workspace/p1-03-trading/evidence/r1_20261010/bots/cases/server.log",
+            "--max-seconds",
+            "2400"
+          ],
+          "cwd": ".",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 1057.0,
+          "log": "_workspace/p1-03-trading/evidence/r1_20261010/bots/cases/serve.out"
+        },
+        {
+          "name": "cases.sell-dup",
+          "argv": [
+            "tools/bots/target/debug/bots.exe",
+            "probe",
+            "--case",
+            "sell-dup",
+            "--deposit",
+            "inner-belt-1",
+            "--label",
+            "bot-110",
+            "--out",
+            "_workspace/p1-03-trading/evidence/r1_20261010/bots/cases/sell-dup.json"
+          ],
+          "cwd": ".",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 73.2,
+          "log": "_workspace/p1-03-trading/evidence/r1_20261010/bots/cases/sell-dup.err"
+        },
+        {
+          "name": "cases.sell-dup-reconnect",
+          "argv": [
+            "tools/bots/target/debug/bots.exe",
+            "probe",
+            "--case",
+            "sell-dup-reconnect",
+            "--deposit",
+            "inner-belt-2",
+            "--label",
+            "bot-111",
+            "--out",
+            "_workspace/p1-03-trading/evidence/r1_20261010/bots/cases/sell-dup-reconnect.json"
+          ],
+          "cwd": ".",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 89.8,
+          "log": "_workspace/p1-03-trading/evidence/r1_20261010/bots/cases/sell-dup-reconnect.err"
+        },
+        {
+          "name": "cases.sell-dup-cross-kind",
+          "argv": [
+            "tools/bots/target/debug/bots.exe",
+            "probe",
+            "--case",
+            "sell-dup-cross-kind",
+            "--deposit",
+            "inner-belt-3",
+            "--label",
+            "bot-112",
+            "--out",
+            "_workspace/p1-03-trading/evidence/r1_20261010/bots/cases/sell-dup-cross-kind.json"
+          ],
+          "cwd": ".",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 161.6,
+          "log": "_workspace/p1-03-trading/evidence/r1_20261010/bots/cases/sell-dup-cross-kind.err"
+        },
+        {
+          "name": "cases.cheat-sell-inject",
+          "argv": [
+            "tools/bots/target/debug/bots.exe",
+            "probe",
+            "--case",
+            "cheat-sell-inject",
+            "--deposit",
+            "inner-belt-1",
+            "--label",
+            "bot-113",
+            "--out",
+            "_workspace/p1-03-trading/evidence/r1_20261010/bots/cases/cheat-sell-inject.json"
+          ],
+          "cwd": ".",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 115.2,
+          "log": "_workspace/p1-03-trading/evidence/r1_20261010/bots/cases/cheat-sell-inject.err"
+        },
+        {
+          "name": "cases.cheat-sell-range",
+          "argv": [
+            "tools/bots/target/debug/bots.exe",
+            "probe",
+            "--case",
+            "cheat-sell-range",
+            "--deposit",
+            "inner-belt-2",
+            "--label",
+            "bot-114",
+            "--out",
+            "_workspace/p1-03-trading/evidence/r1_20261010/bots/cases/cheat-sell-range.json"
+          ],
+          "cwd": ".",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 129.8,
+          "log": "_workspace/p1-03-trading/evidence/r1_20261010/bots/cases/cheat-sell-range.err"
+        },
+        {
+          "name": "cases.cheat-sell-fast",
+          "argv": [
+            "tools/bots/target/debug/bots.exe",
+            "probe",
+            "--case",
+            "cheat-sell-fast",
+            "--deposit",
+            "inner-belt-3",
+            "--label",
+            "bot-115",
+            "--out",
+            "_workspace/p1-03-trading/evidence/r1_20261010/bots/cases/cheat-sell-fast.json"
+          ],
+          "cwd": ".",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 190.9,
+          "log": "_workspace/p1-03-trading/evidence/r1_20261010/bots/cases/cheat-sell-fast.err"
+        },
+        {
+          "name": "cases.cheat-sell-overqty",
+          "argv": [
+            "tools/bots/target/debug/bots.exe",
+            "probe",
+            "--case",
+            "cheat-sell-overqty",
+            "--deposit",
+            "inner-belt-1",
+            "--label",
+            "bot-116",
+            "--out",
+            "_workspace/p1-03-trading/evidence/r1_20261010/bots/cases/cheat-sell-overqty.json"
+          ],
+          "cwd": ".",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 106.4,
+          "log": "_workspace/p1-03-trading/evidence/r1_20261010/bots/cases/cheat-sell-overqty.err"
+        },
+        {
+          "name": "cases.cheat-sell-cooldown",
+          "argv": [
+            "tools/bots/target/debug/bots.exe",
+            "probe",
+            "--case",
+            "cheat-sell-cooldown",
+            "--deposit",
+            "inner-belt-2",
+            "--label",
+            "bot-117",
+            "--out",
+            "_workspace/p1-03-trading/evidence/r1_20261010/bots/cases/cheat-sell-cooldown.json"
+          ],
+          "cwd": ".",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 111.3,
+          "log": "_workspace/p1-03-trading/evidence/r1_20261010/bots/cases/cheat-sell-cooldown.err"
+        },
+        {
+          "name": "cases.cheat-sell-unknown",
+          "argv": [
+            "tools/bots/target/debug/bots.exe",
+            "probe",
+            "--case",
+            "cheat-sell-unknown",
+            "--deposit",
+            "inner-belt-3",
+            "--label",
+            "bot-118",
+            "--out",
+            "_workspace/p1-03-trading/evidence/r1_20261010/bots/cases/cheat-sell-unknown.json"
+          ],
+          "cwd": ".",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 77.3,
+          "log": "_workspace/p1-03-trading/evidence/r1_20261010/bots/cases/cheat-sell-unknown.err"
+        },
+        {
+          "name": "leak_new_world",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "tests/e2e/new_world.py",
+            "--tag",
+            "r1-leak-market",
+            "--evidence",
+            "_workspace/p1-03-trading/evidence/r1_20261010/bots/leak/world.json"
+          ],
+          "cwd": ".",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 1.6,
+          "log": "_workspace/p1-03-trading/evidence/r1_20261010/bots/leak/world.out"
+        },
+        {
+          "name": "leak_serve",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "tests/e2e/server_boot.py",
+            "serve",
+            "--world",
+            "01a124c5-f8e8-70c4-95a1-a8b51cb63072",
+            "--stop-file",
+            "_workspace/p1-03-trading/evidence/r1_20261010/bots/leak/stop",
+            "--ready-file",
+            "_workspace/p1-03-trading/evidence/r1_20261010/bots/leak/ready",
+            "--log",
+            "_workspace/p1-03-trading/evidence/r1_20261010/bots/leak/server.log",
+            "--max-seconds",
+            "1200"
+          ],
+          "cwd": ".",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 150.7,
+          "log": "_workspace/p1-03-trading/evidence/r1_20261010/bots/leak/serve.out"
+        },
+        {
+          "name": "leak.leak-scan-market",
+          "argv": [
+            "tools/bots/target/debug/bots.exe",
+            "probe",
+            "--case",
+            "leak-scan-market",
+            "--deposit",
+            "inner-belt-1",
+            "--label",
+            "bot-120",
+            "--label-b",
+            "bot-121",
+            "--world",
+            "01a124c5-f8e8-70c4-95a1-a8b51cb63072",
+            "--out",
+            "_workspace/p1-03-trading/evidence/r1_20261010/bots/leak/leak-scan-market.json"
+          ],
+          "cwd": ".",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 149.3,
+          "log": "_workspace/p1-03-trading/evidence/r1_20261010/bots/leak/leak-scan-market.err"
+        },
+        {
+          "name": "trace_new_world",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "tests/e2e/new_world.py",
+            "--tag",
+            "r1-trace-sell",
+            "--evidence",
+            "_workspace/p1-03-trading/evidence/r1_20261010/bots/trace/world.json"
+          ],
+          "cwd": ".",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 1.6,
+          "log": "_workspace/p1-03-trading/evidence/r1_20261010/bots/trace/world.out"
+        },
+        {
+          "name": "trace_serve",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "tests/e2e/server_boot.py",
+            "serve",
+            "--world",
+            "01a124c8-4c8e-7f6b-8f72-01ad20f10055",
+            "--stop-file",
+            "_workspace/p1-03-trading/evidence/r1_20261010/bots/trace/stop",
+            "--ready-file",
+            "_workspace/p1-03-trading/evidence/r1_20261010/bots/trace/ready",
+            "--log",
+            "_workspace/p1-03-trading/evidence/r1_20261010/bots/trace/server.log",
+            "--max-seconds",
+            "1500"
+          ],
+          "cwd": ".",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 416.6,
+          "log": "_workspace/p1-03-trading/evidence/r1_20261010/bots/trace/serve.out"
+        },
+        {
+          "name": "trace.trace-sell-a",
+          "argv": [
+            "tools/bots/target/debug/bots.exe",
+            "probe",
+            "--case",
+            "trace-sell-a",
+            "--deposit",
+            "inner-belt-1",
+            "--label",
+            "bot-130",
+            "--world",
+            "01a124c8-4c8e-7f6b-8f72-01ad20f10055",
+            "--out",
+            "_workspace/p1-03-trading/evidence/r1_20261010/bots/trace/trace-sell-a.json"
+          ],
+          "cwd": ".",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 381.8,
+          "log": "_workspace/p1-03-trading/evidence/r1_20261010/bots/trace/trace-sell-a.err"
+        },
+        {
+          "name": "trace.trace-sell-b",
+          "argv": [
+            "tools/bots/target/debug/bots.exe",
+            "probe",
+            "--case",
+            "trace-sell-b",
+            "--deposit",
+            "inner-belt-2",
+            "--label",
+            "bot-131",
+            "--seller-label",
+            "bot-130",
+            "--world",
+            "01a124c8-4c8e-7f6b-8f72-01ad20f10055",
+            "--out",
+            "_workspace/p1-03-trading/evidence/r1_20261010/bots/trace/trace-sell-b.json"
+          ],
+          "cwd": ".",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 33.2,
+          "log": "_workspace/p1-03-trading/evidence/r1_20261010/bots/trace/trace-sell-b.err"
+        },
+        {
+          "name": "race_new_world",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "tests/e2e/new_world.py",
+            "--tag",
+            "r1-race-sell",
+            "--evidence",
+            "_workspace/p1-03-trading/evidence/r1_20261010/bots/race/world.json"
+          ],
+          "cwd": ".",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 1.5,
+          "log": "_workspace/p1-03-trading/evidence/r1_20261010/bots/race/world.out"
+        },
+        {
+          "name": "race_serve",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "tests/e2e/server_boot.py",
+            "serve",
+            "--world",
+            "01a124ce-ad57-7261-8d1c-de800aa74b75",
+            "--stop-file",
+            "_workspace/p1-03-trading/evidence/r1_20261010/bots/race/stop",
+            "--ready-file",
+            "_workspace/p1-03-trading/evidence/r1_20261010/bots/race/ready",
+            "--log",
+            "_workspace/p1-03-trading/evidence/r1_20261010/bots/race/server.log",
+            "--max-seconds",
+            "900"
+          ],
+          "cwd": ".",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 114.5,
+          "log": "_workspace/p1-03-trading/evidence/r1_20261010/bots/race/serve.out"
+        },
+        {
+          "name": "race.race-sell-same-tick",
+          "argv": [
+            "tools/bots/target/debug/bots.exe",
+            "probe",
+            "--case",
+            "race-sell-same-tick",
+            "--deposit",
+            "inner-belt-1",
+            "--label",
+            "bot-140",
+            "--label-b",
+            "bot-141",
+            "--world",
+            "01a124ce-ad57-7261-8d1c-de800aa74b75",
+            "--out",
+            "_workspace/p1-03-trading/evidence/r1_20261010/bots/race/race-sell-same-tick.json"
+          ],
+          "cwd": ".",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 112.6,
+          "log": "_workspace/p1-03-trading/evidence/r1_20261010/bots/race/race-sell-same-tick.err"
+        },
+        {
+          "name": "restart_sell_dup",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "tests/e2e/restart_cases.py",
+            "--out",
+            "_workspace/p1-03-trading/evidence/r1_20261010/bots/sell_dup",
+            "sell-dup"
+          ],
+          "cwd": ".",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 120.0,
+          "log": "_workspace/p1-03-trading/evidence/r1_20261010/bots/restart_sell_dup.log"
+        },
+        {
+          "name": "restart_sell_cas",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "tests/e2e/restart_cases.py",
+            "--out",
+            "_workspace/p1-03-trading/evidence/r1_20261010/bots/sell_cas",
+            "sell-cas"
+          ],
+          "cwd": ".",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 256.4,
+          "log": "_workspace/p1-03-trading/evidence/r1_20261010/bots/restart_sell_cas.log"
+        },
+        {
+          "name": "restart_sell_cas_market",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "tests/e2e/restart_cases.py",
+            "--out",
+            "_workspace/p1-03-trading/evidence/r1_20261010/bots/sell_cas_market",
+            "sell-cas-market"
+          ],
+          "cwd": ".",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 218.6,
+          "log": "_workspace/p1-03-trading/evidence/r1_20261010/bots/restart_sell_cas_market.log"
+        },
+        {
+          "name": "restart_sell_recover",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "tests/e2e/restart_cases.py",
+            "--out",
+            "_workspace/p1-03-trading/evidence/r1_20261010/bots/sell_recover",
+            "sell-recover"
+          ],
+          "cwd": ".",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 508.1,
+          "log": "_workspace/p1-03-trading/evidence/r1_20261010/bots/restart_sell_recover.log"
+        },
+        {
+          "name": "load_new_world",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "tests/e2e/new_world.py",
+            "--tag",
+            "r1-sell-load",
+            "--evidence",
+            "_workspace/p1-03-trading/evidence/r1_20261010/bots/load/world.json"
+          ],
+          "cwd": ".",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 1.3,
+          "log": "_workspace/p1-03-trading/evidence/r1_20261010/bots/load/world.out"
+        },
+        {
+          "name": "load_serve",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "tests/e2e/server_boot.py",
+            "serve",
+            "--world",
+            "01a124e1-4783-75c3-baf3-451c0652e0a5",
+            "--stop-file",
+            "_workspace/p1-03-trading/evidence/r1_20261010/bots/load/stop",
+            "--ready-file",
+            "_workspace/p1-03-trading/evidence/r1_20261010/bots/load/ready",
+            "--log",
+            "_workspace/p1-03-trading/evidence/r1_20261010/bots/load/server.log",
+            "--max-seconds",
+            "3000"
+          ],
+          "cwd": ".",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 1513.5,
+          "log": "_workspace/p1-03-trading/evidence/r1_20261010/bots/load/serve.out"
+        },
+        {
+          "name": "load.sell-load",
+          "argv": [
+            "tools/bots/target/debug/bots.exe",
+            "probe",
+            "--case",
+            "sell-load",
+            "--deposit",
+            "inner-belt-1",
+            "--label",
+            "bot-500",
+            "--world",
+            "01a124e1-4783-75c3-baf3-451c0652e0a5",
+            "--out",
+            "_workspace/p1-03-trading/evidence/r1_20261010/bots/load/sell-load.json"
+          ],
+          "cwd": ".",
+          "rc": 4,
+          "status": "미검증(조건 미발생)",
+          "seconds": 1512.0,
+          "log": "_workspace/p1-03-trading/evidence/r1_20261010/bots/load/sell-load.err"
+        }
+      ],
+      "metrics": {
+        "server_sha256": "da37b39f88f56232204ae574b4fd19b36ce39f1f9afe50f42af61c8439ff1ae4"
+      },
+      "notes": [
+        "cycle: world=01a124ac-f92b-798f-a4c6-aa22e9775025 SHUTDOWN exit=0",
+        "cases: world=01a124b5-d2b8-786d-adea-70af67b5d0e1 SHUTDOWN exit=0",
+        "leak: world=01a124c5-f8e8-70c4-95a1-a8b51cb63072 SHUTDOWN exit=0",
+        "trace: world=01a124c8-4c8e-7f6b-8f72-01ad20f10055 SHUTDOWN exit=0",
+        "race: world=01a124ce-ad57-7261-8d1c-de800aa74b75 SHUTDOWN exit=0",
+        "load: world=01a124e1-4783-75c3-baf3-451c0652e0a5 SHUTDOWN exit=0"
+      ],
+      "violations": []
+    },
+    {
+      "name": "judges",
+      "status": "FAIL",
+      "raw_status": "FAIL",
+      "started": "2026-10-10T17:40:21+09:00",
+      "finished": "2026-10-10T17:40:54+09:00",
+      "seconds": 32.8,
+      "commands": [
+        {
+          "name": "sc30_ledger_cycle",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "tests/e2e/trade_ledger.py",
+            "--world",
+            "01a124ac-f92b-798f-a4c6-aa22e9775025",
+            "ledger"
+          ],
+          "cwd": ".",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 2.5,
+          "log": "_workspace/p1-03-trading/evidence/r1_20261010/judges/sc30_ledger_cycle.json"
+        },
+        {
+          "name": "sc31_chain_cycle",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "tests/e2e/trade_ledger.py",
+            "--world",
+            "01a124ac-f92b-798f-a4c6-aa22e9775025",
+            "chain"
+          ],
+          "cwd": ".",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 2.4,
+          "log": "_workspace/p1-03-trading/evidence/r1_20261010/judges/sc31_chain_cycle.json"
+        },
+        {
+          "name": "sc32_conservation_cycle",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "tests/e2e/trade_ledger.py",
+            "--world",
+            "01a124ac-f92b-798f-a4c6-aa22e9775025",
+            "conservation"
+          ],
+          "cwd": ".",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 2.1,
+          "log": "_workspace/p1-03-trading/evidence/r1_20261010/judges/sc32_conservation_cycle.json"
+        },
+        {
+          "name": "sc32_negative_without_sales",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "tests/e2e/trade_ledger.py",
+            "--world",
+            "01a124ac-f92b-798f-a4c6-aa22e9775025",
+            "conservation",
+            "--without-sales-term"
+          ],
+          "cwd": ".",
+          "rc": 1,
+          "status": "FAIL",
+          "seconds": 2.3,
+          "log": "_workspace/p1-03-trading/evidence/r1_20261010/judges/sc32_negative.json"
+        },
+        {
+          "name": "sc33_saturation_cycle",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "tests/e2e/trade_ledger.py",
+            "--world",
+            "01a124ac-f92b-798f-a4c6-aa22e9775025",
+            "saturation"
+          ],
+          "cwd": ".",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 1.9,
+          "log": "_workspace/p1-03-trading/evidence/r1_20261010/judges/sc33_saturation_cycle.json"
+        },
+        {
+          "name": "sc37_zero_rows_cycle",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "tests/e2e/trade_ledger.py",
+            "--world",
+            "01a124ac-f92b-798f-a4c6-aa22e9775025",
+            "zero-rows"
+          ],
+          "cwd": ".",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 1.8,
+          "log": "_workspace/p1-03-trading/evidence/r1_20261010/judges/sc37_zero_rows_cycle.json"
+        },
+        {
+          "name": "sc55_history_replay_cycle",
+          "argv": [
+            "cargo",
+            "run",
+            "-q",
+            "-p",
+            "starfall-persistence",
+            "--bin",
+            "history-replay",
+            "--",
+            "--read-only",
+            "--world",
+            "01a124ac-f92b-798f-a4c6-aa22e9775025"
+          ],
+          "cwd": "server",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 1.8,
+          "log": "_workspace/p1-03-trading/evidence/r1_20261010/judges/sc55_replay_cycle.txt"
+        },
+        {
+          "name": "sc55_sold_rows_cycle_cycle",
+          "argv": [
+            "docker",
+            "compose",
+            "exec",
+            "-T",
+            "postgres",
+            "psql",
+            "-q",
+            "-v",
+            "ON_ERROR_STOP=1",
+            "-U",
+            "starfall",
+            "-d",
+            "starfall",
+            "-At",
+            "-F",
+            "|",
+            "-c",
+            "SET default_transaction_read_only = on",
+            "-c",
+            "select count(*) from domain_events where world_id = '01a124ac-f92b-798f-a4c6-aa22e9775025' and event_type = 'MINERAL_SOLD'"
+          ],
+          "cwd": ".",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 0.5,
+          "log": "_workspace/p1-03-trading/evidence/r1_20261010/judges/sc55_sold_rows_cycle_cycle.txt"
+        },
+        {
+          "name": "sc118_load",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "tests/e2e/trade_ledger.py",
+            "--world",
+            "01a124e1-4783-75c3-baf3-451c0652e0a5",
+            "load"
+          ],
+          "cwd": ".",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 3.1,
+          "log": "_workspace/p1-03-trading/evidence/r1_20261010/judges/sc118_load.json"
+        },
+        {
+          "name": "sc120_market_events_load",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "tests/e2e/trade_ledger.py",
+            "--world",
+            "01a124e1-4783-75c3-baf3-451c0652e0a5",
+            "market-events"
+          ],
+          "cwd": ".",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 1.4,
+          "log": "_workspace/p1-03-trading/evidence/r1_20261010/judges/sc120_market_events_load.json"
+        },
+        {
+          "name": "sc123_causation_cycle",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "tests/e2e/trade_ledger.py",
+            "--world",
+            "01a124ac-f92b-798f-a4c6-aa22e9775025",
+            "causation"
+          ],
+          "cwd": ".",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 2.0,
+          "log": "_workspace/p1-03-trading/evidence/r1_20261010/judges/sc123_causation_cycle.json"
+        },
+        {
+          "name": "sc123_causation_cases",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "tests/e2e/trade_ledger.py",
+            "--world",
+            "01a124b5-d2b8-786d-adea-70af67b5d0e1",
+            "causation"
+          ],
+          "cwd": ".",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 1.9,
+          "log": "_workspace/p1-03-trading/evidence/r1_20261010/judges/sc123_causation_cases.json"
+        },
+        {
+          "name": "sc123_causation_load",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "tests/e2e/trade_ledger.py",
+            "--world",
+            "01a124e1-4783-75c3-baf3-451c0652e0a5",
+            "causation"
+          ],
+          "cwd": ".",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 2.4,
+          "log": "_workspace/p1-03-trading/evidence/r1_20261010/judges/sc123_causation_load.json"
+        },
+        {
+          "name": "sc124_gaps_cycle",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "tests/e2e/check_sequence_gaps.py",
+            "--world",
+            "01a124ac-f92b-798f-a4c6-aa22e9775025"
+          ],
+          "cwd": ".",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 1.7,
+          "log": "_workspace/p1-03-trading/evidence/r1_20261010/judges/sc124_gaps_cycle.json"
+        },
+        {
+          "name": "sc124_gaps_cases",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "tests/e2e/check_sequence_gaps.py",
+            "--world",
+            "01a124b5-d2b8-786d-adea-70af67b5d0e1"
+          ],
+          "cwd": ".",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 1.4,
+          "log": "_workspace/p1-03-trading/evidence/r1_20261010/judges/sc124_gaps_cases.json"
+        },
+        {
+          "name": "sc124_gaps_load",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "tests/e2e/check_sequence_gaps.py",
+            "--world",
+            "01a124e1-4783-75c3-baf3-451c0652e0a5"
+          ],
+          "cwd": ".",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 1.6,
+          "log": "_workspace/p1-03-trading/evidence/r1_20261010/judges/sc124_gaps_load.json"
+        },
+        {
+          "name": "sc122_cycle",
+          "argv": [
+            "docker",
+            "compose",
+            "exec",
+            "-T",
+            "postgres",
+            "psql",
+            "-q",
+            "-v",
+            "ON_ERROR_STOP=1",
+            "-U",
+            "starfall",
+            "-d",
+            "starfall",
+            "-At",
+            "-F",
+            "|",
+            "-c",
+            "SET default_transaction_read_only = on",
+            "-c",
+            "select event_type, count(*) from domain_events where world_id = '01a124ac-f92b-798f-a4c6-aa22e9775025' group by 1 order by 1"
+          ],
+          "cwd": ".",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 0.2,
+          "log": "_workspace/p1-03-trading/evidence/r1_20261010/judges/sc122_cycle.txt"
+        },
+        {
+          "name": "sc122_cases",
+          "argv": [
+            "docker",
+            "compose",
+            "exec",
+            "-T",
+            "postgres",
+            "psql",
+            "-q",
+            "-v",
+            "ON_ERROR_STOP=1",
+            "-U",
+            "starfall",
+            "-d",
+            "starfall",
+            "-At",
+            "-F",
+            "|",
+            "-c",
+            "SET default_transaction_read_only = on",
+            "-c",
+            "select event_type, count(*) from domain_events where world_id = '01a124b5-d2b8-786d-adea-70af67b5d0e1' group by 1 order by 1"
+          ],
+          "cwd": ".",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 0.2,
+          "log": "_workspace/p1-03-trading/evidence/r1_20261010/judges/sc122_cases.txt"
+        },
+        {
+          "name": "sc122_load",
+          "argv": [
+            "docker",
+            "compose",
+            "exec",
+            "-T",
+            "postgres",
+            "psql",
+            "-q",
+            "-v",
+            "ON_ERROR_STOP=1",
+            "-U",
+            "starfall",
+            "-d",
+            "starfall",
+            "-At",
+            "-F",
+            "|",
+            "-c",
+            "SET default_transaction_read_only = on",
+            "-c",
+            "select event_type, count(*) from domain_events where world_id = '01a124e1-4783-75c3-baf3-451c0652e0a5' group by 1 order by 1"
+          ],
+          "cwd": ".",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 0.2,
+          "log": "_workspace/p1-03-trading/evidence/r1_20261010/judges/sc122_load.txt"
+        },
+        {
+          "name": "shape_cycle",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "tests/e2e/trade_ledger.py",
+            "--world",
+            "01a124ac-f92b-798f-a4c6-aa22e9775025",
+            "shape"
+          ],
+          "cwd": ".",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 1.3,
+          "log": "_workspace/p1-03-trading/evidence/r1_20261010/judges/shape_cycle.json"
+        }
+      ],
+      "metrics": {
+        "worlds": {
+          "cases": "01a124b5-d2b8-786d-adea-70af67b5d0e1",
+          "cycle": "01a124ac-f92b-798f-a4c6-aa22e9775025",
+          "load": "01a124e1-4783-75c3-baf3-451c0652e0a5"
+        }
+      },
+      "notes": [],
+      "violations": []
+    },
+    {
+      "name": "db_stop",
+      "status": "SKIP",
+      "raw_status": "SKIP",
+      "started": "2026-10-10T17:40:54+09:00",
+      "finished": "",
+      "seconds": 0.0,
+      "commands": [],
+      "metrics": {},
+      "notes": [],
+      "violations": []
+    },
+    {
+      "name": "final",
+      "status": "SKIP",
+      "raw_status": "SKIP",
+      "started": "",
+      "finished": "",
+      "seconds": 0.0,
+      "commands": [],
+      "metrics": {},
+      "notes": [],
+      "violations": []
+    }
+  ]
+}
+DONE

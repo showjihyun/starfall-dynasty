@@ -113,6 +113,9 @@ fn default_world() -> WorldConstants {
             max_ship_speed_mps: 10.0,
             cooldown_ticks: 60,
         },
+        // 이 파일의 테스트는 판매 명령도 보내지 않는다(위 주석과 같은 이유) — S5 가
+        // SELL_MINERAL 디스패치를 게이트웨이에 더할 때 전용 월드를 따로 쓴다.
+        markets: std::collections::BTreeMap::new(),
     }
 }
 
@@ -171,6 +174,11 @@ impl TestServer {
             u64::try_from(world.max_entities_per_snapshot).unwrap_or(u64::MAX),
             u64::try_from(world.minerals.len()).unwrap_or(0),
             u64::try_from(world.deposits.len()).unwrap_or(0),
+            "",
+            0,
+            0,
+            0,
+            "",
             "",
             0,
         );
@@ -275,6 +283,11 @@ impl TestServer {
             u64::try_from(world.deposits.len()).unwrap_or(0),
             "",
             0,
+            0,
+            0,
+            "",
+            "",
+            0,
         );
 
         let (persist_tx, mut persist_rx) = mpsc::channel(512);
@@ -358,7 +371,8 @@ impl TestServer {
                 }
                 DomainEventBody::ShipSpawned(_)
                 | DomainEventBody::ShipDespawned(_)
-                | DomainEventBody::MineralMined(_) => None,
+                | DomainEventBody::MineralMined(_)
+                | DomainEventBody::MineralSold(_) => None,
             })
             .collect()
     }
@@ -569,10 +583,11 @@ where
     }
 }
 
-/// S3b(스펙 §5.1a, ADR-0006 §4a) — `SESSION_READY` 직후 반드시 오는 두 메시지를
+/// S3b(스펙 §5.1a, ADR-0006 §4a) — `SESSION_READY` 직후 반드시 오는 세 메시지를
 /// 소비하고 **실제로 왔음을 단언**한다(architect 판정 기준 ③ — 건너뛰기만 하면 세션
 /// 시작 메시지 누락을 못 잡는다). 순서는 sim 이 내는 그대로: `INVENTORY_STATE` →
-/// `DEPOSIT_FIELD_STATE`.
+/// `WALLET_STATE`(p1-03) → `DEPOSIT_FIELD_STATE`. `default_world()` 는 market 이
+/// 없으므로 `MARKET_STATE` 는 이 뒤에 오지 않는다.
 async fn expect_session_start_state_messages<S>(client: &mut S)
 where
     S: futures_util::Stream<Item = Result<Message, tokio_tungstenite::tungstenite::Error>> + Unpin,
@@ -581,6 +596,11 @@ where
     assert_eq!(
         inventory["message_type"], "INVENTORY_STATE",
         "SESSION_READY 다음은 INVENTORY_STATE(스펙 §5.1a)"
+    );
+    let wallet = next_json(client).await;
+    assert_eq!(
+        wallet["message_type"], "WALLET_STATE",
+        "그다음은 WALLET_STATE(스펙 §5.1a, p1-03)"
     );
     let deposit_field = next_json(client).await;
     assert_eq!(
@@ -1581,6 +1601,15 @@ fn mine_resource_command(command_id: &str) -> Message {
     )))
 }
 
+/// `market_id`·`mineral_id`는 [`world_with_one_mineable_deposit`]의 `"test-market"`·
+/// `"test-mineral"` 고정값이다. 10kg — `MINE_RESOURCE`가 먼저 돌아 쌓인 25kg 보유량
+/// 안에 든다(M-17 순회 순서, 레지스트리 등록 순서가 `MINE_RESOURCE` 다음이다).
+fn sell_mineral_command(command_id: &str) -> Message {
+    Message::Text(Utf8Bytes::from(format!(
+        r#"{{"command_id":"{command_id}","command_type":"SELL_MINERAL","schema_version":1,"client_sent_at":null,"payload":{{"market_id":"test-market","mineral_id":"test-mineral","quantity_kg":10}}}}"#
+    )))
+}
+
 /// 레지스트리 이름 → 그 타입의 **유효한** 명령 프레임.
 ///
 /// `None` 은 "이 스위트가 그 명령을 소켓으로 보낼 줄 모른다"는 뜻이고, 아래 순회
@@ -1592,6 +1621,7 @@ fn command_frame(registry_name: &str, command_id: &str, n: u32) -> Option<Messag
             Some(set_ship_control_command(command_id, n.max(1), 500))
         }
         starfall_contracts::registry::MINE_RESOURCE => Some(mine_resource_command(command_id)),
+        starfall_contracts::registry::SELL_MINERAL => Some(sell_mineral_command(command_id)),
         _ => None,
     }
 }
@@ -1632,6 +1662,40 @@ fn world_with_one_mineable_deposit() -> WorldConstants {
                 },
                 radius_m: 10.0,
                 initial_reserve_kg: 100,
+            },
+        )]),
+        // M-17 전용(p1-03) — `SELL_MINERAL` 도 이 순회에서 ACCEPTED 로 끝나야 한다.
+        // 레지스트리 순서상 `MINE_RESOURCE` 가 먼저 돌아 이 actor 의 인벤토리에
+        // test-mineral 25kg 이 들어온 뒤라 10kg 판매가 보유량 안에 든다.
+        markets: std::collections::BTreeMap::from([(
+            DataId::parse("test-market").unwrap(),
+            starfall_sim::MarketConstants {
+                position_m: starfall_sim::world::Vec3 {
+                    x: SPAWN_POINT[0],
+                    y: SPAWN_POINT[1],
+                    z: SPAWN_POINT[2],
+                },
+                radius_m: 10.0,
+                dock_range_from_surface_m: 50.0,
+                max_ship_speed_mps: 5.0,
+                sell_cooldown_ticks: 20,
+                recovery_interval_ticks: 1200,
+                pricing_version: starfall_contracts::primitives::RuleVersion::parse(
+                    "test-market@1",
+                )
+                .unwrap(),
+                listings: std::collections::BTreeMap::from([(
+                    DataId::parse("test-mineral").unwrap(),
+                    starfall_sim::ListingConstants {
+                        price: starfall_sim::PriceRule {
+                            base_price_cr_per_kg: 10,
+                            band_kg: 2000,
+                            price_floor_pct: 30,
+                            price_drop_pct_per_band: 10,
+                        },
+                        recovery_kg: 1000,
+                    },
+                )]),
             },
         )]),
         ..default_world()
@@ -1886,6 +1950,9 @@ async fn every_registry_command_type_passes_through_the_gateway() {
             "SESSION_READY"
         );
         expect_session_start_state_messages(&mut client).await;
+        // 이 월드엔 시장이 하나 있다(M-17 전용, `SELL_MINERAL` 도 순회해야 하므로) —
+        // 세션 시작 다섯 번째 메시지로 `MARKET_STATE` 가 온다(스펙 §5.1a).
+        assert_eq!(next_json(&mut client).await["message_type"], "MARKET_STATE");
 
         let id = command_id(9200 + index as u64);
         let frame = command_frame(name, &id, 1).unwrap_or_else(|| {

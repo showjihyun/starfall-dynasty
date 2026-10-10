@@ -1,0 +1,78 @@
+{
+  "actor_id": "01a0b1c2-b010-7000-8000-000000000118",
+  "attempts": 2,
+  "baseline_accepted": true,
+  "bot_errors": [],
+  "case": "Unknown",
+  "cheat_reasons": [
+    "TARGET_UNKNOWN",
+    "TARGET_UNKNOWN"
+  ],
+  "close": {
+    "code": 1000,
+    "initiator": "client",
+    "reason": ""
+  },
+  "condition_occurred": true,
+  "connect_error": null,
+  "goto_failures": 0,
+  "item": "[verdict] p1-03 SC-111 없는 시장·없는 광물 → 둘 다 TARGET_UNKNOWN",
+  "label": "bot-118",
+  "mine_until_shortfalls": 0,
+  "sells": [
+    {
+      "command_id": "01a12566-db65-752b-8fcc-58674bd06c95",
+      "dist_to_exchange_m": 249.28289198017578,
+      "mineral_id": "ferrosite",
+      "quantity_kg": 200,
+      "results": [
+        {
+          "reason": null,
+          "status": "ACCEPTED",
+          "tick": 22120
+        }
+      ],
+      "snapshot_tick": 22118,
+      "speed_mps": 0.0
+    },
+    {
+      "command_id": "01a12566-e14e-7260-9b49-45d6d3b57847",
+      "dist_to_exchange_m": 249.28289198017578,
+      "mineral_id": "ferrosite",
+      "quantity_kg": 50,
+      "results": [
+        {
+          "reason": "TARGET_UNKNOWN",
+          "status": "REJECTED",
+          "tick": 22150
+        }
+      ],
+      "snapshot_tick": 22148,
+      "speed_mps": 0.0
+    },
+    {
+      "command_id": "01a12566-e60a-76b6-9d33-c6cc8940bcf8",
+      "dist_to_exchange_m": 249.28289198017578,
+      "mineral_id": "qa-no-such-mineral",
+      "quantity_kg": 50,
+      "results": [
+        {
+          "reason": "TARGET_UNKNOWN",
+          "status": "REJECTED",
+          "tick": 22174
+        }
+      ],
+      "snapshot_tick": 22172,
+      "speed_mps": 0.0
+    }
+  ],
+  "state": {
+    "allowed": "기준 판매의 응답 1 벌",
+    "final_balance": 2000,
+    "final_ferrosite": 200,
+    "receipts_after_baseline": 1,
+    "wallet_messages_after_baseline": 1
+  },
+  "verdict": "PASS",
+  "wire_errors": []
+}

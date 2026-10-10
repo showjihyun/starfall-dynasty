@@ -28,12 +28,9 @@ namespace Starfall.Greybox
     }
 
     /// <summary>The three p1-02-mining data tables a greybox session needs for display, or null
-    /// where the file was missing. Deliberately does NOT include anything from the history rule
-    /// file under data/history/rules/ - that file is copied for SC-72's byte-identity check only
-    /// (Q-8, 02_client_ack.md) and nothing in gameplay code reads its values (see
-    /// GreyboxMiningDataTests.MiningRuleFile_ValuesNotConsumedByGameplay, which fails loudly if a
-    /// file under Scripts/ later names that file - this comment deliberately never spells the
-    /// literal file name so it does not trip its own guard).</summary>
+    /// where the file was missing. p1-03-trading removed the history-rule-file note this comment
+    /// used to carry - history/rules/ is no longer copied to the client at all (ADR-0015 section
+    /// 2), so there is nothing left here to warn gameplay code away from reading.</summary>
     public readonly struct GreyboxMiningData
     {
         public readonly DepositFieldTable Deposits;
@@ -45,6 +42,19 @@ namespace Starfall.Greybox
             Deposits = deposits;
             Minerals = minerals;
             Rules = rules;
+        }
+    }
+
+    /// <summary>p1-03-trading (C1): the one market data table a greybox session needs for
+    /// display and the expected-proceeds preview (MarketTable's file header), or null if the
+    /// file was missing.</summary>
+    public readonly struct GreyboxTradingData
+    {
+        public readonly MarketTable Market;
+
+        public GreyboxTradingData(MarketTable market)
+        {
+            Market = market;
         }
     }
 
@@ -96,6 +106,21 @@ namespace Starfall.Greybox
             }
 
             return new GreyboxMiningData(deposits, minerals, rules);
+        }
+
+        /// <param name="marketId">Selects which data/market/{id}.json to load - "cradle-exchange"
+        /// for the vertical slice.</param>
+        public static GreyboxTradingData LoadTrading(string logPrefix, string marketId)
+        {
+            string dataRoot = Path.Combine(Application.dataPath, "_Project", "Data");
+
+            string marketPath = Path.Combine(dataRoot, "market", marketId + ".json");
+            MarketTable market = MarketTable.LoadFromFile(marketPath);
+
+            if (market == null)
+                Debug.LogWarning(logPrefix + "trading data/ copy incomplete under " + dataRoot + " - market missing");
+
+            return new GreyboxTradingData(market);
         }
     }
 }

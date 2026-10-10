@@ -1,0 +1,11 @@
+# qa3 2026-10-05 HEAD b3bc8f2 — 계약 §0.7 기준선(SC-41). 작업 전 측정.
+824a6489f262367cac5662e61e2b91ec40f07838f05a308d14ffa24cbf42097f  server/crates/sim/tests/data/replay/initial.json
+c924e59ff6b19aa56ee6d6ad24bb59ad516bf0b95005767027c87acbfa11eb08  server/crates/sim/tests/data/replay/inputs.jsonl
+3e00e527c116f2b514df3f3d950f1f891a926748bb08f76814ae32ab6daeb1fe  server/crates/sim/tests/data/replay/snapshots.jsonl
+798fce4f4c73722cc4bfe64343931eff26c52e312dbbbb2e615e924f107e5d9b  server/crates/sim/tests/data/replay_mining/events.jsonl
+d0bf2c496a4a65871c19fa295090fbfe52b14a0941a64b25e0d023ce3dd43950  server/crates/sim/tests/data/replay_mining/initial.json
+0a80a880144ddd9f5b1db46b1cb4b37266c3e395cd401abdff47ff59ed00f428  server/crates/sim/tests/data/replay_mining/inputs.jsonl
+d6f6c0a23d9d164d1bd3c2038883cbdd65bdfad3e6d7c1b77cec8065650e177e  server/crates/sim/tests/data/replay_mining/snapshots.jsonl
+9f5738dd921c26827c10974ab2a81d3da8f3a702673f3e2a636bb6d72595f61e  server/crates/history/tests/data/golden/mineral-discovery@1.hash.txt
+559348e57607496f1f74dbe90538d17f25a0ede79ee0169a2565838980ba5180  server/crates/history/tests/data/golden/mineral-discovery@1.output.txt
+730e290edecdf9d82999a50b88780d78999c576d335496b3ff493c543484a0c4  server/crates/history/tests/data/first-extraction-evidence-id.txt

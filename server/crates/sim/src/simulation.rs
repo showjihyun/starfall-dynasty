@@ -17,24 +17,27 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use starfall_contracts::events::{
-    DespawnReason, MineralMinedPayload, SessionCloseReason, SessionOpenedPayload, SessionTransport,
-    ShipDespawnedPayload, ShipSpawnedPayload,
+    DespawnReason, MineralMinedPayload, MineralSoldPayload, SessionCloseReason,
+    SessionOpenedPayload, SessionTransport, ShipDespawnedPayload, ShipSpawnedPayload,
 };
 use starfall_contracts::messages::{
     CommandResultMessage, CommandResultPayload, CommandResultType, DepositFieldStateMessage,
     DepositFieldStatePayload, DepositFieldStateType, DepositState, HistoricalEventNoticeMessage,
-    InventoryItem, InventoryStateMessage, InventoryStatePayload, InventoryStateType,
-    PingReplyMessage, PingReplyPayload, PingReplyType, RejectReasonCode, SessionReadyMessage,
-    SessionReadyPayload, ShipPresence, ShipState, WorldSnapshotMessage, WorldSnapshotPayload,
-    WorldSnapshotType,
+    InventoryItem, InventoryStateMessage, InventoryStatePayload, InventoryStateType, LastSale,
+    MarketListingState, MarketStateMessage, MarketStatePayload, MarketStateType, PingReplyMessage,
+    PingReplyPayload, PingReplyType, RejectReasonCode, SaleReceiptMessage, SaleReceiptPayload,
+    SaleReceiptType, SessionReadyMessage, SessionReadyPayload, ShipPresence, ShipState,
+    WalletStateMessage, WalletStatePayload, WalletStateType, WorldSnapshotMessage,
+    WorldSnapshotPayload, WorldSnapshotType,
 };
 use starfall_contracts::primitives::{
-    AngularVelocityMdegPerSecond, ConstSchemaVersion, DataId, GameCalendar, GameTime, MassKg,
-    PositionMm, QuaternionComponentMicro, Sequence, ServerVersion, Tick, TickHz, UuidV7,
+    AngularVelocityMdegPerSecond, ConstSchemaVersion, CreditAmount, DataId, GameCalendar, GameTime,
+    MassKg, PositionMm, QuaternionComponentMicro, Sequence, ServerVersion, Tick, TickHz, UuidV7,
     VelocityMmPerSecond,
 };
 use starfall_contracts::{
-    MineResourceCommand, PingServerCommand, SetShipControlCommand, SetShipControlPayload, registry,
+    MineResourceCommand, PingServerCommand, SellMineralCommand, SetShipControlCommand,
+    SetShipControlPayload, registry,
 };
 
 use crate::entities::ShipEntity;
@@ -42,6 +45,8 @@ use crate::mining::{
     self, DepositConstants, DepositRuntimeState, MineralConstants, MiningRuleConstants, StateWrite,
 };
 use crate::session::{SessionSnapshot, SessionState, ShipControlAdmission};
+use crate::trading::price::{effective_saturation, sell};
+use crate::trading::{MarketConstants, MarketRuntimeState};
 use crate::world::integrate::{self, BoundaryConstants, ControlInput, ShipClassConstants};
 use crate::world::quantise::quantise;
 use crate::world::{
@@ -147,6 +152,10 @@ pub struct WorldConstants {
     pub deposits: BTreeMap<DataId, DepositConstants>,
     /// 채굴 판정 세 수치(스펙 §4.2 #4~6).
     pub mining_rules: MiningRuleConstants,
+
+    // ---- p1-03: data/market/*.json -----------------------------------------------------
+    /// 시장 표(`id` 오름차순).
+    pub markets: BTreeMap<DataId, MarketConstants>,
 }
 
 impl WorldConstants {
@@ -228,6 +237,8 @@ pub enum InboundCommand {
     SetShipControl(SetShipControlCommand),
     /// `MINE_RESOURCE`(p1-02).
     MineResource(MineResourceCommand),
+    /// `SELL_MINERAL`(p1-03).
+    SellMineral(SellMineralCommand),
 }
 
 impl InboundCommand {
@@ -238,6 +249,7 @@ impl InboundCommand {
             Self::PingServer(command) => command.command_id,
             Self::SetShipControl(command) => command.command_id,
             Self::MineResource(command) => command.command_id,
+            Self::SellMineral(command) => command.command_id,
         }
     }
 
@@ -248,6 +260,7 @@ impl InboundCommand {
             Self::PingServer(_) => registry::PING_SERVER,
             Self::SetShipControl(_) => registry::SET_SHIP_CONTROL,
             Self::MineResource(_) => registry::MINE_RESOURCE,
+            Self::SellMineral(_) => registry::SELL_MINERAL,
         }
     }
 }
@@ -273,6 +286,12 @@ pub enum ServerMessage {
     /// 타입이 그 게이트웨이 송신 큐(`mpsc::Sender<ServerMessage>`)를 그대로 쓰기
     /// 때문이다 — sim 크레이트가 판정하지 않는다는 사실과는 별개다.
     HistoricalEventNotice(Box<HistoricalEventNoticeMessage>),
+    /// 이 세션 행위자의 크레딧 잔액 전체(p1-03).
+    WalletState(Box<WalletStateMessage>),
+    /// 수락된 `SELL_MINERAL` 에 대한 서버의 답, 판 사람에게만(p1-03).
+    SaleReceipt(Box<SaleReceiptMessage>),
+    /// 한 시장의 동적 상태, 그 월드의 모든 세션에게(p1-03).
+    MarketState(Box<MarketStateMessage>),
 }
 
 impl ServerMessage {
@@ -287,6 +306,9 @@ impl ServerMessage {
             Self::InventoryState(_) => registry::INVENTORY_STATE,
             Self::DepositFieldState(_) => registry::DEPOSIT_FIELD_STATE,
             Self::HistoricalEventNotice(_) => registry::HISTORICAL_EVENT_NOTICE,
+            Self::WalletState(_) => registry::WALLET_STATE,
+            Self::SaleReceipt(_) => registry::SALE_RECEIPT,
+            Self::MarketState(_) => registry::MARKET_STATE,
         }
     }
 }
@@ -313,6 +335,8 @@ pub enum DomainEventBody {
     ShipDespawned(ShipDespawnedPayload),
     /// `MINERAL_MINED`(p1-02). Level 0 — 역사적 사건이 아니다(I-60).
     MineralMined(MineralMinedPayload),
+    /// `MINERAL_SOLD`(p1-03). Level 0 — 역사적 사건이 아니다(ADR-0016 §3).
+    MineralSold(MineralSoldPayload),
 }
 
 impl DomainEventBody {
@@ -325,6 +349,7 @@ impl DomainEventBody {
             Self::ShipSpawned(_) => registry::SHIP_SPAWNED,
             Self::ShipDespawned(_) => registry::SHIP_DESPAWNED,
             Self::MineralMined(_) => registry::MINERAL_MINED,
+            Self::MineralSold(_) => registry::MINERAL_SOLD,
         }
     }
 }
@@ -438,6 +463,15 @@ pub struct Simulation {
     /// 행위자별 마지막으로 **수락된** 채굴 tick(쿨다운 판정, 스펙 §4.2 #3 — 쿨다운은
     /// 수락된 채굴만 시작한다).
     actor_last_mine_tick: BTreeMap<UuidV7, u64>,
+    /// 행위자별 크레딧 잔액(p1-03, ADR-0016 §2). 행이 없으면 0 — `inventories` 와 같은
+    /// "행 없음 = 0" 규약.
+    wallets: BTreeMap<UuidV7, i64>,
+    /// 행위자별 마지막으로 **수락된** 판매 tick(판매 쿨다운 — 채굴 쿨다운과 별개,
+    /// 디자인 §2.1).
+    actor_last_sale_tick: BTreeMap<UuidV7, u64>,
+    /// `(market_id, mineral_id)` → 그 상장의 런타임 상태. 항목이 없으면 "한 번도 안
+    /// 팔림"(포화 0, 마지막 거래 없음) — `deposit_states` 와 같은 존재 규약.
+    market_states: BTreeMap<(DataId, DataId), MarketRuntimeState>,
     /// 월드 범위 지속 중복 기억(K1, `_workspace/p1-02-mining/02_server_ack.md` §1) —
     /// PK `(world_id, command_id)` 와 같은 범위. 세션 기억([`SessionState::remember`])과
     /// 범위가 다르다는 것이 DoS 방지의 핵심이다 — actor 범위였다면 한 사용자가 다른
@@ -466,6 +500,9 @@ impl std::fmt::Debug for Simulation {
             .field("inventories", &self.inventories)
             .field("deposit_states", &self.deposit_states)
             .field("actor_last_mine_tick", &self.actor_last_mine_tick)
+            .field("wallets", &self.wallets)
+            .field("actor_last_sale_tick", &self.actor_last_sale_tick)
+            .field("market_states", &self.market_states)
             .field("processed_command_ids", &self.processed_command_ids)
             .field("message_ids", &"<dyn IdSource>")
             .finish()
@@ -488,6 +525,9 @@ impl Simulation {
             inventories: BTreeMap::new(),
             deposit_states: BTreeMap::new(),
             actor_last_mine_tick: BTreeMap::new(),
+            wallets: BTreeMap::new(),
+            actor_last_sale_tick: BTreeMap::new(),
+            market_states: BTreeMap::new(),
             processed_command_ids: BTreeSet::new(),
             message_ids: Box::new(RealClockIds),
         }
@@ -537,6 +577,38 @@ impl Simulation {
                 remaining_kg,
                 as_of_tick,
                 first_extracted_tick,
+            },
+        );
+    }
+
+    /// 지갑 행 하나를 적재한다(p1-03). `balance_cr` 가 0이면 아무 일도 하지 않는다
+    /// (행 없음 = 0 규약 — `seed_inventory` 와 같다).
+    pub fn seed_wallet(&mut self, actor_id: UuidV7, balance_cr: i64) {
+        if balance_cr <= 0 {
+            return;
+        }
+        self.wallets.insert(actor_id, balance_cr);
+    }
+
+    /// 시장 상태 한 행을 적재한다(p1-03). **`seed_deposit_state` 와 달리 포화 0 이어도
+    /// 스킵하지 않는다** — 행은 "마지막 거래 게시판"으로 남아 있어야 한다(ADR-0016
+    /// §4, T0 합의 — 포화가 회복으로 0까지 내려가도 마지막 거래는 지워지지 않는다).
+    pub fn seed_market_state(
+        &mut self,
+        market_id: DataId,
+        mineral_id: DataId,
+        saturation_kg: i64,
+        as_of_tick: u64,
+        last_seller_actor_id: UuidV7,
+        last_sale_quantity_kg: i64,
+    ) {
+        self.market_states.insert(
+            (market_id, mineral_id),
+            MarketRuntimeState {
+                saturation_kg,
+                as_of_tick,
+                last_seller_actor_id,
+                last_sale_quantity_kg,
             },
         );
     }
@@ -634,6 +706,10 @@ impl Simulation {
             }
         }
 
+        // p1-03(I-87) — 명령 유무와 무관하게 매 tick 검사한다(회복은 계속 흐른다).
+        // 물리 적분보다 먼저 두는 이유는 없다(순서가 메시지 내용에 영향을 주지 않는다
+        // — 판매 자체의 MARKET_STATE 는 이미 handle_sell_mineral 에서 보냈다).
+        self.check_market_recovery_broadcasts(tick_number, tick, &mut outcome);
         self.integrate_ships_for_tick(tick_number, &mut outcome);
         self.expire_lingering_ships(tick_number, tick, &occurred_at, ids, &mut outcome);
         self.record_presence_gauges(&mut outcome);
@@ -863,14 +939,20 @@ impl Simulation {
         });
 
         // p1-02(S3b, ADR-0006 §4a) — 스펙 §5.1a: SESSION_READY 직후 INVENTORY_STATE·
-        // DEPOSIT_FIELD_STATE 2건. `message_id`는 `self.message_ids`(p1-02 전용 흐름)
-        // 에서 오므로 이 `ids`(세계 흐름)를 소비하지 않는다 — 이동 golden 재생이 채굴을
-        // 쓰지 않는 시나리오에서도 `ship_id`·`event_id` 바이트가 그대로다(위 `message_ids`
-        // 필드 문서, `03_server_impl.md` S3b 절 실측).
+        // WALLET_STATE·DEPOSIT_FIELD_STATE·MARKET_STATE(p1-03 가 뒤 둘을 더했다, 스펙
+        // §5.1a). `message_id`는 `self.message_ids`(p1-02 전용 흐름)에서 오므로 이
+        // `ids`(세계 흐름)를 소비하지 않는다 — 이동 golden 재생이 채굴·판매를 전혀
+        // 안 쓰는 시나리오에서도 `ship_id`·`event_id` 바이트가 그대로다(위
+        // `message_ids` 필드 문서, `03_server_impl.md` S3b 절 실측).
         let inventory_message = self.build_inventory_state_message(tick, actor_id);
         outcome.outbound.push(Outbound {
             session_id,
             message: inventory_message,
+        });
+        let wallet_message = self.build_wallet_state_message(tick, actor_id);
+        outcome.outbound.push(Outbound {
+            session_id,
+            message: wallet_message,
         });
         let deposits = self.build_deposit_states(tick.get());
         let deposit_field_message = self.build_deposit_field_state_message(tick, deposits);
@@ -878,6 +960,14 @@ impl Simulation {
             session_id,
             message: deposit_field_message,
         });
+        let market_ids: Vec<DataId> = self.world.markets.keys().cloned().collect();
+        for market_id in market_ids {
+            let market_message = self.build_market_state_message(tick, &market_id);
+            outcome.outbound.push(Outbound {
+                session_id,
+                message: market_message,
+            });
+        }
 
         // I-29 (R4 S-2, architect 1.6-1(a)): 이 actor 의 기존 함선 상태로 세 경우를 가른다.
         // **경우 2 — 잔류 중**: 재개한다. 새 SHIP_SPAWNED 없음.
@@ -1129,6 +1219,22 @@ impl Simulation {
                     outcome,
                 );
             }
+            InboundCommand::SellMineral(cmd) => {
+                let correlation_id = session.correlation_id;
+                let controlling_ship = session.controlling_ship;
+                self.handle_sell_mineral(
+                    session_id,
+                    controlling_ship,
+                    correlation_id,
+                    cmd,
+                    command_id,
+                    tick_number,
+                    tick,
+                    occurred_at,
+                    ids,
+                    outcome,
+                );
+            }
         }
     }
 
@@ -1286,6 +1392,10 @@ impl Simulation {
             .deposit_states
             .get(&deposit_id)
             .map(|state| (state.remaining_kg, state.as_of_tick));
+        // p1-03(스펙 I-86) — 이 광물이 **다른** 매장지로도 전혀 드러나지 않은 상태였는지
+        // 지금 상태 변경 전에 본다. 이 매장지 자신은 아직 `deposit_states` 에 없어도
+        // 같은 광물의 다른 매장지가 이미 드러났으면 "새로 드러남"이 아니다.
+        let mineral_was_revealed = self.mineral_is_revealed(&deposit.mineral_id);
         self.deposit_states.insert(
             deposit_id.clone(),
             DepositRuntimeState {
@@ -1366,6 +1476,22 @@ impl Simulation {
         // DEPOSIT_FIELD_STATE — 이 tick에 열려 있는 모든 세션에 브로드캐스트(성계 전체가
         // 보는 공유 상태).
         self.broadcast_deposit_field_state(tick, outcome);
+
+        // p1-03(스펙 I-86, UI-10 의 근거) — 이 채굴로 그 광물이 **새로** 드러났으면
+        // (이 매장지 자신이든 다른 매장지든, 전부 합쳐 이 광물이 처음), 그 광물을
+        // 상장한 모든 시장의 `MARKET_STATE` 를 다시 보낸다 — 이제 상장 목록에 나타난다.
+        if !mineral_was_revealed {
+            let market_ids: Vec<DataId> = self
+                .world
+                .markets
+                .iter()
+                .filter(|(_, market)| market.listings.contains_key(&deposit.mineral_id))
+                .map(|(id, _)| id.clone())
+                .collect();
+            for market_id in market_ids {
+                self.broadcast_market_state(tick, &market_id, outcome);
+            }
+        }
     }
 
     /// 한 행위자의 `INVENTORY_STATE` 메시지를 만든다. `message_id`는 p1-02 전용 흐름에서
@@ -1467,6 +1593,432 @@ impl Simulation {
                 session_id,
                 message,
             });
+        }
+    }
+
+    // -----------------------------------------------------------------------------------
+    // SELL_MINERAL 판정 (스펙 p1-03 §4.2, GDD §33 서버 판정 8단계의 거래 구현)
+    // -----------------------------------------------------------------------------------
+
+    /// 세션 기억은 `handle_command` 진입부에서 이미 모든 명령 타입 공통으로 통과했다
+    /// (I-52 앞쪽 절반). 여기서부터 스펙 §4.2 표의 나머지(1의 월드 범위 절반 ~ 8).
+    #[allow(clippy::too_many_arguments)]
+    fn handle_sell_mineral(
+        &mut self,
+        session_id: UuidV7,
+        controlling_ship: Option<UuidV7>,
+        correlation_id: UuidV7,
+        cmd: SellMineralCommand,
+        command_id: UuidV7,
+        tick_number: u64,
+        tick: Tick,
+        occurred_at: &GameTime,
+        ids: &mut dyn IdSource,
+        outcome: &mut TickOutcome,
+    ) {
+        let reject = |outcome: &mut TickOutcome, ids: &mut dyn IdSource, reason| {
+            outcome.outbound.push(Outbound {
+                session_id,
+                message: ServerMessage::CommandResult(Box::new(CommandResultMessage {
+                    message_id: ids.next_id(),
+                    message_type: CommandResultType::CommandResult,
+                    schema_version: ConstSchemaVersion,
+                    tick,
+                    correlation_id: None,
+                    payload: CommandResultPayload::rejected(command_id, reason),
+                })),
+            });
+        };
+
+        // 판정 1(월드 범위 절반, K1) — `MINE_RESOURCE` 와 **같은** 지속 중복 기억
+        // (ADR-0016 §1, I-82) — 명령 종류가 달라도 같은 `command_id` 는 한 번만 막는다.
+        if self.processed_command_ids.contains(&command_id) {
+            reject(outcome, ids, RejectReasonCode::DuplicateCommandId);
+            return;
+        }
+
+        // 판정 2 — 시장·상장 존재(둘 다 같은 사유, 디자인 Q3 — "상장됐는가"는 판정
+        // 단계가 아니다. §4.2 비고).
+        let market_id = cmd.payload.market_id;
+        let mineral_id = cmd.payload.mineral_id;
+        let Some(market) = self.world.markets.get(&market_id).cloned() else {
+            reject(outcome, ids, RejectReasonCode::TargetUnknown);
+            return;
+        };
+        let Some(listing) = market.listings.get(&mineral_id).copied() else {
+            reject(outcome, ids, RejectReasonCode::TargetUnknown);
+            return;
+        };
+
+        // 열린 세션은 언제나 ACTIVE 함선 1척을 조종한다(I-29, I-40) — `MINE_RESOURCE`
+        // 와 같은 방어적 처리(패닉하지 않는다, rust-authoritative-server §8).
+        let Some(ship_id) = controlling_ship else {
+            reject(outcome, ids, RejectReasonCode::TargetUnknown);
+            return;
+        };
+        let Some(ship) = self.ships.get(&ship_id) else {
+            reject(outcome, ids, RejectReasonCode::TargetUnknown);
+            return;
+        };
+        let actor_id = ship.actor_id;
+        let ship_position = ship.physics.p;
+        let ship_velocity = ship.physics.v;
+
+        // 판정 3 — 판매 쿨다운(수락된 판매만 시작한다). 채굴 쿨다운과 **별개**
+        // (`actor_last_sale_tick`, 디자인 §2.1).
+        if let Some(&last_accepted_tick) = self.actor_last_sale_tick.get(&actor_id)
+            && tick_number < last_accepted_tick.saturating_add(market.sell_cooldown_ticks)
+        {
+            reject(outcome, ids, RejectReasonCode::CooldownActive);
+            return;
+        }
+
+        // 판정 4 — 도킹 구역(제곱 비교, tick 시작 시점의 서버 `f64` 상태 — `within_mining_range`
+        // 는 "반지름 + 사거리" 제곱 비교일 뿐이라 매장지·시장 모두에 쓸 수 있는 순수 함수다).
+        if !mining::within_mining_range(
+            ship_position,
+            market.position_m,
+            market.radius_m,
+            market.dock_range_from_surface_m,
+        ) {
+            reject(outcome, ids, RejectReasonCode::TargetOutOfRange);
+            return;
+        }
+
+        // 판정 5 — 속도(같은 시점).
+        if !mining::within_speed_limit(ship_velocity, market.max_ship_speed_mps) {
+            reject(outcome, ids, RejectReasonCode::ShipTooFast);
+            return;
+        }
+
+        let quantity = i64::from(cmd.payload.quantity_kg.get());
+        let inventory_before = self
+            .inventories
+            .get(&actor_id)
+            .and_then(|items| items.get(&mineral_id))
+            .copied()
+            .unwrap_or(0);
+
+        // 판정 6 — 보유량(신규 사유, 스펙 §4.2). checked 뺄셈은 이미 이 비교가 막은
+        // 뒤라 디버그·릴리스 어느 빌드에서도 언더플로가 없다.
+        if inventory_before < quantity {
+            reject(outcome, ids, RejectReasonCode::InsufficientQuantity);
+            return;
+        }
+
+        // 구간 걷기(§4.2a) — 거절 여부를 정하는 판정 7(지갑 상한)에 대금이 필요하므로
+        // 먼저 계산한다. 순수 함수라 아직 아무 상태도 바꾸지 않는다.
+        let market_key = (market_id.clone(), mineral_id.clone());
+        let market_expected = self.market_states.get(&market_key).copied();
+        let (saturation_before_stored, as_of_before) = market_expected
+            .map(|state| (state.saturation_kg, state.as_of_tick))
+            .unwrap_or((0, tick_number));
+        let saturation_before = effective_saturation(
+            saturation_before_stored,
+            as_of_before,
+            tick_number,
+            listing.recovery_kg,
+            market.recovery_interval_ticks,
+        );
+        let sale = sell(&listing.price, saturation_before, quantity);
+
+        let wallet_expected = self.wallets.get(&actor_id).copied();
+        let wallet_before = wallet_expected.unwrap_or(0);
+        // 판정 7 — checked 덧셈, `CreditAmount` 상한(2^53-1, ADR-0016 §6 — 의미가
+        // 넓어진 `CAPACITY_EXCEEDED`: 광물 인벤토리 또는 크레딧 지갑). 디버그·릴리스
+        // 같은 경로 — panic 없이 거절한다.
+        const CREDIT_AMOUNT_MAX: i64 = 9_007_199_254_740_991;
+        let Some(wallet_after) = wallet_before
+            .checked_add(sale.proceeds_cr)
+            .filter(|&value| value <= CREDIT_AMOUNT_MAX)
+        else {
+            reject(outcome, ids, RejectReasonCode::CapacityExceeded);
+            return;
+        };
+
+        // ---- 판정 8 — 적용. 여기부터는 거절이 없다 ------------------------------------
+
+        // K1 — 지속 기억 삽입은 수락 즉시(커밋 전) — `MINE_RESOURCE` 와 같은 이유
+        // (server 검토 §1.8).
+        self.processed_command_ids.insert(command_id);
+        self.actor_last_sale_tick.insert(actor_id, tick_number);
+
+        let inventory_after = inventory_before - quantity;
+        let inventory_expected = self
+            .inventories
+            .get(&actor_id)
+            .and_then(|items| items.get(&mineral_id))
+            .copied();
+        self.inventories
+            .entry(actor_id)
+            .or_default()
+            .insert(mineral_id.clone(), inventory_after);
+
+        self.wallets.insert(actor_id, wallet_after);
+
+        self.market_states.insert(
+            market_key,
+            MarketRuntimeState {
+                saturation_kg: sale.saturation_after_kg,
+                as_of_tick: tick_number,
+                last_seller_actor_id: actor_id,
+                last_sale_quantity_kg: quantity,
+            },
+        );
+
+        outcome.state_writes.push(StateWrite::Inventory {
+            actor_id,
+            mineral_id: mineral_id.clone(),
+            expected: inventory_expected,
+            new: inventory_after,
+        });
+        outcome.state_writes.push(StateWrite::Wallet {
+            actor_id,
+            expected: wallet_expected,
+            new: wallet_after,
+        });
+        outcome.state_writes.push(StateWrite::MarketState {
+            market_id: market_id.clone(),
+            mineral_id: mineral_id.clone(),
+            expected: market_expected.map(|state| (state.saturation_kg, state.as_of_tick)),
+            new: (sale.saturation_after_kg, tick_number),
+            last_seller_actor_id: actor_id,
+            last_sale_quantity_kg: quantity,
+        });
+
+        // COMMAND_RESULT — 수락.
+        outcome.outbound.push(Outbound {
+            session_id,
+            message: ServerMessage::CommandResult(Box::new(CommandResultMessage {
+                message_id: ids.next_id(),
+                message_type: CommandResultType::CommandResult,
+                schema_version: ConstSchemaVersion,
+                tick,
+                correlation_id: None,
+                payload: CommandResultPayload::accepted(command_id),
+            })),
+        });
+
+        // MINERAL_SOLD — Level 0, 역사적 사건이 아니다(ADR-0016 §3). 세 상태의
+        // before/after 를 전부 싣는 이벤트 하나(인벤토리·지갑·시장을 나누지 않는다).
+        // `causation_id` 는 이 명령의 `command_id` 다.
+        let floor_price = listing.price.floor_price_cr_per_kg();
+        outcome.events.push(PendingEvent {
+            event_id: ids.next_id(),
+            world_id: self.world.world_id,
+            tick,
+            sequence: next_sequence(outcome),
+            occurred_at: occurred_at.clone(),
+            correlation_id,
+            causation_id: Some(command_id),
+            actor_id,
+            body: DomainEventBody::MineralSold(MineralSoldPayload {
+                ship_id,
+                session_id,
+                star_system_id: self.world.star_system_id.clone(),
+                market_id: market_id.clone(),
+                mineral_id: mineral_id.clone(),
+                pricing_version: market.pricing_version.clone(),
+                quantity_kg: mass_kg_from_i64(quantity),
+                proceeds_cr: credit_amount_from_i64(sale.proceeds_cr),
+                base_price_cr_per_kg: credit_amount_from_i64(listing.price.base_price_cr_per_kg),
+                floor_price_cr_per_kg: credit_amount_from_i64(floor_price),
+                price_before_cr_per_kg: credit_amount_from_i64(sale.price_before_cr_per_kg),
+                price_after_cr_per_kg: credit_amount_from_i64(sale.price_after_cr_per_kg),
+                saturation_before_kg: mass_kg_from_i64(saturation_before),
+                saturation_after_kg: mass_kg_from_i64(sale.saturation_after_kg),
+                quantity_before_kg: mass_kg_from_i64(inventory_before),
+                quantity_after_kg: mass_kg_from_i64(inventory_after),
+                wallet_before_cr: credit_amount_from_i64(wallet_before),
+                wallet_after_cr: credit_amount_from_i64(wallet_after),
+            }),
+        });
+
+        // SALE_RECEIPT → INVENTORY_STATE → WALLET_STATE, 이 순서로(스펙 §5.1a).
+        outcome.outbound.push(Outbound {
+            session_id,
+            message: ServerMessage::SaleReceipt(Box::new(SaleReceiptMessage {
+                message_id: self.message_ids.next_id(),
+                message_type: SaleReceiptType::SaleReceipt,
+                schema_version: ConstSchemaVersion,
+                tick,
+                correlation_id: None,
+                payload: SaleReceiptPayload {
+                    command_id,
+                    market_id: market_id.clone(),
+                    mineral_id: mineral_id.clone(),
+                    quantity_kg: mass_kg_from_i64(quantity),
+                    proceeds_cr: credit_amount_from_i64(sale.proceeds_cr),
+                    price_before_cr_per_kg: credit_amount_from_i64(sale.price_before_cr_per_kg),
+                    price_after_cr_per_kg: credit_amount_from_i64(sale.price_after_cr_per_kg),
+                },
+            })),
+        });
+        let inventory_message = self.build_inventory_state_message(tick, actor_id);
+        outcome.outbound.push(Outbound {
+            session_id,
+            message: inventory_message,
+        });
+        let wallet_message = self.build_wallet_state_message(tick, actor_id);
+        outcome.outbound.push(Outbound {
+            session_id,
+            message: wallet_message,
+        });
+
+        // MARKET_STATE — 이 tick에 열려 있는 모든 세션에 브로드캐스트(성계 전체가
+        // 보는 공유 상태 — 디자인 §4, 흔적의 핵심).
+        self.broadcast_market_state(tick, &market_id, outcome);
+    }
+
+    /// 한 행위자의 `WALLET_STATE` 메시지를 만든다. `message_id`는 p1-02 전용 흐름에서
+    /// 온다(S3b, ADR-0006 §4a — `message_ids` 필드 문서 참고. p1-03 도 같은 흐름을
+    /// 그대로 쓴다).
+    fn build_wallet_state_message(&mut self, tick: Tick, actor_id: UuidV7) -> ServerMessage {
+        let balance = self.wallets.get(&actor_id).copied().unwrap_or(0);
+        ServerMessage::WalletState(Box::new(WalletStateMessage {
+            message_id: self.message_ids.next_id(),
+            message_type: WalletStateType::WalletState,
+            schema_version: ConstSchemaVersion,
+            tick,
+            correlation_id: None,
+            payload: WalletStatePayload {
+                actor_id,
+                balance_cr: credit_amount_from_i64(balance),
+            },
+        }))
+    }
+
+    /// 이 광물이 드러난 매장지를 하나라도 가졌는가(I-86) — 역사 표를 읽지 않는다,
+    /// 시뮬레이션 상태(`deposit_states` 의 존재 자체)로만 판단한다.
+    fn mineral_is_revealed(&self, mineral_id: &DataId) -> bool {
+        self.world.deposits.iter().any(|(deposit_id, constants)| {
+            &constants.mineral_id == mineral_id && self.deposit_states.contains_key(deposit_id)
+        })
+    }
+
+    /// 한 시장의 `MARKET_STATE` 메시지를 만든다. `listings` 는 드러난 광물만, `mineral_id`
+    /// 오름차순(I-86 — `BTreeMap` 순회라 자동으로 보장된다). `message_id`는 p1-02 전용
+    /// 흐름에서 온다.
+    fn build_market_state_message(&mut self, tick: Tick, market_id: &DataId) -> ServerMessage {
+        let tick_number = tick.get();
+        let listings: Vec<MarketListingState> = match self.world.markets.get(market_id).cloned() {
+            Some(market) => market
+                .listings
+                .iter()
+                .filter(|(mineral_id, _)| self.mineral_is_revealed(mineral_id))
+                .map(|(mineral_id, listing)| {
+                    let key = (market_id.clone(), mineral_id.clone());
+                    let (saturation, last_sale) = match self.market_states.get(&key) {
+                        Some(state) => {
+                            let effective = effective_saturation(
+                                state.saturation_kg,
+                                state.as_of_tick,
+                                tick_number,
+                                listing.recovery_kg,
+                                market.recovery_interval_ticks,
+                            );
+                            (
+                                effective,
+                                Some(LastSale {
+                                    actor_id: state.last_seller_actor_id,
+                                    quantity_kg: mass_kg_from_i64(state.last_sale_quantity_kg),
+                                    tick: Tick::new(state.as_of_tick).unwrap_or(tick),
+                                }),
+                            )
+                        }
+                        None => (0, None),
+                    };
+                    MarketListingState {
+                        mineral_id: mineral_id.clone(),
+                        saturation_kg: mass_kg_from_i64(saturation),
+                        price_cr_per_kg: credit_amount_from_i64(
+                            listing.price.price_at_band(listing.price.band(saturation)),
+                        ),
+                        last_sale,
+                    }
+                })
+                .collect(),
+            None => Vec::new(),
+        };
+
+        ServerMessage::MarketState(Box::new(MarketStateMessage {
+            message_id: self.message_ids.next_id(),
+            message_type: MarketStateType::MarketState,
+            schema_version: ConstSchemaVersion,
+            tick,
+            correlation_id: None,
+            payload: MarketStatePayload {
+                market_id: market_id.clone(),
+                listings,
+            },
+        }))
+    }
+
+    /// `MARKET_STATE` 를 지금 열려 있는 모든 세션에 보낸다. 수신자마다 새 `message_id`
+    /// 를 받는다(`broadcast_deposit_field_state` 와 같은 패턴).
+    fn broadcast_market_state(
+        &mut self,
+        tick: Tick,
+        market_id: &DataId,
+        outcome: &mut TickOutcome,
+    ) {
+        if self.sessions.is_empty() {
+            return;
+        }
+        let session_ids: Vec<UuidV7> = self.sessions.keys().copied().collect();
+        for session_id in session_ids {
+            let message = self.build_market_state_message(tick, market_id);
+            outcome.outbound.push(Outbound {
+                session_id,
+                message,
+            });
+        }
+    }
+
+    /// 회복 배수 tick에 실효 포화가 **실제로** 바뀐 상장이 있는 시장마다 `MARKET_STATE`
+    /// 를 한 번씩 보낸다(I-87). DB 쓰기도 이벤트도 만들지 않는다 — 비교만 한다.
+    /// `step()` 이 매 tick 부른다(명령 유무와 무관 — 회복은 계속 흐른다).
+    fn check_market_recovery_broadcasts(
+        &mut self,
+        tick_number: u64,
+        tick: Tick,
+        outcome: &mut TickOutcome,
+    ) {
+        if self.market_states.is_empty() {
+            return;
+        }
+        let mut markets_changed: BTreeSet<DataId> = BTreeSet::new();
+        for ((market_id, mineral_id), state) in &self.market_states {
+            let Some(market) = self.world.markets.get(market_id) else {
+                continue;
+            };
+            let Some(listing) = market.listings.get(mineral_id) else {
+                continue;
+            };
+            let interval = market.recovery_interval_ticks;
+            if interval == 0 || !tick_number.is_multiple_of(interval) {
+                continue;
+            }
+            let now = effective_saturation(
+                state.saturation_kg,
+                state.as_of_tick,
+                tick_number,
+                listing.recovery_kg,
+                interval,
+            );
+            let previous = effective_saturation(
+                state.saturation_kg,
+                state.as_of_tick,
+                tick_number.saturating_sub(1),
+                listing.recovery_kg,
+                interval,
+            );
+            if now != previous {
+                markets_changed.insert(market_id.clone());
+            }
+        }
+        for market_id in markets_changed {
+            self.broadcast_market_state(tick, &market_id, outcome);
         }
     }
 
@@ -1819,6 +2371,13 @@ fn mass_kg_from_i64(value: i64) -> MassKg {
     MassKg::saturating(narrowed)
 }
 
+/// `i64`(거래 판정 내부 계산 폭)를 `CreditAmount` 로 좁힌다. `mass_kg_from_i64` 와
+/// 같은 이유 — 호출 시점에는 이미 범위 안임이 보장되지만(판정 7의 checked 덧셈이
+/// 먼저 막는다), `saturating` 으로 만들어 `unwrap`/`expect`/`panic` 없이 끝낸다.
+fn credit_amount_from_i64(value: i64) -> CreditAmount {
+    CreditAmount::saturating(value.clamp(0, 9_007_199_254_740_991))
+}
+
 fn quantised_angular(component_deg_s: f64) -> AngularVelocityMdegPerSecond {
     AngularVelocityMdegPerSecond::saturating(quantise_i32(
         component_deg_s,
@@ -1929,6 +2488,7 @@ mod tests {
                 max_ship_speed_mps: 10.0,
                 cooldown_ticks: 60,
             },
+            markets: BTreeMap::new(),
         }
     }
 
@@ -4838,6 +5398,1421 @@ mod tests {
                 revealed_after_regen.first_extracted_tick.is_some(),
                 "회복으로 잔량이 초기값에 돌아와도 드러난 채로 남아야 한다(I-68 — \
                  드러남은 광맥 단위 시뮬레이션 상태이지 잔량과 무관하다)"
+            );
+        }
+    }
+
+    // =========================================================================================
+    // p1-03-trading — S3: SELL_MINERAL 판정(스펙 §4.2)
+    // =========================================================================================
+    mod trading_tests {
+        use super::*;
+        use crate::trading::{ListingConstants, PriceRule};
+
+        const SPAWN_POINT: [f64; 3] = [2500.0, 250.0, 0.0];
+        const MINERAL: &str = "test-mineral";
+        const MARKET: &str = "test-market";
+
+        /// `base_price_cr_per_kg=10, band_kg=2000, floor_pct=30, drop_pct=10` —
+        /// S3b 가 쓰는 Ferrosite 와 같은 상수(§0.6 P9·P10 과 같은 입력)라서 기대값을
+        /// 그 값에서 그대로 재사용할 수 있다.
+        fn price_rule() -> PriceRule {
+            PriceRule {
+                base_price_cr_per_kg: 10,
+                band_kg: 2000,
+                price_floor_pct: 30,
+                price_drop_pct_per_band: 10,
+            }
+        }
+
+        /// `world()` 에 시장 하나(스폰 지점과 같은 좌표 — 도킹 구역 안)와 광물 하나를
+        /// 더한다. `mining::tests` 의 `world_with_one_deposit` 와 같은 자리.
+        fn world_with_market() -> WorldConstants {
+            let mut w = world();
+            w.spawn_points_m = vec![SPAWN_POINT];
+            w.spawn_clearance_m = 1.0;
+            w.spawn_radial_offset_step_m = 5.0;
+            let mineral_id = DataId::parse(MINERAL).unwrap();
+            w.minerals.insert(
+                mineral_id.clone(),
+                MineralConstants {
+                    yield_per_extraction_kg: 25,
+                    regen_kg: 5,
+                    regen_interval_ticks: 10,
+                },
+            );
+            let mut listings = BTreeMap::new();
+            listings.insert(
+                mineral_id,
+                ListingConstants {
+                    price: price_rule(),
+                    recovery_kg: 1000,
+                },
+            );
+            w.markets.insert(
+                DataId::parse(MARKET).unwrap(),
+                MarketConstants {
+                    position_m: Vec3::new(SPAWN_POINT[0], SPAWN_POINT[1], SPAWN_POINT[2]),
+                    radius_m: 10.0,
+                    dock_range_from_surface_m: 50.0,
+                    max_ship_speed_mps: 5.0,
+                    sell_cooldown_ticks: 20,
+                    recovery_interval_ticks: 1200,
+                    pricing_version: starfall_contracts::primitives::RuleVersion::parse(
+                        "test-market@1",
+                    )
+                    .unwrap(),
+                    listings,
+                },
+            );
+            w
+        }
+
+        fn sell_mineral(
+            command_id: UuidV7,
+            market_id: &str,
+            mineral_id: &str,
+            qty: i32,
+        ) -> InboundCommand {
+            InboundCommand::SellMineral(SellMineralCommand {
+                command_id,
+                command_type: starfall_contracts::commands::SellMineralType::SellMineral,
+                schema_version: ConstSchemaVersion,
+                client_sent_at: None,
+                payload: starfall_contracts::SellMineralPayload {
+                    market_id: DataId::parse(market_id).unwrap(),
+                    mineral_id: DataId::parse(mineral_id).unwrap(),
+                    quantity_kg: MassKg::new(qty).unwrap(),
+                },
+            })
+        }
+
+        #[allow(clippy::too_many_arguments)]
+        fn sell(
+            sim: &mut Simulation,
+            ids: &mut SeqIds,
+            session_id: UuidV7,
+            command_id: UuidV7,
+            market_id: &str,
+            mineral_id: &str,
+            qty: i32,
+        ) -> TickOutcome {
+            sim.step(
+                vec![Submission::Command {
+                    seq: 0,
+                    session_id,
+                    command: sell_mineral(command_id, market_id, mineral_id, qty),
+                }],
+                ids,
+            )
+        }
+
+        fn command_result(outcome: &TickOutcome) -> &CommandResultMessage {
+            outcome
+                .outbound
+                .iter()
+                .find_map(|out| match &out.message {
+                    ServerMessage::CommandResult(message) => Some(message.as_ref()),
+                    _ => None,
+                })
+                .expect("COMMAND_RESULT 가 있어야 한다")
+        }
+
+        /// `mining::tests::mine` 과 같은 모양 — 그쪽은 그 모듈 전용이라(`mod mining`
+        /// 비공개) 여기 따로 둔다(채굴·판매 교차 중복 테스트에 필요).
+        fn mine(
+            sim: &mut Simulation,
+            ids: &mut SeqIds,
+            session_id: UuidV7,
+            command_id: UuidV7,
+            deposit_id: &str,
+        ) -> TickOutcome {
+            sim.step(
+                vec![Submission::Command {
+                    seq: 0,
+                    session_id,
+                    command: InboundCommand::MineResource(MineResourceCommand {
+                        command_id,
+                        command_type: starfall_contracts::commands::MineResourceType::MineResource,
+                        schema_version: ConstSchemaVersion,
+                        client_sent_at: None,
+                        payload: starfall_contracts::MineResourcePayload {
+                            deposit_id: DataId::parse(deposit_id).unwrap(),
+                        },
+                    }),
+                }],
+                ids,
+            )
+        }
+
+        /// SC-08 — **S3 첫 실패 테스트**(01_architect_tasks.md) — 쿨다운 중 + 도킹 밖 →
+        /// `COOLDOWN_ACTIVE`(판정 순서 3이 4보다 앞). 매장지와 같은 이유로 시장 둘:
+        /// 도킹 구역 **안**(쿨다운 warm-up) + **밖**(재현 대상).
+        #[test]
+        fn sale_judgement_order_cooldown_before_dock() {
+            let mut world = world_with_market();
+            let mineral_id = DataId::parse(MINERAL).unwrap();
+            let mut far_listings = BTreeMap::new();
+            far_listings.insert(
+                mineral_id,
+                ListingConstants {
+                    price: price_rule(),
+                    recovery_kg: 1000,
+                },
+            );
+            world.markets.insert(
+                DataId::parse("far-market").unwrap(),
+                MarketConstants {
+                    position_m: Vec3::new(
+                        SPAWN_POINT[0] + 100_000.0,
+                        SPAWN_POINT[1],
+                        SPAWN_POINT[2],
+                    ),
+                    radius_m: 10.0,
+                    dock_range_from_surface_m: 50.0,
+                    max_ship_speed_mps: 5.0,
+                    sell_cooldown_ticks: 20,
+                    recovery_interval_ticks: 1200,
+                    pricing_version: starfall_contracts::primitives::RuleVersion::parse(
+                        "far-market@1",
+                    )
+                    .unwrap(),
+                    listings: far_listings,
+                },
+            );
+
+            let mut sim = Simulation::new(world, 0);
+            let mut ids = SeqIds(0);
+            open(&mut sim, &mut ids, id(1), id(2));
+            sim.seed_inventory(id(2), DataId::parse(MINERAL).unwrap(), 10_000);
+
+            let warm_up = sell(&mut sim, &mut ids, id(1), id(900), MARKET, MINERAL, 100);
+            assert_eq!(
+                command_result(&warm_up).payload.status,
+                starfall_contracts::CommandStatus::Accepted,
+                "⊘ 전제: 쿨다운을 걸려면 먼저 수락이 있어야 한다"
+            );
+            let reject = sell(
+                &mut sim,
+                &mut ids,
+                id(1),
+                id(901),
+                "far-market",
+                MINERAL,
+                100,
+            );
+            let result = command_result(&reject);
+            assert_eq!(
+                result.payload.status,
+                starfall_contracts::CommandStatus::Rejected
+            );
+            assert_eq!(
+                result.payload.reason_code,
+                Some(RejectReasonCode::CooldownActive),
+                "쿨다운(3)이 도킹 구역(4)보다 먼저 걸려야 한다(스펙 §4.2 판정 순서)"
+            );
+            assert!(
+                reject.state_writes.is_empty(),
+                "거부는 아무 상태도 바꾸지 않는다"
+            );
+        }
+
+        /// SC-07 — 판정 2 — 없는 시장과 상장 없는 광물 둘 다 `TARGET_UNKNOWN`
+        /// (계약이 말하는 "사유 2 는 두 경우" 중 둘 다).
+        #[test]
+        fn sale_rejection_reason_2_no_such_market() {
+            let mut sim = Simulation::new(world_with_market(), 0);
+            let mut ids = SeqIds(0);
+            open(&mut sim, &mut ids, id(1), id(2));
+            sim.seed_inventory(id(2), DataId::parse(MINERAL).unwrap(), 10_000);
+
+            let no_market = sell(
+                &mut sim,
+                &mut ids,
+                id(1),
+                id(900),
+                "no-such-market",
+                MINERAL,
+                100,
+            );
+            assert_eq!(
+                command_result(&no_market).payload.reason_code,
+                Some(RejectReasonCode::TargetUnknown)
+            );
+        }
+
+        /// SC-07 — 판정 2, 두 번째 경우 — 존재하는 시장이지만 그 광물의 상장이 없다.
+        #[test]
+        fn sale_rejection_reason_2_no_such_listing() {
+            let mut sim = Simulation::new(world_with_market(), 0);
+            let mut ids = SeqIds(0);
+            open(&mut sim, &mut ids, id(1), id(2));
+            sim.seed_inventory(id(2), DataId::parse(MINERAL).unwrap(), 10_000);
+
+            let no_listing = sell(
+                &mut sim,
+                &mut ids,
+                id(1),
+                id(901),
+                MARKET,
+                "no-such-mineral",
+                100,
+            );
+            assert_eq!(
+                command_result(&no_listing).payload.reason_code,
+                Some(RejectReasonCode::TargetUnknown)
+            );
+        }
+
+        /// SC-07 — 판정 3 — 판매 쿨다운 중이면(도킹 구역 안에서) `COOLDOWN_ACTIVE`.
+        #[test]
+        fn sale_rejection_reason_3_cooldown_active() {
+            let mut sim = Simulation::new(world_with_market(), 0);
+            let mut ids = SeqIds(0);
+            open(&mut sim, &mut ids, id(1), id(2));
+            sim.seed_inventory(id(2), DataId::parse(MINERAL).unwrap(), 10_000);
+
+            let first = sell(&mut sim, &mut ids, id(1), id(900), MARKET, MINERAL, 100);
+            assert_eq!(
+                command_result(&first).payload.status,
+                starfall_contracts::CommandStatus::Accepted,
+                "⊘ 전제: 쿨다운을 걸려면 먼저 수락이 있어야 한다"
+            );
+            let still_cooling = sell(&mut sim, &mut ids, id(1), id(901), MARKET, MINERAL, 100);
+            assert_eq!(
+                command_result(&still_cooling).payload.reason_code,
+                Some(RejectReasonCode::CooldownActive)
+            );
+            assert!(still_cooling.state_writes.is_empty());
+        }
+
+        /// SC-07 — 판정 4 — 도킹 구역 밖.
+        #[test]
+        fn sale_rejection_reason_4_target_out_of_range() {
+            let mut world = world_with_market();
+            world
+                .markets
+                .get_mut(&DataId::parse(MARKET).unwrap())
+                .unwrap()
+                .position_m = Vec3::new(SPAWN_POINT[0] + 100_000.0, SPAWN_POINT[1], SPAWN_POINT[2]);
+            let mut sim = Simulation::new(world, 0);
+            let mut ids = SeqIds(0);
+            open(&mut sim, &mut ids, id(1), id(2));
+            sim.seed_inventory(id(2), DataId::parse(MINERAL).unwrap(), 10_000);
+
+            let outcome = sell(&mut sim, &mut ids, id(1), id(900), MARKET, MINERAL, 100);
+            assert_eq!(
+                command_result(&outcome).payload.reason_code,
+                Some(RejectReasonCode::TargetOutOfRange)
+            );
+            assert!(outcome.state_writes.is_empty());
+        }
+
+        /// SC-07 — 판정 5 — 과속(채굴과 같은 상한 재사용, `mining::within_speed_limit`).
+        #[test]
+        fn sale_rejection_reason_5_ship_too_fast() {
+            let mut sim = Simulation::new(world_with_market(), 0);
+            let mut ids = SeqIds(0);
+            open(&mut sim, &mut ids, id(1), id(2));
+            sim.seed_inventory(id(2), DataId::parse(MINERAL).unwrap(), 10_000);
+            let ship_id = *sim.actor_ship.get(&id(2)).expect("배가 있어야 한다");
+            sim.ships.get_mut(&ship_id).unwrap().physics.v = Vec3::new(10.0, 0.0, 0.0);
+
+            let outcome = sell(&mut sim, &mut ids, id(1), id(900), MARKET, MINERAL, 100);
+            assert_eq!(
+                command_result(&outcome).payload.reason_code,
+                Some(RejectReasonCode::ShipTooFast)
+            );
+            assert!(outcome.state_writes.is_empty());
+        }
+
+        /// SC-07 — 판정 6 — 보유량보다 많이 팔려는 명령은 `INSUFFICIENT_QUANTITY`.
+        /// 계약 ⊘: "수락 1건이 이미 있는 상태에서" 거부가 그 상태를 **안 바꾼다**를
+        /// 증명한다(경계 양쪽은 SC-10 의 `sale_holding_boundary_` 가 따로 본다).
+        #[test]
+        fn sale_rejection_reason_6_insufficient_quantity() {
+            let mut sim = Simulation::new(world_with_market(), 0);
+            let mut ids = SeqIds(0);
+            open(&mut sim, &mut ids, id(1), id(2));
+            sim.seed_inventory(id(2), DataId::parse(MINERAL).unwrap(), 500);
+
+            // ⊘ 전제 — 수락 1건을 먼저 만든다(지갑·인벤토리가 이미 0 아닌 상태).
+            let warm_up = sell(&mut sim, &mut ids, id(1), id(900), MARKET, MINERAL, 100);
+            assert_eq!(
+                command_result(&warm_up).payload.status,
+                starfall_contracts::CommandStatus::Accepted,
+                "⊘ 전제: 거부 전에 수락 1건이 있어야 '불변'을 증명할 수 있다"
+            );
+            let inventory_before = sim.inventories.clone();
+            let wallet_before = sim.wallets.clone();
+            let market_states_before = sim.market_states.clone();
+            let last_sale_tick_before = sim.actor_last_sale_tick.clone();
+            assert!(
+                wallet_before.values().any(|&balance| balance > 0),
+                "⊘ 전제: 지갑이 이미 0 이 아니어야 한다"
+            );
+
+            // 쿨다운이 끝난 뒤 남은 보유량(400)보다 많이(401) 팔려고 한다.
+            for _ in 0..20 {
+                sim.step(Vec::new(), &mut ids);
+            }
+            let too_much = sell(&mut sim, &mut ids, id(1), id(901), MARKET, MINERAL, 401);
+            assert_eq!(
+                command_result(&too_much).payload.reason_code,
+                Some(RejectReasonCode::InsufficientQuantity)
+            );
+            assert!(too_much.state_writes.is_empty());
+            assert_eq!(
+                sim.inventories, inventory_before,
+                "거부는 인벤토리를 바꾸지 않는다"
+            );
+            assert_eq!(sim.wallets, wallet_before, "거부는 지갑을 바꾸지 않는다");
+            assert_eq!(
+                sim.market_states, market_states_before,
+                "거부는 시장 포화·마지막 거래를 바꾸지 않는다"
+            );
+            assert_eq!(
+                sim.actor_last_sale_tick, last_sale_tick_before,
+                "거부는 판매 쿨다운을 다시 시작하지 않는다"
+            );
+        }
+
+        /// SC-10 — 판정 6(신규) — 보유량보다 많이 팔려는 명령은 `INSUFFICIENT_QUANTITY`,
+        /// **경계 양쪽**: 보유량 정확히는 수락, +1 은 거부.
+        #[test]
+        fn sale_holding_boundary_exact_accepts_and_plus_one_rejects() {
+            let mut sim = Simulation::new(world_with_market(), 0);
+            let mut ids = SeqIds(0);
+            open(&mut sim, &mut ids, id(1), id(2));
+            sim.seed_inventory(id(2), DataId::parse(MINERAL).unwrap(), 500);
+
+            let too_much = sell(&mut sim, &mut ids, id(1), id(900), MARKET, MINERAL, 501);
+            assert_eq!(
+                command_result(&too_much).payload.reason_code,
+                Some(RejectReasonCode::InsufficientQuantity)
+            );
+            assert!(too_much.state_writes.is_empty());
+
+            let exact = sell(&mut sim, &mut ids, id(1), id(901), MARKET, MINERAL, 500);
+            assert_eq!(
+                command_result(&exact).payload.status,
+                starfall_contracts::CommandStatus::Accepted
+            );
+            let inventory = exact
+                .outbound
+                .iter()
+                .find_map(|out| match &out.message {
+                    ServerMessage::InventoryState(message) => Some(message.as_ref()),
+                    _ => None,
+                })
+                .expect("INVENTORY_STATE 가 있어야 한다");
+            assert!(
+                inventory.payload.items.is_empty(),
+                "전량 판매 뒤 0kg 항목은 INVENTORY_STATE 에 실리지 않는다(와이어 불변식)"
+            );
+        }
+
+        /// SC-07 — 판정 7 — 지갑이 `CreditAmount` 상한을 넘기면 `CAPACITY_EXCEEDED`
+        /// (ADR-0016 §6, 경계값 주입).
+        #[test]
+        fn sale_rejection_reason_7_capacity_exceeded() {
+            let mut sim = Simulation::new(world_with_market(), 0);
+            let mut ids = SeqIds(0);
+            open(&mut sim, &mut ids, id(1), id(2));
+            sim.seed_inventory(id(2), DataId::parse(MINERAL).unwrap(), 10_000);
+            // 100kg 판매 대금은 base 10 * 100 = 1,000. 지갑을 상한 - 999 로 둬서
+            // (상한 - 999) + 1,000 이 상한을 1 넘긴다.
+            sim.seed_wallet(id(2), 9_007_199_254_740_991 - 999);
+
+            let outcome = sell(&mut sim, &mut ids, id(1), id(900), MARKET, MINERAL, 100);
+            assert_eq!(
+                command_result(&outcome).payload.reason_code,
+                Some(RejectReasonCode::CapacityExceeded)
+            );
+            assert!(outcome.state_writes.is_empty());
+        }
+
+        /// SC-09 — 거부는 판매 쿨다운을 시작하지 않는다: 이전 수락이 없는 actor 가
+        /// 도킹 구역 밖 사유로 거부된 직후, 조건을 만족시키면 (쿨다운 20 tick 보다
+        /// 훨씬 짧은 간격으로) 수락된다.
+        #[test]
+        fn sale_rejection_does_not_start_cooldown() {
+            let mut world = world_with_market();
+            world
+                .markets
+                .get_mut(&DataId::parse(MARKET).unwrap())
+                .unwrap()
+                .position_m = Vec3::new(SPAWN_POINT[0] + 100_000.0, SPAWN_POINT[1], SPAWN_POINT[2]);
+            let mut sim = Simulation::new(world, 0);
+            let mut ids = SeqIds(0);
+            open(&mut sim, &mut ids, id(1), id(2));
+            sim.seed_inventory(id(2), DataId::parse(MINERAL).unwrap(), 10_000);
+
+            // 이 actor 는 이전에 한 번도 수락된 적이 없다 — 거부 전 상태.
+            let reject_outcome = sell(&mut sim, &mut ids, id(1), id(900), MARKET, MINERAL, 100);
+            assert_eq!(
+                command_result(&reject_outcome).payload.reason_code,
+                Some(RejectReasonCode::TargetOutOfRange)
+            );
+            let reject_tick = reject_outcome.tick;
+
+            // 사거리 조건을 만족시킨다(sell_cooldown_ticks=20 보다 훨씬 짧게, 바로 다음 tick).
+            sim.world
+                .markets
+                .get_mut(&DataId::parse(MARKET).unwrap())
+                .unwrap()
+                .position_m = Vec3::new(SPAWN_POINT[0], SPAWN_POINT[1], SPAWN_POINT[2]);
+            let accept_outcome = sell(&mut sim, &mut ids, id(1), id(901), MARKET, MINERAL, 100);
+            assert_eq!(
+                command_result(&accept_outcome).payload.status,
+                starfall_contracts::CommandStatus::Accepted,
+                "거부는 쿨다운을 시작하지 않으므로 다음 시도가 곧바로 수락돼야 한다"
+            );
+            assert!(
+                accept_outcome.tick - reject_tick < 20,
+                "수락 tick 과 거부 tick 의 간격이 sell_cooldown_ticks(20) 보다 작아야 한다"
+            );
+        }
+
+        /// SC-06 — 수락된 판매 하나가 기대대로 전부를 만든다: `COMMAND_RESULT` 수락,
+        /// `MINERAL_SOLD`(causation_id = 명령 id, before/after 전부), 응답 순서
+        /// `SALE_RECEIPT`→`INVENTORY_STATE`→`WALLET_STATE`(스펙 §5.1a), 세 `StateWrite`.
+        #[test]
+        fn sale_accepted_produces_event_and_responses_in_order() {
+            let mut sim = Simulation::new(world_with_market(), 0);
+            let mut ids = SeqIds(0);
+            open(&mut sim, &mut ids, id(1), id(2));
+            sim.seed_inventory(id(2), DataId::parse(MINERAL).unwrap(), 2_000);
+            let command_id = id(900);
+            let outcome = sell(
+                &mut sim,
+                &mut ids,
+                id(1),
+                command_id,
+                MARKET,
+                MINERAL,
+                2_000,
+            );
+
+            assert_eq!(
+                command_result(&outcome).payload.status,
+                starfall_contracts::CommandStatus::Accepted
+            );
+
+            let sold = outcome
+                .events
+                .iter()
+                .find(|event| event.body.event_type() == "MINERAL_SOLD")
+                .expect("MINERAL_SOLD 가 있어야 한다");
+            assert_eq!(sold.causation_id, Some(command_id));
+            let DomainEventBody::MineralSold(payload) = &sold.body else {
+                unreachable!()
+            };
+            // 포화 0 에서 2,000kg — §0.6 P9 와 같은 입력, 대금 20,000.
+            assert_eq!(payload.proceeds_cr.get(), 20_000);
+            assert_eq!(payload.quantity_before_kg.get(), 2_000);
+            assert_eq!(payload.quantity_after_kg.get(), 0);
+            assert_eq!(payload.wallet_before_cr.get(), 0);
+            assert_eq!(payload.wallet_after_cr.get(), 20_000);
+            assert_eq!(payload.saturation_before_kg.get(), 0);
+            assert_eq!(payload.saturation_after_kg.get(), 2_000);
+            assert_eq!(payload.price_before_cr_per_kg.get(), 10);
+            assert_eq!(payload.price_after_cr_per_kg.get(), 9);
+
+            // 응답 순서(COMMAND_RESULT 는 이미 확인) — SALE_RECEIPT → INVENTORY_STATE →
+            // WALLET_STATE, 그 사이에 섞이지 않는다.
+            let kinds: Vec<&str> = outcome
+                .outbound
+                .iter()
+                .filter(|out| out.session_id == id(1))
+                .map(|out| out.message.type_name())
+                .collect();
+            let sale_receipt_pos = kinds.iter().position(|&k| k == "SALE_RECEIPT").unwrap();
+            let inventory_pos = kinds.iter().position(|&k| k == "INVENTORY_STATE").unwrap();
+            let wallet_pos = kinds.iter().position(|&k| k == "WALLET_STATE").unwrap();
+            assert!(sale_receipt_pos < inventory_pos);
+            assert!(inventory_pos < wallet_pos);
+
+            assert_eq!(
+                outcome.state_writes.len(),
+                3,
+                "인벤토리·지갑·시장 세 StateWrite"
+            );
+        }
+
+        /// SC-11 — 같은 tick 두 판매(제출 순서대로) — 먼저 처리된 쪽이 높은 구간을
+        /// 쓴다(§0.6 P9·P10, I-71).
+        #[test]
+        fn sale_same_tick_submission_order_determines_price() {
+            let mut sim = Simulation::new(world_with_market(), 0);
+            let mut ids = SeqIds(0);
+            open(&mut sim, &mut ids, id(1), id(2));
+            open(&mut sim, &mut ids, id(3), id(4));
+            sim.seed_inventory(id(2), DataId::parse(MINERAL).unwrap(), 2_000);
+            sim.seed_inventory(id(4), DataId::parse(MINERAL).unwrap(), 2_000);
+
+            let outcome = sim.step(
+                vec![
+                    Submission::Command {
+                        seq: 0,
+                        session_id: id(1),
+                        command: sell_mineral(id(900), MARKET, MINERAL, 2_000),
+                    },
+                    Submission::Command {
+                        seq: 1,
+                        session_id: id(3),
+                        command: sell_mineral(id(901), MARKET, MINERAL, 2_000),
+                    },
+                ],
+                &mut ids,
+            );
+
+            let sold: Vec<_> = outcome
+                .events
+                .iter()
+                .filter_map(|event| match &event.body {
+                    DomainEventBody::MineralSold(payload) => Some(payload),
+                    _ => None,
+                })
+                .collect();
+            assert_eq!(sold.len(), 2);
+            assert_eq!(
+                sold[0].proceeds_cr.get(),
+                20_000,
+                "제출 순번이 더 빠른 쪽 — P9"
+            );
+            assert_eq!(sold[1].proceeds_cr.get(), 18_000, "그 다음 — P10");
+        }
+
+        /// SC-11 양성 짝 — 제출 순서를 **뒤집으면** 결과도 바뀐다(같은 두 actor,
+        /// seq 만 교환).
+        #[test]
+        fn sale_same_tick_submission_order_reversing_swaps_proceeds() {
+            let mut sim = Simulation::new(world_with_market(), 0);
+            let mut ids = SeqIds(0);
+            open(&mut sim, &mut ids, id(1), id(2));
+            open(&mut sim, &mut ids, id(3), id(4));
+            sim.seed_inventory(id(2), DataId::parse(MINERAL).unwrap(), 2_000);
+            sim.seed_inventory(id(4), DataId::parse(MINERAL).unwrap(), 2_000);
+
+            let outcome = sim.step(
+                vec![
+                    Submission::Command {
+                        seq: 0,
+                        session_id: id(3),
+                        command: sell_mineral(id(901), MARKET, MINERAL, 2_000),
+                    },
+                    Submission::Command {
+                        seq: 1,
+                        session_id: id(1),
+                        command: sell_mineral(id(900), MARKET, MINERAL, 2_000),
+                    },
+                ],
+                &mut ids,
+            );
+
+            let sold: Vec<_> = outcome
+                .events
+                .iter()
+                .filter_map(|event| match &event.body {
+                    DomainEventBody::MineralSold(payload) => Some(payload),
+                    _ => None,
+                })
+                .collect();
+            assert_eq!(sold.len(), 2);
+            assert_eq!(
+                sold[0].proceeds_cr.get(),
+                20_000,
+                "이번엔 session 3(seq 0)가 먼저 — P9"
+            );
+            assert_eq!(sold[1].proceeds_cr.get(), 18_000, "session 1(seq 1) — P10");
+        }
+
+        /// SC-12 — 같은 tick 의 채굴과 판매가 **제출 순번으로 섞여** 처리된다.
+        /// 입력 `[판매, 채굴, 판매]` 순으로 보내 `MINERAL_SOLD`·`MINERAL_MINED`·
+        /// `MINERAL_SOLD` 가 그 순서로 나오는지 확인한다(I-71).
+        #[test]
+        fn sale_and_mine_same_tick_interleave_by_submission() {
+            let mut world = world_with_market();
+            let mineral_id = DataId::parse(MINERAL).unwrap();
+            world.deposits.insert(
+                DataId::parse("test-deposit").unwrap(),
+                DepositConstants {
+                    mineral_id,
+                    position_m: Vec3::new(SPAWN_POINT[0], SPAWN_POINT[1], SPAWN_POINT[2]),
+                    radius_m: 10.0,
+                    initial_reserve_kg: 1_000,
+                },
+            );
+            world.mining_rules = MiningRuleConstants {
+                mining_range_from_surface_m: 50.0,
+                max_ship_speed_mps: 5.0,
+                cooldown_ticks: 60,
+            };
+            let mut sim = Simulation::new(world, 0);
+            let mut ids = SeqIds(0);
+            open(&mut sim, &mut ids, id(1), id(2));
+            open(&mut sim, &mut ids, id(3), id(4));
+            open(&mut sim, &mut ids, id(5), id(6));
+            sim.seed_inventory(id(2), DataId::parse(MINERAL).unwrap(), 100);
+            sim.seed_inventory(id(6), DataId::parse(MINERAL).unwrap(), 100);
+
+            // 두 판매는 **다른 actor**(id(2)·id(6))다 — 같은 actor 였다면 첫 판매가
+            // 건 쿨다운이 같은 tick 의 둘째 판매를 가려서 "판매·채굴 교차"가 아니라
+            // "판매 쿨다운" 테스트가 돼버린다.
+            let outcome = sim.step(
+                vec![
+                    Submission::Command {
+                        seq: 0,
+                        session_id: id(1),
+                        command: sell_mineral(id(900), MARKET, MINERAL, 100),
+                    },
+                    Submission::Command {
+                        seq: 1,
+                        session_id: id(3),
+                        command: InboundCommand::MineResource(MineResourceCommand {
+                            command_id: id(901),
+                            command_type:
+                                starfall_contracts::commands::MineResourceType::MineResource,
+                            schema_version: ConstSchemaVersion,
+                            client_sent_at: None,
+                            payload: starfall_contracts::MineResourcePayload {
+                                deposit_id: DataId::parse("test-deposit").unwrap(),
+                            },
+                        }),
+                    },
+                    Submission::Command {
+                        seq: 2,
+                        session_id: id(5),
+                        command: sell_mineral(id(902), MARKET, MINERAL, 100),
+                    },
+                ],
+                &mut ids,
+            );
+
+            let kinds: Vec<&str> = outcome
+                .events
+                .iter()
+                .map(|event| event.body.event_type())
+                .filter(|kind| *kind == "MINERAL_SOLD" || *kind == "MINERAL_MINED")
+                .collect();
+            assert_eq!(
+                kinds,
+                vec!["MINERAL_SOLD", "MINERAL_MINED", "MINERAL_SOLD"],
+                "⊘ 전제: 같은 tick, 제출 순 [판매, 채굴, 판매]로 종류가 교차한다"
+            );
+        }
+
+        /// SC-13 — 판매 쿨다운: t 수락 → t+19 `COOLDOWN_ACTIVE` → t+20 수락.
+        #[test]
+        fn sale_cooldown_t19_rejects_t20_accepts() {
+            let mut sim = Simulation::new(world_with_market(), 0);
+            let mut ids = SeqIds(0);
+            open(&mut sim, &mut ids, id(1), id(2));
+            sim.seed_inventory(id(2), DataId::parse(MINERAL).unwrap(), 10_000);
+
+            let first = sell(&mut sim, &mut ids, id(1), id(900), MARKET, MINERAL, 100);
+            assert_eq!(
+                command_result(&first).payload.status,
+                starfall_contracts::CommandStatus::Accepted
+            );
+            // t=0 에서 수락됐다. t+19(=19) 까지는 COOLDOWN_ACTIVE.
+            for _ in 0..18 {
+                let _ = sim.step(vec![], &mut ids); // tick 을 흘려보낸다.
+            }
+            let still_cooling = sell(&mut sim, &mut ids, id(1), id(901), MARKET, MINERAL, 100);
+            assert_eq!(
+                command_result(&still_cooling).payload.reason_code,
+                Some(RejectReasonCode::CooldownActive),
+                "tick 19 는 아직 쿨다운 중이어야 한다(sell_cooldown_ticks=20)"
+            );
+            let now_ready = sell(&mut sim, &mut ids, id(1), id(902), MARKET, MINERAL, 100);
+            assert_eq!(
+                command_result(&now_ready).payload.status,
+                starfall_contracts::CommandStatus::Accepted,
+                "tick 20 는 쿨다운이 끝났어야 한다"
+            );
+        }
+
+        /// SC-13 — 판매 쿨다운은 채굴 쿨다운과 **독립**이다(디자인 §2.1): 판매 직후
+        /// 채굴이 수락되고, 채굴 직후 판매가 수락된다.
+        #[test]
+        fn sale_cooldown_is_independent_of_mining_cooldown() {
+            let mut world = world_with_market();
+            let mineral_id = DataId::parse(MINERAL).unwrap();
+            world.deposits.insert(
+                DataId::parse("test-deposit").unwrap(),
+                DepositConstants {
+                    mineral_id,
+                    position_m: Vec3::new(SPAWN_POINT[0], SPAWN_POINT[1], SPAWN_POINT[2]),
+                    radius_m: 10.0,
+                    initial_reserve_kg: 1_000,
+                },
+            );
+            world.mining_rules = MiningRuleConstants {
+                mining_range_from_surface_m: 50.0,
+                max_ship_speed_mps: 5.0,
+                cooldown_ticks: 60,
+            };
+            let mut sim = Simulation::new(world, 0);
+            let mut ids = SeqIds(0);
+            open(&mut sim, &mut ids, id(1), id(2));
+            sim.seed_inventory(id(2), DataId::parse(MINERAL).unwrap(), 10_000);
+
+            let first = sell(&mut sim, &mut ids, id(1), id(900), MARKET, MINERAL, 100);
+            assert_eq!(
+                command_result(&first).payload.status,
+                starfall_contracts::CommandStatus::Accepted,
+                "⊘ 전제: 판매 쿨다운을 걸려면 먼저 수락이 있어야 한다"
+            );
+
+            // 판매 쿨다운이 걸려 있어도(막 판매) 채굴은 독립적으로 수락된다.
+            let mine_outcome = mine(&mut sim, &mut ids, id(1), id(901), "test-deposit");
+            assert_eq!(
+                command_result(&mine_outcome).payload.status,
+                starfall_contracts::CommandStatus::Accepted,
+                "판매 쿨다운이 채굴을 막으면 안 된다(디자인 §2.1 — 독립)"
+            );
+            // 채굴 쿨다운이 걸려 있어도(막 채굴) 판매가 계속 쿨다운에 막혀 있는지와
+            // 무관하게 독립적으로 거부/수락이 갈린다는 것을 확인하려면 판매 쪽
+            // 쿨다운이 끝난 뒤 다시 시도해야 한다 — 거부 사유가 COOLDOWN_ACTIVE(판매
+            // 자신의 쿨다운)이지 채굴 쿨다운 때문이 아님을 보장한다.
+            let still_in_sale_cooldown =
+                sell(&mut sim, &mut ids, id(1), id(902), MARKET, MINERAL, 100);
+            assert_eq!(
+                command_result(&still_in_sale_cooldown).payload.reason_code,
+                Some(RejectReasonCode::CooldownActive),
+                "판매 자신의 쿨다운(채굴 쿨다운과 무관)으로 아직 거부돼야 한다"
+            );
+        }
+
+        /// SC-27 — I-82 — 명령 종류 교차: `MINE_RESOURCE` 로 수락된 `command_id` 를
+        /// `SELL_MINERAL` 로 재전송하면(그리고 반대로도) `DUPLICATE_COMMAND_ID`.
+        #[test]
+        fn sale_dup_cross_kind_mine_then_sell_and_sell_then_mine() {
+            let mut world = world_with_market();
+            let mineral_id = DataId::parse(MINERAL).unwrap();
+            world.deposits.insert(
+                DataId::parse("test-deposit").unwrap(),
+                DepositConstants {
+                    mineral_id,
+                    position_m: Vec3::new(SPAWN_POINT[0], SPAWN_POINT[1], SPAWN_POINT[2]),
+                    radius_m: 10.0,
+                    initial_reserve_kg: 1_000,
+                },
+            );
+            world.mining_rules = MiningRuleConstants {
+                mining_range_from_surface_m: 50.0,
+                max_ship_speed_mps: 5.0,
+                cooldown_ticks: 60,
+            };
+
+            // 방향 1: 채굴로 수락된 키를 판매로.
+            {
+                let mut sim = Simulation::new(world.clone(), 0);
+                let mut ids = SeqIds(0);
+                open(&mut sim, &mut ids, id(1), id(2));
+                let shared_id = id(900);
+                let mined = mine(&mut sim, &mut ids, id(1), shared_id, "test-deposit");
+                assert_eq!(
+                    command_result(&mined).payload.status,
+                    starfall_contracts::CommandStatus::Accepted
+                );
+                let reject = sell(&mut sim, &mut ids, id(1), shared_id, MARKET, MINERAL, 1);
+                assert_eq!(
+                    command_result(&reject).payload.reason_code,
+                    Some(RejectReasonCode::DuplicateCommandId)
+                );
+            }
+
+            // 방향 2: 판매로 수락된 키를 채굴로.
+            {
+                let mut sim = Simulation::new(world, 0);
+                let mut ids = SeqIds(0);
+                open(&mut sim, &mut ids, id(1), id(2));
+                sim.seed_inventory(id(2), DataId::parse(MINERAL).unwrap(), 10_000);
+                let shared_id = id(901);
+                let sold = sell(&mut sim, &mut ids, id(1), shared_id, MARKET, MINERAL, 100);
+                assert_eq!(
+                    command_result(&sold).payload.status,
+                    starfall_contracts::CommandStatus::Accepted
+                );
+                let reject = mine(&mut sim, &mut ids, id(1), shared_id, "test-deposit");
+                assert_eq!(
+                    command_result(&reject).payload.reason_code,
+                    Some(RejectReasonCode::DuplicateCommandId)
+                );
+            }
+        }
+
+        /// SC-22(a) — 한 세션에서 같은 `command_id` 를 두 번 보내면 둘째는
+        /// `DUPLICATE_COMMAND_ID`, 지갑이 다시 늘지 않는다.
+        #[test]
+        fn sale_dup_same_session() {
+            let mut sim = Simulation::new(world_with_market(), 0);
+            let mut ids = SeqIds(0);
+            open(&mut sim, &mut ids, id(1), id(2));
+            sim.seed_inventory(id(2), DataId::parse(MINERAL).unwrap(), 10_000);
+            let command_id = id(900);
+
+            let first = sell(&mut sim, &mut ids, id(1), command_id, MARKET, MINERAL, 100);
+            assert_eq!(
+                command_result(&first).payload.status,
+                starfall_contracts::CommandStatus::Accepted,
+                "⊘ 전제: 재전송 전에 먼저 수락·지갑 증가가 있어야 한다"
+            );
+            let wallet_after_first = sim.wallets.clone();
+
+            let resend = sell(&mut sim, &mut ids, id(1), command_id, MARKET, MINERAL, 100);
+            assert_eq!(
+                command_result(&resend).payload.reason_code,
+                Some(RejectReasonCode::DuplicateCommandId)
+            );
+            assert_eq!(
+                sim.wallets, wallet_after_first,
+                "재전송은 지갑을 다시 늘리면 안 된다(대금 × 1)"
+            );
+        }
+
+        /// SC-23(b) — 잔류 창 안에서 재접속한 뒤 같은 `command_id` 를 다시 보내면
+        /// `DUPLICATE_COMMAND_ID`(세션 id 가 바뀌어도 월드 범위 기억이 살아 있다).
+        #[test]
+        fn sale_dup_after_reconnect_in_linger() {
+            let mut sim = Simulation::new(world_with_market(), 0);
+            let mut ids = SeqIds(0);
+            let s1 = id(1);
+            open(&mut sim, &mut ids, s1, id(2));
+            sim.seed_inventory(id(2), DataId::parse(MINERAL).unwrap(), 10_000);
+            let command_id = id(900);
+
+            let first = sell(&mut sim, &mut ids, s1, command_id, MARKET, MINERAL, 100);
+            assert_eq!(
+                command_result(&first).payload.status,
+                starfall_contracts::CommandStatus::Accepted
+            );
+
+            sim.step(
+                vec![Submission::CloseSession {
+                    seq: 0,
+                    session_id: s1,
+                    reason: SessionCloseReason::ClientClosed,
+                }],
+                &mut ids,
+            );
+            let s2 = id(99);
+            let resume_outcome = open(&mut sim, &mut ids, s2, id(2));
+            assert!(s2 != s1, "⊘ 전제: 재접속 세션 id 가 원래와 달라야 한다");
+            let _ = resume_outcome;
+
+            let resend = sell(&mut sim, &mut ids, s2, command_id, MARKET, MINERAL, 100);
+            assert_eq!(
+                command_result(&resend).payload.reason_code,
+                Some(RejectReasonCode::DuplicateCommandId)
+            );
+        }
+
+        /// SC-25(d) — 같은 actor 의 두 연결이 같은 tick 에 같은 `command_id` 를
+        /// 보내면 수락 1, 중복 1 — 두 `COMMAND_RESULT` 의 envelope `tick` 이 같다.
+        #[test]
+        fn sale_dup_two_connections_same_tick() {
+            let mut sim = Simulation::new(world_with_market(), 0);
+            let mut ids = SeqIds(0);
+            let actor = id(2);
+            let s1 = id(1);
+            let s2 = id(3);
+            open(&mut sim, &mut ids, s1, actor);
+            sim.seed_inventory(actor, DataId::parse(MINERAL).unwrap(), 10_000);
+            let command_id = id(900);
+
+            let outcome = sim.step(
+                vec![
+                    Submission::Command {
+                        seq: 0,
+                        session_id: s1,
+                        command: sell_mineral(command_id, MARKET, MINERAL, 100),
+                    },
+                    Submission::OpenSession {
+                        seq: 1,
+                        session_id: s2,
+                        actor_id: actor,
+                    },
+                    Submission::Command {
+                        seq: 2,
+                        session_id: s2,
+                        command: sell_mineral(command_id, MARKET, MINERAL, 100),
+                    },
+                ],
+                &mut ids,
+            );
+
+            assert!(
+                outcome.events.iter().any(|e| matches!(
+                    &e.body,
+                    DomainEventBody::SessionClosed(payload)
+                        if payload.session_id == s1
+                            && payload.close_reason == SessionCloseReason::Superseded
+                )),
+                "⊘ 전제: s1 이 실제로 SUPERSEDED 로 닫혀야 한다"
+            );
+            let results: Vec<_> = outcome
+                .outbound
+                .iter()
+                .filter_map(|out| match &out.message {
+                    ServerMessage::CommandResult(message) => Some(message.as_ref()),
+                    _ => None,
+                })
+                .collect();
+            assert_eq!(results.len(), 2);
+            assert_eq!(
+                results[0].payload.status,
+                starfall_contracts::CommandStatus::Accepted
+            );
+            assert_eq!(
+                results[1].payload.reason_code,
+                Some(RejectReasonCode::DuplicateCommandId)
+            );
+            assert_eq!(results[0].tick, results[1].tick);
+        }
+
+        /// SC-26(d2) — 다른 actor 가 같은 `command_id` 를 보내면 둘 다 각자 판정된다
+        /// (수락 1·중복 없음 — 키 공간이 actor 로 구분되지 않지만 처리 순서상 둘째가
+        /// 중복이 아니라는 것은 "actor 가 다르다"가 키를 구별하지 않는다는 뜻이므로,
+        /// 계약 표의 의도대로 **둘째도 DUPLICATE_COMMAND_ID**가 되고 서버는 계속
+        /// 살아 있어야 한다(월드 범위 키, ADR-0013 §5a)).
+        #[test]
+        fn sale_dup_cross_actor() {
+            let mut sim = Simulation::new(world_with_market(), 0);
+            let mut ids = SeqIds(0);
+            open(&mut sim, &mut ids, id(1), id(2));
+            open(&mut sim, &mut ids, id(3), id(4));
+            sim.seed_inventory(id(2), DataId::parse(MINERAL).unwrap(), 10_000);
+            sim.seed_inventory(id(4), DataId::parse(MINERAL).unwrap(), 10_000);
+            let command_id = id(900);
+
+            let outcome = sim.step(
+                vec![
+                    Submission::Command {
+                        seq: 0,
+                        session_id: id(1),
+                        command: sell_mineral(command_id, MARKET, MINERAL, 100),
+                    },
+                    Submission::Command {
+                        seq: 1,
+                        session_id: id(3),
+                        command: sell_mineral(command_id, MARKET, MINERAL, 100),
+                    },
+                ],
+                &mut ids,
+            );
+
+            let results: Vec<_> = outcome
+                .outbound
+                .iter()
+                .filter_map(|out| match &out.message {
+                    ServerMessage::CommandResult(message) => Some(message.as_ref()),
+                    _ => None,
+                })
+                .collect();
+            assert_eq!(results.len(), 2);
+            assert_eq!(
+                results[0].payload.status,
+                starfall_contracts::CommandStatus::Accepted,
+                "⊘ 전제: 두 actor 모두 보유량이 있어 첫 처리는 수락이어야 한다"
+            );
+            assert_eq!(
+                results[1].payload.reason_code,
+                Some(RejectReasonCode::DuplicateCommandId),
+                "월드 범위 처리 장부는 actor 로 구분되지 않는다(I-82 와 같은 키 공간)"
+            );
+        }
+
+        /// SC-29(g) — 세션 안에서 **거절된** 명령의 재전송은 조건이 풀렸어도
+        /// `DUPLICATE_COMMAND_ID`. 장부 행 수는 늘지 않는다.
+        #[test]
+        fn sale_dup_rejected_resend_in_session() {
+            let mut world = world_with_market();
+            world
+                .markets
+                .get_mut(&DataId::parse(MARKET).unwrap())
+                .unwrap()
+                .position_m = Vec3::new(SPAWN_POINT[0] + 100_000.0, SPAWN_POINT[1], SPAWN_POINT[2]);
+            let mut sim = Simulation::new(world, 0);
+            let mut ids = SeqIds(0);
+            open(&mut sim, &mut ids, id(1), id(2));
+            sim.seed_inventory(id(2), DataId::parse(MINERAL).unwrap(), 10_000);
+            let command_id = id(900);
+
+            let reject = sell(&mut sim, &mut ids, id(1), command_id, MARKET, MINERAL, 100);
+            assert_eq!(
+                command_result(&reject).payload.reason_code,
+                Some(RejectReasonCode::TargetOutOfRange),
+                "⊘ 전제: 첫 전송은 거절돼야 한다"
+            );
+            let processed_count_after_reject = sim.processed_command_ids.len();
+
+            // 조건을 풀어준다(도킹 구역 안으로).
+            sim.world
+                .markets
+                .get_mut(&DataId::parse(MARKET).unwrap())
+                .unwrap()
+                .position_m = Vec3::new(SPAWN_POINT[0], SPAWN_POINT[1], SPAWN_POINT[2]);
+            let resend = sell(&mut sim, &mut ids, id(1), command_id, MARKET, MINERAL, 100);
+            assert_eq!(
+                command_result(&resend).payload.reason_code,
+                Some(RejectReasonCode::DuplicateCommandId),
+                "세션 기억은 거절된 명령도 재전송을 막는다(I-52)"
+            );
+            assert_eq!(
+                sim.processed_command_ids.len(),
+                processed_count_after_reject,
+                "거절된 명령은 처리 장부에 없으므로 장부 행 수가 늘지 않아야 한다"
+            );
+        }
+
+        /// SC-47(c) — 세션 시작 송신 순서(스펙 §5.1a): `SESSION_READY`→
+        /// `INVENTORY_STATE`→`WALLET_STATE`→`DEPOSIT_FIELD_STATE`→`MARKET_STATE`.
+        #[test]
+        fn session_start_sends_five_messages_in_order() {
+            let mut sim = Simulation::new(world_with_market(), 0);
+            let mut ids = SeqIds(0);
+            let outcome = open(&mut sim, &mut ids, id(1), id(2));
+            let kinds: Vec<&str> = outcome
+                .outbound
+                .iter()
+                .filter(|out| out.session_id == id(1))
+                .map(|out| out.message.type_name())
+                .collect();
+            assert_eq!(
+                &kinds[..5],
+                &[
+                    "SESSION_READY",
+                    "INVENTORY_STATE",
+                    "WALLET_STATE",
+                    "DEPOSIT_FIELD_STATE",
+                    "MARKET_STATE",
+                ]
+            );
+        }
+
+        /// I-86 — 새 월드에서 아직 드러나지 않은 광물은 `MARKET_STATE.listings` 에
+        /// 없다. 채굴로 드러나면 그 즉시(그 tick) 월드 전원에게 다시 보내 나타난다.
+        #[test]
+        fn market_state_lists_only_revealed_minerals() {
+            let mut world = world_with_market();
+            let mineral_id = DataId::parse(MINERAL).unwrap();
+            world.deposits.insert(
+                DataId::parse("test-deposit").unwrap(),
+                DepositConstants {
+                    mineral_id,
+                    position_m: Vec3::new(SPAWN_POINT[0], SPAWN_POINT[1], SPAWN_POINT[2]),
+                    radius_m: 10.0,
+                    initial_reserve_kg: 1_000,
+                },
+            );
+            world.mining_rules = MiningRuleConstants {
+                mining_range_from_surface_m: 50.0,
+                max_ship_speed_mps: 5.0,
+                cooldown_ticks: 60,
+            };
+            let mut sim = Simulation::new(world, 0);
+            let mut ids = SeqIds(0);
+            let opened = open(&mut sim, &mut ids, id(1), id(2));
+            let market_state_at_open = opened
+                .outbound
+                .iter()
+                .find_map(|out| match &out.message {
+                    ServerMessage::MarketState(message) => Some(message.as_ref()),
+                    _ => None,
+                })
+                .expect("MARKET_STATE 가 있어야 한다");
+            assert!(
+                market_state_at_open.payload.listings.is_empty(),
+                "아직 아무도 캐지 않았으므로 상장이 비어 있어야 한다"
+            );
+
+            let mined = mine(&mut sim, &mut ids, id(1), id(900), "test-deposit");
+            let market_state_after_reveal: Vec<_> = mined
+                .outbound
+                .iter()
+                .filter_map(|out| match &out.message {
+                    ServerMessage::MarketState(message) => Some(message.as_ref()),
+                    _ => None,
+                })
+                .collect();
+            assert_eq!(
+                market_state_after_reveal.len(),
+                1,
+                "첫 채굴이 그 즉시 MARKET_STATE 를 다시 보내야 한다(I-86)"
+            );
+            assert_eq!(market_state_after_reveal[0].payload.listings.len(), 1);
+            assert_eq!(
+                market_state_after_reveal[0].payload.listings[0]
+                    .mineral_id
+                    .as_str(),
+                MINERAL
+            );
+        }
+
+        /// SC-45(a) — 새 월드 첫 채굴 전, **열린 모든 세션**이 세션 시작 때 받은
+        /// `MARKET_STATE.listings`가 비어 있다(I-86).
+        #[test]
+        fn market_listing_empty_before_first_extraction() {
+            let mut world = world_with_market();
+            let mineral_id = DataId::parse(MINERAL).unwrap();
+            world.deposits.insert(
+                DataId::parse("test-deposit").unwrap(),
+                DepositConstants {
+                    mineral_id,
+                    position_m: Vec3::new(SPAWN_POINT[0], SPAWN_POINT[1], SPAWN_POINT[2]),
+                    radius_m: 10.0,
+                    initial_reserve_kg: 1_000,
+                },
+            );
+            let mut sim = Simulation::new(world, 0);
+            let mut ids = SeqIds(0);
+
+            fn market_state_of(outcome: &TickOutcome, session_id: UuidV7) -> &MarketStateMessage {
+                outcome
+                    .outbound
+                    .iter()
+                    .find_map(|out| match &out.message {
+                        ServerMessage::MarketState(message) if out.session_id == session_id => {
+                            Some(message.as_ref())
+                        }
+                        _ => None,
+                    })
+                    .expect("MARKET_STATE 가 있어야 한다")
+            }
+
+            // ⊘ 전제 — 세션 2개(≥ 2) 열어 "모든 세션"을 실제로 시험한다.
+            let first = open(&mut sim, &mut ids, id(1), id(2));
+            assert!(
+                market_state_of(&first, id(1)).payload.listings.is_empty(),
+                "세션 1 — 첫 채굴 전엔 상장이 비어 있어야 한다"
+            );
+            let second = open(&mut sim, &mut ids, id(3), id(4));
+            assert!(
+                market_state_of(&second, id(3)).payload.listings.is_empty(),
+                "세션 2 — 마찬가지"
+            );
+        }
+
+        /// SC-46(b) — 양성 대조: 첫 채굴 tick에 `MARKET_STATE`가 **열린 모든
+        /// 세션**에게 가고, 그 광물만 나타나며 다른 미드러난 광물은 없다(I-86).
+        /// 두 번째 광물로 한 번 더(T-10, 디자인 Q4의 "비드러난 광물 비누출"
+        /// 재확인).
+        #[test]
+        fn market_listing_appears_on_first_extraction_then_again_for_a_second_mineral() {
+            const MINERAL_2: &str = "test-mineral-2";
+            let mut world = world_with_market();
+            let mineral_id = DataId::parse(MINERAL).unwrap();
+            let mineral_2_id = DataId::parse(MINERAL_2).unwrap();
+            world.minerals.insert(
+                mineral_2_id.clone(),
+                MineralConstants {
+                    yield_per_extraction_kg: 25,
+                    regen_kg: 5,
+                    regen_interval_ticks: 10,
+                },
+            );
+            world
+                .markets
+                .get_mut(&DataId::parse(MARKET).unwrap())
+                .unwrap()
+                .listings
+                .insert(
+                    mineral_2_id.clone(),
+                    ListingConstants {
+                        price: price_rule(),
+                        recovery_kg: 1000,
+                    },
+                );
+            world.deposits.insert(
+                DataId::parse("test-deposit").unwrap(),
+                DepositConstants {
+                    mineral_id,
+                    position_m: Vec3::new(SPAWN_POINT[0], SPAWN_POINT[1], SPAWN_POINT[2]),
+                    radius_m: 10.0,
+                    initial_reserve_kg: 1_000,
+                },
+            );
+            world.deposits.insert(
+                DataId::parse("test-deposit-2").unwrap(),
+                DepositConstants {
+                    mineral_id: mineral_2_id,
+                    position_m: Vec3::new(SPAWN_POINT[0], SPAWN_POINT[1], SPAWN_POINT[2]),
+                    radius_m: 10.0,
+                    initial_reserve_kg: 1_000,
+                },
+            );
+            world.mining_rules = MiningRuleConstants {
+                mining_range_from_surface_m: 50.0,
+                max_ship_speed_mps: 5.0,
+                cooldown_ticks: 1,
+            };
+            let mut sim = Simulation::new(world, 0);
+            let mut ids = SeqIds(0);
+            open(&mut sim, &mut ids, id(1), id(2));
+            open(&mut sim, &mut ids, id(3), id(4));
+
+            fn market_states_in(outcome: &TickOutcome) -> Vec<(UuidV7, &MarketStateMessage)> {
+                outcome
+                    .outbound
+                    .iter()
+                    .filter_map(|out| match &out.message {
+                        ServerMessage::MarketState(message) => {
+                            Some((out.session_id, message.as_ref()))
+                        }
+                        _ => None,
+                    })
+                    .collect()
+            }
+
+            // 첫 채굴 — Ferrosite 역(test-mineral)만 드러난다.
+            let first_mine = mine(&mut sim, &mut ids, id(1), id(900), "test-deposit");
+            let broadcasts = market_states_in(&first_mine);
+            assert_eq!(
+                broadcasts.len(),
+                2,
+                "열린 세션 수(2)만큼 MARKET_STATE 가 나가야 한다"
+            );
+            for (_, message) in &broadcasts {
+                assert_eq!(
+                    message.payload.listings.len(),
+                    1,
+                    "아직 test-mineral-2 는 드러나지 않았다"
+                );
+                assert_eq!(message.payload.listings[0].mineral_id.as_str(), MINERAL);
+            }
+
+            // 둘째 채굴 — Starfall Glass 역(test-mineral-2)도 드러난다. 둘 다 보여야
+            // 하고, 쿨다운을 1 tick 으로 줄여 둬서 바로 다음 명령이 막히지 않는다.
+            let second_mine = mine(&mut sim, &mut ids, id(1), id(901), "test-deposit-2");
+            let broadcasts = market_states_in(&second_mine);
+            assert_eq!(
+                broadcasts.len(),
+                2,
+                "열린 세션 수(2)만큼 MARKET_STATE 가 다시 나가야 한다"
+            );
+            for (_, message) in &broadcasts {
+                let names: BTreeSet<&str> = message
+                    .payload
+                    .listings
+                    .iter()
+                    .map(|listing| listing.mineral_id.as_str())
+                    .collect();
+                assert_eq!(
+                    names,
+                    BTreeSet::from([MINERAL, MINERAL_2]),
+                    "이제 둘 다 드러나야 한다 — 다른 미드러난 광물은 없다"
+                );
+            }
+        }
+
+        /// SC-48(a) — 판매 tick 에 열린 **모든** 세션이 `MARKET_STATE` 1 건을 받는다
+        /// (판매자 세션 자신도 포함, 구경꾼 세션도 포함).
+        #[test]
+        fn market_state_sale_tick_sent_to_every_open_session() {
+            let mut sim = Simulation::new(world_with_market(), 0);
+            let mut ids = SeqIds(0);
+            open(&mut sim, &mut ids, id(1), id(2)); // 판매자.
+            open(&mut sim, &mut ids, id(3), id(4)); // 구경꾼.
+            sim.seed_inventory(id(2), DataId::parse(MINERAL).unwrap(), 2_000);
+
+            let outcome = sell(&mut sim, &mut ids, id(1), id(900), MARKET, MINERAL, 2_000);
+            assert_eq!(
+                command_result(&outcome).payload.status,
+                starfall_contracts::CommandStatus::Accepted,
+                "⊘ 전제: 판매가 수락돼야 MARKET_STATE 재전송이 트리거된다"
+            );
+
+            let market_state_count_for = |session_id: UuidV7| {
+                outcome
+                    .outbound
+                    .iter()
+                    .filter(|out| {
+                        out.session_id == session_id
+                            && matches!(out.message, ServerMessage::MarketState(_))
+                    })
+                    .count()
+            };
+            assert_eq!(
+                market_state_count_for(id(1)),
+                1,
+                "판매자 세션도 MARKET_STATE 1 건을 받아야 한다"
+            );
+            assert_eq!(
+                market_state_count_for(id(3)),
+                1,
+                "구경꾼 세션도 MARKET_STATE 1 건을 받아야 한다(세션 ≥ 2, 세션 수 = 수신 수)"
+            );
+        }
+
+        /// SC-49(b) — 회복 배수 tick 에서 실효 포화가 바뀐 상장이 있으면 그 market
+        /// 에 `MARKET_STATE` 1 건, 전부 그대로면 0 건 — **두 경우를 같은 실행에서
+        /// 관찰**한다(I-87, T-8 과 같은 식: 2,000 → 1,000(바뀜, t=1200) →
+        /// 0(바뀜, t=2400) → 0(안 바뀜, t=3600)).
+        #[test]
+        fn market_state_recovery_tick_both_changed_and_unchanged_are_observed() {
+            let mut world = world_with_market();
+            let mineral_id = DataId::parse(MINERAL).unwrap();
+            world.deposits.insert(
+                DataId::parse("test-deposit").unwrap(),
+                DepositConstants {
+                    mineral_id: mineral_id.clone(),
+                    position_m: Vec3::new(SPAWN_POINT[0], SPAWN_POINT[1], SPAWN_POINT[2]),
+                    radius_m: 10.0,
+                    initial_reserve_kg: 1_000,
+                },
+            );
+            // ⊘ 도달 가능성: market_id=test-market 의 recovery_kg=1,000,
+            // recovery_interval_ticks=1,200(world_with_market) — 계약의 T-8 식과
+            // 같은 입력.
+            let mut sim = Simulation::new(world, 0);
+            let mut ids = SeqIds(0);
+            sim.seed_deposit_state(DataId::parse("test-deposit").unwrap(), 1_000, 0, 0);
+            sim.seed_market_state(
+                DataId::parse(MARKET).unwrap(),
+                mineral_id,
+                2_000,
+                0,
+                id(2),
+                2_000,
+            );
+            open(&mut sim, &mut ids, id(1), id(2));
+
+            let market_state_count_at_tick = |sim: &mut Simulation, ids: &mut SeqIds| -> usize {
+                let outcome = sim.step(vec![], ids);
+                outcome
+                    .outbound
+                    .iter()
+                    .filter(|out| matches!(out.message, ServerMessage::MarketState(_)))
+                    .count()
+            };
+
+            let mut changed_ticks_observed = 0usize;
+            let mut unchanged_ticks_observed = 0usize;
+            // tick 1 부터 3,600 까지 — 배수 tick(1200·2400·3600)에서 바뀜/안 바뀜을
+            // 둘 다 관찰한다. 비-배수 tick 은 회복 로직이 아예 안 돈다(0 건 자명).
+            for tick in 1..=3600u64 {
+                let count = market_state_count_at_tick(&mut sim, &mut ids);
+                if tick % 1200 == 0 {
+                    if count >= 1 {
+                        changed_ticks_observed += 1;
+                    } else {
+                        unchanged_ticks_observed += 1;
+                    }
+                }
+            }
+
+            assert!(
+                changed_ticks_observed >= 1,
+                "실효 포화가 바뀐 배수 tick(t=1200,2400)이 관찰돼야 한다"
+            );
+            assert!(
+                unchanged_ticks_observed >= 1,
+                "실효 포화가 그대로인 배수 tick(t=3600 — 이미 0이라 더 못 내려간다)이 \
+                 관찰돼야 한다"
             );
         }
     }

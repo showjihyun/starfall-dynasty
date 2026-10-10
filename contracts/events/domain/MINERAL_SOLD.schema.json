@@ -1,0 +1,137 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.starfall.invalid/contracts/events/domain/MINERAL_SOLD.schema.json",
+  "title": "MineralSoldEvent",
+  "description": "One accepted sale: the actor's inventory of mineral_id went from quantity_before_kg to quantity_after_kg, its wallet from wallet_before_cr to wallet_after_cr, and the market's saturation of the mineral from saturation_before_kg (after lazy recovery) to saturation_after_kg. ONE event for the whole sale - inventory decrease and wallet increase are not split into two events (ADR-0016 section 3). Written in the SAME tick-batch transaction as the inventory, wallet and market rows and the processed_commands row (ADR-0013 section 2, ADR-0016 section 1), so for every (world, actor): wallet = sum(proceeds_cr), and for every (world, actor, mineral): inventory = sum(MINERAL_MINED.quantity_kg) - sum(MINERAL_SOLD.quantity_kg), chained through quantity_before/after across both event types in (tick, sequence) order (spec p1-03 I-80, I-81). IMPORTANCE LEVEL 0 - NOT A HISTORICAL EVENT (principle 4): the history runner passes it through as unjudged (history review p1-03 H-30..H-33). It carries every price fact a future rule needs (base, before/after price and saturation, pricing_version) because a judgement reads only the payload and the past is never recomputed (ADR-0014 section 1, principle 5). The schema cannot express the arithmetic (quantity_after = before - quantity, wallet_after = before + proceeds, proceeds = the band walk of section 4.2a); the server enforces it and QA recomputes it. actor_id and causation_id are narrowed to non-null.",
+  "allOf": [
+    {
+      "$ref": "../../common/event-envelope.schema.json"
+    }
+  ],
+  "properties": {
+    "event_type": {
+      "const": "MINERAL_SOLD"
+    },
+    "schema_version": {
+      "const": 1
+    },
+    "actor_id": {
+      "$ref": "../../common/primitives.schema.json#/$defs/UuidV7",
+      "description": "Narrowed from the envelope: the seller, owner of the inventory and the wallet."
+    },
+    "causation_id": {
+      "$ref": "../../common/primitives.schema.json#/$defs/UuidV7",
+      "description": "Narrowed from the envelope: the SELL_MINERAL command_id. Equals exactly one processed_commands.command_id and vice versa."
+    },
+    "payload": {
+      "$ref": "#/$defs/MineralSoldPayload"
+    }
+  },
+  "unevaluatedProperties": false,
+  "$defs": {
+    "MineralSoldPayload": {
+      "title": "MineralSoldPayload",
+      "type": "object",
+      "required": [
+        "ship_id",
+        "session_id",
+        "star_system_id",
+        "market_id",
+        "mineral_id",
+        "pricing_version",
+        "quantity_kg",
+        "proceeds_cr",
+        "base_price_cr_per_kg",
+        "floor_price_cr_per_kg",
+        "price_before_cr_per_kg",
+        "price_after_cr_per_kg",
+        "saturation_before_kg",
+        "saturation_after_kg",
+        "quantity_before_kg",
+        "quantity_after_kg",
+        "wallet_before_cr",
+        "wallet_after_cr"
+      ],
+      "properties": {
+        "ship_id": {
+          "$ref": "../../common/primitives.schema.json#/$defs/UuidV7",
+          "description": "Ship that was docked. Joins to SHIP_SPAWNED.ship_id."
+        },
+        "session_id": {
+          "$ref": "../../common/primitives.schema.json#/$defs/UuidV7",
+          "description": "Session whose command was accepted."
+        },
+        "star_system_id": {
+          "$ref": "../../common/primitives.schema.json#/$defs/DataId"
+        },
+        "market_id": {
+          "$ref": "../../common/primitives.schema.json#/$defs/DataId"
+        },
+        "mineral_id": {
+          "$ref": "../../common/primitives.schema.json#/$defs/DataId"
+        },
+        "pricing_version": {
+          "$ref": "../../common/primitives.schema.json#/$defs/RuleVersion",
+          "description": "The market file's pricing_version this sale was priced by - with it and the saturation pair the proceeds are recomputable after the data changes."
+        },
+        "quantity_kg": {
+          "$ref": "../../common/primitives.schema.json#/$defs/MassKg",
+          "minimum": 1,
+          "description": "Kilograms removed from the inventory and absorbed by the market. Never 0."
+        },
+        "proceeds_cr": {
+          "$ref": "../../common/primitives.schema.json#/$defs/CreditAmount",
+          "minimum": 1,
+          "description": "Credits added to the wallet: the band walk from saturation_before_kg over quantity_kg. >= quantity_kg because every floor price is >= 1 cr/kg (boot check)."
+        },
+        "base_price_cr_per_kg": {
+          "$ref": "../../common/primitives.schema.json#/$defs/CreditAmount",
+          "minimum": 1,
+          "description": "The listing's band-0 price at the time of the sale - lets a future rule ask 'was this a crash from base to floor' from the payload alone."
+        },
+        "floor_price_cr_per_kg": {
+          "$ref": "../../common/primitives.schema.json#/$defs/CreditAmount",
+          "minimum": 1,
+          "description": "The listing's floor price at the time of the sale (base * price_floor_pct div 100) - with base and price_after a future rule decides 'did this sale hit the floor' from the payload alone, without re-reading the data table of that pricing_version (ADR-0014 section 5; history3 C-1)."
+        },
+        "price_before_cr_per_kg": {
+          "$ref": "../../common/primitives.schema.json#/$defs/CreditAmount",
+          "minimum": 1,
+          "description": "price(band(saturation_before_kg)) - what the ticker showed just before."
+        },
+        "price_after_cr_per_kg": {
+          "$ref": "../../common/primitives.schema.json#/$defs/CreditAmount",
+          "minimum": 1,
+          "description": "price(band(saturation_after_kg)) - what the ticker shows just after."
+        },
+        "saturation_before_kg": {
+          "$ref": "../../common/primitives.schema.json#/$defs/MassKg",
+          "description": "The market's saturation of this mineral just before the sale, AFTER applying lazy recovery up to this tick. Compare-and-set expectation of the market row."
+        },
+        "saturation_after_kg": {
+          "$ref": "../../common/primitives.schema.json#/$defs/MassKg",
+          "description": "Saturation after the band walk; never above floor_band * band_kg."
+        },
+        "quantity_before_kg": {
+          "$ref": "../../common/primitives.schema.json#/$defs/MassKg",
+          "minimum": 1,
+          "description": "The actor's inventory of mineral_id before. >= quantity_kg (else INSUFFICIENT_QUANTITY). Compare-and-set expectation of the inventory row."
+        },
+        "quantity_after_kg": {
+          "$ref": "../../common/primitives.schema.json#/$defs/MassKg",
+          "description": "quantity_before_kg - quantity_kg. 0 = the actor sold all of it (the row stays at 0; INVENTORY_STATE drops the item)."
+        },
+        "wallet_before_cr": {
+          "$ref": "../../common/primitives.schema.json#/$defs/CreditAmount",
+          "description": "The actor's balance before (0 if it has never sold). Compare-and-set expectation of the wallet row."
+        },
+        "wallet_after_cr": {
+          "$ref": "../../common/primitives.schema.json#/$defs/CreditAmount",
+          "minimum": 1,
+          "description": "wallet_before_cr + proceeds_cr."
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

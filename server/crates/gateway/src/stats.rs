@@ -68,9 +68,10 @@ const UPGRADE_REJECTIONS: [&str; 6] = [
 /// (스프린트 계약 §1-④). p1-02-mining(S1)이 채굴 거부 사유 7개(`TARGET_UNKNOWN`·
 /// `COOLDOWN_ACTIVE`·`TARGET_OUT_OF_RANGE`·`SHIP_TOO_FAST`·`RESOURCE_DEPLETED`·
 /// `RECORDING_BACKLOG`·`CAPACITY_EXCEEDED`)를 더해 15라벨이 됐다 — 계약 enum(S1)에 맞춰
-/// 매핑만 늘렸다. `RECORDING_BACKLOG`·`CAPACITY_EXCEEDED` 카운터 값을 판정 로직에서
-/// 실제로 올리는 것은 S3·S5의 몫이다.
-const REJECT_REASONS: [&str; 15] = [
+/// 매핑만 늘렸다. p1-03-trading(S1)이 `INSUFFICIENT_QUANTITY` 1개를 더해 16라벨이 됐다
+/// — `SELL_MINERAL` 신규 거절 사유(ADR-0016 §6). 이 카운터 값을 판정 로직에서 실제로
+/// 올리는 것은 S3(sim)·S5(게이트웨이 배선)의 몫이다.
+const REJECT_REASONS: [&str; 16] = [
     "MALFORMED_COMMAND",
     "UNKNOWN_COMMAND_TYPE",
     "SCHEMA_VERSION_UNSUPPORTED",
@@ -86,6 +87,7 @@ const REJECT_REASONS: [&str; 15] = [
     "RESOURCE_DEPLETED",
     "RECORDING_BACKLOG",
     "CAPACITY_EXCEEDED",
+    "INSUFFICIENT_QUANTITY",
 ];
 
 /// 메시지 타입 → 고정 배열 색인.
@@ -116,6 +118,7 @@ pub const fn reason_index(reason: RejectReasonCode) -> usize {
         RejectReasonCode::ResourceDepleted => 12,
         RejectReasonCode::RecordingBacklog => 13,
         RejectReasonCode::CapacityExceeded => 14,
+        RejectReasonCode::InsufficientQuantity => 15,
     }
 }
 
@@ -259,6 +262,12 @@ struct Inner {
     minerals_loaded: AtomicU64,
     deposits_loaded: AtomicU64,
     rule_version: RwLock<String>,
+    // p1-03(S2) — 시장·매장지 예비(서버 전용) 수(SC-04, Q-7). 위와 같은 수명.
+    markets_loaded: AtomicU64,
+    deposit_reserves_loaded: AtomicU64,
+    sole_market_id: RwLock<String>,
+    sole_market_pricing_version: RwLock<String>,
+    sole_market_listings_loaded: AtomicU64,
     /// SC-06/SC-07(server-db 요청) — `data/**/*.json` 전체 중 실제로 읽어 들인 파일
     /// 수(`GameData::loaded_files.len()`). 실서버에서 "10개 전부 읽었다"를 한눈에
     /// 보려는 용도 — 파일별 상세는 기동 로그의 `데이터 파일 적재 data_file=…` 줄이 낸다.
@@ -377,6 +386,11 @@ impl Stats {
                 minerals_loaded: AtomicU64::new(0),
                 deposits_loaded: AtomicU64::new(0),
                 rule_version: RwLock::new(String::new()),
+                markets_loaded: AtomicU64::new(0),
+                deposit_reserves_loaded: AtomicU64::new(0),
+                sole_market_id: RwLock::new(String::new()),
+                sole_market_pricing_version: RwLock::new(String::new()),
+                sole_market_listings_loaded: AtomicU64::new(0),
                 loaded_files_count: AtomicU64::new(0),
                 world_capacity: AtomicU64::new(u64::MAX),
                 snapshots_sent_total: AtomicU64::new(0),
@@ -410,6 +424,11 @@ impl Stats {
         deposits: u64,
         rule_version: &str,
         loaded_files: u64,
+        markets: u64,
+        deposit_reserves: u64,
+        sole_market_id: &str,
+        sole_market_pricing_version: &str,
+        sole_market_listings: u64,
     ) {
         if let Ok(mut guard) = self.inner.data_dir.write() {
             *guard = data_dir.to_owned();
@@ -438,6 +457,19 @@ impl Stats {
         self.inner
             .loaded_files_count
             .store(loaded_files, Ordering::Relaxed);
+        self.inner.markets_loaded.store(markets, Ordering::Relaxed);
+        self.inner
+            .deposit_reserves_loaded
+            .store(deposit_reserves, Ordering::Relaxed);
+        if let Ok(mut guard) = self.inner.sole_market_id.write() {
+            *guard = sole_market_id.to_owned();
+        }
+        if let Ok(mut guard) = self.inner.sole_market_pricing_version.write() {
+            *guard = sole_market_pricing_version.to_owned();
+        }
+        self.inner
+            .sole_market_listings_loaded
+            .store(sole_market_listings, Ordering::Relaxed);
     }
 
     /// 지금 세계에 있는 함선 수(활성 + 잔류) **더하기** tick 이 아직 반영하지 못한
@@ -966,6 +998,19 @@ impl Stats {
                 .map(|guard| guard.clone())
                 .unwrap_or_default(),
             loaded_files_count: inner.loaded_files_count.load(Ordering::Relaxed),
+            markets_loaded: inner.markets_loaded.load(Ordering::Relaxed),
+            deposit_reserves_loaded: inner.deposit_reserves_loaded.load(Ordering::Relaxed),
+            sole_market_id: inner
+                .sole_market_id
+                .read()
+                .map(|guard| guard.clone())
+                .unwrap_or_default(),
+            sole_market_pricing_version: inner
+                .sole_market_pricing_version
+                .read()
+                .map(|guard| guard.clone())
+                .unwrap_or_default(),
+            sole_market_listings_loaded: inner.sole_market_listings_loaded.load(Ordering::Relaxed),
             snapshots_sent_total: inner.snapshots_sent_total.load(Ordering::Relaxed),
             snapshot_bytes_total: inner.snapshot_bytes_total.load(Ordering::Relaxed),
             send_queue_bytes: inner.send_queue_bytes.load(Ordering::Relaxed),
@@ -1163,8 +1208,19 @@ pub struct StatsBody {
     /// 아니면 빈 문자열(`GameData::sole_rule_version`).
     pub rule_version: String,
     /// `data/**/*.json` 중 실제로 읽어 들인 파일 수(SC-06/SC-07 — `GameData::
-    /// loaded_files.len()`). 지금 10개다.
+    /// loaded_files.len()`). p1-03(S2)가 시장·매장지 예비 파일을 더해 12개다.
     pub loaded_files_count: u64,
+    /// 로드된 시장 파일 수(p1-03 SC-04, Q-7).
+    pub markets_loaded: u64,
+    /// 로드된 `DEPOSIT_RESERVE`(서버 전용) 매장지 수(p1-03 SC-04, Q-7) — `deposits_loaded`
+    /// 와 같은 값이어야 한다(§4.8 d01·d02 가 짝을 보장한다), 다르면 짝 불일치 버그.
+    pub deposit_reserves_loaded: u64,
+    /// 시장이 정확히 1개일 때만 그 id, 아니면 빈 문자열(`GameData::sole_market`).
+    pub sole_market_id: String,
+    /// 같은 규약, `pricing_version`.
+    pub sole_market_pricing_version: String,
+    /// 그 시장의 상장 수(시장이 정확히 1개가 아니면 0).
+    pub sole_market_listings_loaded: u64,
     /// 소켓에 쓴 `WORLD_SNAPSHOT` 수 — `messages_written_total` 의 `WORLD_SNAPSHOT` 라벨과
     /// 같은 수여야 한다(교차 검증용 중복, SC-33).
     pub snapshots_sent_total: u64,
@@ -1378,6 +1434,54 @@ mod tests {
         assert_eq!(
             body.messages_enqueued_all,
             body.messages_written_all + body.messages_dropped_total + body.send_queue_depth
+        );
+    }
+
+    /// SC-07(p1-03, Q-2 답변) — `SELL_MINERAL` 전용 거부 사유(6
+    /// `INSUFFICIENT_QUANTITY`·7 `CAPACITY_EXCEEDED`)가 `commands_rejected_total`의
+    /// 올바른 라벨 칸에 꽂히는지 **플럼빙만** 본다(판정 자체는 sim 몫, S3 가 이미
+    /// `sale_rejection_reason_6_*`·`sale_rejection_reason_7_*`로 덮는다). 소켓을
+    /// 거치지 않고 `record_rejection`을 직접 불러 라벨 인덱스 매핑만 증명한다.
+    #[test]
+    fn sell_mineral_rejection_counter_insufficient_quantity_and_capacity_exceeded() {
+        fn labelled_count(body: &StatsBody, label: &str) -> u64 {
+            body.commands_rejected_total
+                .iter()
+                .find(|entry| entry.label == label)
+                .map(|entry| entry.count)
+                .unwrap_or_else(|| panic!("{label} 라벨이 commands_rejected_total 에 없다"))
+        }
+
+        // 둘을 **따로따로**(각자 새 Stats) 기록한다 — 둘을 한 인스턴스에 같이
+        // 기록하면 두 인덱스가 서로 뒤바뀌어도(라벨만 안 뭉개지면) 둘 다 +1 이라
+        // 통과해 버린다(처음 쓴 버전이 그 함정에 빠졌었다). 따로 기록해야 "그
+        // 사유가 그 라벨에" 꽂히는지 실제로 구분된다.
+        let insufficient_stats = Stats::new();
+        insufficient_stats.record_rejection(RejectReasonCode::InsufficientQuantity);
+        let insufficient_body = insufficient_stats.snapshot();
+        assert_eq!(
+            labelled_count(&insufficient_body, "INSUFFICIENT_QUANTITY"),
+            1,
+            "INSUFFICIENT_QUANTITY 거부는 그 라벨 칸에 꽂혀야 한다"
+        );
+        assert_eq!(
+            labelled_count(&insufficient_body, "CAPACITY_EXCEEDED"),
+            0,
+            "INSUFFICIENT_QUANTITY 거부가 CAPACITY_EXCEEDED 칸을 올리면 안 된다"
+        );
+
+        let capacity_stats = Stats::new();
+        capacity_stats.record_rejection(RejectReasonCode::CapacityExceeded);
+        let capacity_body = capacity_stats.snapshot();
+        assert_eq!(
+            labelled_count(&capacity_body, "CAPACITY_EXCEEDED"),
+            1,
+            "CAPACITY_EXCEEDED 거부는 그 라벨 칸에 꽂혀야 한다"
+        );
+        assert_eq!(
+            labelled_count(&capacity_body, "INSUFFICIENT_QUANTITY"),
+            0,
+            "CAPACITY_EXCEEDED 거부가 INSUFFICIENT_QUANTITY 칸을 올리면 안 된다"
         );
     }
 }

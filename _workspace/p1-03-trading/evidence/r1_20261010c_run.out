@@ -1,0 +1,21 @@
+[keep_awake] 절전 방지 시작 — run_round r1
+[18:46:32] == freeze
+[18:46:32]   head: rc=0 PASS 0s
+[18:46:32]   porcelain: rc=0 PASS 0s
+[18:46:35]   fp_before: rc=0 PASS 0s
+[18:46:36] == freeze: PASS
+[18:46:36] == db_stop
+[18:46:36]   fp_before_db_stop: rc=0 PASS 0s
+[18:46:37]   backlog_new_world: rc=0 PASS 2s
+[18:49:17]   backlog.sell-backlog: rc=0 PASS 158s
+[18:49:22]   sc39_accepted: rc=0 PASS 4s
+[18:49:22]   compose_ps: rc=0 PASS 0s
+[18:49:23]   fp_after_db_stop: rc=0 PASS 0s
+[18:49:23] == db_stop: PASS
+[18:49:23] == final
+[18:49:23]   porcelain_end: rc=0 PASS 0s
+[18:49:24]   fp_after: rc=0 PASS 0s
+[18:49:24] == final: PASS
+[18:49:25] DONE
+[keep_awake] 절전 방지 해제
+{"PASS": 3, "SKIP": 9}

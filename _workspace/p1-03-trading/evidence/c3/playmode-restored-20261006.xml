@@ -1,0 +1,160 @@
+<?xml version="1.0" encoding="utf-8"?>
+<test-run id="2" testcasecount="15" result="Passed" total="15" passed="15" failed="0" inconclusive="0" skipped="0" asserts="0" engine-version="3.5.0.0" clr-version="4.0.30319.42000" start-time="2026-10-06 12:49:35Z" end-time="2026-10-06 12:49:35Z" duration="0.2627474">
+  <test-suite type="TestSuite" id="1025" name="Starfall Dynasty" fullname="Starfall Dynasty" runstate="Runnable" testcasecount="15" result="Passed" start-time="2026-10-06 12:49:35Z" end-time="2026-10-06 12:49:35Z" duration="0.262747" total="15" passed="15" failed="0" inconclusive="0" skipped="0" asserts="0">
+    <properties>
+      <property name="platform" value="PlayMode" />
+    </properties>
+    <test-suite type="Assembly" id="1043" name="Starfall.Tests.PlayMode.dll" fullname="C:/WorkSpace/SpaceHistoric/client/Library/ScriptAssemblies/Starfall.Tests.PlayMode.dll" runstate="Runnable" testcasecount="15" result="Passed" start-time="2026-10-06 12:49:35Z" end-time="2026-10-06 12:49:35Z" duration="0.255053" total="15" passed="15" failed="0" inconclusive="0" skipped="0" asserts="0">
+      <properties>
+        <property name="_PID" value="52916" />
+        <property name="_APPDOMAIN" value="Unity Child Domain" />
+        <property name="platform" value="PlayMode" />
+        <property name="EditorOnly" value="False" />
+      </properties>
+      <test-suite type="TestSuite" id="1044" name="Starfall" fullname="Starfall" runstate="Runnable" testcasecount="15" result="Passed" start-time="2026-10-06 12:49:35Z" end-time="2026-10-06 12:49:35Z" duration="0.254202" total="15" passed="15" failed="0" inconclusive="0" skipped="0" asserts="0">
+        <properties />
+        <test-suite type="TestSuite" id="1045" name="Tests" fullname="Starfall.Tests" runstate="Runnable" testcasecount="15" result="Passed" start-time="2026-10-06 12:49:35Z" end-time="2026-10-06 12:49:35Z" duration="0.253621" total="15" passed="15" failed="0" inconclusive="0" skipped="0" asserts="0">
+          <properties />
+          <test-suite type="TestSuite" id="1046" name="PlayMode" fullname="Starfall.Tests.PlayMode" runstate="Runnable" testcasecount="15" result="Passed" start-time="2026-10-06 12:49:35Z" end-time="2026-10-06 12:49:35Z" duration="0.253150" total="15" passed="15" failed="0" inconclusive="0" skipped="0" asserts="0">
+            <properties />
+            <test-suite type="TestFixture" id="1026" name="GreyboxMiningSessionPlayModeTests" fullname="Starfall.Tests.PlayMode.GreyboxMiningSessionPlayModeTests" classname="Starfall.Tests.PlayMode.GreyboxMiningSessionPlayModeTests" runstate="Runnable" testcasecount="2" result="Passed" start-time="2026-10-06 12:49:35Z" end-time="2026-10-06 12:49:35Z" duration="0.182581" total="2" passed="2" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1028" name="DepositMarker_FollowsMessageNotDataCopy" fullname="Starfall.Tests.PlayMode.GreyboxMiningSessionPlayModeTests.DepositMarker_FollowsMessageNotDataCopy" methodname="DepositMarker_FollowsMessageNotDataCopy" classname="Starfall.Tests.PlayMode.GreyboxMiningSessionPlayModeTests" runstate="Runnable" seed="1709954546" result="Passed" start-time="2026-10-06 12:49:35Z" end-time="2026-10-06 12:49:35Z" duration="0.144367" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[starfall.mining: deposit_markers built=8
+far-reach after all-unrevealed: Far Reach (far-reach) - 미확인 광맥
+far-reach after revealed-and-depleted (message swapped to cobaltine): Far Reach (far-reach) - Cobaltine 잔량 475 kg
+]]></output>
+              </test-case>
+              <test-case id="1027" name="DiscoveryFeed_DedupesByHistoricalEventId" fullname="Starfall.Tests.PlayMode.GreyboxMiningSessionPlayModeTests.DiscoveryFeed_DedupesByHistoricalEventId" methodname="DiscoveryFeed_DedupesByHistoricalEventId" classname="Starfall.Tests.PlayMode.GreyboxMiningSessionPlayModeTests" runstate="Runnable" seed="138965974" result="Passed" start-time="2026-10-06 12:49:35Z" end-time="2026-10-06 12:49:35Z" duration="0.024977" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[starfall.mining: deposit_markers built=8
+starfall.mining: DISCOVERY kind=SystemWideDiscovery Pilot-0123가 Cradle 성계에서 처음으로 Starfall Glass을 발견했다 — far-reach
+discovered after LIVE + BACKFILL(same id) = 1
+]]></output>
+              </test-case>
+            </test-suite>
+            <test-suite type="TestFixture" id="1029" name="GreyboxTradingSessionPlayModeTests" fullname="Starfall.Tests.PlayMode.GreyboxTradingSessionPlayModeTests" classname="Starfall.Tests.PlayMode.GreyboxTradingSessionPlayModeTests" runstate="Runnable" testcasecount="13" result="Passed" start-time="2026-10-06 12:49:35Z" end-time="2026-10-06 12:49:35Z" duration="0.068919" total="13" passed="13" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1042" name="TradingPlay_EnterSendsOnlyWhenPanelOpen" fullname="Starfall.Tests.PlayMode.GreyboxTradingSessionPlayModeTests.TradingPlay_EnterSendsOnlyWhenPanelOpen" methodname="TradingPlay_EnterSendsOnlyWhenPanelOpen" classname="Starfall.Tests.PlayMode.GreyboxTradingSessionPlayModeTests" runstate="Runnable" seed="793480876" result="Passed" start-time="2026-10-06 12:49:35Z" end-time="2026-10-06 12:49:35Z" duration="0.014602" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[starfall.trading: exchange_marker built id=cradle-exchange
+]]></output>
+              </test-case>
+              <test-case id="1030" name="TradingPlay_Ui01_ExchangeMarkerExists_ExactlyOne" fullname="Starfall.Tests.PlayMode.GreyboxTradingSessionPlayModeTests.TradingPlay_Ui01_ExchangeMarkerExists_ExactlyOne" methodname="TradingPlay_Ui01_ExchangeMarkerExists_ExactlyOne" classname="Starfall.Tests.PlayMode.GreyboxTradingSessionPlayModeTests" runstate="Runnable" seed="611757315" result="Passed" start-time="2026-10-06 12:49:35Z" end-time="2026-10-06 12:49:35Z" duration="0.005350" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[starfall.trading: exchange_marker built id=cradle-exchange
+exchange markers found: 1
+]]></output>
+              </test-case>
+              <test-case id="1031" name="TradingPlay_Ui03_DockingHud_VisibleWithin2kmHiddenBeyond" fullname="Starfall.Tests.PlayMode.GreyboxTradingSessionPlayModeTests.TradingPlay_Ui03_DockingHud_VisibleWithin2kmHiddenBeyond" methodname="TradingPlay_Ui03_DockingHud_VisibleWithin2kmHiddenBeyond" classname="Starfall.Tests.PlayMode.GreyboxTradingSessionPlayModeTests" runstate="Runnable" seed="273610564" result="Passed" start-time="2026-10-06 12:49:35Z" end-time="2026-10-06 12:49:35Z" duration="0.001948" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[starfall.trading: exchange_marker built id=cradle-exchange
+]]></output>
+              </test-case>
+              <test-case id="1032" name="TradingPlay_Ui04_WalletLabel_UpdatesFromMessage" fullname="Starfall.Tests.PlayMode.GreyboxTradingSessionPlayModeTests.TradingPlay_Ui04_WalletLabel_UpdatesFromMessage" methodname="TradingPlay_Ui04_WalletLabel_UpdatesFromMessage" classname="Starfall.Tests.PlayMode.GreyboxTradingSessionPlayModeTests" runstate="Runnable" seed="10918263" result="Passed" start-time="2026-10-06 12:49:35Z" end-time="2026-10-06 12:49:35Z" duration="0.006349" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[starfall.trading: exchange_marker built id=cradle-exchange
+]]></output>
+              </test-case>
+              <test-case id="1033" name="TradingPlay_Ui05_Ticker_RowCountMatchesListings" fullname="Starfall.Tests.PlayMode.GreyboxTradingSessionPlayModeTests.TradingPlay_Ui05_Ticker_RowCountMatchesListings" methodname="TradingPlay_Ui05_Ticker_RowCountMatchesListings" classname="Starfall.Tests.PlayMode.GreyboxTradingSessionPlayModeTests" runstate="Runnable" seed="1211737652" result="Passed" start-time="2026-10-06 12:49:35Z" end-time="2026-10-06 12:49:35Z" duration="0.003043" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[starfall.trading: exchange_marker built id=cradle-exchange
+listings after MARKET_STATE: 2
+]]></output>
+              </test-case>
+              <test-case id="1034" name="TradingPlay_Ui06_UnlistedCountLine_AppearsThenDisappears" fullname="Starfall.Tests.PlayMode.GreyboxTradingSessionPlayModeTests.TradingPlay_Ui06_UnlistedCountLine_AppearsThenDisappears" methodname="TradingPlay_Ui06_UnlistedCountLine_AppearsThenDisappears" classname="Starfall.Tests.PlayMode.GreyboxTradingSessionPlayModeTests" runstate="Runnable" seed="1127930448" result="Passed" start-time="2026-10-06 12:49:35Z" end-time="2026-10-06 12:49:35Z" duration="0.002654" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[starfall.trading: exchange_marker built id=cradle-exchange
+]]></output>
+              </test-case>
+              <test-case id="1035" name="TradingPlay_Ui07_PanelOpensWhenDockedClosesWhenFar" fullname="Starfall.Tests.PlayMode.GreyboxTradingSessionPlayModeTests.TradingPlay_Ui07_PanelOpensWhenDockedClosesWhenFar" methodname="TradingPlay_Ui07_PanelOpensWhenDockedClosesWhenFar" classname="Starfall.Tests.PlayMode.GreyboxTradingSessionPlayModeTests" runstate="Runnable" seed="620908781" result="Passed" start-time="2026-10-06 12:49:35Z" end-time="2026-10-06 12:49:35Z" duration="0.002153" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[starfall.trading: exchange_marker built id=cradle-exchange
+]]></output>
+              </test-case>
+              <test-case id="1036" name="TradingPlay_Ui08_PresetChangesWithArrowKeys" fullname="Starfall.Tests.PlayMode.GreyboxTradingSessionPlayModeTests.TradingPlay_Ui08_PresetChangesWithArrowKeys" methodname="TradingPlay_Ui08_PresetChangesWithArrowKeys" classname="Starfall.Tests.PlayMode.GreyboxTradingSessionPlayModeTests" runstate="Runnable" seed="689701567" result="Passed" start-time="2026-10-06 12:49:35Z" end-time="2026-10-06 12:49:35Z" duration="0.001530" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[starfall.trading: exchange_marker built id=cradle-exchange
+]]></output>
+              </test-case>
+              <test-case id="1037" name="TradingPlay_Ui09_SaleReceipt_CreatesNotice" fullname="Starfall.Tests.PlayMode.GreyboxTradingSessionPlayModeTests.TradingPlay_Ui09_SaleReceipt_CreatesNotice" methodname="TradingPlay_Ui09_SaleReceipt_CreatesNotice" classname="Starfall.Tests.PlayMode.GreyboxTradingSessionPlayModeTests" runstate="Runnable" seed="1522774123" result="Passed" start-time="2026-10-06 12:49:35Z" end-time="2026-10-06 12:49:35Z" duration="0.007676" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[starfall.trading: exchange_marker built id=cradle-exchange
+]]></output>
+              </test-case>
+              <test-case id="1038" name="TradingPlay_Ui10_TwoMarketStateMessages_ExactlyOneNewListingNotice" fullname="Starfall.Tests.PlayMode.GreyboxTradingSessionPlayModeTests.TradingPlay_Ui10_TwoMarketStateMessages_ExactlyOneNewListingNotice" methodname="TradingPlay_Ui10_TwoMarketStateMessages_ExactlyOneNewListingNotice" classname="Starfall.Tests.PlayMode.GreyboxTradingSessionPlayModeTests" runstate="Runnable" seed="1106476679" result="Passed" start-time="2026-10-06 12:49:35Z" end-time="2026-10-06 12:49:35Z" duration="0.003107" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[starfall.trading: exchange_marker built id=cradle-exchange
+new listing notice: 새 상장: ferrosite, starfall-glass
+]]></output>
+              </test-case>
+              <test-case id="1039" name="TradingPlay_Ui11_RejectedResult_CreatesThenClearsLine" fullname="Starfall.Tests.PlayMode.GreyboxTradingSessionPlayModeTests.TradingPlay_Ui11_RejectedResult_CreatesThenClearsLine" methodname="TradingPlay_Ui11_RejectedResult_CreatesThenClearsLine" classname="Starfall.Tests.PlayMode.GreyboxTradingSessionPlayModeTests" runstate="Runnable" seed="443451307" result="Passed" start-time="2026-10-06 12:49:35Z" end-time="2026-10-06 12:49:35Z" duration="0.006382" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[starfall.trading: exchange_marker built id=cradle-exchange
+starfall.trading: SELL_MINERAL rejected - 너무 빠르다 — 10 m/s 이하로
+]]></output>
+              </test-case>
+              <test-case id="1040" name="TradingPlay_Ui12_LastSaleRows_OneLineEach_IncludingNeverSold" fullname="Starfall.Tests.PlayMode.GreyboxTradingSessionPlayModeTests.TradingPlay_Ui12_LastSaleRows_OneLineEach_IncludingNeverSold" methodname="TradingPlay_Ui12_LastSaleRows_OneLineEach_IncludingNeverSold" classname="Starfall.Tests.PlayMode.GreyboxTradingSessionPlayModeTests" runstate="Runnable" seed="399660907" result="Passed" start-time="2026-10-06 12:49:35Z" end-time="2026-10-06 12:49:35Z" duration="0.003655" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[starfall.trading: exchange_marker built id=cradle-exchange
+]]></output>
+              </test-case>
+              <test-case id="1041" name="TradingPlay_Ui13_DiscovererTag_SourcedFromProviderDelegate_NotMarketState" fullname="Starfall.Tests.PlayMode.GreyboxTradingSessionPlayModeTests.TradingPlay_Ui13_DiscovererTag_SourcedFromProviderDelegate_NotMarketState" methodname="TradingPlay_Ui13_DiscovererTag_SourcedFromProviderDelegate_NotMarketState" classname="Starfall.Tests.PlayMode.GreyboxTradingSessionPlayModeTests" runstate="Runnable" seed="1796699813" result="Passed" start-time="2026-10-06 12:49:35Z" end-time="2026-10-06 12:49:35Z" duration="0.002956" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[starfall.trading: exchange_marker built id=cradle-exchange
+Saving results to: C:/Users/CHOISOOYEON/AppData/LocalLow/Starfall/Starfall Dynasty\TestResults.xml
+]]></output>
+              </test-case>
+            </test-suite>
+          </test-suite>
+        </test-suite>
+      </test-suite>
+    </test-suite>
+  </test-suite>
+</test-run>

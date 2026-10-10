@@ -1,0 +1,52 @@
+{
+  "actor_id": "01a0b1c2-b010-7000-8000-000000000150",
+  "close_initiator": "client",
+  "ferrosite_market": [
+    {
+      "last_sale": {
+        "actor_id": "01a0b1c2-b010-7000-8000-000000000150",
+        "quantity_kg": 200,
+        "tick": 2193
+      },
+      "price_cr_per_kg": 10,
+      "saturation_kg": 200,
+      "tick": 2259
+    }
+  ],
+  "goto_failures": 0,
+  "inventory_ferrosite_last": 200,
+  "item": "[reference] 참고: p1-03 재기동 단계 — run(판매 수락·상태 파일) / resume(같은 원문 재전송). 판정은 restart_cases.py sell-dup (SC-112)",
+  "open_at_end": true,
+  "own_ship_id": "01a116bc-8d2c-76e1-bc0a-78e68937393b",
+  "phase": "resume",
+  "ready_tick": 2259,
+  "receipts": [],
+  "sells": [
+    {
+      "command_id": "01a116bc-7e0b-7139-8970-672098af002a",
+      "quantity_kg": 200,
+      "results": [
+        {
+          "reason": "DUPLICATE_COMMAND_ID",
+          "status": "REJECTED",
+          "tick": 2278
+        }
+      ]
+    }
+  ],
+  "state": {
+    "balance_after": 2000,
+    "command_id": "01a116bc-7e0b-7139-8970-672098af002a",
+    "market_id": "cradle-exchange",
+    "mineral_id": "ferrosite",
+    "quantity_kg": 200
+  },
+  "verdict": "PASS",
+  "wallets": [
+    {
+      "balance_cr": 2000,
+      "tick": 2259
+    }
+  ],
+  "world_id": "01a116ba-c0fd-7576-83d0-d1211ddd3680"
+}

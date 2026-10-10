@@ -1,0 +1,113 @@
+{
+  "item": "p1-03 SC-123 (AC-21b) causation ↔ processed_commands 양방향 + 종류 일치",
+  "verdict": "PASS",
+  "mined_rows": 664,
+  "sold_rows": 149,
+  "processed_rows": 813,
+  "processed_sell_rows": 149,
+  "missing_counts": [
+    0,
+    0
+  ],
+  "event_without_command": [],
+  "command_without_event": [],
+  "kind_mismatch": [],
+  "duplicate_causation": 0,
+  "denominators_ok": true,
+  "ok": true,
+  "world_id": "01a12581-1eae-7413-abbc-33952e018479",
+  "data_values_at_run": {
+    "minerals": {
+      "cobaltine": {
+        "regen_kg": 80,
+        "regen_interval_s": 60
+      },
+      "ferrosite": {
+        "regen_kg": 200,
+        "regen_interval_s": 30
+      },
+      "glacine": {
+        "regen_kg": 150,
+        "regen_interval_s": 30
+      },
+      "starfall-glass": {
+        "regen_kg": 25,
+        "regen_interval_s": 180
+      }
+    },
+    "deposits": {
+      "inner-belt-1": {
+        "mineral_id": "ferrosite",
+        "initial_reserve_kg": 12000
+      },
+      "inner-belt-2": {
+        "mineral_id": "ferrosite",
+        "initial_reserve_kg": 9000
+      },
+      "inner-belt-3": {
+        "mineral_id": "ferrosite",
+        "initial_reserve_kg": 12000
+      },
+      "vela-orbit-1": {
+        "mineral_id": "glacine",
+        "initial_reserve_kg": 10000
+      },
+      "vela-orbit-2": {
+        "mineral_id": "glacine",
+        "initial_reserve_kg": 10000
+      },
+      "outer-field-1": {
+        "mineral_id": "cobaltine",
+        "initial_reserve_kg": 3200
+      },
+      "outer-field-2": {
+        "mineral_id": "cobaltine",
+        "initial_reserve_kg": 2400
+      },
+      "far-reach": {
+        "mineral_id": "starfall-glass",
+        "initial_reserve_kg": 500
+      }
+    },
+    "markets": {
+      "cradle-exchange": {
+        "pricing_version": "cradle-exchange@1",
+        "rules": {
+          "dock_range_from_surface_m": 200.0,
+          "max_ship_speed_mps": 10.0,
+          "sell_cooldown_s": 1,
+          "price_drop_pct_per_band": 10,
+          "price_floor_pct": 30,
+          "recovery_interval_s": 60,
+          "note": "Docked iff |ship.position - position_m|^2 <= (radius_m + dock_range_from_surface_m)^2 and |ship.velocity|^2 <= max_ship_speed_mps^2, on the authoritative state at the START of the tick (same as mining). Price of band b = base_price_cr_per_kg * max(price_floor_pct, 100 - b * price_drop_pct_per_band) div 100 (integer floor division), b = saturation_kg div band_kg. A sale walks the bands, so proceeds do not depend on how a quantity is split. saturation_kg is capped at floor_band * band_kg, floor_band = ceil((100 - price_floor_pct) / price_drop_pct_per_band) = 7. At every tick that is a multiple of recovery_interval_s * tick_hz, saturation_kg = max(0, saturation_kg - recovery_kg) (lazy, same form as deposit regeneration)."
+        },
+        "listings": [
+          {
+            "mineral_id": "ferrosite",
+            "base_price_cr_per_kg": 10,
+            "band_kg": 2000,
+            "recovery_kg": 1000
+          },
+          {
+            "mineral_id": "glacine",
+            "base_price_cr_per_kg": 14,
+            "band_kg": 1500,
+            "recovery_kg": 750
+          },
+          {
+            "mineral_id": "cobaltine",
+            "base_price_cr_per_kg": 40,
+            "band_kg": 600,
+            "recovery_kg": 300
+          },
+          {
+            "mineral_id": "starfall-glass",
+            "base_price_cr_per_kg": 250,
+            "band_kg": 100,
+            "recovery_kg": 50
+          }
+        ]
+      }
+    }
+  }
+}

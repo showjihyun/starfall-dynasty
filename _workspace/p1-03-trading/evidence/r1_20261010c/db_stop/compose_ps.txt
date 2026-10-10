@@ -1,0 +1,2 @@
+starfall-postgres-1 Up 36 seconds (healthy)
+starfall-redis-1 Up 21 minutes (healthy)

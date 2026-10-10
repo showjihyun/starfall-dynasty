@@ -21,7 +21,10 @@ use serde::de::Error as DeError;
 use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::historical::HistoricalVisibility;
-use crate::primitives::{DataId, MassKg, RuleVersion, SchemaVersion, de_positive_mass_kg};
+use crate::primitives::{
+    ConstSchemaVersion, CreditAmount, DataId, MassKg, RuleVersion, SchemaVersion,
+    de_positive_mass_kg,
+};
 
 // ---------------------------------------------------------------------------
 // 범위 검증 f64 역직렬화 — 필드마다 스키마의 min/max 그대로
@@ -808,27 +811,23 @@ where
     Ok(raw)
 }
 
-/// 매장지 하나.
+/// 매장지 하나 — **공개부**(schema_version 2, ADR-0015 §2). `mineral_id`·
+/// `initial_reserve_kg` 는 [`DepositReserve`](서버 전용 표)로 옮겼다 — 클라이언트 사본이
+/// 있어도 이 구조체에 그 필드가 없으므로 주입된 값은 `deny_unknown_fields` 가 거부한다
+/// (누출 재발 방지 대표 반례, `server-only-mineral-field.json`).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Deposit {
-    /// 안정적 id.
+    /// 안정적 id. [`DepositReserve::deposit_id`] 와 짝(양방향 — S2 기동 검산).
     pub id: DataId,
     /// **지역** 이름일 뿐이다 — 광물을 드러내면 안 된다(스키마 설명).
     pub display_name: String,
-    /// **서버 전용 진실**(설계 문서 요구): 클라이언트 사본이 있어도 이 필드는 읽지 않는다
-    /// — 광물은 `DEPOSIT_FIELD_STATE` 로 드러난 뒤에만 클라이언트에 닿는다.
-    pub mineral_id: DataId,
     /// 성계 로컬 좌표(ADR-0009 §1).
     #[serde(deserialize_with = "de_deposit_position_m")]
     pub position_m: Triplet,
     /// 채굴 판정용 반지름.
     #[serde(deserialize_with = "de_deposit_radius_m")]
     pub radius_m: f64,
-    /// **서버 전용 진실**: 원 매장량. `mineral_id` 처럼 드러나기 전에는 클라이언트에
-    /// 닿지 않는다.
-    #[serde(deserialize_with = "de_positive_mass_kg")]
-    pub initial_reserve_kg: MassKg,
 }
 
 /// `1 ..= 64` 개.
@@ -847,29 +846,240 @@ where
     }
 }
 
-/// `DEPOSIT_FIELD` — 한 성계의 매장지 파일(`data/world/deposits/{star_system_id}.json`)의
-/// 모양.
+/// `DEPOSIT_FIELD` — 한 성계의 매장지 **공개**(schema_version 2) 파일
+/// (`data/world/deposits/{star_system_id}.json`)의 모양. 클라이언트 사본에 바이트
+/// 그대로 들어간다(ADR-0015).
 ///
-/// 이 스키마가 표현하지 못하는 기동 시 검산(S2 몫, 스펙 p1-02 I-38 확장): 모든
-/// `mineral_id` 가 `data/minerals` 에 존재 / 모든 광물이 매장지 ≥1 / `star_system_id` 가
-/// 로딩된 성계와 일치 / `|position| + radius_m + mining_range_from_surface_m ≤
-/// soft_boundary_radius_m` / `regen_kg ≤ initial_reserve_kg` / id 고유 / 두 매장지의 채굴
+/// 이 스키마가 표현하지 못하는 기동 시 검산(S2 몫, 스펙 p1-02 I-38 확장 + p1-03 §4.8):
+/// 같은 `star_system_id` 의 [`DepositReserveTable`] 짝이 있고 `deposit_id` 집합이
+/// **양방향**으로 같음 / `star_system_id` 가 로딩된 성계와 일치 / `|position| + radius_m +
+/// mining_range_from_surface_m ≤ soft_boundary_radius_m` / id 고유 / 두 매장지의 채굴
 /// 영역이 겹치지 않음.
+///
+/// `schema_version` 1 파일(옛 모양, `mineral_id`·`initial_reserve_kg` 포함)은 기동
+/// 거부다 — data 파일은 저장된 역사가 아니라서 업캐스터가 없다(스키마 설명).
 ///
 /// 대응 스키마: `contracts/data/deposit-field.schema.json`
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct DepositFieldTable {
-    /// 데이터 파일 스키마 버전.
-    pub schema_version: SchemaVersion,
+    /// 데이터 파일 스키마 버전. p1-03 부터 **2 고정**(ADR-0015 §2).
+    pub schema_version: ConstSchemaVersion<2>,
     /// 이 파일이 속한 성계.
     pub star_system_id: DataId,
     /// designer 메모.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub designer_note: Option<String>,
-    /// 매장지 목록.
+    /// 매장지 목록(공개부).
     #[serde(deserialize_with = "de_deposits")]
     pub deposits: Vec<Deposit>,
+}
+
+// ---------------------------------------------------------------------------
+// DEPOSIT_RESERVE (p1-03, ADR-0015 §2 — DEPOSIT_FIELD 의 서버 전용 짝)
+// ---------------------------------------------------------------------------
+
+/// 매장지 하나의 **서버 전용** 진실 — 광물과 원 매장량.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct DepositReserve {
+    /// [`Deposit::id`] 와 짝(양방향 — S2 기동 검산).
+    pub deposit_id: DataId,
+    /// 이 매장지가 내는 광물. 드러나기 전에는 `DEPOSIT_FIELD_STATE` 로도 클라이언트에
+    /// 닿지 않는다(I-68).
+    pub mineral_id: DataId,
+    /// 원 매장량. 절대 0이 아니다.
+    #[serde(deserialize_with = "de_positive_mass_kg")]
+    pub initial_reserve_kg: MassKg,
+}
+
+/// `1 ..= 64` 개 — [`de_deposits`] 와 같은 상한(시장 파일의 상장과도 같다).
+fn de_deposit_reserves<'de, D>(deserializer: D) -> Result<Vec<DepositReserve>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let reserves = Vec::<DepositReserve>::deserialize(deserializer)?;
+    if reserves.is_empty() || reserves.len() > 64 {
+        Err(D::Error::custom(format!(
+            "deposits 는 1 ..= 64 개여야 한다 (받음: {})",
+            reserves.len()
+        )))
+    } else {
+        Ok(reserves)
+    }
+}
+
+/// `DEPOSIT_RESERVE` — **서버 전용**. 한 성계의 매장지별 광물·원 매장량
+/// (`data/world/deposit-reserves/{star_system_id}.json`). 클라이언트 사본에 절대 들어가지
+/// 않는다(레지스트리 `consumers` 가 `server` 하나 — ADR-0015).
+///
+/// 이 스키마가 표현하지 못하는 기동 시 검산(S2 몫, 스펙 §4.8): 같은 `star_system_id` 의
+/// [`DepositFieldTable`] 짝이 있고 `deposit_id` 집합이 양방향으로 같음 / 모든
+/// `mineral_id` 가 `data/minerals` 에 존재 / 모든 광물이 매장지 ≥1 / `regen_kg ≤
+/// initial_reserve_kg` / id 고유.
+///
+/// 대응 스키마: `contracts/data/deposit-reserve.schema.json`
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct DepositReserveTable {
+    /// 데이터 파일 스키마 버전. 언제나 1.
+    pub schema_version: ConstSchemaVersion<1>,
+    /// 이 파일이 속한 성계. [`DepositFieldTable::star_system_id`] 와 같다.
+    pub star_system_id: DataId,
+    /// designer 메모.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub designer_note: Option<String>,
+    /// 매장지별 진실.
+    #[serde(deserialize_with = "de_deposit_reserves")]
+    pub deposits: Vec<DepositReserve>,
+}
+
+// ---------------------------------------------------------------------------
+// MARKET (p1-03)
+// ---------------------------------------------------------------------------
+
+/// `1 ..= 1_000_000` cr/kg — 시장 상장의 기준가(스키마의 `$ref CreditAmount` + 형제
+/// `minimum`/`maximum`, `CreditAmount` 자신의 범위보다 좁다).
+fn de_market_base_price_cr_per_kg<'de, D>(deserializer: D) -> Result<CreditAmount, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let value = CreditAmount::deserialize(deserializer)?;
+    if (1..=1_000_000).contains(&value.get()) {
+        Ok(value)
+    } else {
+        Err(D::Error::custom(format!(
+            "base_price_cr_per_kg 는 1 ..= 1000000 이어야 한다 (받음: {})",
+            value.get()
+        )))
+    }
+}
+
+/// `1 ..= 100` — `price_drop_pct_per_band`·`price_floor_pct` 둘 다(스펙 §4.2a).
+fn de_pct_1_100<'de, D>(deserializer: D) -> Result<i64, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let raw = i64::deserialize(deserializer)?;
+    if (1..=100).contains(&raw) {
+        Ok(raw)
+    } else {
+        Err(D::Error::custom(format!(
+            "비율은 1 ..= 100 이어야 한다 (받음: {raw})"
+        )))
+    }
+}
+
+de_f64_range!(
+    de_dock_range_from_surface_m,
+    min = 0.0,
+    min_excl = true,
+    max = 5_000.0
+);
+
+/// 상장 하나 — 광물 하나의 가격 규칙(디자인 §3.3).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct MarketListing {
+    /// 상장 광물.
+    pub mineral_id: DataId,
+    /// band 0(포화 < `band_kg`)의 kg 당 가격.
+    #[serde(deserialize_with = "de_market_base_price_cr_per_kg")]
+    pub base_price_cr_per_kg: CreditAmount,
+    /// 가격 구간 하나의 포화 너비. 절대 0이 아니다.
+    #[serde(deserialize_with = "de_positive_mass_kg")]
+    pub band_kg: MassKg,
+    /// `recovery_interval_s` 의 배수 tick마다 빠지는 포화. 절대 0이 아니다.
+    #[serde(deserialize_with = "de_positive_mass_kg")]
+    pub recovery_kg: MassKg,
+}
+
+/// `1 ..= 64` 개 — [`de_deposits`] 와 같은 상한.
+fn de_market_listings<'de, D>(deserializer: D) -> Result<Vec<MarketListing>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let listings = Vec::<MarketListing>::deserialize(deserializer)?;
+    if listings.is_empty() || listings.len() > 64 {
+        Err(D::Error::custom(format!(
+            "listings 는 1 ..= 64 개여야 한다 (받음: {})",
+            listings.len()
+        )))
+    } else {
+        Ok(listings)
+    }
+}
+
+/// `rules` 블록 — 시장 하나의 도킹·판매 규칙(디자인 §1.3·§2.1).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct MarketRules {
+    /// 도킹 판정: `|ship - market|^2 <= (radius_m + 이 값)^2`, tick 시작 시점의 권위
+    /// `f64` 상태로.
+    #[serde(deserialize_with = "de_dock_range_from_surface_m")]
+    pub dock_range_from_surface_m: f64,
+    /// 도킹 허용 최대 함선 속력(채굴과 같은 판정 꼴).
+    #[serde(deserialize_with = "de_max_ship_speed_mps")]
+    pub max_ship_speed_mps: f64,
+    /// 판매 쿨다운(초). 채굴 쿨다운과 **별개**, 메모리 상태(재기동이 초기화).
+    #[serde(deserialize_with = "de_cooldown_s")]
+    pub sell_cooldown_s: i64,
+    /// 가격 구간 하나당 하락률(%p).
+    #[serde(deserialize_with = "de_pct_1_100")]
+    pub price_drop_pct_per_band: i64,
+    /// 바닥 가격 비율(%, 기준가 대비). 바닥에서도 `base * price_floor_pct div 100 >= 1`
+    /// (기동 검증).
+    #[serde(deserialize_with = "de_pct_1_100")]
+    pub price_floor_pct: i64,
+    /// 포화 회복 간격(초). `tick_hz` 를 곱해 정수 tick 이 되어야 한다(기동 검산).
+    #[serde(deserialize_with = "de_regen_interval_s")]
+    pub recovery_interval_s: i64,
+    /// 자유 문구.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub note: Option<String>,
+}
+
+/// `MARKET` — 거래소 하나(`data/market/{id}.json`)의 모양(디자인 §1·§3). **공개**
+/// 데이터 종류(ADR-0015) — 클라이언트 사본에 바이트 그대로 들어간다.
+///
+/// 이 스키마가 표현하지 못하는 기동 시 검산(S2 몫, 스펙 §4.8): `star_system_id` 가
+/// 로딩된 성계 / `pricing_version` 이 `id + "@"` 로 시작 / 모든 광물에 상장이 정확히
+/// 하나, 모든 상장의 `mineral_id` 가 광물 표에 있다 / `|position| + radius_m +
+/// dock_range_from_surface_m <= soft_boundary_radius_m` / 도킹 구역이 어느 매장지의
+/// 채굴 구역과도 겹치지 않음 / `sell_cooldown_s * tick_hz`·`recovery_interval_s *
+/// tick_hz` 가 정수 / 모든 상장의 바닥값 `base * price_floor_pct div 100 >= 1` / 모든
+/// 상장의 포화 상한 `floor_band * band_kg <= 2147483647` / `2147483647 *
+/// max(base_price_cr_per_kg) <= 9007199254740991` / 시장 id 중복 없음.
+///
+/// 대응 스키마: `contracts/data/market.schema.json`
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct MarketTable {
+    /// 데이터 파일 스키마 버전. 언제나 1.
+    pub schema_version: ConstSchemaVersion<1>,
+    /// 시장 id — `SELL_MINERAL.market_id` 가 이름으로 쓰고 `MINERAL_SOLD` 가 기록한다.
+    pub id: DataId,
+    /// 이 시장이 속한 성계.
+    pub star_system_id: DataId,
+    /// 표시 이름.
+    pub display_name: String,
+    /// `'{시장 id}@{n}'`. 가격 절(규칙 + 상장)이 바뀌면 올린다(스펙 I-90 — golden 이 이
+    /// 값을 가격 절의 정규화 해시에 묶는다).
+    pub pricing_version: RuleVersion,
+    /// designer 메모.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub designer_note: Option<String>,
+    /// 성계 로컬 좌표.
+    #[serde(deserialize_with = "de_deposit_position_m")]
+    pub position_m: Triplet,
+    /// 거래소 구조물 반지름 — 도킹 구역·시각 표시의 기준.
+    #[serde(deserialize_with = "de_deposit_radius_m")]
+    pub radius_m: f64,
+    /// 도킹·판매 규칙.
+    pub rules: MarketRules,
+    /// 광물별 가격 규칙, 광물마다 정확히 하나(기동 검산).
+    #[serde(deserialize_with = "de_market_listings")]
+    pub listings: Vec<MarketListing>,
 }
 
 // ---------------------------------------------------------------------------

@@ -28,7 +28,8 @@ from pathlib import Path
 import db
 import validate_data_files as VDF
 
-LABEL = {"item": "p1-02 SC-07 (AC-19c2) 읽히지 않는 데이터 파일 0 — 파일마다 읽는 코드 × 게이트"}
+LABELS = {"p1-02": {"item": "p1-02 SC-07 (AC-19c2) 읽히지 않는 데이터 파일 0 — 파일마다 읽는 코드 × 게이트"},
+          "p1-03": {"item": "p1-03 SC-129 (AC-22c) 읽히지 않는 데이터 파일 0 — 파일마다 읽는 코드 × 게이트(12 파일)"}}
 
 # 서버 로그 형식은 pretty·json 둘 다 받는다. 메시지 문구는 server 가 Q-5 에서 정했다.
 LOAD_LINE = re.compile(r"데이터 파일 적재")
@@ -43,9 +44,11 @@ DERIVED_GATES = [
     ("world/systems/*.json", "*data::*"),
     ("movement/sync-tuning.json", "*data::*"),
     ("minerals/*.json", "*data::*reject_c*"),
-    ("world/deposits/*.json", "*data::*reject_c*"),
+    ("world/deposits/*.json", "*data::*deposit_split_reject_*"),      # p1-03 SC-05 d01·d03 (v2 공개부)
+    ("world/deposit-reserves/*.json", "*data::*deposit_split_reject_*"),  # p1-03 SC-05 d02·d04 (서버 전용)
     ("mining/mining-rules.json", "*data::*reject_c*"),
     ("history/rules/*.json", "*rule_golden*"),
+    ("market/*.json", "*data::*market_reject_*"),                    # p1-03 SC-05 m01~m12 (+ golden SC-21)
 ]
 
 
@@ -63,8 +66,11 @@ def loaded_from_log(text: str) -> set[str]:
     return out
 
 
-def schema_covered(rel: str) -> bool:
-    return any(fnmatch.fnmatch("data/" + rel, g) for g, _ in VDF.TARGETS)
+def schema_covered(rel: str, root: Path | None = None) -> bool:
+    """스키마 게이트 = `validate_data_files.py` 가 레지스트리 `data_files` 에서 유도한 glob 이 그 파일을 덮는다."""
+    root = root or db.REPO_ROOT
+    return any(("data/" + rel) in {p.relative_to(root).as_posix() for p in root.glob(g)}
+               for k in VDF.data_kinds(root) for g in k["globs"])
 
 
 def derived_ok(rel: str, passed_tests: set[str]) -> tuple[str | None, bool]:
@@ -99,7 +105,7 @@ def run(args: argparse.Namespace) -> int:
     passed = (set(CARGO_OK.findall(Path(args.cargo_log).read_text(encoding="utf-8", errors="replace")))
               if args.cargo_log else None)
     res = judge(files, loaded, passed)
-    out = dict(LABEL)
+    out = dict(LABELS[args.slice])
     out["verdict"] = ("PASS" if res["ok"] else
                       "미검증(증거 요건) — --cargo-log 없음" if not res["cargo_log_given"] else
                       "FAIL(분모 0)" if not files else "FAIL")
@@ -109,7 +115,7 @@ def run(args: argparse.Namespace) -> int:
 
 
 def selftest() -> int:
-    files = ["ships/a.json", "minerals/x.json", "history/rules/r.json"]
+    files = ["ships/scout-s01.json", "minerals/ferrosite.json", "history/rules/mineral-discovery.json"]
     log = "\n".join(f'INFO 데이터 파일 적재 data_file={f}' for f in files)
     # 실제 cargo 출력 모양(`data::tests::reject_c01_…`, `golden::rule_golden`)을 쓴다 — 처음 쓴 합성 이름
     # (`game_server::data::reject_c01`)은 실제와 달라 패턴 결함(`*data::reject_c*`)을 가렸다(qa 규칙 3 실례).
@@ -118,11 +124,19 @@ def selftest() -> int:
         ("모두 짝 → PASS", judge(files, loaded_from_log(log), tests)["ok"], True),
         ("json 로그 형식도 읽는다",
          loaded_from_log('{"message":"데이터 파일 적재","data_file":"minerals/x.json"}') == {"minerals/x.json"}, True),
+        ("p1-03: 시장·예비 파일은 레지스트리 유도 스키마 게이트에 덮인다",
+         schema_covered("market/cradle-exchange.json") and schema_covered("world/deposit-reserves/cradle.json"), True),
+        ("음성: 레지스트리 glob 밖 파일은 스키마 게이트 없음", schema_covered("unused/x.json"), False),
         ("음성 대조: 아무도 안 읽는 unused/x.json → FAIL",
          judge(files + ["unused/x.json"], loaded_from_log(log), tests)["unpaired"] == ["unused/x.json"], True),
-        ("음성 대조: 로그에 한 파일 빠짐 → FAIL", judge(files, loaded_from_log(log.replace("data_file=minerals/x.json", "")), tests)["ok"], False),
+        ("음성 대조: 로그에 한 파일 빠짐 → FAIL", judge(files, loaded_from_log(log.replace("data_file=minerals/ferrosite.json", "")), tests)["ok"], False),
         ("음성 대조: golden 테스트가 안 돌았음 → 규칙 파일 짝 없음",
-         judge(files, loaded_from_log(log), tests - {"golden::rule_golden"})["unpaired"] == ["history/rules/r.json"], True),
+         judge(files, loaded_from_log(log), tests - {"golden::rule_golden"})["unpaired"] == ["history/rules/mineral-discovery.json"], True),
+        ("p1-03 음성: 시장 검산 테스트가 안 돌았으면 시장 파일 짝 없음",
+         judge(["market/cradle-exchange.json"], {"market/cradle-exchange.json"}, tests)["unpaired"] == ["market/cradle-exchange.json"], True),
+        ("p1-03 양성: 시장 검산 테스트가 돌았으면 짝",
+         judge(["market/cradle-exchange.json"], {"market/cradle-exchange.json"},
+               tests | {"data::tests::market_reject_m01_wrong_system"})["ok"], True),
         ("cargo 로그 없으면 PASS 를 내지 않는다", judge(files, loaded_from_log(log), None)["ok"], False),
         ("분모 0 → FAIL", judge([], set(), tests)["ok"], False),
     ]
@@ -143,6 +157,7 @@ def main() -> int:
     ap.add_argument("--boot-log")
     ap.add_argument("--cargo-log")
     ap.add_argument("--evidence")
+    ap.add_argument("--slice", choices=sorted(LABELS), default="p1-03")
     args = ap.parse_args()
     if args.mode == "selftest":
         return selftest()

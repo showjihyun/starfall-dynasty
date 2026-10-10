@@ -1,0 +1,22 @@
+마이그레이션 동결 확인: 파일 [1, 2, 3, 4] · 적용 [1, 2, 3, 4] · 미적용 [] · 선언 {}
+Traceback (most recent call last):
+  File "C:\WorkSpace\SpaceHistoric\tests\e2e\restart_cases.py", line 488, in <module>
+    sys.exit(main())
+             ^^^^^^
+  File "C:\WorkSpace\SpaceHistoric\tests\e2e\restart_cases.py", line 477, in main
+    res = {"dup": scenario_dup, "cas": scenario_cas, "sell-dup": scenario_sell_dup,
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\WorkSpace\SpaceHistoric\tests\e2e\restart_cases.py", line 478, in <lambda>
+    "sell-cas": lambda o: scenario_sell_cas(o, False), "sell-cas-market": lambda o: scenario_sell_cas(o, True),
+                                                                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\WorkSpace\SpaceHistoric\tests\e2e\restart_cases.py", line 383, in scenario_sell_cas
+    res["tamper"] = _sell_cas_run(out, f"p103-cas-{table}", table)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\WorkSpace\SpaceHistoric\tests\e2e\restart_cases.py", line 321, in _sell_cas_run
+    w = new_world(out, tag)
+        ^^^^^^^^^^^^^^^^^^^
+  File "C:\WorkSpace\SpaceHistoric\tests\e2e\restart_cases.py", line 36, in new_world
+    subprocess.run([sys.executable, str(REPO / "tests/e2e/new_world.py"), "--tag", tag, "--evidence", str(ev)],
+  File "C:\Users\CHOISOOYEON\AppData\Local\Programs\Python\Python312\Lib\subprocess.py", line 571, in run
+    raise CalledProcessError(retcode, process.args,
+subprocess.CalledProcessError: Command '['C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe', 'C:\\WorkSpace\\SpaceHistoric\\tests\\e2e\\new_world.py', '--tag', 'p103-cas-market_states', '--evidence', '_workspace\\p1-03-trading\\evidence\\phase4_live4\\sell-cas-market\\world_p103-cas-market_states.json']' returned non-zero exit status 2.

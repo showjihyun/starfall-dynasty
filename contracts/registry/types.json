@@ -1,5 +1,5 @@
 {
-  "registry_version": 4,
+  "registry_version": 5,
   "types": [
     {
       "name": "PING_SERVER",
@@ -114,9 +114,10 @@
       "schema": "data/ship-class.schema.json",
       "schema_version": 1,
       "producers": [],
-      "consumers": ["server"],
+      "consumers": ["server", "client"],
       "status": "active",
-      "description": "Shape of a ship class file such as data/ships/scout-s01.json. The designer owns the values; this contract owns the fields and the ranges outside which a value is a broken simulation rather than a balance choice. Every movement field feeds the ADR-0010 integrator on both the server and the client's prediction of it. producers is empty: the table is hand-authored, not emitted by any component. Introduced by p1-01-ship-movement."
+      "data_files": ["ships/*.json"],
+      "description": "Shape of a ship class file such as data/ships/scout-s01.json. The designer owns the values; this contract owns the fields and the ranges outside which a value is a broken simulation rather than a balance choice. Every movement field feeds the ADR-0010 integrator on both the server and the client's prediction of it. producers is empty: the table is hand-authored, not emitted by any component. Introduced by p1-01-ship-movement. p1-03 (ADR-0015): consumers gains client - the client has read this table since p1-01; the registry now says so because consumers decides the client copy."
     },
     {
       "name": "STAR_SYSTEM",
@@ -124,9 +125,10 @@
       "schema": "data/star-system.schema.json",
       "schema_version": 1,
       "producers": [],
-      "consumers": ["server"],
+      "consumers": ["server", "client"],
       "status": "active",
-      "description": "Shape of a star system file such as data/world/systems/cradle.json: coordinate space, soft and hard boundary, deterministic spawn ring, ship linger and reconnect window, and client-only reference markers. hard_boundary_radius_m has a hard ceiling that comes from the float32 rendering budget (ADR-0009), not from design. Introduced by p1-01-ship-movement."
+      "data_files": ["world/systems/*.json"],
+      "description": "Shape of a star system file such as data/world/systems/cradle.json: coordinate space, soft and hard boundary, deterministic spawn ring, ship linger and reconnect window, and client-only reference markers. hard_boundary_radius_m has a hard ceiling that comes from the float32 rendering budget (ADR-0009), not from design. Introduced by p1-01-ship-movement. p1-03 (ADR-0015): consumers gains client - the client has read this table since p1-01; the registry now says so because consumers decides the client copy."
     },
     {
       "name": "SYNC_TUNING",
@@ -136,6 +138,7 @@
       "producers": [],
       "consumers": ["server", "client"],
       "status": "active",
+      "data_files": ["movement/sync-tuning.json"],
       "description": "Shape of data/movement/sync-tuning.json: the networking values that are FELT - snapshot rate, input pacing, remote interpolation delay and the reconciliation thresholds - kept out of code literals so that tuning never means editing Rust or C#. Deliberately excludes tick_hz (a world constant, I-19), the quantisation scales (ADR-0009) and the integrator identity (ADR-0010): those are laws, not tunables. Introduced by p1-01-ship-movement."
     },
     {
@@ -163,6 +166,32 @@
       "description": "One accepted extraction, written in the same transaction as the inventory, deposit and processed_commands rows (ADR-0013). The only explanation an inventory quantity has. causation_id is the MINE_RESOURCE command_id - the first command-caused event. Importance level 0: NOT historical by itself; the history runner turns only the first one per (world, star system, mineral) into MINERAL_DISCOVERED (ADR-0014). Introduced by p1-02-mining."
     },
     {
+      "name": "SELL_MINERAL",
+      "kind": "command",
+      "schema": "commands/SELL_MINERAL.schema.json",
+      "schema_version": 1,
+      "producers": ["client", "bots"],
+      "consumers": ["server"],
+      "status": "active",
+      "responses": [
+        {"type": "COMMAND_RESULT", "when": "always"},
+        {"type": "SALE_RECEIPT", "when": "accepted"},
+        {"type": "INVENTORY_STATE", "when": "accepted"},
+        {"type": "WALLET_STATE", "when": "accepted"}
+      ],
+      "description": "Intent to sell quantity_kg of one mineral to a market while docked. The payload is market, mineral and quantity only: no price, proceeds, balance or position (principle 1, spec p1-03 I-74). The second state-changing command: command_id shares the world-scoped durable idempotency ledger with MINE_RESOURCE (ADR-0016 section 1). Introduced by p1-03-trading."
+    },
+    {
+      "name": "MINERAL_SOLD",
+      "kind": "domain_event",
+      "schema": "events/domain/MINERAL_SOLD.schema.json",
+      "schema_version": 1,
+      "producers": ["server"],
+      "consumers": ["server"],
+      "status": "active",
+      "description": "One accepted sale - inventory decrease, wallet increase and market saturation change in ONE event, written in the same transaction as the inventory, wallet, market and processed_commands rows (ADR-0016). causation_id is the SELL_MINERAL command_id. Importance level 0: not historical; the history runner passes it through unjudged, so history is deliberately NOT a consumer (passing is not consuming - spec p1-02 section 5.1). Carries every price fact a future rule would need (ADR-0014 section 1). Introduced by p1-03-trading."
+    },
+    {
       "name": "MINERAL_DISCOVERED",
       "kind": "historical_event",
       "schema": "events/historical/MINERAL_DISCOVERED.schema.json",
@@ -181,6 +210,36 @@
       "consumers": ["client", "bots"],
       "status": "active",
       "description": "The receiving actor's full inventory: after SESSION_READY and in every tick it changed (after the COMMAND_RESULT of an accepted MINE_RESOURCE). The client never computes inventory (spec p1-02 I-49). Introduced by p1-02-mining."
+    },
+    {
+      "name": "WALLET_STATE",
+      "kind": "server_message",
+      "schema": "messages/WALLET_STATE.schema.json",
+      "schema_version": 1,
+      "producers": ["server"],
+      "consumers": ["client", "bots"],
+      "status": "active",
+      "description": "The receiving actor's credit balance: after SESSION_READY (after INVENTORY_STATE) and in every tick it changed (after the COMMAND_RESULT and INVENTORY_STATE of an accepted SELL_MINERAL). The client never computes a balance (spec p1-03 I-77). Introduced by p1-03-trading."
+    },
+    {
+      "name": "SALE_RECEIPT",
+      "kind": "server_message",
+      "schema": "messages/SALE_RECEIPT.schema.json",
+      "schema_version": 1,
+      "producers": ["server"],
+      "consumers": ["client", "bots"],
+      "status": "active",
+      "description": "Type-specific answer to an ACCEPTED SELL_MINERAL, to the seller, after its COMMAND_RESULT: what the server actually paid. No balance - that is WALLET_STATE's alone. Introduced by p1-03-trading."
+    },
+    {
+      "name": "MARKET_STATE",
+      "kind": "server_message",
+      "schema": "messages/MARKET_STATE.schema.json",
+      "schema_version": 1,
+      "producers": ["server"],
+      "consumers": ["client", "bots"],
+      "status": "active",
+      "description": "Dynamic state of a market for every session of the world: after SESSION_READY, on every tick a sale changed it and on recovery ticks that changed it. Only minerals with a revealed deposit are listed (spec p1-03 I-86). Saturation, server-derived price and the public last-sale notice - the trace a later player sees. Introduced by p1-03-trading."
     },
     {
       "name": "DEPOSIT_FIELD_STATE",
@@ -210,17 +269,30 @@
       "producers": [],
       "consumers": ["server", "client"],
       "status": "active",
+      "data_files": ["minerals/*.json"],
       "description": "Shape of data/minerals/{id}.json: display name, rarity (presentation only), yield per extraction and regeneration, integer kilograms. Introduced by p1-02-mining."
     },
     {
       "name": "DEPOSIT_FIELD",
       "kind": "data",
       "schema": "data/deposit-field.schema.json",
-      "schema_version": 1,
+      "schema_version": 2,
       "producers": [],
       "consumers": ["server", "client"],
       "status": "active",
-      "description": "Shape of data/world/deposits/{star_system_id}.json: deposit positions, radii and names (read by both) plus mineral and initial reserve (server-side truth; the client must not read them from its copy - DEPOSIT_FIELD_STATE is the only way they reach a player). Introduced by p1-02-mining."
+      "data_files": ["world/deposits/*.json"],
+      "description": "Shape of data/world/deposits/{star_system_id}.json: deposit ids, names, positions and radii - PUBLIC, copied to the client. schema_version 2 since p1-03 (ADR-0015 section 2): mineral_id and initial_reserve_kg moved to the server-only DEPOSIT_RESERVE, closing the p1-02 leak (spec p1-02 section 9.1 Q3). Introduced by p1-02-mining."
+    },
+    {
+      "name": "DEPOSIT_RESERVE",
+      "kind": "data",
+      "schema": "data/deposit-reserve.schema.json",
+      "schema_version": 1,
+      "producers": [],
+      "consumers": ["server"],
+      "status": "active",
+      "data_files": ["world/deposit-reserves/*.json"],
+      "description": "SERVER-ONLY. Shape of data/world/deposit-reserves/{star_system_id}.json: the mineral and initial reserve of every deposit. Split out of DEPOSIT_FIELD by p1-03 (ADR-0015 section 2) so that the client copy - exactly the files of kinds whose consumers include client - never contains them. consumers is server alone; adding client here would put every deposit's answer back into the client build. Introduced by p1-03-trading."
     },
     {
       "name": "MINING_RULES",
@@ -230,6 +302,7 @@
       "producers": [],
       "consumers": ["server", "client"],
       "status": "active",
+      "data_files": ["mining/mining-rules.json"],
       "description": "Shape of data/mining/mining-rules.json: range from deposit surface, maximum ship speed and cooldown. The server judges with them; the client only displays whether they are met. Introduced by p1-02-mining."
     },
     {
@@ -240,7 +313,19 @@
       "producers": [],
       "consumers": ["history"],
       "status": "active",
-      "description": "Shape of one history rule file, data/history/rules/{rule_id}.json: rule identity, rule_version and output constants (level, visibility, evidence). The condition is Rust code. A golden test binds rule_version to this file's content (ADR-0014 section 5). Introduced by p1-02-mining."
+      "data_files": ["history/rules/*.json"],
+      "description": "Shape of one history rule file, data/history/rules/{rule_id}.json: rule identity, rule_version and output constants (level, visibility, evidence). The condition is Rust code. A golden test binds rule_version to this file's content (ADR-0014 section 5). Introduced by p1-02-mining. p1-03 (ADR-0015): consumers stays history only, so this file is no longer part of the client copy."
+    },
+    {
+      "name": "MARKET",
+      "kind": "data",
+      "schema": "data/market.schema.json",
+      "schema_version": 1,
+      "producers": [],
+      "consumers": ["server", "client"],
+      "status": "active",
+      "data_files": ["market/*.json"],
+      "description": "Shape of data/market/{id}.json: exchange position and radius, docking rules, sell cooldown, and the banded-saturation price rule of every listed mineral, versioned by pricing_version. PUBLIC (ADR-0015): copied to the client, which reads the geometry for display and the listing constants for the expected-proceeds preview; current saturation and price come only from MARKET_STATE. Introduced by p1-03-trading."
     }
   ]
 }

@@ -15,18 +15,22 @@ use serde::Serialize;
 use serde::de::DeserializeOwned;
 use serde_json::Value;
 
-use crate::commands::{MineResourceCommand, PingServerCommand, SetShipControlCommand};
+use crate::commands::{
+    MineResourceCommand, PingServerCommand, SellMineralCommand, SetShipControlCommand,
+};
 use crate::data::{
-    DepositFieldTable, MineralTable, MiningRulesTable, ShipClassTable, SignificanceRuleTable,
-    StarSystemTable, SyncTuningTable,
+    DepositFieldTable, DepositReserveTable, MarketTable, MineralTable, MiningRulesTable,
+    ShipClassTable, SignificanceRuleTable, StarSystemTable, SyncTuningTable,
 };
 use crate::events::{
-    MineralMinedEvent, SessionClosedEvent, SessionOpenedEvent, ShipDespawnedEvent, ShipSpawnedEvent,
+    MineralMinedEvent, MineralSoldEvent, SessionClosedEvent, SessionOpenedEvent,
+    ShipDespawnedEvent, ShipSpawnedEvent,
 };
 use crate::historical::MineralDiscoveredEvent;
 use crate::messages::{
     CommandResultMessage, DepositFieldStateMessage, HistoricalEventNoticeMessage,
-    InventoryStateMessage, PingReplyMessage, SessionReadyMessage, WorldSnapshotMessage,
+    InventoryStateMessage, MarketStateMessage, PingReplyMessage, SaleReceiptMessage,
+    SessionReadyMessage, WalletStateMessage, WorldSnapshotMessage,
 };
 
 /// `PING_SERVER` 레지스트리 이름.
@@ -75,6 +79,20 @@ pub const DEPOSIT_FIELD: &str = "DEPOSIT_FIELD";
 pub const MINING_RULES: &str = "MINING_RULES";
 /// `SIGNIFICANCE_RULE` 레지스트리 이름.
 pub const SIGNIFICANCE_RULE: &str = "SIGNIFICANCE_RULE";
+/// `SELL_MINERAL` 레지스트리 이름.
+pub const SELL_MINERAL: &str = "SELL_MINERAL";
+/// `MINERAL_SOLD` 레지스트리 이름.
+pub const MINERAL_SOLD: &str = "MINERAL_SOLD";
+/// `WALLET_STATE` 레지스트리 이름.
+pub const WALLET_STATE: &str = "WALLET_STATE";
+/// `SALE_RECEIPT` 레지스트리 이름.
+pub const SALE_RECEIPT: &str = "SALE_RECEIPT";
+/// `MARKET_STATE` 레지스트리 이름.
+pub const MARKET_STATE: &str = "MARKET_STATE";
+/// `MARKET` 레지스트리 이름.
+pub const MARKET: &str = "MARKET";
+/// `DEPOSIT_RESERVE` 레지스트리 이름.
+pub const DEPOSIT_RESERVE: &str = "DEPOSIT_RESERVE";
 
 /// JSON 값을 해당 Rust 타입으로 역직렬화한 뒤 다시 직렬화하는 함수.
 ///
@@ -307,7 +325,7 @@ pub static CONTRACT_TYPES: &[ContractType] = &[
         name: DEPOSIT_FIELD,
         kind: "data",
         schema_path: "data/deposit-field.schema.json",
-        schema_version: 1,
+        schema_version: 2,
         rust_type: "starfall_contracts::data::DepositFieldTable",
         round_trip: round_trip_as::<DepositFieldTable>,
         responses: &[],
@@ -328,6 +346,76 @@ pub static CONTRACT_TYPES: &[ContractType] = &[
         schema_version: 1,
         rust_type: "starfall_contracts::data::SignificanceRuleTable",
         round_trip: round_trip_as::<SignificanceRuleTable>,
+        responses: &[],
+    },
+    ContractType {
+        name: SELL_MINERAL,
+        kind: "command",
+        schema_path: "commands/SELL_MINERAL.schema.json",
+        schema_version: 1,
+        rust_type: "starfall_contracts::commands::SellMineralCommand",
+        round_trip: round_trip_as::<SellMineralCommand>,
+        // MARKET_STATE(월드 브로드캐스트)는 응답이 아니다(스펙 §5.1a 비고) — 여기 넣지
+        // 않는다.
+        responses: &[
+            (COMMAND_RESULT, "always"),
+            (SALE_RECEIPT, "accepted"),
+            (INVENTORY_STATE, "accepted"),
+            (WALLET_STATE, "accepted"),
+        ],
+    },
+    ContractType {
+        name: MINERAL_SOLD,
+        kind: "domain_event",
+        schema_path: "events/domain/MINERAL_SOLD.schema.json",
+        schema_version: 1,
+        rust_type: "starfall_contracts::events::MineralSoldEvent",
+        round_trip: round_trip_as::<MineralSoldEvent>,
+        responses: &[],
+    },
+    ContractType {
+        name: WALLET_STATE,
+        kind: "server_message",
+        schema_path: "messages/WALLET_STATE.schema.json",
+        schema_version: 1,
+        rust_type: "starfall_contracts::messages::WalletStateMessage",
+        round_trip: round_trip_as::<WalletStateMessage>,
+        responses: &[],
+    },
+    ContractType {
+        name: SALE_RECEIPT,
+        kind: "server_message",
+        schema_path: "messages/SALE_RECEIPT.schema.json",
+        schema_version: 1,
+        rust_type: "starfall_contracts::messages::SaleReceiptMessage",
+        round_trip: round_trip_as::<SaleReceiptMessage>,
+        responses: &[],
+    },
+    ContractType {
+        name: MARKET_STATE,
+        kind: "server_message",
+        schema_path: "messages/MARKET_STATE.schema.json",
+        schema_version: 1,
+        rust_type: "starfall_contracts::messages::MarketStateMessage",
+        round_trip: round_trip_as::<MarketStateMessage>,
+        responses: &[],
+    },
+    ContractType {
+        name: MARKET,
+        kind: "data",
+        schema_path: "data/market.schema.json",
+        schema_version: 1,
+        rust_type: "starfall_contracts::data::MarketTable",
+        round_trip: round_trip_as::<MarketTable>,
+        responses: &[],
+    },
+    ContractType {
+        name: DEPOSIT_RESERVE,
+        kind: "data",
+        schema_path: "data/deposit-reserve.schema.json",
+        schema_version: 1,
+        rust_type: "starfall_contracts::data::DepositReserveTable",
+        round_trip: round_trip_as::<DepositReserveTable>,
         responses: &[],
     },
 ];
@@ -377,10 +465,17 @@ mod tests {
             DEPOSIT_FIELD,
             MINING_RULES,
             SIGNIFICANCE_RULE,
+            SELL_MINERAL,
+            MINERAL_SOLD,
+            WALLET_STATE,
+            SALE_RECEIPT,
+            MARKET_STATE,
+            MARKET,
+            DEPOSIT_RESERVE,
         ] {
             assert!(find(name).is_some(), "{name} 이 대응표에 없다");
         }
-        assert_eq!(CONTRACT_TYPES.len(), 23);
+        assert_eq!(CONTRACT_TYPES.len(), 30);
         assert!(find("NOT_A_CONTRACT_TYPE").is_none());
     }
 }

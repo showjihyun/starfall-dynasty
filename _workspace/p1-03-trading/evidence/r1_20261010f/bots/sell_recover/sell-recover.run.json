@@ -1,0 +1,71 @@
+{
+  "actor_id": "01a0b1c2-b010-7000-8000-000000000170",
+  "close_initiator": "client",
+  "ferrosite_market": [
+    {
+      "last_sale": null,
+      "price_cr_per_kg": 10,
+      "saturation_kg": 0,
+      "tick": 1227
+    },
+    {
+      "last_sale": {
+        "actor_id": "01a0b1c2-b010-7000-8000-000000000170",
+        "quantity_kg": 14000,
+        "tick": 7820
+      },
+      "price_cr_per_kg": 3,
+      "saturation_kg": 14000,
+      "tick": 7820
+    },
+    {
+      "last_sale": {
+        "actor_id": "01a0b1c2-b010-7000-8000-000000000170",
+        "quantity_kg": 14000,
+        "tick": 7820
+      },
+      "price_cr_per_kg": 4,
+      "saturation_kg": 13000,
+      "tick": 8400
+    }
+  ],
+  "goto_failures": 0,
+  "inventory_ferrosite_last": 0,
+  "item": "[reference] 참고: p1-03 회복·재기동 단계 — 바닥 판매·회복 관측 / 재기동 뒤 보존·첫 배수 회복 관측. 판정은 restart_cases.py sell-recover (SC-51)",
+  "open_at_end": true,
+  "own_ship_id": "01a125e2-4535-7192-bfe7-3bdaf27bb4c6",
+  "phase": "run",
+  "ready_tick": 10,
+  "receipts": [
+    {
+      "command_id": "01a125e8-3a7b-7563-a051-e3a3c9e566f0",
+      "proceeds_cr": 98000,
+      "tick": 7820
+    }
+  ],
+  "sells": [
+    {
+      "command_id": "01a125e8-3a7b-7563-a051-e3a3c9e566f0",
+      "quantity_kg": 14000,
+      "results": [
+        {
+          "reason": null,
+          "status": "ACCEPTED",
+          "tick": 7820
+        }
+      ]
+    }
+  ],
+  "verdict": "PASS",
+  "wallets": [
+    {
+      "balance_cr": 0,
+      "tick": 10
+    },
+    {
+      "balance_cr": 98000,
+      "tick": 7820
+    }
+  ],
+  "world_id": "01a125e2-3c2b-732a-95bb-48b45826638b"
+}

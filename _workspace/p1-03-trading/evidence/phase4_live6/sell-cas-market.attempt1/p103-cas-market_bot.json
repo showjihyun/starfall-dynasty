@@ -1,0 +1,91 @@
+{
+  "actor_id": "01a0b1c2-b010-7000-8000-000000000160",
+  "close_initiator": "server",
+  "ferrosite_market": [
+    {
+      "last_sale": null,
+      "price_cr_per_kg": 10,
+      "saturation_kg": 0,
+      "tick": 671
+    },
+    {
+      "last_sale": {
+        "actor_id": "01a0b1c2-b010-7000-8000-000000000160",
+        "quantity_kg": 200,
+        "tick": 1636
+      },
+      "price_cr_per_kg": 10,
+      "saturation_kg": 200,
+      "tick": 1636
+    },
+    {
+      "last_sale": {
+        "actor_id": "01a0b1c2-b010-7000-8000-000000000160",
+        "quantity_kg": 100,
+        "tick": 1726
+      },
+      "price_cr_per_kg": 10,
+      "saturation_kg": 300,
+      "tick": 1726
+    }
+  ],
+  "goto_failures": 0,
+  "inventory_ferrosite_last": 100,
+  "item": "[reference] 참고: p1-03 변조 단계 — 판매 수락 → ready → (지갑 또는 시장 행 SQL 변조) → 판매. 판정은 restart_cases.py sell-cas·sell-cas-market (SC-34·35)",
+  "open_at_end": false,
+  "own_ship_id": "01a11813-d5b3-71f7-9d53-92f46422ca5c",
+  "phase": "run",
+  "ready_tick": 9,
+  "receipts": [
+    {
+      "command_id": "01a11815-134d-71a5-9a3c-ca27b9a6fb4f",
+      "proceeds_cr": 2000,
+      "tick": 1636
+    },
+    {
+      "command_id": "01a11815-24e2-746d-8592-2f87157e62d9",
+      "proceeds_cr": 1000,
+      "tick": 1726
+    }
+  ],
+  "sells": [
+    {
+      "command_id": "01a11815-134d-71a5-9a3c-ca27b9a6fb4f",
+      "quantity_kg": 200,
+      "results": [
+        {
+          "reason": null,
+          "status": "ACCEPTED",
+          "tick": 1636
+        }
+      ]
+    },
+    {
+      "command_id": "01a11815-24e2-746d-8592-2f87157e62d9",
+      "quantity_kg": 100,
+      "results": [
+        {
+          "reason": null,
+          "status": "ACCEPTED",
+          "tick": 1726
+        }
+      ]
+    }
+  ],
+  "verdict": "PASS",
+  "wallets": [
+    {
+      "balance_cr": 0,
+      "tick": 9
+    },
+    {
+      "balance_cr": 2000,
+      "tick": 1636
+    },
+    {
+      "balance_cr": 3000,
+      "tick": 1726
+    }
+  ],
+  "world_id": "01a11813-cd0f-76ef-8f23-4e7ad8245984"
+}

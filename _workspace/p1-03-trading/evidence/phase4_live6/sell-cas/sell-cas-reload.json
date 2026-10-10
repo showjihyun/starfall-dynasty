@@ -1,0 +1,75 @@
+{
+  "actor_id": "01a0b1c2-b010-7000-8000-000000000160",
+  "close_initiator": "client",
+  "ferrosite_market": [
+    {
+      "last_sale": {
+        "actor_id": "01a0b1c2-b010-7000-8000-000000000160",
+        "quantity_kg": 200,
+        "tick": 2167
+      },
+      "price_cr_per_kg": 10,
+      "saturation_kg": 200,
+      "tick": 2235
+    },
+    {
+      "last_sale": {
+        "actor_id": "01a0b1c2-b010-7000-8000-000000000160",
+        "quantity_kg": 200,
+        "tick": 2167
+      },
+      "price_cr_per_kg": 10,
+      "saturation_kg": 0,
+      "tick": 2400
+    },
+    {
+      "last_sale": {
+        "actor_id": "01a0b1c2-b010-7000-8000-000000000160",
+        "quantity_kg": 100,
+        "tick": 2863
+      },
+      "price_cr_per_kg": 10,
+      "saturation_kg": 100,
+      "tick": 2863
+    }
+  ],
+  "goto_failures": 0,
+  "inventory_ferrosite_last": 100,
+  "item": "[reference] 참고: p1-03 재기동 뒤 판매 — 변조 값 위에서 수락되는가. 판정은 restart_cases.py sell-cas (SC-36)",
+  "open_at_end": true,
+  "own_ship_id": "01a116bf-e9db-73cb-95e6-ad57fd69d67f",
+  "phase": "resume",
+  "ready_tick": 2235,
+  "receipts": [
+    {
+      "command_id": "01a116c0-647a-7609-9be5-61fd6700c519",
+      "proceeds_cr": 1000,
+      "tick": 2863
+    }
+  ],
+  "sells": [
+    {
+      "command_id": "01a116c0-647a-7609-9be5-61fd6700c519",
+      "quantity_kg": 100,
+      "results": [
+        {
+          "reason": null,
+          "status": "ACCEPTED",
+          "tick": 2863
+        }
+      ]
+    }
+  ],
+  "verdict": "PASS",
+  "wallets": [
+    {
+      "balance_cr": 2777,
+      "tick": 2235
+    },
+    {
+      "balance_cr": 3777,
+      "tick": 2863
+    }
+  ],
+  "world_id": "01a116be-2ac3-7632-828b-2c6ec475c733"
+}

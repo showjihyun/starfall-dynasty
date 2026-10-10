@@ -1,0 +1,83 @@
+{
+  "item": "p1-03 SC-58 (AC-13c) — data/**/*.json 각각이 정확히 하나의 data 종류 glob 에 걸린다",
+  "verdict": "PASS",
+  "files": 12,
+  "kinds": 9,
+  "zero_match": [],
+  "multi_match": [],
+  "note": "",
+  "rows": [
+    {
+      "file": "data/history/rules/mineral-discovery.json",
+      "kinds": [
+        "SIGNIFICANCE_RULE"
+      ]
+    },
+    {
+      "file": "data/market/cradle-exchange.json",
+      "kinds": [
+        "MARKET"
+      ]
+    },
+    {
+      "file": "data/minerals/cobaltine.json",
+      "kinds": [
+        "MINERAL"
+      ]
+    },
+    {
+      "file": "data/minerals/ferrosite.json",
+      "kinds": [
+        "MINERAL"
+      ]
+    },
+    {
+      "file": "data/minerals/glacine.json",
+      "kinds": [
+        "MINERAL"
+      ]
+    },
+    {
+      "file": "data/minerals/starfall-glass.json",
+      "kinds": [
+        "MINERAL"
+      ]
+    },
+    {
+      "file": "data/mining/mining-rules.json",
+      "kinds": [
+        "MINING_RULES"
+      ]
+    },
+    {
+      "file": "data/movement/sync-tuning.json",
+      "kinds": [
+        "SYNC_TUNING"
+      ]
+    },
+    {
+      "file": "data/ships/scout-s01.json",
+      "kinds": [
+        "SHIP_CLASS"
+      ]
+    },
+    {
+      "file": "data/world/deposit-reserves/cradle.json",
+      "kinds": [
+        "DEPOSIT_RESERVE"
+      ]
+    },
+    {
+      "file": "data/world/deposits/cradle.json",
+      "kinds": [
+        "DEPOSIT_FIELD"
+      ]
+    },
+    {
+      "file": "data/world/systems/cradle.json",
+      "kinds": [
+        "STAR_SYSTEM"
+      ]
+    }
+  ]
+}

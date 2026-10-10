@@ -1,0 +1,16 @@
+[keep_awake] 절전 방지 시작 — run_round r1
+[22:47:07] == freeze
+[22:47:07]   head: rc=0 PASS 0s
+[22:47:07]   porcelain: rc=0 PASS 0s
+[22:47:08]   fp_before: rc=0 PASS 0s
+[22:47:08] == freeze: PASS
+[22:47:08] == filters
+[22:48:03]   cargo_sc_map: rc=0 PASS 55s
+[22:48:03] == filters: PASS
+[22:48:03] == final
+[22:48:03]   porcelain_end: rc=0 PASS 0s
+[22:48:04]   fp_after: rc=0 PASS 0s
+[22:48:04] == final: PASS
+[22:48:04] DONE
+[keep_awake] 절전 방지 해제
+{"PASS": 3, "SKIP": 9}

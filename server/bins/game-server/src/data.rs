@@ -46,8 +46,9 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use starfall_contracts::data::{
-    Deposit, DepositFieldTable, MineralTable, MiningRulesTable, ShipClassTable,
-    SignificanceRuleTable, StarSystemTable, SyncTuningTable,
+    Deposit, DepositFieldTable, DepositReserve, DepositReserveTable, MarketListing, MarketTable,
+    MineralTable, MiningRulesTable, ShipClassTable, SignificanceRuleTable, StarSystemTable,
+    SyncTuningTable,
 };
 
 /// 데이터 로딩·검산 실패. 전부 기동 거부로 이어진다.
@@ -143,6 +144,18 @@ pub enum DataError {
         /// 디렉토리.
         dir: PathBuf,
     },
+    /// `world/deposit-reserves/` 에 파일이 하나도 없다(p1-03, ADR-0015 §2).
+    #[error("기동 거부: {dir} 에 매장지 예비(서버 전용) 파일이 없다")]
+    NoDepositReserves {
+        /// 디렉토리.
+        dir: PathBuf,
+    },
+    /// `market/` 에 파일이 하나도 없다(p1-03).
+    #[error("기동 거부: {dir} 에 시장 파일이 없다")]
+    NoMarkets {
+        /// 디렉토리.
+        dir: PathBuf,
+    },
 }
 
 /// 기동 시 로드된 게임 데이터. 프로세스 수명 동안 불변이다.
@@ -161,8 +174,16 @@ pub struct GameData {
     /// `id` → 행(p1-02, `data/minerals/*.json`).
     pub minerals: BTreeMap<String, MineralTable>,
     /// `id` → 행(p1-02, `data/world/deposits/*.json` — 이 슬라이스가 로딩한 성계의
-    /// 것만, `star_system_id` 는 §4.7 검산에서 이미 대조됐다).
+    /// 것만, `star_system_id` 는 §4.7 검산에서 이미 대조됐다). **공개부**(schema_version
+    /// 2) — `mineral_id`·`initial_reserve_kg` 는 없다(ADR-0015 §2).
     pub deposits: BTreeMap<String, Deposit>,
+    /// `deposit_id` → 서버 전용 진실(p1-03, `data/world/deposit-reserves/*.json`).
+    /// [`Self::deposits`] 와 같은 키 공간 — §4.8 기동 검산이 양방향 집합 일치를
+    /// 보장한다. `mineral_id`·`initial_reserve_kg` 는 여기에만 있다.
+    pub deposit_reserves: BTreeMap<String, DepositReserve>,
+    /// `id` → 행(p1-03, `data/market/*.json`). **공개** 데이터 종류(ADR-0015) — 전부
+    /// 클라이언트 사본에 들어간다.
+    pub markets: BTreeMap<String, MarketTable>,
     /// 채굴 판정 세 수치(p1-02, `data/mining/mining-rules.json`).
     pub mining_rules: MiningRulesTable,
     /// `cooldown_s * tick_hz` 유도(모듈 문서 참고 — 스키마가 이미 정수를 강제해 이 곱은
@@ -197,6 +218,17 @@ impl GameData {
                 .values()
                 .next()
                 .map(|rule| rule.rule_version.as_str())
+        } else {
+            None
+        }
+    }
+
+    /// 이 슬라이스의 유일한 시장(`/debug/stats`, SC-04/Q-7). 시장이 정확히 1개가
+    /// 아니면 `None`(방어적 — `sole_rule_version` 과 같은 규약).
+    #[must_use]
+    pub fn sole_market(&self) -> Option<&MarketTable> {
+        if self.markets.len() == 1 {
+            self.markets.values().next()
         } else {
             None
         }
@@ -524,19 +556,33 @@ fn load_deposit_fields(dir: &Path) -> Result<Vec<(PathBuf, DepositFieldTable)>, 
         .collect()
 }
 
-/// 매장지 유도값 검산 전체(§4.7): 파일의 `star_system_id` 일치 / `mineral_id` 가 광물
-/// 표에 존재 / 모든 광물이 매장지 ≥1 / 소프트 경계 안 / `regen_kg ≤ initial_reserve_kg`
-/// / 매장지 `id` 중복 없음 / 두 매장지의 채굴 구역이 겹치지 않음.
+fn load_deposit_reserves(dir: &Path) -> Result<Vec<(PathBuf, DepositReserveTable)>, DataError> {
+    let files = json_files(dir)?;
+    if files.is_empty() {
+        return Err(DataError::NoDepositReserves {
+            dir: dir.to_path_buf(),
+        });
+    }
+    files
+        .into_iter()
+        .map(|file| {
+            let table: DepositReserveTable = read_and_parse(&file)?;
+            Ok((file, table))
+        })
+        .collect()
+}
+
+/// 매장지 공개부(`DEPOSIT_FIELD` v2) 유도값 검산: 파일의 `star_system_id` 일치 / 소프트
+/// 경계 안(광맥 반지름 + 채굴 사거리) / 매장지 `id` 중복 없음 / 두 매장지의 채굴 구역이
+/// 겹치지 않음(§4.7). `mineral_id`·`initial_reserve_kg` 가 필요한 검산은 공개부에 그
+/// 필드가 없으므로([`validate_deposit_reserves`]로 옮겼다).
 fn validate_deposit_fields(
     loaded: &[(PathBuf, DepositFieldTable)],
     star_system_id: &str,
     soft_boundary_radius_m: f64,
     mining_range_from_surface_m: f64,
-    minerals: &BTreeMap<String, MineralTable>,
 ) -> Result<BTreeMap<String, Deposit>, DataError> {
     let mut by_id: BTreeMap<String, (PathBuf, Deposit)> = BTreeMap::new();
-    let mut minerals_with_deposit: std::collections::BTreeSet<String> =
-        std::collections::BTreeSet::new();
 
     for (file, table) in loaded {
         if table.star_system_id.as_str() != star_system_id {
@@ -559,14 +605,6 @@ fn validate_deposit_fields(
                 });
             }
 
-            let mineral_id = deposit.mineral_id.as_str();
-            let mineral = minerals.get(mineral_id).ok_or_else(|| DataError::Derived {
-                file: file.clone(),
-                field: format!("deposits[{deposit_id}].mineral_id"),
-                expected: "광물 표(data/minerals/)에 존재".to_owned(),
-                actual: mineral_id.to_owned(),
-            })?;
-
             let distance_from_origin = (deposit.position_m[0] * deposit.position_m[0]
                 + deposit.position_m[1] * deposit.position_m[1]
                 + deposit.position_m[2] * deposit.position_m[2])
@@ -583,35 +621,7 @@ fn validate_deposit_fields(
                 });
             }
 
-            let regen_kg = mineral.regeneration.regen_kg.get();
-            let initial_reserve_kg = deposit.initial_reserve_kg.get();
-            if regen_kg > initial_reserve_kg {
-                return Err(DataError::Derived {
-                    file: file.clone(),
-                    field: format!("deposits[{deposit_id}].initial_reserve_kg"),
-                    expected: format!(
-                        ">= mineral({mineral_id}).regeneration.regen_kg ({regen_kg})"
-                    ),
-                    actual: initial_reserve_kg.to_string(),
-                });
-            }
-
-            minerals_with_deposit.insert(mineral_id.to_owned());
             by_id.insert(deposit_id, (file.clone(), deposit.clone()));
-        }
-    }
-
-    for mineral_id in minerals.keys() {
-        if !minerals_with_deposit.contains(mineral_id) {
-            return Err(DataError::Derived {
-                file: loaded
-                    .first()
-                    .map(|(file, _)| file.clone())
-                    .unwrap_or_default(),
-                field: "deposits".to_owned(),
-                expected: format!("광물 {mineral_id} 을(를) 내는 매장지 >= 1(§4.7)"),
-                actual: "0".to_owned(),
-            });
         }
     }
 
@@ -647,6 +657,330 @@ fn validate_deposit_fields(
         .into_iter()
         .map(|(id, (_, deposit))| (id, deposit))
         .collect())
+}
+
+/// 매장지 서버 전용부(`DEPOSIT_RESERVE`) 유도값 검산 + 공개부와의 짝 맞추기
+/// (p1-03, ADR-0015 §2, 스펙 §4.8 d01~d04): 파일의 `star_system_id` 일치 / `deposit_id`
+/// 집합이 [`validate_deposit_fields`]가 돌려준 공개부 집합과 **양방향**으로 같음 /
+/// `mineral_id` 가 광물 표에 존재 / 모든 광물이 매장지 ≥1 / `regen_kg ≤
+/// initial_reserve_kg` / `deposit_id` 중복 없음.
+fn validate_deposit_reserves(
+    loaded: &[(PathBuf, DepositReserveTable)],
+    star_system_id: &str,
+    public_deposit_ids: &BTreeMap<String, Deposit>,
+    minerals: &BTreeMap<String, MineralTable>,
+) -> Result<BTreeMap<String, DepositReserve>, DataError> {
+    let mut by_id: BTreeMap<String, (PathBuf, DepositReserve)> = BTreeMap::new();
+    let mut minerals_with_deposit: std::collections::BTreeSet<String> =
+        std::collections::BTreeSet::new();
+
+    for (file, table) in loaded {
+        if table.star_system_id.as_str() != star_system_id {
+            return Err(DataError::Derived {
+                file: file.clone(),
+                field: "star_system_id".to_owned(),
+                expected: format!("로딩된 성계와 일치 ({star_system_id})"),
+                actual: table.star_system_id.as_str().to_owned(),
+            });
+        }
+
+        for reserve in &table.deposits {
+            let deposit_id = reserve.deposit_id.as_str().to_owned();
+            if by_id.contains_key(&deposit_id) {
+                return Err(DataError::Derived {
+                    file: file.clone(),
+                    field: "deposits[].deposit_id".to_owned(),
+                    expected: "고유 deposit_id (예비 행 중복 없음, §4.8 d01~d04)".to_owned(),
+                    actual: deposit_id,
+                });
+            }
+
+            let mineral_id = reserve.mineral_id.as_str();
+            let mineral = minerals.get(mineral_id).ok_or_else(|| DataError::Derived {
+                file: file.clone(),
+                field: format!("deposits[{deposit_id}].mineral_id"),
+                expected: "광물 표(data/minerals/)에 존재".to_owned(),
+                actual: mineral_id.to_owned(),
+            })?;
+
+            let regen_kg = mineral.regeneration.regen_kg.get();
+            let initial_reserve_kg = reserve.initial_reserve_kg.get();
+            if regen_kg > initial_reserve_kg {
+                return Err(DataError::Derived {
+                    file: file.clone(),
+                    field: format!("deposits[{deposit_id}].initial_reserve_kg"),
+                    expected: format!(
+                        ">= mineral({mineral_id}).regeneration.regen_kg ({regen_kg})"
+                    ),
+                    actual: initial_reserve_kg.to_string(),
+                });
+            }
+
+            minerals_with_deposit.insert(mineral_id.to_owned());
+            by_id.insert(deposit_id, (file.clone(), reserve.clone()));
+        }
+    }
+
+    // §4.8 d01·d02 — 공개부·예비부 deposit_id 집합이 양방향으로 같다. 광물 커버리지
+    // 검산(아래)보다 **먼저** 본다 — 짝이 없는 매장지를 빼면 그 광물의 매장지 수가
+    // 0이 되는 경우가 있어(이 성계에서 그 광물이 매장지 하나뿐), 순서를 바꾸면
+    // "짝이 없다"는 사실이 "광물에 매장지가 없다"는 다른 사실에 가려진다.
+    let reserve_ids: std::collections::BTreeSet<&String> = by_id.keys().collect();
+    let public_ids: std::collections::BTreeSet<&String> = public_deposit_ids.keys().collect();
+    let only_in_reserve: Vec<String> = reserve_ids
+        .difference(&public_ids)
+        .map(|id| (*id).clone())
+        .collect();
+    if !only_in_reserve.is_empty() {
+        return Err(DataError::Derived {
+            file: loaded
+                .first()
+                .map(|(file, _)| file.clone())
+                .unwrap_or_default(),
+            field: "deposits[].deposit_id".to_owned(),
+            expected: "DEPOSIT_FIELD(공개부)에도 같은 deposit_id 가 있다(§4.8 d02)".to_owned(),
+            actual: only_in_reserve.join(", "),
+        });
+    }
+    let only_in_public: Vec<String> = public_ids
+        .difference(&reserve_ids)
+        .map(|id| (*id).clone())
+        .collect();
+    if !only_in_public.is_empty() {
+        return Err(DataError::Derived {
+            file: loaded
+                .first()
+                .map(|(file, _)| file.clone())
+                .unwrap_or_default(),
+            field: "deposits[].id".to_owned(),
+            expected: "DEPOSIT_RESERVE(예비부)에도 같은 deposit_id 가 있다(§4.8 d01)".to_owned(),
+            actual: only_in_public.join(", "),
+        });
+    }
+
+    for mineral_id in minerals.keys() {
+        if !minerals_with_deposit.contains(mineral_id) {
+            return Err(DataError::Derived {
+                file: loaded
+                    .first()
+                    .map(|(file, _)| file.clone())
+                    .unwrap_or_default(),
+                field: "deposits".to_owned(),
+                expected: format!("광물 {mineral_id} 을(를) 내는 매장지 >= 1(§4.7)"),
+                actual: "0".to_owned(),
+            });
+        }
+    }
+
+    Ok(by_id
+        .into_iter()
+        .map(|(id, (_, reserve))| (id, reserve))
+        .collect())
+}
+
+// ---------------------------------------------------------------------------
+// p1-03(S2) — data/market
+// ---------------------------------------------------------------------------
+
+fn load_markets(dir: &Path) -> Result<Vec<(PathBuf, MarketTable)>, DataError> {
+    let files = json_files(dir)?;
+    if files.is_empty() {
+        return Err(DataError::NoMarkets {
+            dir: dir.to_path_buf(),
+        });
+    }
+    files
+        .into_iter()
+        .map(|file| {
+            let table: MarketTable = read_and_parse(&file)?;
+            Ok((file, table))
+        })
+        .collect()
+}
+
+/// `floor_band = ceil((100 - price_floor_pct) / price_drop_pct_per_band)`(디자인 §3.3,
+/// 스펙 §4.2a). 정수만, 0 쪽 올림(피연산자가 전부 음이 아니므로 `(a + b - 1) / b`).
+fn floor_band(price_floor_pct: i64, price_drop_pct_per_band: i64) -> i64 {
+    let numerator = 100 - price_floor_pct;
+    // 0 쪽 올림(피연산자가 전부 음이 아니다) — `i64::div_ceil` 은 이 툴체인에서 아직
+    // 안정화되지 않았다(E0658).
+    (numerator + price_drop_pct_per_band - 1) / price_drop_pct_per_band
+}
+
+/// 시장 유도값 검산 전체(스펙 §4.8, 스프린트 계약 SC-05 m01~m12 — m08·m09·m13 은
+/// architect3 결정(2026-10-06)으로 여기서 만들지 않는다: `sell_cooldown_s`·
+/// `recovery_interval_s` × `tick_hz` 정수 검산과 `(2^31-1) × max(base) <=
+/// 2^53-1` 은 스키마가 이미 보장해 도달 불가능한 코드가 된다. m13 은 architect3
+/// 최종 판정(Q-1, 2026-10-07)으로 전용 단위 테스트도 **삭제**했다 — 스펙 §4.8이
+/// "계약이 보장하는 것"으로 명시적으로 옮겨졌으므로 고아 테스트를 남기지 않는다):
+/// `star_system_id` 일치(m01) / `pricing_version` 이 `id + "@"` 로 시작(m02) /
+/// 광물마다 상장 정확히 하나(m03·m04) / 상장의 `mineral_id` 가 광물 표에 존재(m05) /
+/// 소프트 경계 안(m06) / 도킹 구역이 어느 매장지의 채굴 구역과도 겹치지 않음(m07) /
+/// 모든 상장의 바닥값 `base * price_floor_pct div 100 >= 1`(m10) / 모든 상장의 포화
+/// 상한 `floor_band * band_kg <= 2147483647`(m11) / 시장 `id` 중복 없음(m12).
+#[allow(clippy::too_many_arguments)]
+fn validate_markets(
+    loaded: &[(PathBuf, MarketTable)],
+    star_system_id: &str,
+    soft_boundary_radius_m: f64,
+    mining_range_from_surface_m: f64,
+    minerals: &BTreeMap<String, MineralTable>,
+    deposits: &BTreeMap<String, Deposit>,
+) -> Result<BTreeMap<String, MarketTable>, DataError> {
+    let mut by_id: BTreeMap<String, (PathBuf, MarketTable)> = BTreeMap::new();
+
+    for (file, table) in loaded {
+        let market_id = table.id.as_str().to_owned();
+        // m12 — 시장 id 중복 없음.
+        if by_id.contains_key(&market_id) {
+            return Err(DataError::Derived {
+                file: file.clone(),
+                field: "id".to_owned(),
+                expected: "고유 id (시장 id 중복 없음, §4.8 m12)".to_owned(),
+                actual: market_id,
+            });
+        }
+
+        // m01 — star_system_id 일치.
+        if table.star_system_id.as_str() != star_system_id {
+            return Err(DataError::Derived {
+                file: file.clone(),
+                field: "star_system_id".to_owned(),
+                expected: format!("로딩된 성계와 일치 ({star_system_id})"),
+                actual: table.star_system_id.as_str().to_owned(),
+            });
+        }
+
+        // m02 — pricing_version 이 "{id}@" 로 시작.
+        let expected_prefix = format!("{market_id}@");
+        if !table.pricing_version.as_str().starts_with(&expected_prefix) {
+            return Err(DataError::Derived {
+                file: file.clone(),
+                field: "pricing_version".to_owned(),
+                expected: format!("\"{expected_prefix}\" 로 시작"),
+                actual: table.pricing_version.as_str().to_owned(),
+            });
+        }
+
+        // m06 — 소프트 경계 안.
+        let distance_from_origin = (table.position_m[0] * table.position_m[0]
+            + table.position_m[1] * table.position_m[1]
+            + table.position_m[2] * table.position_m[2])
+            .sqrt();
+        let reach = distance_from_origin + table.radius_m + table.rules.dock_range_from_surface_m;
+        if reach > soft_boundary_radius_m {
+            return Err(DataError::Derived {
+                file: file.clone(),
+                field: "position_m".to_owned(),
+                expected: format!(
+                    "|position| + radius_m + dock_range_from_surface_m <= soft_boundary_radius_m ({soft_boundary_radius_m})"
+                ),
+                actual: reach.to_string(),
+            });
+        }
+
+        // m07 — 도킹 구역이 어느 매장지의 채굴 구역과도 겹치지 않는다.
+        for deposit in deposits.values() {
+            let dx = table.position_m[0] - deposit.position_m[0];
+            let dy = table.position_m[1] - deposit.position_m[1];
+            let dz = table.position_m[2] - deposit.position_m[2];
+            let distance = (dx * dx + dy * dy + dz * dz).sqrt();
+            let clearance = table.radius_m
+                + deposit.radius_m
+                + table.rules.dock_range_from_surface_m
+                + mining_range_from_surface_m;
+            if distance <= clearance {
+                return Err(DataError::Derived {
+                    file: file.clone(),
+                    field: format!("position_m<->deposits[{}]", deposit.id.as_str()),
+                    expected: format!(
+                        "거리 > 시장 반지름 + 매장지 반지름 + dock_range_from_surface_m + mining_range_from_surface_m ({clearance})"
+                    ),
+                    actual: distance.to_string(),
+                });
+            }
+        }
+
+        // m03·m04·m05·m10·m11 — 상장마다.
+        let mut minerals_listed: std::collections::BTreeSet<String> =
+            std::collections::BTreeSet::new();
+        for listing in &table.listings {
+            let mineral_id = listing.mineral_id.as_str().to_owned();
+            // m04 — 상장 중복(= 그 광물에 상장이 둘 이상).
+            if minerals_listed.contains(&mineral_id) {
+                return Err(DataError::Derived {
+                    file: file.clone(),
+                    field: "listings[].mineral_id".to_owned(),
+                    expected: "광물마다 상장이 정확히 하나(§4.8 m04)".to_owned(),
+                    actual: mineral_id,
+                });
+            }
+            // m05 — 상장의 mineral_id 가 광물 표에 존재.
+            if !minerals.contains_key(&mineral_id) {
+                return Err(DataError::Derived {
+                    file: file.clone(),
+                    field: "listings[].mineral_id".to_owned(),
+                    expected: "광물 표(data/minerals/)에 존재(§4.8 m05)".to_owned(),
+                    actual: mineral_id,
+                });
+            }
+
+            check_listing_floor_and_cap(file, &table.rules, listing)?;
+            minerals_listed.insert(mineral_id);
+        }
+        // m03 — 모든 광물에 상장이 정확히 하나(= 광물 표 전체가 상장 집합과 같다).
+        for mineral_id in minerals.keys() {
+            if !minerals_listed.contains(mineral_id) {
+                return Err(DataError::Derived {
+                    file: file.clone(),
+                    field: "listings".to_owned(),
+                    expected: format!("광물 {mineral_id} 의 상장 >= 1(§4.8 m03)"),
+                    actual: "0".to_owned(),
+                });
+            }
+        }
+
+        by_id.insert(market_id, (file.clone(), table.clone()));
+    }
+
+    Ok(by_id
+        .into_iter()
+        .map(|(id, (_, table))| (id, table))
+        .collect())
+}
+
+/// 상장 하나의 m10(바닥값 >= 1)·m11(포화 상한 <= `i32::MAX`) — 디자인 §3.3 상수식.
+fn check_listing_floor_and_cap(
+    file: &Path,
+    rules: &starfall_contracts::data::MarketRules,
+    listing: &MarketListing,
+) -> Result<(), DataError> {
+    let base = listing.base_price_cr_per_kg.get();
+    let floor_price = base * rules.price_floor_pct / 100;
+    if floor_price < 1 {
+        return Err(DataError::Derived {
+            file: file.to_path_buf(),
+            field: format!(
+                "listings[{}].base_price_cr_per_kg",
+                listing.mineral_id.as_str()
+            ),
+            expected: "base * price_floor_pct div 100 >= 1(§4.8 m10)".to_owned(),
+            actual: floor_price.to_string(),
+        });
+    }
+
+    let band = floor_band(rules.price_floor_pct, rules.price_drop_pct_per_band);
+    let saturation_cap = band.saturating_mul(i64::from(listing.band_kg.get()));
+    if saturation_cap > i64::from(i32::MAX) {
+        return Err(DataError::Derived {
+            file: file.to_path_buf(),
+            field: format!("listings[{}].band_kg", listing.mineral_id.as_str()),
+            expected: "floor_band * band_kg <= 2147483647(§4.8 m11)".to_owned(),
+            actual: saturation_cap.to_string(),
+        });
+    }
+
+    Ok(())
 }
 
 fn load_significance_rules(dir: &Path) -> Result<Vec<(PathBuf, SignificanceRuleTable)>, DataError> {
@@ -737,17 +1071,34 @@ pub fn load(data_dir: &Path, tick_hz: u32) -> Result<GameData, DataError> {
         star_system.id.as_str(),
         star_system.play_area.soft_boundary_radius_m,
         mining_rules.extraction.mining_range_from_surface_m,
+    )?;
+
+    let deposit_reserve_files = load_deposit_reserves(&data_dir.join("world/deposit-reserves"))?;
+    let deposit_reserves = validate_deposit_reserves(
+        &deposit_reserve_files,
+        star_system.id.as_str(),
+        &deposits,
         &minerals,
+    )?;
+
+    let market_files = load_markets(&data_dir.join("market"))?;
+    let markets = validate_markets(
+        &market_files,
+        star_system.id.as_str(),
+        star_system.play_area.soft_boundary_radius_m,
+        mining_rules.extraction.mining_range_from_surface_m,
+        &minerals,
+        &deposits,
     )?;
 
     let significance_rule_files = load_significance_rules(&data_dir.join("history/rules"))?;
     let significance_rules = validate_significance_rules(&significance_rule_files)?;
 
-    // SC-07 — 여기가 유일한 지점이다: 7종 로더가 **전부 성공한 뒤에만** 도달하므로,
+    // SC-07 — 여기가 유일한 지점이다: 로더가 **전부 성공한 뒤에만** 도달하므로,
     // 실패한 파일이 성공 줄로 찍히는 일이 없다(qa 요구). 로그(실서버 증거, 실행
     // 시점의 부작용)와 반환값(단위 테스트가 재는 값, 전역 상태 없음) 둘 다 같은
-    // 목록에서 만든다 — 팀 리더 방침(2026-09-29): 캡처가 아니라 반환값으로 잰다. 순서는
-    // §2 표(SC-07 판정 대상)와 같은 7종 순서.
+    // 목록에서 만든다 — 팀 리더 방침(2026-09-29): 캡처가 아니라 반환값으로 잰다. p1-03
+    // (S2)이 `world/deposit-reserves/*.json`·`market/*.json` 을 더해 10 → 12종이 됐다.
     let loaded_files: Vec<PathBuf> = ship_class_files
         .iter()
         .map(|(file, _)| file.clone())
@@ -756,6 +1107,8 @@ pub fn load(data_dir: &Path, tick_hz: u32) -> Result<GameData, DataError> {
         .chain(mineral_files.iter().map(|(file, _)| file.clone()))
         .chain(std::iter::once(mining_rules_file))
         .chain(deposit_files.iter().map(|(file, _)| file.clone()))
+        .chain(deposit_reserve_files.iter().map(|(file, _)| file.clone()))
+        .chain(market_files.iter().map(|(file, _)| file.clone()))
         .chain(significance_rule_files.iter().map(|(file, _)| file.clone()))
         .collect();
     let loaded_files: Vec<String> = loaded_files
@@ -777,6 +1130,8 @@ pub fn load(data_dir: &Path, tick_hz: u32) -> Result<GameData, DataError> {
         snapshot_interval_ticks,
         minerals,
         deposits,
+        deposit_reserves,
+        markets,
         mining_rules,
         mining_cooldown_ticks,
         significance_rules,
@@ -829,6 +1184,8 @@ mod tests {
             fs::create_dir_all(root.join("movement")).unwrap();
             fs::create_dir_all(root.join("minerals")).unwrap();
             fs::create_dir_all(root.join("world/deposits")).unwrap();
+            fs::create_dir_all(root.join("world/deposit-reserves")).unwrap();
+            fs::create_dir_all(root.join("market")).unwrap();
             fs::create_dir_all(root.join("mining")).unwrap();
             fs::create_dir_all(root.join("history/rules")).unwrap();
             Self { root }
@@ -879,6 +1236,15 @@ mod tests {
         dir.write(
             "world/deposits/cradle.json",
             &fs::read_to_string(repo_root().join("data/world/deposits/cradle.json")).unwrap(),
+        );
+        dir.write(
+            "world/deposit-reserves/cradle.json",
+            &fs::read_to_string(repo_root().join("data/world/deposit-reserves/cradle.json"))
+                .unwrap(),
+        );
+        dir.write(
+            "market/cradle-exchange.json",
+            &fs::read_to_string(repo_root().join("data/market/cradle-exchange.json")).unwrap(),
         );
         dir.write(
             "mining/mining-rules.json",
@@ -1156,6 +1522,24 @@ mod tests {
         );
         // cooldown_s: 3, tick_hz: 20 → 60 tick(mining-rules.json).
         assert_eq!(loaded.mining_cooldown_ticks, 60);
+
+        // p1-03(S2, SC-04): 시장 1·상장 4·예비 8(= deposits.len() 과 같다, §4.8 d01·d02 가
+        // 양방향 짝을 보장한다).
+        assert_eq!(loaded.markets.len(), 1, "시장 1(cradle-exchange)");
+        assert_eq!(
+            loaded.deposit_reserves.len(),
+            loaded.deposits.len(),
+            "공개부·예비부 매장지 수는 항상 같다(§4.8 d01·d02)"
+        );
+        assert_eq!(
+            loaded.deposit_reserves.len(),
+            8,
+            "매장지 예비 8개(cradle.json)"
+        );
+        let market = loaded.sole_market().expect("시장이 정확히 1개여야 한다");
+        assert_eq!(market.id.as_str(), "cradle-exchange");
+        assert_eq!(market.pricing_version.as_str(), "cradle-exchange@1");
+        assert_eq!(market.listings.len(), 4, "상장 4(광물 4종과 1:1)");
     }
 
     /// 실제 `data/` 로 실서버가 하는 그대로 로드했을 때 이 슬라이스에서 마주치는
@@ -1179,13 +1563,15 @@ mod tests {
     fn reject_c01_deposit_unknown_mineral() {
         let dir = TempDataDir::new("p102-c01-unknown-mineral");
         seed_all_valid(&dir);
-        let deposits = fs::read_to_string(dir.root.join("world/deposits/cradle.json"))
+        // p1-03(ADR-0015 §2): mineral_id 는 공개부(DEPOSIT_FIELD)가 아니라 서버 전용
+        // DEPOSIT_RESERVE 에 있다.
+        let reserves = fs::read_to_string(dir.root.join("world/deposit-reserves/cradle.json"))
             .unwrap()
             .replace(
                 "\"mineral_id\": \"ferrosite\"",
                 "\"mineral_id\": \"unobtainium\"",
             );
-        dir.write("world/deposits/cradle.json", &deposits);
+        dir.write("world/deposit-reserves/cradle.json", &reserves);
         let error = load(&dir.root, 20).unwrap_err();
         match &error {
             DataError::Derived { field, actual, .. } => {
@@ -1202,14 +1588,15 @@ mod tests {
         let dir = TempDataDir::new("p102-c02-orphan-mineral");
         seed_all_valid(&dir);
         // starfall-glass 를 내는 광맥이 하나뿐이다(far-reach) — 그것도 ferrosite 로 바꿔
-        // starfall-glass 를 광맥 없는 광물로 만든다.
-        let deposits = fs::read_to_string(dir.root.join("world/deposits/cradle.json"))
+        // starfall-glass 를 광맥 없는 광물로 만든다. p1-03: mineral_id 는 서버 전용
+        // DEPOSIT_RESERVE 에 있다(ADR-0015 §2).
+        let reserves = fs::read_to_string(dir.root.join("world/deposit-reserves/cradle.json"))
             .unwrap()
             .replace(
                 "\"mineral_id\": \"starfall-glass\"",
                 "\"mineral_id\": \"ferrosite\"",
             );
-        dir.write("world/deposits/cradle.json", &deposits);
+        dir.write("world/deposit-reserves/cradle.json", &reserves);
         let error = load(&dir.root, 20).unwrap_err();
         match &error {
             DataError::Derived { field, actual, .. } => {
@@ -1501,6 +1888,355 @@ mod tests {
         }
     }
 
+    // -----------------------------------------------------------------------
+    // p1-03(S2) — SC-05 m01~m12(시장) + d01~d04(광맥 분할) + m13(단위 테스트).
+    // m08·m09 는 "곱이 비정수"가 스키마 강제로 도달 불가능해(모듈 문서·qa 계약
+    // Q-1) 같은 의도의 도달 가능한 반례(소수 입력, rule=schema)로 둔다 — p1-02
+    // ⑤·⑥과 같은 사정. m13 은 스키마를 거치지 않는 순수 산술 단위 테스트다.
+    // -----------------------------------------------------------------------
+
+    fn valid_market_json() -> String {
+        fs::read_to_string(repo_root().join("data/market/cradle-exchange.json")).unwrap()
+    }
+
+    /// 실제 시장 파일에서 `mineral_id == needle` 인 상장을 지운 JSON 문자열(m03) —
+    /// `deposit_fields_json_without` 와 같은 이유로 문자열 치환이 아니라
+    /// `serde_json::Value` 로 지운다.
+    fn market_json_without_listing(needle: &str) -> String {
+        let mut value: serde_json::Value = serde_json::from_str(&valid_market_json()).unwrap();
+        let listings = value["listings"].as_array_mut().unwrap();
+        let before = listings.len();
+        listings.retain(|listing| listing["mineral_id"].as_str() != Some(needle));
+        assert_eq!(
+            listings.len(),
+            before - 1,
+            "{needle} 상장이 정확히 하나 지워져야 한다"
+        );
+        serde_json::to_string_pretty(&value).unwrap()
+    }
+
+    /// m01 — 시장 파일의 `star_system_id` 가 로딩된 성계와 다름.
+    #[test]
+    fn market_reject_m01_wrong_star_system() {
+        let dir = TempDataDir::new("p103-m01-wrong-system");
+        seed_all_valid(&dir);
+        let market = valid_market_json().replace(
+            "\"star_system_id\": \"cradle\"",
+            "\"star_system_id\": \"elsewhere\"",
+        );
+        dir.write("market/cradle-exchange.json", &market);
+        let error = load(&dir.root, 20).unwrap_err();
+        match &error {
+            DataError::Derived { field, actual, .. } => {
+                assert_eq!(field, "star_system_id");
+                assert_eq!(actual, "elsewhere");
+            }
+            other => panic!("기대와 다른 오류: {other}"),
+        }
+    }
+
+    /// m02 — `pricing_version` 이 `id + "@"` 로 시작하지 않음.
+    #[test]
+    fn market_reject_m02_pricing_version_wrong_prefix() {
+        let dir = TempDataDir::new("p103-m02-pricing-version");
+        seed_all_valid(&dir);
+        let market = valid_market_json().replace(
+            "\"pricing_version\": \"cradle-exchange@1\"",
+            "\"pricing_version\": \"wrong-id@1\"",
+        );
+        dir.write("market/cradle-exchange.json", &market);
+        let error = load(&dir.root, 20).unwrap_err();
+        match &error {
+            DataError::Derived { field, .. } => assert_eq!(field, "pricing_version"),
+            other => panic!("기대와 다른 오류: {other}"),
+        }
+    }
+
+    /// m03 — 상장 없는 광물(glacine 상장을 통째로 삭제).
+    #[test]
+    fn market_reject_m03_mineral_without_listing() {
+        let dir = TempDataDir::new("p103-m03-no-listing");
+        seed_all_valid(&dir);
+        let market = market_json_without_listing("glacine");
+        dir.write("market/cradle-exchange.json", &market);
+        let error = load(&dir.root, 20).unwrap_err();
+        match &error {
+            DataError::Derived { field, actual, .. } => {
+                assert_eq!(field, "listings");
+                assert_eq!(actual, "0");
+            }
+            other => panic!("기대와 다른 오류: {other}"),
+        }
+    }
+
+    /// m04 — 한 광물에 상장이 둘(glacine 상장을 ferrosite 로 바꿔치기 — ferrosite 가 중복).
+    #[test]
+    fn market_reject_m04_duplicate_listing_for_one_mineral() {
+        let dir = TempDataDir::new("p103-m04-dup-listing");
+        seed_all_valid(&dir);
+        let market = valid_market_json().replace(
+            "\"mineral_id\": \"glacine\"",
+            "\"mineral_id\": \"ferrosite\"",
+        );
+        dir.write("market/cradle-exchange.json", &market);
+        let error = load(&dir.root, 20).unwrap_err();
+        match &error {
+            DataError::Derived { field, .. } => assert_eq!(field, "listings[].mineral_id"),
+            other => panic!("기대와 다른 오류: {other}"),
+        }
+    }
+
+    /// m05 — 상장의 `mineral_id` 가 광물 표에 없음.
+    #[test]
+    fn market_reject_m05_listing_unknown_mineral() {
+        let dir = TempDataDir::new("p103-m05-unknown-mineral");
+        seed_all_valid(&dir);
+        let market = valid_market_json().replace(
+            "\"mineral_id\": \"cobaltine\"",
+            "\"mineral_id\": \"unobtainium\"",
+        );
+        dir.write("market/cradle-exchange.json", &market);
+        let error = load(&dir.root, 20).unwrap_err();
+        match &error {
+            DataError::Derived { field, actual, .. } => {
+                assert_eq!(field, "listings[].mineral_id");
+                assert_eq!(actual, "unobtainium");
+            }
+            other => panic!("기대와 다른 오류: {other}"),
+        }
+    }
+
+    /// m06 — `|position| + radius_m + dock_range_from_surface_m > soft_boundary_radius_m`
+    /// (소프트 경계 10,000 m, 위치를 (0, 9800, 0)으로 — 9800 + 120 + 200 = 10120 > 10000).
+    #[test]
+    fn market_reject_m06_outside_soft_boundary() {
+        let dir = TempDataDir::new("p103-m06-soft-boundary");
+        seed_all_valid(&dir);
+        let market = valid_market_json().replace("[0.0, 1500.0, 0.0]", "[0.0, 9800.0, 0.0]");
+        dir.write("market/cradle-exchange.json", &market);
+        let error = load(&dir.root, 20).unwrap_err();
+        match &error {
+            DataError::Derived { field, .. } => assert_eq!(field, "position_m"),
+            other => panic!("기대와 다른 오류: {other}"),
+        }
+    }
+
+    /// m07 — 도킹 구역이 매장지(Inner Belt 1)의 채굴 구역과 겹침(시장을 그 위치로 옮김).
+    #[test]
+    fn market_reject_m07_docking_zone_overlaps_mining_zone() {
+        let dir = TempDataDir::new("p103-m07-overlap");
+        seed_all_valid(&dir);
+        let market = valid_market_json().replace("[0.0, 1500.0, 0.0]", "[-3200.0, 150.0, -2400.0]");
+        dir.write("market/cradle-exchange.json", &market);
+        let error = load(&dir.root, 20).unwrap_err();
+        match &error {
+            DataError::Derived { field, .. } => assert!(field.contains("<->"), "{error}"),
+            other => panic!("기대와 다른 오류: {other}"),
+        }
+    }
+
+    /// m08 — `sell_cooldown_s` 소수(원문의 "곱이 비정수"는 스키마가 정수를 강제해
+    /// 도달 불가 — p1-02 ⑤·⑥과 같은 사정, qa 계약 Q-1 확인).
+    #[test]
+    fn market_reject_m08_sell_cooldown_fractional() {
+        let dir = TempDataDir::new("p103-m08-cooldown-fractional");
+        seed_all_valid(&dir);
+        let market =
+            valid_market_json().replace("\"sell_cooldown_s\": 1", "\"sell_cooldown_s\": 1.5");
+        dir.write("market/cradle-exchange.json", &market);
+        let error = load(&dir.root, 20).unwrap_err();
+        match &error {
+            DataError::Schema { error, .. } => {
+                assert!(error.contains("sell_cooldown_s"), "{error}");
+            }
+            other => panic!("기대와 다른 오류: {other}"),
+        }
+    }
+
+    /// m09 — `recovery_interval_s` 소수 — ⑧ 와 같은 사정.
+    #[test]
+    fn market_reject_m09_recovery_interval_fractional() {
+        let dir = TempDataDir::new("p103-m09-recovery-fractional");
+        seed_all_valid(&dir);
+        let market = valid_market_json().replace(
+            "\"recovery_interval_s\": 60",
+            "\"recovery_interval_s\": 60.5",
+        );
+        dir.write("market/cradle-exchange.json", &market);
+        let error = load(&dir.root, 20).unwrap_err();
+        match &error {
+            DataError::Schema { error, .. } => {
+                assert!(error.contains("recovery_interval_s"), "{error}");
+            }
+            other => panic!("기대와 다른 오류: {other}"),
+        }
+    }
+
+    /// m10 — 바닥값 0(`base=1`, `floor_pct=30` → `1*30 div 100 = 0`).
+    #[test]
+    fn market_reject_m10_floor_price_below_one() {
+        let dir = TempDataDir::new("p103-m10-floor-zero");
+        seed_all_valid(&dir);
+        let market = valid_market_json().replacen(
+            "\"base_price_cr_per_kg\": 10",
+            "\"base_price_cr_per_kg\": 1",
+            1,
+        );
+        dir.write("market/cradle-exchange.json", &market);
+        let error = load(&dir.root, 20).unwrap_err();
+        match &error {
+            DataError::Derived { field, actual, .. } => {
+                assert!(field.contains("base_price_cr_per_kg"), "{error}");
+                assert_eq!(actual, "0");
+            }
+            other => panic!("기대와 다른 오류: {other}"),
+        }
+    }
+
+    /// m11 — 포화 상한 `floor_band * band_kg > 2^31-1`(`band_kg` 를 4억으로 —
+    /// `7 * 400,000,000 = 2.8e9 > 2,147,483,647`).
+    #[test]
+    fn market_reject_m11_saturation_cap_exceeds_mass_kg_max() {
+        let dir = TempDataDir::new("p103-m11-saturation-cap");
+        seed_all_valid(&dir);
+        let market = valid_market_json().replacen("\"band_kg\": 2000", "\"band_kg\": 400000000", 1);
+        dir.write("market/cradle-exchange.json", &market);
+        let error = load(&dir.root, 20).unwrap_err();
+        match &error {
+            DataError::Derived { field, .. } => assert!(field.contains("band_kg"), "{error}"),
+            other => panic!("기대와 다른 오류: {other}"),
+        }
+    }
+
+    /// m12 — 시장 `id` 중복(두 파일에 같은 `id`).
+    #[test]
+    fn market_reject_m12_duplicate_market_id() {
+        let dir = TempDataDir::new("p103-m12-dup-market-id");
+        seed_all_valid(&dir);
+        dir.write("market/cradle-exchange-copy.json", &valid_market_json());
+        let error = load(&dir.root, 20).unwrap_err();
+        match &error {
+            DataError::Derived { field, .. } => assert_eq!(field, "id"),
+            other => panic!("기대와 다른 오류: {other}"),
+        }
+    }
+
+    /// `world/deposits/cradle.json` 에서 `id == needle` 인 배열 원소를 지운 JSON 문자열.
+    /// 문자열 치환은 실제 파일의 들여쓰기·줄바꿈에 손으로 맞춰야 해서 깨지기 쉽다 —
+    /// `serde_json::Value` 로 파싱해 배열에서 지우고 다시 직렬화한다(d01).
+    fn deposit_fields_json_without(needle: &str) -> String {
+        let mut value: serde_json::Value = serde_json::from_str(
+            &fs::read_to_string(repo_root().join("data/world/deposits/cradle.json")).unwrap(),
+        )
+        .unwrap();
+        let deposits = value["deposits"].as_array_mut().unwrap();
+        let before = deposits.len();
+        deposits.retain(|deposit| deposit["id"].as_str() != Some(needle));
+        assert_eq!(
+            deposits.len(),
+            before - 1,
+            "{needle} 항목이 정확히 하나 지워져야 한다"
+        );
+        serde_json::to_string_pretty(&value).unwrap()
+    }
+
+    /// 같은 방식으로 `world/deposit-reserves/cradle.json` 에서 `deposit_id == needle`
+    /// 인 원소를 지운다(d02).
+    fn deposit_reserves_json_without(needle: &str) -> String {
+        let mut value: serde_json::Value = serde_json::from_str(
+            &fs::read_to_string(repo_root().join("data/world/deposit-reserves/cradle.json"))
+                .unwrap(),
+        )
+        .unwrap();
+        let deposits = value["deposits"].as_array_mut().unwrap();
+        let before = deposits.len();
+        deposits.retain(|deposit| deposit["deposit_id"].as_str() != Some(needle));
+        assert_eq!(
+            deposits.len(),
+            before - 1,
+            "{needle} 항목이 정확히 하나 지워져야 한다"
+        );
+        serde_json::to_string_pretty(&value).unwrap()
+    }
+
+    /// d01 — 매장지가 공개부(`DEPOSIT_FIELD`)에만 있고 예비부(`DEPOSIT_RESERVE`)에는
+    /// 없음(far-reach 를 예비부에서 뺀다, 스펙 §4.8 "d01 공개부에만 있는 광맥").
+    #[test]
+    fn deposit_split_reject_d01_only_in_public() {
+        let dir = TempDataDir::new("p103-d01-only-in-public");
+        seed_all_valid(&dir);
+        dir.write(
+            "world/deposit-reserves/cradle.json",
+            &deposit_reserves_json_without("far-reach"),
+        );
+        let error = load(&dir.root, 20).unwrap_err();
+        match &error {
+            DataError::Derived { field, actual, .. } => {
+                assert!(
+                    field.contains("deposit_id") || field.contains("id"),
+                    "{error}"
+                );
+                assert!(actual.contains("far-reach"), "{error}");
+            }
+            other => panic!("기대와 다른 오류: {other}"),
+        }
+    }
+
+    /// d02 — 매장지가 예비부에만 있고 공개부에는 없음(far-reach 를 공개부에서 뺀다,
+    /// 스펙 §4.8 "d02 예비부에만 있는 광맥").
+    #[test]
+    fn deposit_split_reject_d02_only_in_reserve() {
+        let dir = TempDataDir::new("p103-d02-only-in-reserve");
+        seed_all_valid(&dir);
+        dir.write(
+            "world/deposits/cradle.json",
+            &deposit_fields_json_without("far-reach"),
+        );
+        let error = load(&dir.root, 20).unwrap_err();
+        match &error {
+            DataError::Derived { field, actual, .. } => {
+                assert!(
+                    field.contains("deposit_id") || field.contains("id"),
+                    "{error}"
+                );
+                assert!(actual.contains("far-reach"), "{error}");
+            }
+            other => panic!("기대와 다른 오류: {other}"),
+        }
+    }
+
+    /// d03 — `DEPOSIT_FIELD` 옛 모양(`schema_version` 1, p1-02 때). 업캐스터가 없다
+    /// (data 파일은 저장된 역사가 아니다) — 기동 거부.
+    #[test]
+    fn deposit_split_reject_d03_schema_version_1() {
+        let dir = TempDataDir::new("p103-d03-schema-version-1");
+        seed_all_valid(&dir);
+        let fields = fs::read_to_string(dir.root.join("world/deposits/cradle.json"))
+            .unwrap()
+            .replace("\"schema_version\": 2", "\"schema_version\": 1");
+        dir.write("world/deposits/cradle.json", &fields);
+        let error = load(&dir.root, 20).unwrap_err();
+        match &error {
+            DataError::Schema { error, .. } => {
+                assert!(error.contains("schema_version"), "{error}");
+            }
+            other => panic!("기대와 다른 오류: {other}"),
+        }
+    }
+
+    /// d04 — 예비 파일이 없음(짝 자체가 없다).
+    #[test]
+    fn deposit_split_reject_d04_reserve_file_missing() {
+        let dir = TempDataDir::new("p103-d04-reserve-missing");
+        seed_all_valid(&dir);
+        fs::remove_file(dir.root.join("world/deposit-reserves/cradle.json")).unwrap();
+        let error = load(&dir.root, 20).unwrap_err();
+        assert!(
+            matches!(error, DataError::NoDepositReserves { .. }),
+            "{error}"
+        );
+    }
+
     /// SC-07 — 성공 로딩 경로에서 파일마다 `데이터 파일 적재 data_file=<상대 경로>` 한
     /// 줄을 찍는다(qa `data_file_pairs.py` 가 이 줄로 대조한다). 실제 로그 줄 형식은
     /// qa 가 실바이너리 기동 로그로 판정한다 — 이 단위 테스트는 **로그를 캡처하지
@@ -1509,24 +2245,26 @@ mod tests {
     /// 다른 테스트가 이 콜사이트를 먼저 건드려 이 구독자에 이벤트가 안 오는 flaky 가
     /// 실측됐다(10회 중 1회, 팀 리더 발견 2026-09-29). 로그는 `load()` 가 돌려주는
     /// [`GameData::loaded_files`] 와 **같은 목록**에서 만들어지므로(코드로 확인
-    /// 가능), 이 값을 재는 것으로 전역 상태 없이 같은 사실을 증명한다.
+    /// 가능), 이 값을 재는 것으로 전역 상태 없이 같은 사실을 증명한다. p1-03(S2)가
+    /// `world/deposit-reserves/cradle.json`·`market/cradle-exchange.json` 을 더해
+    /// 10 → 12개가 됐다.
     #[test]
-    fn returns_ten_loaded_files_matching_the_boot_log_source() {
+    fn returns_twelve_loaded_files_matching_the_boot_log_source() {
         let dir = TempDataDir::new("p102-sc07-loaded-files");
         seed_all_valid(&dir);
         let loaded = load(&dir.root, 20).expect("실제 data/ 사본 로딩 실패");
 
         assert_eq!(
             loaded.loaded_files.len(),
-            10,
-            "data/**/*.json 10개 전부가 목록에 있어야 한다(SC-06/SC-07): {:?}",
+            12,
+            "data/**/*.json 12개 전부가 목록에 있어야 한다(SC-06/SC-07): {:?}",
             loaded.loaded_files
         );
         // 중복 없음 — 같은 파일이 두 번 읽혔다면 짝 검사가 거짓으로 맞아떨어질 수 있다.
         let unique: std::collections::BTreeSet<&String> = loaded.loaded_files.iter().collect();
         assert_eq!(
             unique.len(),
-            10,
+            12,
             "중복 항목이 있다: {:?}",
             loaded.loaded_files
         );
@@ -1540,6 +2278,8 @@ mod tests {
             "minerals/cobaltine.json",
             "minerals/starfall-glass.json",
             "world/deposits/cradle.json",
+            "world/deposit-reserves/cradle.json",
+            "market/cradle-exchange.json",
             "mining/mining-rules.json",
             "history/rules/mineral-discovery.json",
         ] {

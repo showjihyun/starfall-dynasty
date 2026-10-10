@@ -33,7 +33,12 @@ namespace Starfall.Tests.EditMode
         /// narrowing on SHIP_SPAWNED/SHIP_DESPAWNED). p1-02-mining adds 16 more (client
         /// 2026-09-27, measured by reading each new invalid fixture against the generated DTO
         /// and confirmed empirically for the two fractional-quantity_kg cases - see below): 18
-        /// -> 34 of 74.
+        /// -> 34 of 74. p1-03-trading adds 17 more (client-measured 2026-10-06, sprint contract
+        /// section 0.5 predicted 19 - empirically 2 of the predicted 19, MINERAL_SOLD/
+        /// proceeds-fractional.json and WALLET_STATE/fractional-credits.json, turned out NOT
+        /// detectable: a fractional JSON number into a C# long field does not throw under
+        /// Strict, unlike the same shape into an int field - reported to architect3/qa3 per
+        /// section 0.5's "실측이 예측과 다르면 architect 통지" rule): 34 -> 51 of 113.
         /// </summary>
         static readonly string[][] RejectedByCSharp =
         {
@@ -84,6 +89,40 @@ namespace Starfall.Tests.EditMode
             // - see 03_client_impl.md for both readings.
             new[] { "INVENTORY_STATE", "fractional-quantity.json" },
             new[] { "MINERAL_MINED", "quantity-fractional.json" },
+
+            // p1-03-trading (sprint contract section 0.5, client-measured 2026-10-06): field
+            // injections and missing Required.Always members throw under Strict exactly as the
+            // rows above do. SELL_MINERAL.quantity_kg maps to C# int (MassKg, 2^31-1 ceiling) -
+            // a value above that ceiling overflows Int32 and Newtonsoft throws converting the
+            // JSON number, unlike the long-field "above safe integer" rows below which still fit
+            // Int64 and so are NOT detectable. actor_id/causation_id null follows the same
+            // pattern as the p1-01/p1-02 rows above. A fractional token into an INT field throws
+            // (SELL_MINERAL.quantity_kg below, same as the p1-02 fractional-quantity rows above);
+            // measured empirically (EditMode run, 2026-10-06) that the same fractional token into
+            // a LONG field (CreditAmount: MINERAL_SOLD.proceeds_cr, WALLET_STATE.balance_cr) does
+            // NOT throw - Newtonsoft accepts a fractional JSON number into Int64 differently than
+            // into Int32, so those two moved to NotDetectableByCSharp below instead of staying
+            // here on the original (wrong) assumption that every fractional-into-integral case
+            // behaves the same. This is exactly the architect-notification case sprint contract
+            // section 0.5 describes ("실측이 예측과 다르면 architect 통지") - reported, not silently
+            // reclassified without a trace.
+            new[] { "SELL_MINERAL", "actor-field-injected.json" },
+            new[] { "SELL_MINERAL", "balance-field-injected.json" },
+            new[] { "SELL_MINERAL", "position-field-injected.json" },
+            new[] { "SELL_MINERAL", "price-field-injected.json" },
+            new[] { "SELL_MINERAL", "proceeds-field-injected.json" },
+            new[] { "SELL_MINERAL", "missing-market-id.json" },
+            new[] { "SELL_MINERAL", "quantity-fractional.json" },
+            new[] { "SELL_MINERAL", "quantity-above-mass-max.json" },
+            new[] { "SALE_RECEIPT", "balance-field-injected.json" },
+            new[] { "SALE_RECEIPT", "missing-command-id.json" },
+            new[] { "MARKET_STATE", "unlisted-hint-injected.json" },
+            new[] { "MARKET_STATE", "missing-last-sale-key.json" },
+            new[] { "MINERAL_SOLD", "missing-floor-price.json" },
+            new[] { "MINERAL_SOLD", "missing-pricing-version.json" },
+            new[] { "MINERAL_SOLD", "actor-id-null.json" },
+            new[] { "MINERAL_SOLD", "causation-id-null.json" },
+            new[] { "MINERAL_SOLD", "importance-level-injected.json" },
         };
 
         /// <summary>
@@ -94,7 +133,9 @@ namespace Starfall.Tests.EditMode
         /// set is a plain string in C# on purpose so that an added value does not make an older
         /// client drop whole messages (ADR-0005 section 4). The schema validator and Rust serde
         /// stop all of these at the server boundary. p1-01 measured 10; p1-02-mining adds 13
-        /// more (client 2026-09-27): 10 -> 23 of 74.
+        /// more (client 2026-09-27): 10 -> 23 of 74. p1-03-trading adds 12 more (client-measured
+        /// 2026-10-06: the 10 predicted by sprint contract section 0.5 plus 2 moved here from
+        /// RejectedByCSharp's original prediction - see that array's comment): 23 -> 35 of 113.
         /// </summary>
         static readonly string[][] NotDetectableByCSharp =
         {
@@ -126,13 +167,43 @@ namespace Starfall.Tests.EditMode
             new[] { "MINERAL_DISCOVERED", "source-event-ids-empty.json" },
             new[] { "MINERAL_MINED", "quantity-zero.json" },
             new[] { "MINERAL_MINED", "remaining-negative.json" },
+
+            // p1-03-trading (sprint contract section 0.5, client-measured 2026-10-06). "*-zero"
+            // and "*-negative" on an int/long field: the schema's minimum is not a runtime bound
+            // C# carries, so the value deserializes fine (same reasoning as the p1-02 rows
+            // above). WALLET_STATE/above-safe-integer follows the same pattern as PING_REPLY's
+            // tick-above-safe-integer: balance_cr is a C# long, and a value above 2^53-1 still
+            // fits Int64, so Strict accepts it (contrast SELL_MINERAL/quantity-above-mass-max
+            // above, whose field is a narrower C# int and does overflow).
+            new[] { "SELL_MINERAL", "quantity-zero.json" },
+            new[] { "SALE_RECEIPT", "proceeds-zero.json" },
+            new[] { "MARKET_STATE", "last-sale-quantity-zero.json" },
+            new[] { "MARKET_STATE", "price-zero.json" },
+            new[] { "MARKET_STATE", "saturation-negative.json" },
+            new[] { "MINERAL_SOLD", "proceeds-zero.json" },
+            new[] { "MINERAL_SOLD", "wallet-after-zero.json" },
+            new[] { "MINERAL_SOLD", "quantity-after-negative.json" },
+            new[] { "WALLET_STATE", "negative-credits.json" },
+            new[] { "WALLET_STATE", "above-safe-integer.json" },
+
+            // Measured empirically (EditMode run, 2026-10-06), moved from RejectedByCSharp above:
+            // a fractional JSON number into a C# LONG field (CreditAmount) does not throw under
+            // Strict, unlike the same shape into an INT field (MassKg, see the fractional rows
+            // in RejectedByCSharp). Reported to architect3 - predicted split was 53/33/27, actual
+            // is 51/35/27 (113 total unchanged).
+            new[] { "MINERAL_SOLD", "proceeds-fractional.json" },
+            new[] { "WALLET_STATE", "fractional-credits.json" },
         };
 
         /// <summary>
         /// The counter-examples with no C# layer at all: the three p1-01 data tables
         /// (SHIP_CLASS, STAR_SYSTEM, SYNC_TUNING, two invalid fixtures each = 6) plus the four
         /// p1-02-mining data tables (DEPOSIT_FIELD, MINERAL, MINING_RULES, SIGNIFICANCE_RULE)
-        /// contributing 11 more (3+3+2+3): 6 -> 17 of 74. AC-10(d) deliberately generates no DTO
+        /// contributing 11 more (3+3+2+3): 6 -> 17 of 74. p1-03-trading retires one row
+        /// (DEPOSIT_FIELD/reserve-fractional.json - the field it exercised moved to the new
+        /// DEPOSIT_RESERVE table) and adds 11 (2 more DEPOSIT_FIELD + 3 DEPOSIT_RESERVE + 6
+        /// MARKET, both new "kind": "data" tables): 17 -> 27 of 113 (client-measured
+        /// 2026-10-06, sprint contract section 0.5). AC-10(d) deliberately generates no DTO
         /// for a data kind (confirmed by running the generator: "skipped MINERAL (kind 'data':
         /// no DTO is generated)" etc.), so there is no Strict profile to reject or accept these -
         /// "no layer" is the designed outcome, not a gap.
@@ -149,7 +220,6 @@ namespace Starfall.Tests.EditMode
             // p1-02-mining data tables (AC-10(d): kind "data" gets no generated DTO).
             new[] { "DEPOSIT_FIELD", "no-deposits.json" },
             new[] { "DEPOSIT_FIELD", "position-two-components.json" },
-            new[] { "DEPOSIT_FIELD", "reserve-fractional.json" },
             new[] { "MINERAL", "regen-interval-fractional.json" },
             new[] { "MINERAL", "unread-property.json" },
             new[] { "MINERAL", "yield-fractional.json" },
@@ -158,6 +228,24 @@ namespace Starfall.Tests.EditMode
             new[] { "SIGNIFICANCE_RULE", "foreign-input-rarity.json" },
             new[] { "SIGNIFICANCE_RULE", "importance-level-zero.json" },
             new[] { "SIGNIFICANCE_RULE", "rule-version-malformed.json" },
+
+            // p1-03-trading (ADR-0015 section 2, sprint contract section 0.5, client-measured
+            // 2026-10-06). DEPOSIT_FIELD/reserve-fractional.json was retired above - the field
+            // it exercised (initial_reserve_kg) moved to the new server-only DEPOSIT_RESERVE
+            // table, which (like MARKET) is "kind": "data" and gets no generated DTO (AC-10(d)).
+            // DEPOSIT_FIELD schema_version bumped to 2 at the same time, adding two fixtures of
+            // its own with no C# layer to reject or accept them either.
+            new[] { "DEPOSIT_FIELD", "schema-version-1.json" },
+            new[] { "DEPOSIT_FIELD", "server-only-mineral-field.json" },
+            new[] { "DEPOSIT_RESERVE", "layout-field-injected.json" },
+            new[] { "DEPOSIT_RESERVE", "reserve-fractional.json" },
+            new[] { "DEPOSIT_RESERVE", "reserve-zero.json" },
+            new[] { "MARKET", "floor-pct-zero.json" },
+            new[] { "MARKET", "missing-pricing-version.json" },
+            new[] { "MARKET", "no-listings.json" },
+            new[] { "MARKET", "price-fractional.json" },
+            new[] { "MARKET", "price-zero.json" },
+            new[] { "MARKET", "state-field-injected.json" },
         };
 
         // ------------------------------------------------------------------ SC-47 / SC-66
@@ -201,7 +289,7 @@ namespace Starfall.Tests.EditMode
         }
 
         [Test]
-        public void Fixtures_RoundTrip_Found46_RoundTripped36()
+        public void Fixtures_RoundTrip_Found57_RoundTripped45()
         {
             IReadOnlyList<FixtureFile> found = ContractFixtures.RequireValidFixtures();
             List<FixtureFile> roundTrippable = new List<FixtureFile>(RoundTrippableValidFixtureCases());
@@ -212,13 +300,13 @@ namespace Starfall.Tests.EditMode
                                   roundTrippable.Count);
 
             Assert.That(found.Count, Is.EqualTo(ContractFixtures.ExpectedValidFixtureCount),
-                "The loader must find every valid fixture the contract defines (46: 27 measured " +
-                "at p1-01 plus 19 new for p1-02-mining, sprint contract SC-66).");
+                "The loader must find every valid fixture the contract defines (57: 46 measured " +
+                "through p1-02-mining plus 11 new for p1-03-trading, sprint contract SC-61(b)).");
             Assert.That(roundTrippable.Count, Is.EqualTo(ContractFixtures.ExpectedRoundTrippableValidFixtureCount),
-                "36 of the 46 valid fixtures carry a message_type/command_type/event_type " +
-                "discriminator and must round-trip. The other 10 are data tables with no DTO " +
-                "(AC-10(d): 6 from p1-01, 4 new from p1-02-mining) and must not be silently " +
-                "dropped from either count.");
+                "45 of the 57 valid fixtures carry a message_type/command_type/event_type " +
+                "discriminator and must round-trip. The other 12 are data tables with no DTO " +
+                "(AC-10(d): 10 through p1-02-mining, 2 new from p1-03-trading - DEPOSIT_RESERVE, " +
+                "MARKET) and must not be silently dropped from either count.");
         }
 
         // ------------------------------------------------------------------ SC-24
@@ -256,13 +344,20 @@ namespace Starfall.Tests.EditMode
 
         /// <summary>
         /// Re-narrows the Assert.Catch<JsonException> widening above (team-lead request, qa
-        /// verification round 2): asserts the JsonReaderException subset is EXACTLY the two
-        /// fractional-quantity_kg cases, not a growing set. If a future invalid fixture starts
+        /// verification round 2): asserts the JsonReaderException subset is EXACTLY the known
+        /// reader-level numeric cases, not a growing set. If a future invalid fixture starts
         /// throwing JsonReaderException for an unrelated reason, this fails and someone has to
         /// look, instead of it silently blending into "reject" with no further scrutiny.
+        /// p1-03-trading adds two (client-measured 2026-10-06, EditMode run): SELL_MINERAL/
+        /// quantity-fractional.json (same fractional-into-int shape as the two p1-02 rows) and
+        /// SELL_MINERAL/quantity-above-mass-max.json - which was predicted to fail this way
+        /// (RejectedByCSharp's comment: an Int32-overflowing value), and the actual exception
+        /// type confirms JsonTextReader.ParseNumber rejects it at the reader level before the
+        /// object populator runs, exactly like the fractional cases, not via a populator-level
+        /// range check.
         /// </summary>
         [Test]
-        public void Invalid_Rejected_JsonReaderExceptionSubset_IsExactlyTheFractionalQuantityCases()
+        public void Invalid_Rejected_JsonReaderExceptionSubset_IsExactlyTheReaderLevelNumericCases()
         {
             var readerExceptionCases = new List<string>();
             foreach (FixtureFile fixture in RejectedByCSharpCases())
@@ -281,7 +376,7 @@ namespace Starfall.Tests.EditMode
                 catch (JsonException)
                 {
                     // JsonSerializationException (or another JsonException subtype) - expected
-                    // for the other 32 cases, not this test's concern.
+                    // for the other 47 cases, not this test's concern.
                 }
             }
 
@@ -292,6 +387,8 @@ namespace Starfall.Tests.EditMode
             {
                 "INVENTORY_STATE/fractional-quantity.json",
                 "MINERAL_MINED/quantity-fractional.json",
+                "SELL_MINERAL/quantity-fractional.json",
+                "SELL_MINERAL/quantity-above-mass-max.json",
             }));
         }
 
@@ -304,14 +401,16 @@ namespace Starfall.Tests.EditMode
             TestContext.WriteLine("counter-examples the C# layer must reject: " + visited.Count);
 
             Assert.That(visited.Count, Is.EqualTo(RejectedByCSharp.Length));
-            Assert.That(visited.Count, Is.EqualTo(34),
-                "Sprint contract section 0.5 assigns exactly 34 of the 74 counter-examples to the C# layer (reject): " +
-                "18 measured at p1-01, 16 new for p1-02-mining (client 2026-09-27).");
+            Assert.That(visited.Count, Is.EqualTo(51),
+                "Sprint contract section 0.5 predicted 53 of the 113 counter-examples for the C# layer " +
+                "(reject); client-measured 2026-10-06 is 51 (34 through p1-02-mining, 17 new for " +
+                "p1-03-trading - 2 of the originally predicted 19 turned out not detectable, see " +
+                "RejectedByCSharp's comment; reported to architect3/qa3 per section 0.5).");
 
             // Every listed file must be distinct. Two types now share a file name, and a
-            // lookup that collapsed them would test one file twice and still report 34.
+            // lookup that collapsed them would test one file twice and still report 51.
             Assert.That(new HashSet<string>(visited).Count, Is.EqualTo(visited.Count),
-                "The C# counter-example list must name 34 distinct files.");
+                "The C# counter-example list must name 51 distinct files.");
 
             // The rest must still exist on disk, otherwise the split is only in prose.
             Assert.That(ContractFixtures.InvalidFixtures().Count,
@@ -422,7 +521,7 @@ namespace Starfall.Tests.EditMode
         }
 
         [Test]
-        public void CSharpLayerSplit_Totals74()
+        public void CSharpLayerSplit_Totals113()
         {
             var visited = new List<string>();
             foreach (FixtureFile fixture in RejectedByCSharpCases()) visited.Add(fixture.ToString());
@@ -433,15 +532,16 @@ namespace Starfall.Tests.EditMode
                                   NotDetectableByCSharp.Length + " / no layer " + NoCSharpLayer.Length +
                                   " = " + visited.Count);
 
-            Assert.That(RejectedByCSharp.Length, Is.EqualTo(34));
-            Assert.That(NotDetectableByCSharp.Length, Is.EqualTo(23));
-            Assert.That(NoCSharpLayer.Length, Is.EqualTo(17));
+            Assert.That(RejectedByCSharp.Length, Is.EqualTo(51));
+            Assert.That(NotDetectableByCSharp.Length, Is.EqualTo(35));
+            Assert.That(NoCSharpLayer.Length, Is.EqualTo(27));
             Assert.That(new HashSet<string>(visited).Count, Is.EqualTo(visited.Count),
                 "reject / accept / no-layer must not overlap.");
             Assert.That(visited.Count, Is.EqualTo(ContractFixtures.ExpectedInvalidFixtureCount),
-                "34 + 23 + 17 must account for every counter-example the contract defines (74). " +
-                "If this differs, the counts changed - tell architect instead of editing the table " +
-                "(sprint contract section 0.5).");
+                "51 + 35 + 27 must account for every counter-example the contract defines (113). " +
+                "Sprint contract section 0.5 predicted 53/33/27 - client-measured 2026-10-06 is " +
+                "51/35/27 (2 cases moved reject -> accept, see RejectedByCSharp's comment; " +
+                "reported to architect3/qa3, not silently edited).");
         }
 
         // ------------------------------------------------------------------ SC-67
@@ -468,7 +568,9 @@ namespace Starfall.Tests.EditMode
             string[] known = { "MALFORMED_COMMAND", "UNKNOWN_COMMAND_TYPE", "SCHEMA_VERSION_UNSUPPORTED",
                 "DUPLICATE_COMMAND_ID", "SERVER_BUSY", "TOO_MANY_IN_FLIGHT", "RATE_LIMITED", "STALE_INPUT",
                 "TARGET_UNKNOWN", "COOLDOWN_ACTIVE", "TARGET_OUT_OF_RANGE", "SHIP_TOO_FAST",
-                "RESOURCE_DEPLETED", "RECORDING_BACKLOG", "CAPACITY_EXCEEDED" };
+                "RESOURCE_DEPLETED", "RECORDING_BACKLOG", "CAPACITY_EXCEEDED",
+                // p1-03-trading (ADR-0016 section 6): SELL_MINERAL asked for more kg than held.
+                "INSUFFICIENT_QUANTITY" };
             const string unknownValue = "SOME_FUTURE_REASON_CODE_2027";
             Assert.That(known, Does.Not.Contain(unknownValue), "positive control: the injected value must not already be a known reason_code");
 
@@ -650,16 +752,51 @@ namespace Starfall.Tests.EditMode
             Assert.That(thrown.Message, Does.StartWith(ContractJson.IgnoredMemberMessagePrefix));
         }
 
-        // ------------------------------------------------------------------ SC-50 / SC-72
+        // ------------------------------------------------------------------ SC-62
 
         /// <summary>
-        /// Counts and lists *.json files under a root, independently of any other root - used by
-        /// ClientDataCopy_MatchesRepositoryOriginal to walk data/ and the client copy as two
-        /// unrelated directory trees (qa verification round 2, 2026-09-27: the original version
-        /// of this test walked ONLY data/ and asked the copy "does this path exist", which can
-        /// never notice a file the copy has that the ORIGINAL no longer does - e.g. a file deleted
-        /// or renamed upstream that a stale client build still ships. Q-7's agreed shape was two
-        /// independent traversals compared afterward, not one walk with a lookup into the other).
+        /// SC-62: MARKET_STATE.payload.listings[*].last_sale is Required.AllowNull - a required
+        /// nested object that may be the JSON literal null (the architect note at
+        /// 01_architect_tasks.md's "구현자가 architect에게 가져올 것": C# handling needed
+        /// measuring, not assuming). one-crashed-one-fresh.json carries one of each in a single
+        /// message, which is exactly the shape this round-trip must survive.
+        /// </summary>
+        [Test]
+        public void MarketState_LastSale_NullAndNonNull_RoundTrip()
+        {
+            FixtureFile fixture = ContractFixtures.RequireValid("MARKET_STATE", "one-crashed-one-fresh.json");
+            string original = fixture.ReadText();
+
+            var message = ContractJson.DeserializeStrict<MarketStateMessage>(original);
+            var listings = message.Payload.Listings;
+            Assert.That(listings.Length, Is.EqualTo(2));
+
+            Assert.That(listings[0].LastSale, Is.Not.Null, "ferrosite's last_sale must deserialize as a non-null object");
+            Assert.That(listings[0].LastSale.QuantityKg, Is.EqualTo(14000));
+            Assert.That(listings[1].LastSale, Is.Null, "starfall-glass's last_sale must deserialize as null, not a default instance");
+
+            string roundTripped = ContractJson.Serialize(message);
+            JToken before = ContractJson.ReadToken(original);
+            JToken after = ContractJson.ReadToken(roundTripped);
+            TestContext.WriteLine("re-serialized: " + after.ToString(Formatting.None));
+            Assert.That(JToken.DeepEquals(before, after), Is.True,
+                fixture + " did not survive the round trip.\n  original: " + before.ToString(Formatting.None) +
+                "\n  actual:   " + after.ToString(Formatting.None));
+
+            // missing-last-sale-key.json (SC-61(c)'s C# layer check) is covered by
+            // RejectedByCSharp above - required.AllowNull still requires the KEY to be present.
+        }
+
+        // ------------------------------------------------------------------ SC-50 / SC-56 / SC-72
+
+        /// <summary>
+        /// Counts and lists *.json files under a root, independently of any other root - used to
+        /// walk the client copy as its own, unrelated directory tree (qa verification round 2,
+        /// 2026-09-27: the original version of this test walked ONLY data/ and asked the copy
+        /// "does this path exist", which can never notice a file the copy has that the ORIGINAL
+        /// no longer does - e.g. a file deleted or renamed upstream that a stale client build
+        /// still ships. Q-7's agreed shape was two independent traversals compared afterward, not
+        /// one walk with a lookup into the other).
         /// </summary>
         static Dictionary<string, string> ListRelativeJsonPaths(string root)
         {
@@ -669,50 +806,114 @@ namespace Starfall.Tests.EditMode
             return result;
         }
 
-        [Test]
-        public void ClientDataCopy_MatchesRepositoryOriginal()
+        /// <summary>
+        /// Expands one data_files glob (e.g. "ships/*.json", or a literal like
+        /// "movement/sync-tuning.json") against dataRoot. Every glob the registry currently
+        /// defines has its wildcard, if any, only in the final path segment, so
+        /// Directory.GetFiles' own (non-recursive) pattern matching is sufficient - a literal
+        /// filename with no "*" still works the same way (GetFiles returns it if it exists, an
+        /// empty array if not).
+        /// </summary>
+        static IEnumerable<string> ExpandDataFileGlob(string dataRoot, string relativeGlob)
         {
-            // AC-11(f): the client's copy of data/ under client/Assets/_Project/Data must be
-            // byte-identical to the repository original (ADR-0012 section 7 - "file copy, this
-            // time only", and the file-hash test is the only defence that copy has).
+            string normalized = relativeGlob.Replace('/', Path.DirectorySeparatorChar);
+            string dirPart = Path.GetDirectoryName(normalized) ?? "";
+            string filePart = Path.GetFileName(normalized);
+            string absDir = Path.Combine(dataRoot, dirPart);
+            if (!Directory.Exists(absDir)) yield break;
+            foreach (string path in Directory.GetFiles(absDir, filePart))
+                yield return Path.GetRelativePath(dataRoot, path).Replace('\\', '/');
+        }
+
+        /// <summary>
+        /// SC-56(a): the expected client-copy set, derived from contracts/registry/types.json
+        /// alone - every "kind": "data" type whose "consumers" names "client", expanded against
+        /// data/ by that type's data_files globs. Never reads the client copy (that is the
+        /// SECOND independent traversal, ListRelativeJsonPaths(clientCopyRoot) in the caller) and
+        /// never special-cases a type name - adding "client" to a type's consumers (as ADR-0015
+        /// did for SHIP_CLASS/STAR_SYSTEM/SYNC_TUNING) or removing it (as it stayed removed for
+        /// SIGNIFICANCE_RULE, DEPOSIT_RESERVE) is read from the registry, not hardcoded here.
+        /// </summary>
+        static HashSet<string> RegistryDerivedClientDataFiles(string repoRoot, string dataRoot)
+        {
+            string registryPath = Path.Combine(repoRoot, "contracts", "registry", "types.json");
+            JObject registry = ContractJson.ReadObject(File.ReadAllText(registryPath));
+            var expected = new HashSet<string>(StringComparer.Ordinal);
+
+            foreach (JToken typeToken in (JArray)registry["types"])
+            {
+                if ((string)typeToken["kind"] != "data") continue;
+
+                bool consumedByClient = false;
+                if (typeToken["consumers"] is JArray consumers)
+                    foreach (JToken consumer in consumers)
+                        if ((string)consumer == "client") { consumedByClient = true; break; }
+                if (!consumedByClient) continue;
+
+                if (!(typeToken["data_files"] is JArray dataFiles)) continue;
+                foreach (JToken globToken in dataFiles)
+                    foreach (string relative in ExpandDataFileGlob(dataRoot, (string)globToken))
+                        expected.Add(relative);
+            }
+
+            return expected;
+        }
+
+        [Test]
+        public void ClientDataCopy_MatchesRegistryDerivedSet()
+        {
+            // AC-11(f)/AC-13(a): the client's copy of data/ under client/Assets/_Project/Data
+            // must be byte-identical to the repository original, restricted to exactly the data
+            // kinds whose registry entry names "client" as a consumer (ADR-0015) - not "all of
+            // data/" (that copied DEPOSIT_RESERVE and SIGNIFICANCE_RULE's history rule file,
+            // neither of which "consumers" names client; the p1-02 leak this split closed).
             string repoRoot = ContractFixtures.RequireRepoRoot();
             string dataRoot = Path.Combine(repoRoot, "data");
             string clientCopyRoot = Path.Combine(repoRoot, "client", "Assets", "_Project", "Data");
 
             Assert.That(Directory.Exists(dataRoot), Is.True, "repository data/ not found at " + dataRoot);
             Assert.That(Directory.Exists(clientCopyRoot), Is.True,
-                "client/Assets/_Project/Data not found - C2 must copy data/ into the client project (ADR-0012 section 7)");
+                "client/Assets/_Project/Data not found - C1 must copy data/ into the client project (ADR-0015)");
 
-            // Two INDEPENDENT traversals (Q-7, sprint contract SC-72) - neither walk consults the
-            // other directory, so a file the copy has and the original does not (deleted/renamed
-            // upstream, a stale build artifact) is visible as a copy-only entry, not silently
-            // absorbed into "found 3, expected 3".
-            Dictionary<string, string> originals = ListRelativeJsonPaths(dataRoot);
+            // Traversal 1 (independent): the expected set, derived from the registry and
+            // expanded against data/ - never reads the client copy.
+            HashSet<string> expected = RegistryDerivedClientDataFiles(repoRoot, dataRoot);
+            TestContext.WriteLine("registry-derived expected set size: " + expected.Count);
+            Assert.That(expected.Count, Is.GreaterThan(0),
+                "the registry-derived expected set must not be empty - an empty expected set would " +
+                "make every copy-only/missing check below pass vacuously (0 == 0, CLAUDE.md verification discipline).");
+
+            // Traversal 2 (independent): every *.json the client copy actually has, full tree -
+            // never filtered by the expected set while walking.
             Dictionary<string, string> copies = ListRelativeJsonPaths(clientCopyRoot);
-            TestContext.WriteLine("data/ *.json found (original, independent count): " + originals.Count);
             TestContext.WriteLine("client copy *.json found (independent count): " + copies.Count);
-            Assert.That(originals.Count, Is.GreaterThan(0), "data/ has no *.json files to compare");
 
             var copyOnly = new List<string>();
             foreach (string relative in copies.Keys)
-                if (!originals.ContainsKey(relative)) copyOnly.Add(relative);
+                if (!expected.Contains(relative)) copyOnly.Add(relative);
             copyOnly.Sort(StringComparer.Ordinal);
-            foreach (string relative in copyOnly) TestContext.WriteLine("COPY-ONLY (not in data/): " + relative);
+            foreach (string relative in copyOnly) TestContext.WriteLine("COPY-ONLY (outside the registry-derived expected set): " + relative);
             Assert.That(copyOnly.Count, Is.EqualTo(0),
-                "the client copy has " + copyOnly.Count + " file(s) with no matching original under data/ - " +
-                "a file deleted or renamed upstream is still shipping in the client build.");
+                "the client copy has " + copyOnly.Count + " file(s) outside the registry-derived expected set - " +
+                "a server-only kind's file (no \"client\" in consumers) or a stale/renamed file.");
 
-            Assert.That(copies.Count, Is.EqualTo(originals.Count),
-                "independent counts must match: data/ has " + originals.Count + ", client copy has " + copies.Count);
+            var missing = new List<string>();
+            foreach (string relative in expected)
+                if (!copies.ContainsKey(relative)) missing.Add(relative);
+            missing.Sort(StringComparer.Ordinal);
+            foreach (string relative in missing) TestContext.WriteLine("MISSING from client copy: " + relative);
+            Assert.That(missing.Count, Is.EqualTo(0),
+                "the client copy is missing " + missing.Count + " file(s) the registry says a client consumer must have.");
+
+            Assert.That(copies.Count, Is.EqualTo(expected.Count),
+                "independent counts must match: registry-derived expected " + expected.Count + ", client copy has " + copies.Count);
 
             int checkedCount = 0;
             using (var sha256 = System.Security.Cryptography.SHA256.Create())
             {
-                foreach (var pair in originals)
+                foreach (string relative in expected)
                 {
-                    string relative = pair.Key;
-                    string originalPath = pair.Value;
-
+                    string originalPath = Path.Combine(dataRoot, relative.Replace('/', Path.DirectorySeparatorChar));
                     Assert.That(copies.TryGetValue(relative, out string copyPath), Is.True,
                         "client copy is missing " + relative + " (expected under " + clientCopyRoot + ")");
 
@@ -730,16 +931,19 @@ namespace Starfall.Tests.EditMode
 
             TestContext.WriteLine("data/ files hash-compared against the client copy: " + checkedCount);
             Assert.That(checkedCount, Is.GreaterThan(0));
+            Assert.That(checkedCount, Is.EqualTo(10),
+                "today's registry-derived expected set (sprint contract SC-56): SHIP_CLASS 1, " +
+                "STAR_SYSTEM 1, SYNC_TUNING 1, MINERAL 4, DEPOSIT_FIELD 1, MINING_RULES 1, MARKET 1 = 10.");
         }
 
         /// <summary>
-        /// Negative control (team-lead request, qa verification round 2): proves
-        /// ClientDataCopy_MatchesRepositoryOriginal's copy-only check is actually live by making
-        /// it fail on purpose. Writes a throwaway stale.json under the client copy (nothing
-        /// matching it under data/), runs the SAME independent-traversal logic inline, asserts it
-        /// DOES report the file as copy-only, then deletes it in a finally block regardless of
-        /// outcome - this test must never leave stray state in the tree it shares with the real
-        /// SC-50/SC-72 test.
+        /// Negative control (team-lead request, qa verification round 2; carried over to the
+        /// registry-derived form by SC-56(a)'s wording): proves
+        /// ClientDataCopy_MatchesRegistryDerivedSet's copy-only check is actually live by making
+        /// it fail on purpose. Writes a throwaway stale.json under the client copy (outside the
+        /// registry-derived expected set), runs the SAME logic inline, asserts it DOES report the
+        /// file as copy-only, then deletes it in a finally block regardless of outcome - this
+        /// test must never leave stray state in the tree it shares with the real SC-50/56/72 test.
         /// </summary>
         [Test]
         public void ClientDataCopy_CopyOnlyFile_IsDetected_NegativeControl()
@@ -756,17 +960,69 @@ namespace Starfall.Tests.EditMode
             {
                 File.WriteAllText(stalePath, "{}");
 
-                Dictionary<string, string> originals = ListRelativeJsonPaths(dataRoot);
+                HashSet<string> expected = RegistryDerivedClientDataFiles(repoRoot, dataRoot);
                 Dictionary<string, string> copies = ListRelativeJsonPaths(clientCopyRoot);
 
                 var copyOnly = new List<string>();
                 foreach (string relative in copies.Keys)
-                    if (!originals.ContainsKey(relative)) copyOnly.Add(relative);
+                    if (!expected.Contains(relative)) copyOnly.Add(relative);
 
                 TestContext.WriteLine("with injected " + staleRelative + " present: copy-only count = " + copyOnly.Count);
                 Assert.That(copyOnly, Does.Contain(staleRelative),
-                    "the copy-only check must catch a file that exists in the client copy but not in data/ - " +
-                    "if this fails, ClientDataCopy_MatchesRepositoryOriginal's copy-only assertion is not live.");
+                    "the copy-only check must catch a file that exists in the client copy but is outside the " +
+                    "registry-derived expected set - if this fails, ClientDataCopy_MatchesRegistryDerivedSet's " +
+                    "copy-only assertion is not live.");
+            }
+            finally
+            {
+                if (File.Exists(stalePath)) File.Delete(stalePath);
+            }
+
+            Assert.That(File.Exists(stalePath), Is.False, "cleanup must remove the injected file even if the assertion above failed");
+        }
+
+        /// <summary>
+        /// Negative control (AC-13(b), qa3 Q-4/sprint contract SC-56(b)): a SERVER-ONLY kind's
+        /// real file - DEPOSIT_RESERVE, "consumers": ["server"] only, ADR-0015 section 2 - must
+        /// be caught as copy-only if it ever ends up copied into the client tree. This is exactly
+        /// the shape of the p1-02 leak the DEPOSIT_FIELD/DEPOSIT_RESERVE split closed, so the test
+        /// injects the REAL file (not a synthetic stand-in) to prove the check would catch that
+        /// specific regression, not just an arbitrary unknown file (which
+        /// ClientDataCopy_CopyOnlyFile_IsDetected_NegativeControl above already covers).
+        /// </summary>
+        [Test]
+        public void ClientDataCopy_ServerOnlyKindFile_IsDetected_NegativeControl()
+        {
+            string repoRoot = ContractFixtures.RequireRepoRoot();
+            string dataRoot = Path.Combine(repoRoot, "data");
+            string clientCopyRoot = Path.Combine(repoRoot, "client", "Assets", "_Project", "Data");
+            const string sourceRelative = "world/deposit-reserves/cradle.json";
+            string sourcePath = Path.Combine(dataRoot, "world", "deposit-reserves", "cradle.json");
+            string stalePath = Path.Combine(clientCopyRoot, "world", "deposit-reserves", "cradle.json");
+
+            Assert.That(File.Exists(sourcePath), Is.True,
+                "data/" + sourceRelative + " must exist for this control to inject a real server-only file");
+            Assert.That(File.Exists(stalePath), Is.False, "a leftover injected file from a previous failed run must not already be here");
+
+            try
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(stalePath));
+                File.Copy(sourcePath, stalePath);
+
+                HashSet<string> expected = RegistryDerivedClientDataFiles(repoRoot, dataRoot);
+                Assert.That(expected, Does.Not.Contain(sourceRelative),
+                    "positive control: DEPOSIT_RESERVE (consumers = [\"server\"] only) must not be in the " +
+                    "registry-derived expected set - if it is, this negative control proves nothing.");
+
+                Dictionary<string, string> copies = ListRelativeJsonPaths(clientCopyRoot);
+                var copyOnly = new List<string>();
+                foreach (string relative in copies.Keys)
+                    if (!expected.Contains(relative)) copyOnly.Add(relative);
+
+                TestContext.WriteLine("with injected " + sourceRelative + " present: copy-only count = " + copyOnly.Count);
+                Assert.That(copyOnly, Does.Contain(sourceRelative),
+                    "a server-only kind's file copied into the client tree must be caught as copy-only - " +
+                    "if this fails, ClientDataCopy_MatchesRegistryDerivedSet's (a)(b) checks are not live.");
             }
             finally
             {
@@ -885,13 +1141,15 @@ namespace Starfall.Tests.EditMode
             foreach (string name in visited) TestContext.WriteLine("recorded as undetectable in C#: " + name);
             TestContext.WriteLine("counter-examples C# is recorded as unable to detect: " + visited.Count);
 
-            Assert.That(visited.Count, Is.EqualTo(23),
-                "Sprint contract section 0.5 records exactly 23 undetectable counter-examples " +
-                "(10 measured at p1-01, 13 new for p1-02-mining).");
+            Assert.That(visited.Count, Is.EqualTo(35),
+                "Sprint contract section 0.5 predicted 33 undetectable counter-examples for " +
+                "p1-03-trading; client-measured 2026-10-06 is 35 (23 measured through " +
+                "p1-02-mining, 12 for p1-03-trading - 10 predicted plus 2 moved here from " +
+                "RejectedByCSharp's original prediction, reported to architect3/qa3).");
             Assert.That(new HashSet<string>(visited).Count, Is.EqualTo(visited.Count));
 
-            // The full three-way split (reject 34 / accept 23 / no layer 17 = 74) is asserted in
-            // CSharpLayerSplit_Totals74 above.
+            // The full three-way split (reject 51 / accept 35 / no layer 27 = 113) is asserted in
+            // CSharpLayerSplit_Totals113 above.
         }
 
         [Test]

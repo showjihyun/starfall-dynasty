@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "star_system_id": "cradle",
+  "designer_note": "SERVER-ONLY TABLE (ADR-0015). mineral_id and initial_reserve_kg of a deposit nobody has extracted from yet must never reach a client (design p1-02 section 3.2). Values moved verbatim from data/world/deposits/cradle.json schema_version 1 on 2026-10-05. Every number is a designer assumption; see docs/design/p1-02-mining-design.md section 1.3.",
+  "deposits": [
+    {
+      "deposit_id": "inner-belt-1",
+      "mineral_id": "ferrosite",
+      "initial_reserve_kg": 12000
+    },
+    {
+      "deposit_id": "inner-belt-2",
+      "mineral_id": "ferrosite",
+      "initial_reserve_kg": 9000
+    },
+    {
+      "deposit_id": "inner-belt-3",
+      "mineral_id": "ferrosite",
+      "initial_reserve_kg": 12000
+    },
+    {
+      "deposit_id": "vela-orbit-1",
+      "mineral_id": "glacine",
+      "initial_reserve_kg": 10000
+    },
+    {
+      "deposit_id": "vela-orbit-2",
+      "mineral_id": "glacine",
+      "initial_reserve_kg": 10000
+    },
+    {
+      "deposit_id": "outer-field-1",
+      "mineral_id": "cobaltine",
+      "initial_reserve_kg": 3200
+    },
+    {
+      "deposit_id": "outer-field-2",
+      "mineral_id": "cobaltine",
+      "initial_reserve_kg": 2400
+    },
+    {
+      "deposit_id": "far-reach",
+      "mineral_id": "starfall-glass",
+      "initial_reserve_kg": 500
+    }
+  ]
+}

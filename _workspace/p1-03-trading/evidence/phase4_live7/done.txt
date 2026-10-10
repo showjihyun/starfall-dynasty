@@ -1,0 +1,2 @@
+load rc=1
+DONE

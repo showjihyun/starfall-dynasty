@@ -1,0 +1,152 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.starfall.invalid/contracts/data/market.schema.json",
+  "title": "MarketTable",
+  "description": "Shape of one market file, data/market/{id}.json (p1-03): where the exchange is, the docking rules every sale is judged by, and the price rule of every mineral it buys (design doc p1-03 section 3: banded saturation with lazy recovery). THE NUMBERS BELONG TO THE DESIGNER. PUBLIC data kind (ADR-0015): the whole file is part of the client copy - the client reads the geometry and docking rules for display and the listing constants for the 'expected proceeds' preview, but the CURRENT saturation and price reach it only through MARKET_STATE. Hiding an unlisted mineral's name and value on screen is a presentation rule (UI-06), like p1-02's 'M undiscovered'; mineral names and rarity are already public in MINERAL. Price rule (integers only, every division rounds toward zero on non-negative operands): floor_band = ceil((100 - price_floor_pct) / price_drop_pct_per_band); band(s) = min(s div band_kg, floor_band); price(b) = base_price_cr_per_kg * max(price_floor_pct, 100 - b * price_drop_pct_per_band) div 100; a sale of q kg walks the bands from the current saturation s (spec p1-03 section 4.2a). Recovery: effective(t) = max(0, s - recovery_kg * (floor(t / I) - floor(as_of / I))), I = recovery_interval_s * tick_hz. pricing_version is bound by a golden test to this file's normalised content: changing any price number without bumping it fails the build (spec p1-03 I-90). Boot-time checks beyond this schema (all boot failures, spec p1-03 section 4.8): star_system_id is a loaded star system; pricing_version starts with id + '@'; every mineral has exactly one listing and every listing's mineral_id exists; |position| + radius_m + dock_range_from_surface_m <= soft_boundary_radius_m; the docking zone overlaps no deposit's mining zone; every listing's floor price base * price_floor_pct div 100 >= 1; floor_band * band_kg <= 2147483647 for every listing. Guaranteed by this schema rather than checked at boot (spec p1-03 section 4.8): whole seconds times an integer tick_hz are whole ticks, and base_price_cr_per_kg <= 1000000 keeps 2147483647 * base_price_cr_per_kg <= 9007199254740991 - a change that raises that maximum must recompute this bound. 단위 접미사 규약: 수치 필드 이름이 단위로 끝난다 (_m, _mps, _s, _kg, _cr, _cr_per_kg, _pct). **_kg·_cr·_cr_per_kg·_pct 필드는 정수다** (primitives MassKg·CreditAmount). _s 필드도 정수이고 tick_hz 를 곱해 정수 tick 이 되어야 한다(서버 기동 검증).",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "id",
+    "star_system_id",
+    "display_name",
+    "pricing_version",
+    "position_m",
+    "radius_m",
+    "rules",
+    "listings"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "id": {
+      "$ref": "../common/primitives.schema.json#/$defs/DataId",
+      "description": "Market id - what SELL_MINERAL.market_id names and MINERAL_SOLD records."
+    },
+    "star_system_id": {
+      "$ref": "../common/primitives.schema.json#/$defs/DataId"
+    },
+    "display_name": {
+      "type": "string",
+      "pattern": "^[^\\u0000-\\u001f]{1,64}$"
+    },
+    "designer_note": {
+      "type": "string",
+      "maxLength": 2000
+    },
+    "pricing_version": {
+      "$ref": "../common/primitives.schema.json#/$defs/RuleVersion",
+      "description": "'{market id}@{n}'. Recorded on every MINERAL_SOLD so a sale can be recomputed with the rule it was priced by after the numbers change. Bump n whenever any number under rules (price part) or listings changes."
+    },
+    "position_m": {
+      "type": "array",
+      "items": {
+        "type": "number",
+        "minimum": -20000.0,
+        "maximum": 20000.0
+      },
+      "minItems": 3,
+      "maxItems": 3
+    },
+    "radius_m": {
+      "type": "number",
+      "exclusiveMinimum": 0.0,
+      "maximum": 1000.0
+    },
+    "rules": {
+      "title": "MarketRules",
+      "type": "object",
+      "required": [
+        "dock_range_from_surface_m",
+        "max_ship_speed_mps",
+        "sell_cooldown_s",
+        "price_drop_pct_per_band",
+        "price_floor_pct",
+        "recovery_interval_s"
+      ],
+      "properties": {
+        "dock_range_from_surface_m": {
+          "description": "Docked iff |ship - market|^2 <= (radius_m + this)^2 on the authoritative f64 state at the START of the tick.",
+          "type": "number",
+          "exclusiveMinimum": 0.0,
+          "maximum": 5000.0
+        },
+        "max_ship_speed_mps": {
+          "description": "Slow enough iff |ship velocity|^2 <= this^2, same instant.",
+          "type": "number",
+          "minimum": 0.0,
+          "maximum": 1000.0
+        },
+        "sell_cooldown_s": {
+          "description": "Per actor, separate from the mining cooldown. Started only by an ACCEPTED sale; not persisted (like the mining cooldown).",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 3600
+        },
+        "price_drop_pct_per_band": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        },
+        "price_floor_pct": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        },
+        "recovery_interval_s": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 86400
+        },
+        "note": {
+          "type": "string",
+          "maxLength": 2000
+        }
+      },
+      "additionalProperties": false
+    },
+    "listings": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Listing"
+      },
+      "minItems": 1,
+      "maxItems": 64
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "Listing": {
+      "title": "MarketListing",
+      "type": "object",
+      "required": [
+        "mineral_id",
+        "base_price_cr_per_kg",
+        "band_kg",
+        "recovery_kg"
+      ],
+      "properties": {
+        "mineral_id": {
+          "$ref": "../common/primitives.schema.json#/$defs/DataId"
+        },
+        "base_price_cr_per_kg": {
+          "$ref": "../common/primitives.schema.json#/$defs/CreditAmount",
+          "minimum": 1,
+          "maximum": 1000000,
+          "description": "Price per kg in band 0 (saturation below band_kg). The maximum 1000000 is load-bearing: (2^31-1) kg * 1000000 cr/kg ~= 2.15e15 < 2^53-1, so no sale's proceeds can exceed CreditAmount. Raising it requires recomputing that bound (spec p1-03 section 4.8)."
+        },
+        "band_kg": {
+          "$ref": "../common/primitives.schema.json#/$defs/MassKg",
+          "minimum": 1,
+          "description": "Saturation width of one price band."
+        },
+        "recovery_kg": {
+          "$ref": "../common/primitives.schema.json#/$defs/MassKg",
+          "minimum": 1,
+          "description": "Saturation removed at every world tick that is a multiple of recovery_interval_s * tick_hz."
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

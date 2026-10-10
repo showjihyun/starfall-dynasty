@@ -1,0 +1,52 @@
+{
+  "first_ferrosite_tick": 1289,
+  "first_glass_tick": 2849,
+  "item": "[verdict] p1-03 SC-45 · SC-46 · SC-47 leak-scan-market: 첫 채굴 전 상장 0, 첫 채굴 tick 에 그 광물만 상장(Ferrosite·Starfall Glass), 세션 시작 5 메시지 순서",
+  "listed_at_ferrosite_tick": [
+    [
+      "ferrosite"
+    ],
+    [
+      "ferrosite"
+    ]
+  ],
+  "listed_at_glass_tick": [
+    [
+      "ferrosite",
+      "starfall-glass"
+    ],
+    [
+      "ferrosite",
+      "starfall-glass"
+    ]
+  ],
+  "markets_before_first_mine": [
+    1,
+    1
+  ],
+  "nonempty_before_first_mine": [
+    0,
+    0
+  ],
+  "session_start_a": [
+    "SESSION_READY",
+    "INVENTORY_STATE",
+    "WALLET_STATE",
+    "DEPOSIT_FIELD_STATE",
+    "MARKET_STATE"
+  ],
+  "session_start_b": [
+    "SESSION_READY",
+    "INVENTORY_STATE",
+    "WALLET_STATE",
+    "DEPOSIT_FIELD_STATE",
+    "MARKET_STATE"
+  ],
+  "sub_verdicts": {
+    "sc45": "PASS",
+    "sc46": "PASS",
+    "sc47": "PASS"
+  },
+  "verdict": "PASS",
+  "world_id": "01a124c5-f8e8-70c4-95a1-a8b51cb63072"
+}

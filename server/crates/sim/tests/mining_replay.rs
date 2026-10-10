@@ -164,6 +164,8 @@ fn world() -> WorldConstants {
             max_ship_speed_mps: 10.0,
             cooldown_ticks: 60,
         },
+        // p1-03 — 이 재생은 판매 명령도 보내지 않는다(위 event_line 주석과 같은 이유).
+        markets: BTreeMap::new(),
     }
 }
 
@@ -240,6 +242,12 @@ fn event_line(event: &PendingEvent) -> EventLine {
         }
         DomainEventBody::MineralMined(payload) => {
             serde_json::to_value(payload).expect("MineralMinedPayload 직렬화")
+        }
+        // p1-03 — 이 재생은 SELL_MINERAL 을 전혀 보내지 않는다(이 파일의 목적은
+        // 채굴 경제 결정성이지 거래다 — `pricing_golden.rs`·`sell_mineral.rs`(S3)가
+        // 거래 쪽을 각각 잰다). 도달하면 골든의 전제 자체가 깨진 것이다.
+        DomainEventBody::MineralSold(_) => {
+            panic!("이 재생은 MINERAL_SOLD 를 내면 안 된다 — 입력열에 SELL_MINERAL 이 없다")
         }
     };
     EventLine {
@@ -525,9 +533,13 @@ fn compare_or_bless_golden(fixture_dir: &Path, name: &str, generated: &[u8]) {
     );
 }
 
-fn spawn_replay_child(inputs_path: &Path, out_dir: &Path) -> std::process::Output {
+/// 자식(`mining_replay_worker`)을 별도 프로세스로 띄워 끝까지 기다린다. 성공 경로에서도 자식이 실제로
+/// 돌았다는 흔적을 남긴다: 자식 stdout 의 `test result: ok. 1 passed` 를 단언하고(이름이
+/// 틀리면 libtest 가 0 개를 돌려 여기서 깨진다), 회차·자식 pid·부모 pid 와 그 결과 줄을
+/// 찍는다. 기대 횟수는 여기서 요구하지 않는다 — 그건 계약·게이트의 일이다.
+fn spawn_replay_child(run: u32, inputs_path: &Path, out_dir: &Path) -> std::process::Output {
     let exe = std::env::current_exe().expect("현재 테스트 바이너리 경로");
-    Command::new(exe)
+    let child = Command::new(exe)
         .args([
             "mining_replay_worker",
             "--exact",
@@ -536,8 +548,39 @@ fn spawn_replay_child(inputs_path: &Path, out_dir: &Path) -> std::process::Outpu
         ])
         .env("STARFALL_REPLAY_INPUTS", inputs_path)
         .env("STARFALL_REPLAY_OUT_DIR", out_dir)
-        .output()
-        .expect("자식 프로세스 실행 실패")
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .expect("자식 프로세스 실행 실패");
+    let child_pid = child.id();
+    let output = child.wait_with_output().expect("자식 프로세스 대기 실패");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        output.status.success(),
+        "재생 워커({run}회차) 실패:
+stdout: {stdout}
+stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(
+        stdout.contains("test result: ok. 1 passed"),
+        "재생 워커({run}회차)가 테스트를 1건 돌렸다는 흔적이 없다(자식 이름 오타·필터 불일치?):
+stdout: {stdout}"
+    );
+    let result_line = stdout
+        .lines()
+        .find(|line| line.starts_with("test result:"))
+        .unwrap_or_default();
+    assert_ne!(
+        child_pid,
+        std::process::id(),
+        "자식 pid 가 부모와 같다 — 별도 프로세스가 아니다"
+    );
+    println!(
+        "[CHILD] worker=mining_replay_worker run={run} child_pid={child_pid} parent_pid={} :: {result_line}",
+        std::process::id()
+    );
+    output
 }
 
 /// SC-33 / AC-7 — 채굴 명령이 섞인 입력열을 서로 다른 프로세스에서 2회 돌려
@@ -554,20 +597,8 @@ fn sc33_two_process_replay_with_mining_is_byte_identical() {
     let out1 = scratch.join("run1");
     let out2 = scratch.join("run2");
 
-    let child1 = spawn_replay_child(&inputs_path, &out1);
-    assert!(
-        child1.status.success(),
-        "재생 워커(1회차) 실패:\nstdout: {}\nstderr: {}",
-        String::from_utf8_lossy(&child1.stdout),
-        String::from_utf8_lossy(&child1.stderr)
-    );
-    let child2 = spawn_replay_child(&inputs_path, &out2);
-    assert!(
-        child2.status.success(),
-        "재생 워커(2회차) 실패:\nstdout: {}\nstderr: {}",
-        String::from_utf8_lossy(&child2.stdout),
-        String::from_utf8_lossy(&child2.stderr)
-    );
+    spawn_replay_child(1, &inputs_path, &out1);
+    spawn_replay_child(2, &inputs_path, &out2);
 
     let snapshots1 = fs::read(out1.join("snapshots.jsonl")).expect("run1 snapshots.jsonl");
     let snapshots2 = fs::read(out2.join("snapshots.jsonl")).expect("run2 snapshots.jsonl");

@@ -1,0 +1,4 @@
+[before 10:26:11] SystemExecutionState=0x00000000 SYSTEM_REQUIRED=False DISPLAY_REQUIRED=False
+[during-ready 10:26:14] SystemExecutionState=0x00000001 SYSTEM_REQUIRED=True DISPLAY_REQUIRED=False
+[during+3s 10:26:17] SystemExecutionState=0x00000001 SYSTEM_REQUIRED=True DISPLAY_REQUIRED=False
+[after 10:26:18] SystemExecutionState=0x00000000 SYSTEM_REQUIRED=False DISPLAY_REQUIRED=False

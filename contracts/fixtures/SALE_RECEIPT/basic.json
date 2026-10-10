@@ -1,0 +1,16 @@
+{
+  "message_id": "01a0b1c2-6c42-7123-9234-4a5b6c7d8eb0",
+  "message_type": "SALE_RECEIPT",
+  "schema_version": 1,
+  "tick": 26400,
+  "correlation_id": null,
+  "payload": {
+    "command_id": "01a0b1c2-9c02-7d12-8e22-3f3140516172",
+    "market_id": "cradle-exchange",
+    "mineral_id": "ferrosite",
+    "quantity_kg": 2000,
+    "proceeds_cr": 20000,
+    "price_before_cr_per_kg": 10,
+    "price_after_cr_per_kg": 9
+  }
+}

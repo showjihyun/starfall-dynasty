@@ -1,0 +1,16 @@
+[23:02:23] == freeze
+[23:02:23]   head: rc=0 PASS 0s
+[23:02:23]   porcelain: rc=0 PASS 0s
+[23:02:24]   fp_before: rc=0 PASS 0s
+[23:02:24] == freeze: PASS
+[23:02:24] == gates
+[23:02:25]   fmt: rc=0 PASS 0s
+[23:02:25]   clippy: rc=0 PASS 1s
+[23:03:26]   test: rc=0 PASS 61s
+[23:03:28]   release_starfall-sim: rc=0 PASS 1s
+[23:03:28] == gates: PASS
+[23:03:28] == final
+[23:03:28]   porcelain_end: rc=0 PASS 0s
+[23:03:28]   fp_after: rc=0 PASS 0s
+[23:03:29] == final: PASS
+[23:03:29] DONE

@@ -1,0 +1,61 @@
+{
+  "actor_id": "01a0b1c2-b010-7000-8000-000000000150",
+  "close_initiator": "client",
+  "ferrosite_market": [
+    {
+      "last_sale": null,
+      "price_cr_per_kg": 10,
+      "saturation_kg": 0,
+      "tick": 1230
+    },
+    {
+      "last_sale": {
+        "actor_id": "01a0b1c2-b010-7000-8000-000000000150",
+        "quantity_kg": 200,
+        "tick": 2193
+      },
+      "price_cr_per_kg": 10,
+      "saturation_kg": 200,
+      "tick": 2193
+    }
+  ],
+  "goto_failures": 0,
+  "inventory_ferrosite_last": 200,
+  "item": "[reference] 참고: p1-03 재기동 단계 — run(판매 수락·상태 파일) / resume(같은 원문 재전송). 판정은 restart_cases.py sell-dup (SC-112)",
+  "open_at_end": true,
+  "own_ship_id": "01a116ba-d446-7214-a194-7b5186c720a9",
+  "phase": "run",
+  "ready_tick": 13,
+  "receipts": [
+    {
+      "command_id": "01a116bc-7e0b-7139-8970-672098af002a",
+      "proceeds_cr": 2000,
+      "tick": 2193
+    }
+  ],
+  "sells": [
+    {
+      "command_id": "01a116bc-7e0b-7139-8970-672098af002a",
+      "quantity_kg": 200,
+      "results": [
+        {
+          "reason": null,
+          "status": "ACCEPTED",
+          "tick": 2193
+        }
+      ]
+    }
+  ],
+  "verdict": "PASS",
+  "wallets": [
+    {
+      "balance_cr": 0,
+      "tick": 13
+    },
+    {
+      "balance_cr": 2000,
+      "tick": 2193
+    }
+  ],
+  "world_id": "01a116ba-c0fd-7576-83d0-d1211ddd3680"
+}

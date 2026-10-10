@@ -1,0 +1,96 @@
+{
+  "accepted_after_cooldown": true,
+  "actor_id": "01a0b1c2-b010-7000-8000-000000000117",
+  "baseline_accepted": true,
+  "bot_errors": [],
+  "case": "Cooldown",
+  "cheat_reasons": [
+    null,
+    "COOLDOWN_ACTIVE",
+    null
+  ],
+  "close": {
+    "code": 1000,
+    "initiator": "client",
+    "reason": ""
+  },
+  "condition_occurred": true,
+  "connect_error": null,
+  "goto_failures": 0,
+  "item": "[verdict] p1-03 SC-110 수락 직후 0.5 s 판매 → COOLDOWN_ACTIVE, 연결 유지, 쿨다운 뒤 재수락",
+  "label": "bot-117",
+  "mine_until_shortfalls": 0,
+  "open_at_end": true,
+  "sells": [
+    {
+      "command_id": "01a125ce-69a5-73ce-b294-c42b35549fdf",
+      "dist_to_exchange_m": 248.33073305775102,
+      "mineral_id": "ferrosite",
+      "quantity_kg": 200,
+      "results": [
+        {
+          "reason": null,
+          "status": "ACCEPTED",
+          "tick": 17384
+        }
+      ],
+      "snapshot_tick": 17382,
+      "speed_mps": 0.0
+    },
+    {
+      "command_id": "01a125ce-6f87-766b-941b-7d380dea3574",
+      "dist_to_exchange_m": 248.33073305775102,
+      "mineral_id": "ferrosite",
+      "quantity_kg": 50,
+      "results": [
+        {
+          "reason": null,
+          "status": "ACCEPTED",
+          "tick": 17414
+        }
+      ],
+      "snapshot_tick": 17412,
+      "speed_mps": 0.0
+    },
+    {
+      "command_id": "01a125ce-7185-715c-84f3-f487c652bfa1",
+      "dist_to_exchange_m": 248.33073305775102,
+      "mineral_id": "ferrosite",
+      "quantity_kg": 50,
+      "results": [
+        {
+          "reason": "COOLDOWN_ACTIVE",
+          "status": "REJECTED",
+          "tick": 17424
+        }
+      ],
+      "snapshot_tick": 17422,
+      "speed_mps": 0.0
+    },
+    {
+      "command_id": "01a125ce-7767-721c-8dcd-651b16eb2d34",
+      "dist_to_exchange_m": 248.33073305775102,
+      "mineral_id": "ferrosite",
+      "quantity_kg": 50,
+      "results": [
+        {
+          "reason": null,
+          "status": "ACCEPTED",
+          "tick": 17454
+        }
+      ],
+      "snapshot_tick": 17452,
+      "speed_mps": 0.0
+    }
+  ],
+  "state": {
+    "allowed": "기준 판매의 응답 1 벌",
+    "final_balance": 3000,
+    "final_ferrosite": 100,
+    "receipts_after_baseline": 3,
+    "wallet_messages_after_baseline": 3
+  },
+  "tick_gap_first_to_retry": 10,
+  "verdict": "PASS",
+  "wire_errors": []
+}

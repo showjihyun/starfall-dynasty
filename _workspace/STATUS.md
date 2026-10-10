@@ -6,6 +6,9 @@
 | p0-02-networking-spike | SLICE | done | 6 | r1 PASS 73 / 부분 1 / FAIL 0 | 2026-09-19 |
 | p1-01-ship-movement | SLICE | done | 6 | r21: **90 / 90 PASS** · main 병합(PR #1 `78aac7e`) | 2026-09-27 |
 | p1-02-mining | SLICE | done | 6 | r3 PASS 112 / FAIL 0 · SC-98 CI PASS · SC-68 사람 진술 확인(스크린샷 없음, 사용자 수용 2026-10-05) — `05_summary.md`, PR #5 | 2026-10-05 |
+| p1-03-trading | SLICE | implement | 4 | — (계약 agreed 2026-10-06: SC-01~133, 화면 39행. T0·S1·Q1~Q3 완료, S2·C1 진행) | 2026-10-06 |
+| p1-04-visual-baseline | SLICE | spec | 2 | — (p1-03 과 병행, Unity 밖 작업만 — art/ 스테이징) | 2026-10-07 |
+| p1-05-basic-combat | SPEC | spec | 2 | — (p1-03 r1 병행, 문서만) | 2026-10-10 |
 
 ## Phase 0 — 종료 기준 충족 (2026-09-19)
 "30명 동시 접속 + 실시간 이벤트 기록" 실증 완료: 31 연결(봇 30 + Unity 1), 명령 3,570건 손실 0, 마지막 봇 종료 후 0.242초에 전 행 DB 가시, DB 30초 중단에도 유실 0.

@@ -1,0 +1,12 @@
+[18:52:04] == freeze
+[18:52:04]   head: rc=0 PASS 0s
+[18:52:04]   porcelain: rc=0 PASS 0s
+[18:52:04]   fp_before: rc=0 PASS 0s
+[18:52:05] == freeze: PASS
+[18:52:05] == judges
+[18:52:05] == judges: 미검증(입력 없음)
+[18:52:05] == final
+[18:52:05]   porcelain_end: rc=0 PASS 0s
+[18:52:06]   fp_after: rc=0 PASS 0s
+[18:52:06] == final: PASS
+[18:52:07] DONE

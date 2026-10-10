@@ -20,8 +20,9 @@
 use serde::{Deserialize, Serialize};
 
 use crate::primitives::{
-    ConstSchemaVersion, DataId, GameTime, MassKg, PositionMm, QuaternionComponentMicro, RealTime,
-    Sequence, Tick, UuidV7, de_positive_mass_kg, required_nullable,
+    ConstSchemaVersion, CreditAmount, DataId, GameTime, MassKg, PositionMm,
+    QuaternionComponentMicro, RealTime, RuleVersion, Sequence, Tick, UuidV7,
+    de_positive_credit_amount, de_positive_mass_kg, required_nullable,
 };
 
 /// 세션이 수립된 전송 수단. 닫힌 집합(현재 1종).
@@ -384,4 +385,115 @@ pub struct MineralMinedEvent {
     pub actor_id: UuidV7,
     /// 타입별 payload.
     pub payload: MineralMinedPayload,
+}
+
+// ---------------------------------------------------------------------------
+// MINERAL_SOLD (p1-03)
+// ---------------------------------------------------------------------------
+
+/// `MINERAL_SOLD` 의 타입 상수.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub enum MineralSoldType {
+    /// 유일한 값.
+    #[default]
+    #[serde(rename = "MINERAL_SOLD")]
+    MineralSold,
+}
+
+/// `MINERAL_SOLD` payload — 수락된 판매 1건의 세 상태(인벤토리·지갑·시장) 전후.
+///
+/// **중요도 Level 0 — 역사적 사건이 아니다**(절대 원칙 4). 역사 러너는 이 타입을
+/// 판정하지 않고 통과시킨다(ADR-0016 §3, history review H-30~H-33). 한 건의 판매를
+/// **이벤트 하나로** 표현한다 — 인벤토리 감소와 지갑 증가를 두 이벤트로 나누지 않는다
+/// (ADR-0016 §3). 가격 필드는 전부 그 시점에 유도한 값을 싣는다(저장은 안 하지만
+/// 원장은 재계산 가능해야 한다 — ADR-0014 §5 와 같은 방식).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct MineralSoldPayload {
+    /// 도킹했던 함선. 행위자는 소유자, 함선은 장소다.
+    pub ship_id: UuidV7,
+    /// 명령이 수락된 세션.
+    pub session_id: UuidV7,
+    /// 시장이 속한 성계.
+    pub star_system_id: DataId,
+    /// 판 시장.
+    pub market_id: DataId,
+    /// 판 광물.
+    pub mineral_id: DataId,
+    /// 이 판매를 매긴 시장 파일의 가격 규칙 버전(`{market id}@{n}`). 과거 판매가 "어느
+    /// 규칙으로 값이 매겨졌나"를 잃지 않게 한다(스펙 p1-03 I-90).
+    pub pricing_version: RuleVersion,
+    /// 인벤토리에서 빠지고 시장에 흡수된 킬로그램. 절대 0이 아니다.
+    #[serde(deserialize_with = "de_positive_mass_kg")]
+    pub quantity_kg: MassKg,
+    /// 지갑에 더해진 크레딧 — 구간 걷기(스펙 §4.2a)의 합. 절대 0이 아니다(모든 바닥값이
+    /// 1 cr/kg 이상이라는 기동 검증 때문).
+    #[serde(deserialize_with = "de_positive_credit_amount")]
+    pub proceeds_cr: CreditAmount,
+    /// 이 상장의 band 0 가격(기준가) — 미래의 판정 규칙이 payload 만으로 "기준가에서
+    /// 바닥까지 무너졌나"를 물을 수 있게 한다.
+    #[serde(deserialize_with = "de_positive_credit_amount")]
+    pub base_price_cr_per_kg: CreditAmount,
+    /// 이 상장의 바닥 가격(`base * price_floor_pct div 100`) — `base_price_cr_per_kg` 와
+    /// 함께 "바닥에 닿았나"를 payload 만으로 판정하게 한다(history3 C-1).
+    #[serde(deserialize_with = "de_positive_credit_amount")]
+    pub floor_price_cr_per_kg: CreditAmount,
+    /// `price(band(saturation_before_kg))` — 판매 직전 시세 티커가 보여줬던 값.
+    #[serde(deserialize_with = "de_positive_credit_amount")]
+    pub price_before_cr_per_kg: CreditAmount,
+    /// `price(band(saturation_after_kg))` — 판매 직후 시세 티커가 보여줄 값.
+    #[serde(deserialize_with = "de_positive_credit_amount")]
+    pub price_after_cr_per_kg: CreditAmount,
+    /// 이 tick까지 게으른 회복을 적용한 뒤의, 판매 직전 시장의 그 광물 포화. 영속화의
+    /// compare-and-set 기대값(ADR-0013 §5).
+    pub saturation_before_kg: MassKg,
+    /// 구간 걷기 뒤의 포화. `floor_band * band_kg` 를 절대 넘지 않는다.
+    pub saturation_after_kg: MassKg,
+    /// 이 판매 전 행위자의 그 광물 인벤토리. `quantity_kg` 이상이어야 한다(아니면
+    /// `INSUFFICIENT_QUANTITY`). compare-and-set 기대값.
+    #[serde(deserialize_with = "de_positive_mass_kg")]
+    pub quantity_before_kg: MassKg,
+    /// `quantity_before_kg - quantity_kg`. 0이면 전부 팔았다(행은 0으로 남고
+    /// `INVENTORY_STATE` 는 그 항목을 뺀다).
+    pub quantity_after_kg: MassKg,
+    /// 이 판매 전 행위자의 잔액(한 번도 안 팔았으면 0). compare-and-set 기대값.
+    pub wallet_before_cr: CreditAmount,
+    /// `wallet_before_cr + proceeds_cr`. 절대 0이 아니다(이미 `wallet_before_cr >= 0` 이고
+    /// `proceeds_cr >= 1`).
+    #[serde(deserialize_with = "de_positive_credit_amount")]
+    pub wallet_after_cr: CreditAmount,
+}
+
+/// `MINERAL_SOLD` — 수락된 판매 1건. 인벤토리·지갑·시장 행과 **같은 트랜잭션**에 쓰인다
+/// (ADR-0013 §2, ADR-0016 §1).
+///
+/// 대응 스키마: `contracts/events/domain/MINERAL_SOLD.schema.json`
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct MineralSoldEvent {
+    /// 저장·전달 멱등 키.
+    pub event_id: UuidV7,
+    /// 언제나 `MINERAL_SOLD`.
+    pub event_type: MineralSoldType,
+    /// 언제나 1.
+    pub schema_version: ConstSchemaVersion<1>,
+    /// 월드(샤드) id.
+    pub world_id: UuidV7,
+    /// 발행한 tick.
+    pub tick: Tick,
+    /// 그 tick 안의 발행 순서.
+    pub sequence: Sequence,
+    /// 게임 시간.
+    pub occurred_at: GameTime,
+    /// 실제 시각. 감사 전용.
+    pub recorded_at: RealTime,
+    /// 이 판매 명령이 속한 게임플레이 트랜잭션의 correlation.
+    pub correlation_id: UuidV7,
+    /// **좁혀졌다 — 비-null**. 이 판매를 일으킨 `SELL_MINERAL.command_id` —
+    /// `processed_commands.command_id` 와 1:1.
+    pub causation_id: UuidV7,
+    /// **좁혀졌다 — 비-null**. 인벤토리·지갑이 바뀐 행위자(판매자).
+    pub actor_id: UuidV7,
+    /// 타입별 payload.
+    pub payload: MineralSoldPayload,
 }

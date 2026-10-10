@@ -207,6 +207,8 @@ fn world() -> WorldConstants {
             max_ship_speed_mps: 10.0,
             cooldown_ticks: 0, // 재기동 뒤 쿨다운은 지속되지 않는다(설계 — 아래 알려진 한계).
         },
+        // p1-03 — 이 파일은 채굴(S8)만 다룬다. 시장 재기동은 `trading_*.rs`(신규)가 잰다.
+        markets: std::collections::BTreeMap::new(),
     }
 }
 

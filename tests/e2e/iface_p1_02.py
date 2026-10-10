@@ -192,7 +192,10 @@ CS_PROP = re.compile(r'\[JsonProperty\("([^"]+)"(?:,\s*Required\s*=\s*Required\.
 def cs_classes(root_cls: str) -> dict[str, dict[str, dict]]:
     """클래스 이름 → {json 이름: {type, required}}. 중첩 클래스는 중괄호 깊이로 가른다.
     같은 이름의 중첩 클래스가 파일마다 있을 수 있으므로 **루트 파일 하나**만 본다."""
-    text = (GEN / f"{root_cls}.cs").read_text(encoding="utf-8")
+    f = GEN / f"{root_cls}.cs"
+    if not f.is_file():
+        return {}                       # 생성 전 — 모든 필드가 "C# 에 필드가 없다" 로 잡힌다(초록 아님)
+    text = f.read_text(encoding="utf-8")
     out: dict[str, dict[str, dict]] = {}
     stack: list[tuple[str, int]] = []   # (클래스, 그 클래스 본문이 시작된 깊이)
     depth = 0
@@ -242,12 +245,28 @@ def cs_lookup(classes: dict, root: str, path: str) -> dict | None:
 
 # ── 비교 ─────────────────────────────────────────────────────────────────────
 
-def compare(structs: dict | None = None, cs_loader=None) -> dict:
-    """`structs`·`cs_loader` 는 selftest 가 변이를 넣으려고 주입한다(규칙 6)."""
+# p1-03 (계약 SC-128) — 신규 5 + data 2 + 변경 2. 계산은 같은 함수(`compare(types=TYPES_P103)`).
+TYPES_P103 = {
+    "SELL_MINERAL": ("contracts/commands/SELL_MINERAL.schema.json", "SellMineralCommand", "SellMineralCommand"),
+    "MINERAL_SOLD": ("contracts/events/domain/MINERAL_SOLD.schema.json", "MineralSoldEvent", "MineralSoldEvent"),
+    "WALLET_STATE": ("contracts/messages/WALLET_STATE.schema.json", "WalletStateMessage", "WalletStateMessage"),
+    "SALE_RECEIPT": ("contracts/messages/SALE_RECEIPT.schema.json", "SaleReceiptMessage", "SaleReceiptMessage"),
+    "MARKET_STATE": ("contracts/messages/MARKET_STATE.schema.json", "MarketStateMessage", "MarketStateMessage"),
+    "COMMAND_RESULT": ("contracts/messages/COMMAND_RESULT.schema.json", "CommandResultMessage", "CommandResultMessage"),
+    # 데이터 — C# 열 없음이 정상
+    "MARKET": ("contracts/data/market.schema.json", "MarketTable", None),
+    "DEPOSIT_RESERVE": ("contracts/data/deposit-reserve.schema.json", "DepositReserveTable", None),
+    "DEPOSIT_FIELD": ("contracts/data/deposit-field.schema.json", "DepositFieldTable", None),
+}
+
+
+def compare(structs: dict | None = None, cs_loader=None, types: dict | None = None) -> dict:
+    """`structs`·`cs_loader` 는 selftest 가 변이를 넣으려고 주입한다(규칙 6). `types` 기본 = p1-02 표."""
+    types = TYPES if types is None else types
     structs = rust_structs() if structs is None else structs
     cs_loader = cs_classes if cs_loader is None else cs_loader
     rows_out: list[dict] = []
-    for tname, (schema, rust_root, cs_root) in TYPES.items():
+    for tname, (schema, rust_root, cs_root) in types.items():
         classes = cs_loader(cs_root) if cs_root else None
         for path, meta in schema_rows(schema).items():
             rf = rust_lookup(structs, rust_root, path)
@@ -300,7 +319,7 @@ def compare(structs: dict | None = None, cs_loader=None) -> dict:
         per_type.setdefault(r["type"], 0)
         per_type[r["type"]] += 1
     return {
-        "types": len(TYPES),
+        "types": len(types),
         "rows_total": len(rows_out),
         "rows_per_type": per_type,
         "required_nullable_rows": sum(1 for r in rows_out if r["required"] and r["nullable"]),

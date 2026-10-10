@@ -8,6 +8,7 @@
         "Starfall.Net",
         "Starfall.Contracts",
         "Starfall.Mining",
+        "Starfall.Trading",
         "Unity.InputSystem"
     ],
     "includePlatforms": [],

@@ -1,0 +1,91 @@
+{
+  "actor_id": "01a0b1c2-b010-7000-8000-000000000160",
+  "close_initiator": "server",
+  "ferrosite_market": [
+    {
+      "last_sale": null,
+      "price_cr_per_kg": 10,
+      "saturation_kg": 0,
+      "tick": 1203
+    },
+    {
+      "last_sale": {
+        "actor_id": "01a0b1c2-b010-7000-8000-000000000160",
+        "quantity_kg": 200,
+        "tick": 2170
+      },
+      "price_cr_per_kg": 10,
+      "saturation_kg": 200,
+      "tick": 2170
+    },
+    {
+      "last_sale": {
+        "actor_id": "01a0b1c2-b010-7000-8000-000000000160",
+        "quantity_kg": 100,
+        "tick": 2222
+      },
+      "price_cr_per_kg": 10,
+      "saturation_kg": 300,
+      "tick": 2222
+    }
+  ],
+  "goto_failures": 0,
+  "inventory_ferrosite_last": 100,
+  "item": "[reference] 참고: p1-03 변조 단계 — 판매 수락 → ready → (지갑 또는 시장 행 SQL 변조) → 판매. 판정은 restart_cases.py sell-cas·sell-cas-market (SC-34·35)",
+  "open_at_end": false,
+  "own_ship_id": "01a124d3-e557-7598-aa84-a475f8423918",
+  "phase": "run",
+  "ready_tick": 9,
+  "receipts": [
+    {
+      "command_id": "01a124d5-8b41-7120-9623-da576bd7fa4d",
+      "proceeds_cr": 2000,
+      "tick": 2170
+    },
+    {
+      "command_id": "01a124d5-9565-7601-b8da-f61013053eb4",
+      "proceeds_cr": 1000,
+      "tick": 2222
+    }
+  ],
+  "sells": [
+    {
+      "command_id": "01a124d5-8b41-7120-9623-da576bd7fa4d",
+      "quantity_kg": 200,
+      "results": [
+        {
+          "reason": null,
+          "status": "ACCEPTED",
+          "tick": 2170
+        }
+      ]
+    },
+    {
+      "command_id": "01a124d5-9565-7601-b8da-f61013053eb4",
+      "quantity_kg": 100,
+      "results": [
+        {
+          "reason": null,
+          "status": "ACCEPTED",
+          "tick": 2222
+        }
+      ]
+    }
+  ],
+  "verdict": "PASS",
+  "wallets": [
+    {
+      "balance_cr": 0,
+      "tick": 9
+    },
+    {
+      "balance_cr": 2000,
+      "tick": 2170
+    },
+    {
+      "balance_cr": 3000,
+      "tick": 2222
+    }
+  ],
+  "world_id": "01a124d3-dd1b-7b81-bdb8-f88ee654406d"
+}

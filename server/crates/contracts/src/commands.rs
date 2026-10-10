@@ -15,8 +15,8 @@
 use serde::{Deserialize, Serialize};
 
 use crate::primitives::{
-    ConstSchemaVersion, ControlAxisMilli, DataId, InputSeq, ProbeSeq, QuaternionComponentMicro,
-    RealTime, UuidV7, required_nullable,
+    ConstSchemaVersion, ControlAxisMilli, DataId, InputSeq, MassKg, ProbeSeq,
+    QuaternionComponentMicro, RealTime, UuidV7, de_positive_mass_kg, required_nullable,
 };
 
 /// `PING_SERVER` 의 타입 상수.
@@ -177,4 +177,63 @@ pub struct MineResourceCommand {
     pub client_sent_at: Option<RealTime>,
     /// 타입별 payload.
     pub payload: MineResourcePayload,
+}
+
+// ---------------------------------------------------------------------------
+// SELL_MINERAL (p1-03)
+// ---------------------------------------------------------------------------
+
+/// `SELL_MINERAL` 의 타입 상수.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub enum SellMineralType {
+    /// 유일한 값.
+    #[default]
+    #[serde(rename = "SELL_MINERAL")]
+    SellMineral,
+}
+
+/// `SELL_MINERAL` payload — 시장 하나에 광물 하나를 얼마만큼 팔 의도.
+///
+/// **어휘 전체가 이 셋이다** — 가격·대금·잔액·위치·대상 actor 는 없다(절대 원칙 1, 스펙
+/// p1-03 I-74). 서버가 시장 포화와 데이터 표에서 가격을 계산하고, 자신의 `f64` 함선
+/// 상태로 도킹을 재고, 자기 인벤토리 사본으로 보유량을 대조한다. 주입된 가격·대금·잔액·
+/// 위치·행위자 필드는 무시되지 않고 스키마와 serde 양쪽에서 `MALFORMED_COMMAND` 로
+/// 거부된다(`deny_unknown_fields` + `additionalProperties: false`).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SellMineralPayload {
+    /// 팔 대상 `MARKET` 데이터 표의 행. 이 함선의 성계에 없는 id 는 `MALFORMED_COMMAND` 가
+    /// 아니라 `TARGET_UNKNOWN` 으로 거부된다.
+    pub market_id: DataId,
+    /// 팔 광물. 그 시장에 상장이 없는 id 도 `TARGET_UNKNOWN`.
+    pub mineral_id: DataId,
+    /// 팔고 싶은 양 — **의도**다. 서버는 자기 인벤토리 사본과 대조할 뿐(판정 6) 어디에도
+    /// 더하지 않는다(I-75). 0 은 의도가 아니다(스키마 `minimum: 1`).
+    #[serde(deserialize_with = "de_positive_mass_kg")]
+    pub quantity_kg: MassKg,
+}
+
+/// `SELL_MINERAL` — 이 세션의 행위자가 조종 중인 함선으로, 도킹한 시장에 광물
+/// `quantity_kg` 를 팔 의도.
+///
+/// `command_id` 가 `MINE_RESOURCE` 와 **같은 월드 범위 지속 멱등 키 공간**이다(ADR-0016
+/// §1) — 채굴로 수락된 키를 판매로 다시 보내면(또는 반대로) `DUPLICATE_COMMAND_ID`.
+/// 응답: 언제나 `COMMAND_RESULT` 하나, 그리고 **수락된 경우에만, 같은 tick 에** 이
+/// 순서로 `SALE_RECEIPT` → `INVENTORY_STATE` → `WALLET_STATE`(스펙 p1-03 §5.1a).
+///
+/// 대응 스키마: `contracts/commands/SELL_MINERAL.schema.json`
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SellMineralCommand {
+    /// 클라이언트가 만든 UUIDv7. 지속 멱등 키다.
+    pub command_id: UuidV7,
+    /// 언제나 `SELL_MINERAL`.
+    pub command_type: SellMineralType,
+    /// 언제나 1.
+    pub schema_version: ConstSchemaVersion<1>,
+    /// 전송 시점의 클라이언트 시계, 또는 null. 참고용이며 규칙에 쓰지 않는다.
+    #[serde(deserialize_with = "required_nullable")]
+    pub client_sent_at: Option<RealTime>,
+    /// 타입별 payload.
+    pub payload: SellMineralPayload,
 }
