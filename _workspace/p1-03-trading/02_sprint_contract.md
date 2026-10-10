@@ -55,6 +55,9 @@ export PATH="$HOME/.cargo/bin:$HOME/.dotnet/tools:/c/Users/CHOISOOYEON/AppData/L
 | **FAIL** | 기대 관찰이 나오지 않음. **간헐 실패도 FAIL**(비결정성 이슈로 기록, 재시도로 덮지 않는다). **구현이 없어 실행 못 한 것도 FAIL** |
 | **미검증(환경)** | §7 의 E-조건. PASS 로 올리지 않는다 |
 | **미검증(증거 요건)** | 관찰은 수행됐고 기대와 어긋나지 않았으나 `⊘` 배제 단언이나 분모가 출력에 없다. **비-통과**. 실패를 이 칸으로 옮기는 것은 금지 |
+| **미검증(조건 미발생)** | 겨냥한 조건이 **세상에서 일어나지 않았다**. 처방은 **부하·데이터를 고치는 것**이다 |
+| **미검증(관측 없음)** | 조건은 **일어났는데 볼 수 없었다**(측정 경로가 없거나 로그에 닿지 않는다). 처방은 **측정 경로를 여는 것**이다 |
+| — | **위 둘을 한 라벨로 합치지 않는다. 처방이 정반대라서 합치면 다음 사람이 엉뚱한 데를 고친다** — r1 에서 각 4 건씩 쓰였고 §0.3 에 정의가 없었다 |
 | **무효** | 겨냥한 조건이 이번 실행에서 만들어지지 않았다(예: SC-116 의 두 판매가 같은 tick 이 아님). 재실행하고 시도 횟수를 적는다. 슬라이스 종료 시 무효로 남으면 비-통과 |
 | **대기** | 선행 태스크 미완(E9). 그 라운드 판정에서 제외 |
 | **기록** | 판정하지 않는다(§6 M-n) |
@@ -219,8 +222,8 @@ export PATH="$HOME/.cargo/bin:$HOME/.dotnet/tools:/c/Users/CHOISOOYEON/AppData/L
 
 | ID | 검증 항목 | 검증 방법 | ⊘ 자명 통과 → 배제 단언 | 담당 | 근거 | 불가 |
 |----|----------|----------|------------------------|------|------|------|
-| SC-01 | `cargo fmt --all --check` · `cargo clippy --workspace --all-targets -- -D warnings` · `cargo test --workspace --locked` · `cargo test -p starfall-sim --release --locked` 넷 전부 종료 코드 0, 실패 0 | 네 명령 그대로(`run_round.py` gates 단계). 크레이트별 `N passed` 를 증거에 | **새 테스트 파일이 워크스페이스에 없어 0 건 통과** → 크레이트별 통과 수를 §0.7 기준선과 나란히 찍고, `starfall-sim` 의 `trading_judgement`·`pricing_golden`·`trading_replay` 테스트 바이너리가 출력에 있고 각 `passed ≥ 1` | server | AC-1 | E1 |
-| SC-02 | `starfall-sim`·`starfall-history` 의 `[dependencies]` 에 `axum`·`sqlx`·`redis`·`rand`·`chrono`·`tokio` 없음 | `grep -nE "axum\|sqlx\|redis\|rand\|chrono\|tokio" server/crates/sim/Cargo.toml server/crates/history/Cargo.toml` → 0 매칭 | **파일이 없어 0 매칭** → 두 경로를 `ls` 로 먼저 찍고 검사한 크레이트 이름 2 개 출력. 양성 대조: 같은 grep 을 `server/crates/persistence/Cargo.toml` 에 → `sqlx` ≥ 1 | server | AC-1 | E1 |
+| SC-01 | `cargo fmt --all --check` · `cargo clippy --workspace --all-targets -- -D warnings` · `cargo test --workspace --locked -- --show-output` · `cargo test -p starfall-sim --release --locked` 넷 전부 종료 코드 0, 실패 0 | 네 명령 그대로(`run_round.py` gates 단계). 크레이트별 `N passed` 를 증거에 **`-- --show-output` 를 빼지 않는다** — 성공한 테스트의 `println!` 은 그것 없이는 로그에 닿지 않는다(SC-40 자식 관측의 유일한 경로). **`-q`·`--quiet` 금지**(`test X ... ok` 줄이 사라져 유령 검출기가 눈먼다) · **`--nocapture` 와 raw `stdout()`/`stderr()` write 금지**(libtest 결과 줄을 splice 한다). 근거: D-2 §0. | **새 테스트 파일이 워크스페이스에 없어 0 건 통과** → 크레이트별 통과 수를 §0.7 기준선과 나란히 찍고, `starfall-sim` 의 `trading_judgement`·`pricing_golden`·`trading_replay` 테스트 바이너리가 출력에 있고 각 `passed ≥ 1` | server | AC-1 | E1 |
+| SC-02 | `starfall-sim`·`starfall-history` 의 `[dependencies]` 에 `axum`·`sqlx`·`redis`·`rand`·`chrono`·`tokio` 없음 | `cargo metadata --locked --format-version 1 --no-deps` 의 `starfall-sim`·`starfall-history` 에서 `kind: null`(= `[dependencies]`) 이름 집합을 뽑아 금지 6 이름과의 **교집합 0**. 집합 전체와 그 크기를 둘 다 출력. **텍스트 grep 은 판정에 쓰지 않는다** — 같은 grep 은 `history/Cargo.toml` 의 주석 **2 줄**에 걸리고(그 주석은 uuid v5 예외를 설명하는 옳은 문서다), 파일 전체를 읽는 grep 은 의존성과 **의존성에 대한 설명**을 구별할 수 없다. 그 2 적중이 문서이고 의존성이 아님을 교집합 0 이 말한다 | **패키지 이름 오타로 교집합이 빈 집합** → 검사한 패키지 이름 2 개와 각 `[dependencies]` 집합 **전체**를 출력(분모). 양성 대조: 같은 실행에서 `starfall-persistence` → 교집합 ≥ 1(실측 `sqlx`·`tokio`) | server | AC-1 | E1 |
 | SC-03 | **역사 코드 diff 0** — `server/crates/history/**` 와 `server/crates/persistence/src/history.rs` 가 HEAD `b3bc8f2` 와 같다(이번 슬라이스는 역사 코드를 바꾸지 않는다, history3 판단) | 도구 없음(사람 관찰) — git 출력을 증거에 붙인다: `git diff --stat b3bc8f2 -- server/crates/history server/crates/persistence/src/history.rs` → 빈 출력 **그리고** `git status --porcelain -- server/crates/history` → 빈 출력(untracked 신규 파일도 잡는다) | **경로 오타로 빈 출력** → `git ls-files server/crates/history \| wc -l` ≥ 1 과 `persistence/src/history.rs` 존재를 같은 실행에서 찍는다. 양성 대조: 같은 명령을 `contracts/` 에 → 비어 있지 않다(이 슬라이스가 바꾼 경로) | server | AC-1, 스펙 §3 | E1 |
 
 ### B. 데이터 표와 기동 거부 (AC-2) — server · qa
@@ -303,7 +306,7 @@ export PATH="$HOME/.cargo/bin:$HOME/.dotnet/tools:/c/Users/CHOISOOYEON/AppData/L
 
 | ID | 검증 항목 | 검증 방법 | ⊘ 자명 통과 → 배제 단언 | 담당 | 근거 | 불가 |
 |----|----------|----------|------------------------|------|------|------|
-| SC-40 | 판매를 포함한 입력열(함선 2, 채굴·판매, 쿨다운·도킹 밖·속도 초과·보유 부족, 구간 걸침, 회복 배수 경계)을 **서로 다른 프로세스에서 2 회** 재생 → 매 tick 이벤트 내용(`event_id`·`recorded_at` 제외)과 `SALE_RECEIPT`·`INVENTORY_STATE`·`WALLET_STATE`·`MARKET_STATE` payload 바이트 동일 | `cargo test -p starfall-sim sc40_two_process_replay_with_trading_is_byte_identical` (자식 프로세스 2 — 자식 `trading_replay_worker` 는 `#[ignore]`, 부모가 부른다) | **입력열이 판매를 안 만들어 비교 0** → 비교한 `MINERAL_SOLD` 수 ≥ 1, 거부 사유별 수(쿨다운·도킹 밖·속도·보유 각 ≥ 1), 회복 배수 tick 통과 수 ≥ 1 을 출력 | server | AC-8(a), I-59 확장 | E1 |
+| SC-40 | 판매를 포함한 입력열(함선 2, 채굴·판매, 쿨다운·도킹 밖·속도 초과·보유 부족, 구간 걸침, 회복 배수 경계)을 **서로 다른 프로세스에서 2 회** 재생 → 매 tick 이벤트 내용(`event_id`·`recorded_at` 제외)과 `SALE_RECEIPT`·`INVENTORY_STATE`·`WALLET_STATE`·`MARKET_STATE` payload 바이트 동일 | `cargo test -p starfall-sim sc40_two_process_replay_with_trading_is_byte_identical` (자식 프로세스 2 — 자식 `trading_replay_worker` 는 `#[ignore]`, 부모가 부른다) | **입력열이 판매를 안 만들어 비교 0** → 비교한 `MINERAL_SOLD` 수 ≥ 1, 거부 사유별 수(쿨다운·도킹 밖·속도·보유 각 ≥ 1), 회복 배수 tick 통과 수 ≥ 1 을 출력 **그리고 "서로 다른 프로세스" 자체가 자명 통과다**(부모가 in-process 호출로 바뀌어도 바이트 비교는 그대로 초록이고 로그가 글자 하나 안 바뀐다) → 표준 게이트 로그의 `---- <부모> stdout ----` 블록 **안에** 자식 `trading_replay_worker` 실행 줄이 **정확히 2 번**. 기대값 2 는 도구에 박지 않는다 — **부모 본문의 spawn 호출 수**에서 센다. `... ignored` 줄은 실행으로 세지 않는다(언급과 실행을 두 수로 분리). | server | AC-8(a), I-59 확장 | E1 |
 | SC-41 | **이동·채굴·역사 golden 이 재생성 없이 통과**하고 9 파일 sha256 이 §0.7 기준선과 같다 | `cargo test -p starfall-sim --test determinism` · `cargo test -p starfall-sim --test mining_replay` · `cargo test -p starfall-history --test mineral_discovery` + `sha256sum` 9 파일 재측정(`run_round.py` offline `sha_compare`) | **BLESS 로 다시 만듦** → 판정은 테스트 통과가 아니라 **해시 불변**. `git status --porcelain server/crates/sim/tests/data server/crates/history/tests/data` 공백도 | server | AC-8(b), CLAUDE.md | E1 |
 
 ### I. 계약 ↔ Rust (AC-9) — server
@@ -450,7 +453,7 @@ H1 은 Phase 4 중간에 투입되는 history 구현자가 `server/crates/persis
 | ID | 검증 항목 | 검증 방법 | ⊘ 자명 통과 → 배제 단언 | 담당 | 근거 | 불가 |
 |----|----------|----------|------------------------|------|------|------|
 | SC-116 | (a) 두 봇이 같은 목표 tick 에 Ferrosite 2,000 kg 판매 → `sequence` 작은 쪽 **20,000**·큰 쪽 **18,000**(P9·P10), 두 지갑 합 = 두 대금 합 = 38,000 | `bots probe --case race-sell-same-tick` | **두 `MINERAL_SOLD` 가 같은 tick 이 아님** → 그 단언이 먼저, 아니면 **무효**(시도·무효 횟수 출력). **포화 0 이 아님** → 새 월드, 직전 `MARKET_STATE` Ferrosite 포화 0. 도달 가능성: 각 봇 2,000 kg = 30 s 채굴(IB1·IB2), 같은 tick 겨냥은 p1-02 SC-84 에서 성립. 재시도마다 새 월드(포화 4,000 → 0 회복은 4 분이라 새 월드가 빠르다) | qa | AC-20(a), T-4 | E2 E5 E6 W |
-| SC-117 | (b) **31 연결**(봇 30 + Unity 1 또는 봇 31)이 채굴·운반·판매 **20 분**: tick 초과 비율 **≤ 0.5 %** | `bots run --stage sell-load`(새 월드, 원본 `data/`) + `stats_delta.py` | **31 연결이 실제로 유지 안 됨 / 판매가 일어나지 않음** → 실행 중 `live_connections` 최솟값 = 31, 판매 수·광물별 판매량 출력(판매 0 이면 FAIL) | qa | AC-20(b), T-11 | E2 E5 E6 E7 W |
+| SC-117 | (b) **31 연결**(봇 30 + Unity 1 또는 봇 31)이 채굴·운반·판매 **20 분**: tick 초과 비율 **≤ 0.5 %** | `bots run --stage sell-load`(새 월드, 원본 `data/`) + `stats_delta.py` | **31 연결이 실제로 유지 안 됨 / 판매가 일어나지 않음** → 실행 중 `live_connections` 최솟값 = 31, 판매 수·광물별 판매량 출력(판매 0 이면 FAIL) **그리고 임계를 겨우 넘는 실행과 넉넉히 넘는 실행이 같은 PASS 로 보인다** → 같은 출력에 **판매된 광물 종 수**와 **광맥별 잔량 최솟값**을 함께 찍는다. **이것은 출력 요건이고 임계가 아니다** — 임계 상향은 관측 뒤에 만들지 않는다(규칙 2). 내용 쪽 후속은 designer 소유(D-3 §1). | qa | AC-20(b), T-11 | E2 E5 E6 E7 W |
 | SC-118 | (b) 같은 부하 월드에서 항등식 전부(SC-30~33 의 네 하위 명령) 성립 | `trade_ledger.py --world <load 월드> ledger` · `chain` · `conservation` · `saturation` | SC-30 의 실행 모양 요건을 이 월드에도(판매 actor ≥ 2 · 판매 ≥ 10 · 광물 ≥ 2 · 구간 걸침 ≥ 1 · 회복 쌍 ≥ 1) | qa | AC-20(b) | E2 E5 E6 E7 W |
 | SC-119 | (b) 정상 부하에서 **`RECORDING_BACKLOG` 거부 0** | `sell-load` 사유별 집계 + `recording_lag` 최대(`/debug/stats`) | **백로그 경로가 죽어 0** → SC-38·39 가 같은 빌드에서 PASS 여야 이 항목이 PASS(검출기 생존). `recording_lag` 최대값 출력 | qa | AC-20(b) | E2 E5 E6 E7 W |
 | SC-120 | (b) **바닥에 닿은 광물 ≥ 1**, **회복이 관찰된 광물 ≥ 1** | `trade_ledger.py --world <load 월드> market-events`(판매 중 `price_after = 바닥가` 인 광물 수, 이웃 판매 사이 회복 쌍이 있는 광물 수) | **붕괴·회복 경로를 안 탄 실행** → 이 둘이 판정 조건 자체. 도달 가능성(R4): Ferrosite 초기 33 t ≥ 포화 상한 14 t, 30 봇 중 Ferrosite 봇 ~15 대가 사이클(≈ 100 s)마다 2,000 kg → 분당 ≈ 18 t 공급 > 시장 회복 1 t/분 → 첫 4~5 분 안에 바닥 도달. 회복은 바닥 뒤 60 s 이상 지나 같은 광물이 다시 팔리면 관찰된다(20 분 실행). 봇 정책은 §3.1 `sell-load` 에 고정 | qa | AC-20(b), T-11 | E2 E5 E6 E7 W |
@@ -644,7 +647,7 @@ H1 은 Phase 4 중간에 투입되는 history 구현자가 `server/crates/persis
 4. 항목이 읽는 산출물의 각 필드가 어느 계산 층에서 나왔는지와 임계를 한 줄로.
 5. **SC 하나 = verdict 하나.** (그래서 AC-6(a) 를 넷, AC-20(b) 를 넷, AC-15 를 39 로 갈랐다.)
 6. 방어를 넣었으면 그 방어가 걸려야 할 입력에서 **실제로 걸리는지** 같은 실행에서 보인다(양성·음성 대조).
-7. 어떤 SC 번호로 verdict 를 내는 도구는 **이 계약이 지명한 도구**여야 한다(§3.2 + §1 의 백틱 케이스 이름). 관측 표식은 위반이 아니다.
+7. 어떤 SC 번호로 verdict 를 내는 도구는 **이 계약이 지명한 도구**여야 한다(§3.2 + §1 의 백틱 케이스 이름). 관측 표식은 위반이 아니다. **지명된 테스트의 역할(단독 실행 가능 · 부모가 spawn 하는 자식 · 사람이 돌리는 `#[ignore]`)은 계약 산문이 아니라 Rust 속성과 부모의 spawn 리터럴에서 읽는다 — 계약에는 컴파일러가 없고, 산문 표식은 오타가 조용히 면제로 바뀐다**(p1-01 R28, D-1). **같은 이유로 검사가 주석에 걸리면 그 검사는 판정이 아니다**(SC-02, D-3 §2).
 8. 미루는 것에는 **만기**(게이트)를 적는다 — §9.
 9. **소스는 부정을 증명할 수 있지만 긍정은 증명하지 못한다.** 이 계약에서 소스 검사로 판정하는 항목(SC-02·03·103)은 실행 짝을 지정했다.
 
@@ -662,6 +665,11 @@ H1 은 Phase 4 중간에 투입되는 history 구현자가 `server/crates/persis
 | p1-02 만기 이월: 데이터 배포 ADR — **비-통과로 기록됨**(01_architect_tasks 만기 표). 닫힘 = SC-57 PASS | **이 슬라이스 r1** | SC-57 FAIL = 만기 미해소로 r1 요약에 비-통과 |
 | `HISTORICAL_EVENT_NOTICE` 판별 union | 두 번째 역사 타입 — 이번 발동 없음 | 그대로 |
 | 지갑 하한 0 의 ②(잔액 부족 거절) | 크레딧 차감 경로가 생기는 슬라이스 | 그 슬라이스 계약에 ADR-0016 §5 `wallets_balance_cr_check` ① "예" 재평가 항목 |
+| **세 부모의 성공 경로 자식 관측**(D-1 후속 §C) — **충족**: r1h `runs [2,2,2] / exp [2,2,2]`, 자식 pid 여섯 전부 다름 | 닫힘 | — |
+| **`parent_census` 분모 3 중 게이트가 판정하는 것은 1 이다** — 이 계약이 지명하는 CHILD 는 SC-40 하나뿐이고, `mining_replay`·`determinism` 의 부모 둘은 **판정 항목이 아니라 로그 건전성의 증거**다. **분모 3 을 줄이지 않는다** | 그 둘을 지명하는 슬라이스 | 그 슬라이스에서 CHILD 필터가 3, 판정 수도 3 이 된다 |
+| **산문에 적힌 RUNNABLE 테스트 이름**(D-1 §5 ③) — 닫지 말고 **센다**. 실측 분모: Rust **4** · Unity 맨 이름 **35** | r2 이후. 닫기 전에 분모가 먼저 | 수가 출력에서 빠지면 **"구멍이 있다"와 "구멍이 없다"가 같은 출력이 된다** — `filters` 비-통과 |
+| **한 행에 cargo 명령이 둘 이상**인 행의 verdict 귀속(D-1 §5 ②). 분모 **8**(SC-05·07·26·41·42·44·51·54) | r2 이후 라운드 | 그 8 행의 귀속이 여전히 추정이라는 사실이 출력에 남지 않는다 |
+| **SC-117 의 광맥 보유량**(D-3 §1, designer 소유) — `inner-belt-1` ferrosite 12,000 kg · 회복 200 kg/30 s 에 봇 5 대 | **다음 부하 실행 전** | 임계를 겨우 넘는 PASS 가 반복되고, 임계를 올릴 근거는 관측 뒤에 만들 수 없다(규칙 2) |
 
 ---
 

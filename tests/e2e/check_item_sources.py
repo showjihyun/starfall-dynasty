@@ -103,12 +103,34 @@ LEGACY_SLICE = "p1-01"
 # 라벨 **첫머리**의 `p…` 토큰 + 공백 + `SC-숫자`. 알려진 목록에 없는 토큰(`p1-2`)도 여기서 잡힌다 —
 # **그래야 오타 표지가 조용히 "다른 슬라이스" 로 빠지지 않는다**(architect 조건: 모르는 표지 = exit 4).
 SLICE_TAG = re.compile(r"^\s*(p[\w.-]*)\s+(?=SC-\d)")
+# **관측 표식 접두를 걷어낸 뒤** 표지를 읽는다. `참고 — p1-03 SC-32 …` 처럼 표식이 0 번 위치를
+# 차지하면 문두 고정 match 가 표지를 놓치고, 그 라벨이 **p1-01 것으로 귀속돼 남의 계약을 위반한다**
+# (p1-03 r1 뒤 실측: `trade_ledger.py -> SC-32` 로 p1-01 게이트 exit 1).
+#
+# **`.search` 로 바꾸지 않는다.** 이 라벨 자체가 본문에 `p1-02` 를 담고 있다
+# (*"판매 항 없는 p1-02 식"*). `.search` 는 먼저 나오는 표지를 집으므로 *"p1-02 식과 다른 p1-03 …"*
+# 같은 라벨이 오면 **조용히 p1-02 로 귀속된다** — 느슨하게 만들면 반대 방향 구멍이 생긴다.
+# 걷어내는 것은 **선언된 표식**(`OBSERVATION_MARKS`)뿐이고, 선언에 없는 접두는 걷히지 않아
+# 표지 없는 라벨로 세어진다(그 수를 출력에 찍는다).
+MARK_PREFIX = re.compile(r"^\s*(?:%s)\s*[—\-:·]+\s*" % "|".join(OBSERVATION_MARKS))
+
+
+def strip_mark_prefix(label: str) -> str:
+    """라벨 맨 앞의 선언된 관측 표식 + 구분자를 걷어낸다. 없으면 그대로."""
+    return MARK_PREFIX.sub("", label, count=1)
 
 
 def label_slice(label: str) -> str:
     """라벨이 속한 슬라이스. 표지가 없으면 p1-01. 알려지지 않은 표지는 그 표지 그대로 돌려준다."""
-    m = SLICE_TAG.match(label)
+    m = SLICE_TAG.match(strip_mark_prefix(label))
     return m.group(1) if m else LEGACY_SLICE
+
+
+def label_unmarked(label: str) -> bool:
+    """표지가 없어 **p1-01 로 귀속되는** 라벨인가. 이 수를 출력에 찍는다 — 0 이면 그 통로가 닫혀
+    있다는 뜻이고, 늘면 그 자리에서 보인다(`aggregate()` 가 모르는 사유를 PASS 로 떨어뜨린 것과
+    같은 가족: **선언되지 않은 통로**). 지금은 docstring 이 의도를 적은 하위 호환이라 닫지 않는다."""
+    return SLICE_TAG.match(strip_mark_prefix(label)) is None
 
 
 def expand(text: str) -> set[int]:
@@ -328,6 +350,9 @@ def check(contract_text: str, tools: dict[str, str],
     tally.setdefault("judged", 0)
     tally.setdefault("other", 0)
     tally.setdefault("unknown", [])
+    # **선언되지 않은 통로를 센다**: 표지가 없어 p1-01 로 귀속되는 라벨. 0 이면 통로가 닫혀 있다는
+    # 뜻이고, 늘면 그 자리에서 보인다. 지금 닫지는 않는다(docstring 이 의도를 적은 하위 호환).
+    tally.setdefault("unmarked", [])
     for name, source in sorted(tools.items()):
         used: set[int] = set()
         if name.endswith(".rs"):
@@ -342,6 +367,8 @@ def check(contract_text: str, tools: dict[str, str],
             if not SC_NUM.search(label):
                 continue            # SC 번호 없는 라벨은 아무것도 주장하지 않는다
             sl = label_slice(label)
+            if label_unmarked(label):
+                tally["unmarked"].append((name, label))
             if sl not in KNOWN_SLICES:
                 tally["unknown"].append((name, label))
                 continue
@@ -682,6 +709,38 @@ def slice_selftest() -> tuple[int, int]:
                   t["unknown"] == [("x_tool.py", "p1-2 SC-11 오타 표지")] and t["other"] == 0,
                   "tally=%s" % t))
 
+    # ⑦ **관측 표식 접두가 슬라이스 표지를 밀어낸다** — p1-03 r1 뒤 실측으로 CI 가 빨개졌다
+    #    (`trade_ledger.py -> SC-32` 로 p1-01 게이트 exit 1). 고치기 전에는 ⑦ 이 p1-01 귀속이었다.
+    NEG = "참고 — p1-03 SC-32 음성 대조: 판매 항 없는 p1-02 식(FAIL 이어야 한다)"
+    cases.append(("⑦ `참고 —` 접두가 있어도 표지를 읽는다(고치기 전: p1-01 귀속)",
+                  label_slice(NEG) == "p1-03" and not label_unmarked(NEG), label_slice(NEG)))
+    #    ⑦' **`.search` 로 느슨하게 만들면 생기는 반대 방향 구멍.** 이 라벨은 본문에 `p1-02` 를
+    #    담고 있으므로, 표지를 문두에서 읽지 않으면 조용히 p1-02 로 귀속된다. 표지가 문두에 없는
+    #    라벨은 **표지 없음**(p1-01 귀속)으로 세어 출력에 찍는다 — 조용한 오귀속이 아니다.
+    LOOSE = "p1-02 식과 다른 p1-03 SC-32 …"
+    cases.append(("⑦' 표지가 문두에 없으면 p1-02 로 조용히 새지 않고 '표지 없음' 으로 센다",
+                  label_slice(LOOSE) == LEGACY_SLICE and label_unmarked(LOOSE), label_slice(LOOSE)))
+    #    ⑦'' 세 모드에서 귀속이 갈린다 — "무조건 제외" 도 "무조건 판정" 도 아니다
+    c3 = S1 + row(32, "`trade_ledger.py --world <id> conservation`")
+    t = {}
+    got = check(c3, {"trade_ledger.py": '"item": "%s"' % NEG}, slice_="p1-03", tally=t)
+    cases.append(("⑦'' --slice p1-03: 그 라벨은 **여전히 판정 대상**이고 지명된 번호라 통과",
+                  got == [] and t["judged"] == 1 and t["other"] == 0, "bad=%s tally=%s" % (got, t)))
+    t = {}
+    got = check(contract, {"trade_ledger.py": '"item": "%s"' % NEG}, slice_="p1-01", tally=t)
+    cases.append(("⑦''' --slice p1-01: 제외되고 위반 0(고치기 전에는 SC-32 위반이었다)",
+                  got == [] and t["other"] == 1 and t["judged"] == 0, "bad=%s tally=%s" % (got, t)))
+    #    ⑦'''' 표식 접두 + 표지 없음 → 표식만으로 면제되지 않는다(세어지고 p1-01 귀속)
+    t = {}
+    check(contract, {"x_tool.py": '"item": "참고 — SC-11 표식만 있고 표지 없음"'}, slice_="p1-01", tally=t)
+    cases.append(("⑦''''' 표식만 있고 표지가 없으면 '표지 없음' 으로 세어진다",
+                  len(t["unmarked"]) == 1 and t["judged"] == 1, "tally=%s" % t))
+    #    ⑦'''''' **걷어내는 것은 선언된 표식뿐이다.** 아무 접두나 걷으면 선언에 없는 말머리가
+    #    조용히 표지를 얻는다 — 그러면 "표지 없음" 수가 그 라벨을 더 이상 보여 주지 않는다.
+    UNDECL = "보류 — p1-03 SC-32 선언에 없는 말머리"
+    cases.append(("⑦'''''' 선언에 없는 접두는 걷지 않는다 — 조용히 표지를 얻지 않고 '표지 없음' 으로 센다",
+                  label_slice(UNDECL) == LEGACY_SLICE and label_unmarked(UNDECL), label_slice(UNDECL)))
+
     # ④ Rust: 지명된 케이스인데 번호가 다르면 위반
     src = _rs([("CheatMineInject", 'ContractRef::Verdict("p1-02 SC-73 주입")')],
               names=[("CheatMineInject", "cheat-mine-inject")])
@@ -793,6 +852,11 @@ def main() -> int:
     print(f"슬라이스 {args.slice}: 판정한 py 라벨 {tally['judged']} · 다른 슬라이스로 뺀 라벨 "
           f"py {tally['other']} + rs verdict 팔 {rs_other} · 알 수 없는 표지 "
           f"{len(tally['unknown']) + len(rs_unknown)}")
+    # **선언되지 않은 통로의 수.** 표지 없는 라벨은 조용히 p1-01 것이 된다 — 그래서 센다.
+    # 0 이면 닫혀 있다는 뜻이고, 늘면 다음 사람이 *"p1-01 이 왜 빨간가"* 를 엉뚱한 데서 찾지 않는다.
+    um_tools = sorted({n for n, _ in tally["unmarked"]})
+    print(f"표지 없는 py 라벨 {len(tally['unmarked'])} 건({LEGACY_SLICE} 로 귀속) · 도구 {len(um_tools)}"
+          + ("" if not um_tools else ": " + " ".join(um_tools)))
     # **무엇을 훑지 않았는지를 적는다** (architect R23). 끄는 선택은 유지하되 **제외가 명시적으로
     # 비어 있게** 만든다 — `도구 없음(사람 관찰)` 이 빈칸과 다른 것과 같은 이치다.
     # **개수를 같이 찍는 것이 핵심이다**: 만기가 지났는지, 수가 늘었는지가 그 자리에서 읽힌다.
