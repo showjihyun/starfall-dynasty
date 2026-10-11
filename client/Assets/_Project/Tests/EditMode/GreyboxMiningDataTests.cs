@@ -1,8 +1,17 @@
-// EditMode tests for C2 (p1-02-mining): the client's copy of data/{minerals,mining,world/deposits,
-// history/rules}/** and the loader that reads it. Sprint contract SC-71 (part A only - part B,
-// DepositMarker_FollowsMessageNotDataCopy, needs the marker component C3 builds), SC-72 is
-// covered by the existing ContractFixtureTests.ClientDataCopy_MatchesRepositoryOriginal (it
-// globs contracts/../data/**/*.json, so it picks up these 7 new files without changes here).
+// EditMode tests for C2 (p1-02-mining): the client's copy of data/{minerals,mining,world/deposits}/**
+// and the loader that reads it. Sprint contract SC-71 (part A only - part B,
+// DepositMarker_FollowsMessageNotDataCopy, needs the marker component C3 builds), SC-72 was
+// covered by the (now p1-03-trading SC-56-renamed) ContractFixtureTests.
+// ClientDataCopy_MatchesRegistryDerivedSet - it derives its expected set from the registry's
+// "consumers" field, not a glob over all of data/. history/rules/ no longer belongs to this
+// comment's file list, and MiningRuleFile_ValuesNotConsumedByGameplay (p1-02's Q-8 guard against
+// gameplay code reading mineral-discovery.json) was removed in p1-03-trading: ADR-0015 section 2
+// confirmed SIGNIFICANCE_RULE's consumers stayed history-only, so the file the guard protected
+// against reading is no longer copied to the client at all - the guard's premise (the file sits
+// in the client tree only for a byte-identity test) no longer holds, and
+// ClientDataCopy_ServerOnlyKindFile_IsDetected_NegativeControl in ContractFixtureTests.cs now
+// covers "a server-only kind's file must never be in the client copy" more strongly (it fails
+// the build, not just a source-text grep).
 
 using System;
 using System.IO;
@@ -117,39 +126,6 @@ namespace Starfall.Tests.EditMode
             Assert.That(data.Deposits.Deposits.Count, Is.EqualTo(8));
             Assert.That(data.Minerals.Count, Is.EqualTo(4));
             Assert.That(data.Rules, Is.Not.Null);
-        }
-
-        // ------------------------------------------------------------------ Q-8: history rule
-        // file is copied (for SC-72's hash test) but never consumed by gameplay code.
-
-        [Test]
-        public void MiningRuleFile_ValuesNotConsumedByGameplay()
-        {
-            // Q-8 (02_client_ack.md, qa agreement): data/history/rules/mineral-discovery.json is
-            // not an AC item, kept as a client-only regression guard. The rule's own designer_note
-            // says the values are Rust-code inputs (ADR-0014 section 5) - nothing in the client
-            // should ever open this specific file. This is a source-text guard, not a schema
-            // check: it fails loudly if a future change starts reading it, rather than relying on
-            // "nobody happened to write that code yet".
-            string scriptsRoot = Path.Combine(ContractFixtures.RequireRepoRoot(), "client", "Assets", "_Project", "Scripts");
-            Assert.That(Directory.Exists(scriptsRoot), Is.True);
-
-            string[] sources = Directory.GetFiles(scriptsRoot, "*.cs", SearchOption.AllDirectories);
-            TestContext.WriteLine("Scripts/*.cs files scanned: " + sources.Length);
-            Assert.That(sources.Length, Is.GreaterThan(0));
-
-            var offenders = new System.Collections.Generic.List<string>();
-            foreach (string file in sources)
-            {
-                string text = File.ReadAllText(file);
-                if (text.Contains("mineral-discovery.json") || text.Contains("\"rules\", \"mineral-discovery"))
-                    offenders.Add(file);
-            }
-
-            foreach (string offender in offenders) TestContext.WriteLine("references mineral-discovery.json: " + offender);
-            Assert.That(offenders.Count, Is.EqualTo(0),
-                "no file under Scripts/ should name mineral-discovery.json - it is copied for the " +
-                "byte-identity test only (SC-72) and gameplay code must never read its values.");
         }
     }
 }

@@ -1,0 +1,47 @@
+{
+  "item": "[verdict] p1-03 SC-116 두 봇 같은 tick Ferrosite 2,000 kg 판매 → 20,000 / 18,000, 지갑 합 38,000 (같은 tick·포화 0 선단언)",
+  "proceeds_a": 20000,
+  "proceeds_b": 18000,
+  "saturation_seen_before_a": 0,
+  "saturation_seen_before_b": 0,
+  "sells_a": [
+    {
+      "command_id": "01a124d0-60e4-70f5-b816-720f74f269ec",
+      "dist_to_exchange_m": 249.73446782733058,
+      "mineral_id": "ferrosite",
+      "quantity_kg": 2000,
+      "results": [
+        {
+          "reason": null,
+          "status": "ACCEPTED",
+          "tick": 2190
+        }
+      ],
+      "snapshot_tick": 2188,
+      "speed_mps": 0.0
+    }
+  ],
+  "sells_b": [
+    {
+      "command_id": "01a124d0-60e5-7184-aa80-7e5c9e743113",
+      "dist_to_exchange_m": 249.31882003972342,
+      "mineral_id": "ferrosite",
+      "quantity_kg": 2000,
+      "results": [
+        {
+          "reason": null,
+          "status": "ACCEPTED",
+          "tick": 2190
+        }
+      ],
+      "snapshot_tick": 2188,
+      "speed_mps": 0.0
+    }
+  ],
+  "tick_a": 2190,
+  "tick_b": 2190,
+  "verdict": "PASS",
+  "wallet_a": 20000,
+  "wallet_b": 18000,
+  "world_id": "01a124ce-ad57-7261-8d1c-de800aa74b75"
+}

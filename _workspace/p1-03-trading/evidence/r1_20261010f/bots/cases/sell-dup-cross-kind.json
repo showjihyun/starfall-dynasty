@@ -1,0 +1,68 @@
+{
+  "item": "[verdict] p1-03 SC-112 명령 종류 교차(채굴 키 → 판매, 판매 키 → 채굴) → 둘 다 DUPLICATE_COMMAND_ID",
+  "mine_key_x": "01a125c3-ac15-76d3-a8f1-161bd84430e3",
+  "results_x": [
+    [
+      "ACCEPTED",
+      null
+    ],
+    [
+      "REJECTED",
+      "DUPLICATE_COMMAND_ID"
+    ]
+  ],
+  "results_y": [
+    [
+      "ACCEPTED",
+      null
+    ],
+    [
+      "REJECTED",
+      "DUPLICATE_COMMAND_ID"
+    ]
+  ],
+  "sell_key_y": "01a125c3-ac15-76d3-a8f1-161cf97b95c7",
+  "sells": [
+    {
+      "command_id": "01a125c3-ac15-76d3-a8f1-161bd84430e3",
+      "dist_to_exchange_m": 249.62062545190452,
+      "mineral_id": "ferrosite",
+      "quantity_kg": 100,
+      "results": [
+        {
+          "reason": null,
+          "status": "ACCEPTED",
+          "tick": 4469
+        },
+        {
+          "reason": "DUPLICATE_COMMAND_ID",
+          "status": "REJECTED",
+          "tick": 5473
+        }
+      ],
+      "snapshot_tick": 5472,
+      "speed_mps": 0.0
+    },
+    {
+      "command_id": "01a125c3-ac15-76d3-a8f1-161cf97b95c7",
+      "dist_to_exchange_m": 249.62062545190452,
+      "mineral_id": "ferrosite",
+      "quantity_kg": 100,
+      "results": [
+        {
+          "reason": null,
+          "status": "ACCEPTED",
+          "tick": 5503
+        },
+        {
+          "reason": "DUPLICATE_COMMAND_ID",
+          "status": "REJECTED",
+          "tick": 6456
+        }
+      ],
+      "snapshot_tick": 5502,
+      "speed_mps": 0.0
+    }
+  ],
+  "verdict": "PASS"
+}

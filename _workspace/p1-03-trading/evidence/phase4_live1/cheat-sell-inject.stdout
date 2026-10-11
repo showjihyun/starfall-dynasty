@@ -1,0 +1,152 @@
+{
+  "actor_id": "01a0b1c2-b010-7000-8000-000000000113",
+  "attempts": 7,
+  "baseline_accepted": true,
+  "blocked_malformed": 7,
+  "case": "Inject",
+  "cheat_reasons": [
+    "MALFORMED_COMMAND",
+    "MALFORMED_COMMAND",
+    "MALFORMED_COMMAND",
+    "MALFORMED_COMMAND",
+    "MALFORMED_COMMAND",
+    "MALFORMED_COMMAND",
+    "MALFORMED_COMMAND"
+  ],
+  "condition_occurred": true,
+  "frames_carrying_injected_key": 7,
+  "goto_failures": 0,
+  "item": "[verdict] p1-03 SC-106 판매에 가격·대금·잔액·위치·actor 주입, quantity 0·1.5 → 7 경우 전부 MALFORMED_COMMAND, 상태 불변",
+  "label": "bot-113",
+  "mine_until_shortfalls": 0,
+  "sells": [
+    {
+      "command_id": "01a11653-9fb4-72a1-bebd-8055aad045ba",
+      "dist_to_exchange_m": 249.79593762509427,
+      "mineral_id": "ferrosite",
+      "quantity_kg": 200,
+      "results": [
+        {
+          "reason": null,
+          "status": "ACCEPTED",
+          "tick": 9013
+        }
+      ],
+      "snapshot_tick": 9012,
+      "speed_mps": 0.0
+    },
+    {
+      "command_id": "01a11653-a594-725a-9bf2-c6c06e352b0d",
+      "dist_to_exchange_m": 249.79593762509427,
+      "mineral_id": "",
+      "quantity_kg": 0,
+      "results": [
+        {
+          "reason": "MALFORMED_COMMAND",
+          "status": "REJECTED",
+          "tick": 9042
+        }
+      ],
+      "snapshot_tick": 9042,
+      "speed_mps": 0.0
+    },
+    {
+      "command_id": "01a11653-a730-7145-9dad-a5cdf36a2131",
+      "dist_to_exchange_m": 249.79593762509427,
+      "mineral_id": "",
+      "quantity_kg": 0,
+      "results": [
+        {
+          "reason": "MALFORMED_COMMAND",
+          "status": "REJECTED",
+          "tick": 9050
+        }
+      ],
+      "snapshot_tick": 9050,
+      "speed_mps": 0.0
+    },
+    {
+      "command_id": "01a11653-a8c9-70f3-95bb-4bfc6cd2ed5c",
+      "dist_to_exchange_m": 249.79593762509427,
+      "mineral_id": "",
+      "quantity_kg": 0,
+      "results": [
+        {
+          "reason": "MALFORMED_COMMAND",
+          "status": "REJECTED",
+          "tick": 9058
+        }
+      ],
+      "snapshot_tick": 9058,
+      "speed_mps": 0.0
+    },
+    {
+      "command_id": "01a11653-aa63-738d-8516-4011fcb9bea3",
+      "dist_to_exchange_m": 249.79593762509427,
+      "mineral_id": "",
+      "quantity_kg": 0,
+      "results": [
+        {
+          "reason": "MALFORMED_COMMAND",
+          "status": "REJECTED",
+          "tick": 9067
+        }
+      ],
+      "snapshot_tick": 9066,
+      "speed_mps": 0.0
+    },
+    {
+      "command_id": "01a11653-abfc-702c-ab59-239055f5162c",
+      "dist_to_exchange_m": 249.79593762509427,
+      "mineral_id": "",
+      "quantity_kg": 0,
+      "results": [
+        {
+          "reason": "MALFORMED_COMMAND",
+          "status": "REJECTED",
+          "tick": 9075
+        }
+      ],
+      "snapshot_tick": 9074,
+      "speed_mps": 0.0
+    },
+    {
+      "command_id": "01a11653-ad96-7569-961c-28c0260a496b",
+      "dist_to_exchange_m": 249.79593762509427,
+      "mineral_id": "",
+      "quantity_kg": 0,
+      "results": [
+        {
+          "reason": "MALFORMED_COMMAND",
+          "status": "REJECTED",
+          "tick": 9083
+        }
+      ],
+      "snapshot_tick": 9082,
+      "speed_mps": 0.0
+    },
+    {
+      "command_id": "01a11653-af32-779b-b8b2-45e91af0994d",
+      "dist_to_exchange_m": 249.79593762509427,
+      "mineral_id": "",
+      "quantity_kg": 0,
+      "results": [
+        {
+          "reason": "MALFORMED_COMMAND",
+          "status": "REJECTED",
+          "tick": 9091
+        }
+      ],
+      "snapshot_tick": 9090,
+      "speed_mps": 0.0
+    }
+  ],
+  "state": {
+    "allowed": "기준 판매의 응답 1 벌",
+    "final_balance": 2000,
+    "final_ferrosite": 200,
+    "receipts_after_baseline": 1,
+    "wallet_messages_after_baseline": 1
+  },
+  "verdict": "PASS"
+}

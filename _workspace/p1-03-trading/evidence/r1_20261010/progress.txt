@@ -1,0 +1,120 @@
+[16:04:19] == freeze
+[16:04:19]   head: rc=0 PASS 0s
+[16:04:20]   porcelain: rc=0 PASS 1s
+[16:04:22]   fp_before: rc=0 PASS 1s
+[16:04:23] == freeze: PASS
+[16:04:23] == gates
+[16:04:24]   fmt: rc=0 PASS 1s
+[16:04:31]   clippy: rc=0 PASS 7s
+[16:05:45]   test: rc=0 PASS 73s
+[16:05:48]   release_starfall-sim: rc=0 PASS 3s
+[16:05:49] == gates: PASS
+[16:05:49] == census
+[16:05:49]   census: rc=0 PASS 0s
+[16:05:49] == census: PASS
+[16:05:49] == repeat
+[16:06:47]   run1: rc=0 PASS 58s
+[16:07:51]   run2: rc=0 PASS 64s
+[16:08:49]   run3: rc=0 PASS 58s
+[16:09:50]   run4: rc=0 PASS 61s
+[16:10:49]   run5: rc=0 PASS 59s
+[16:11:47]   run6: rc=0 PASS 58s
+[16:12:47]   run7: rc=0 PASS 60s
+[16:13:53]   run8: rc=0 PASS 66s
+[16:14:55]   run9: rc=0 PASS 62s
+[16:15:53]   run10: rc=0 PASS 58s
+[16:15:53] == repeat: PASS
+[16:15:53] == unity
+[16:16:06]   EditMode: rc=0 PASS 13s
+[16:16:18]   PlayMode: rc=0 PASS 12s
+[16:16:18] == unity: PASS
+[16:16:18] == filters
+[16:17:14]   cargo_sc_map: rc=1 FAIL 55s
+[16:17:14] == filters: FAIL
+[16:17:14] == sources
+[16:17:14]   check_item_sources: rc=0 PASS 0s
+[16:17:15] == sources: PASS
+[16:17:15] == offline
+[16:17:15]   src_gate_p103: rc=0 PASS 0s
+[16:17:15]   src_gate_p102_regress: rc=0 PASS 0s
+[16:17:15]   self_check_item_sources: rc=0 PASS 0s
+[16:17:15]   self_server_boot: rc=0 PASS 0s
+[16:17:15]   self_trade_ledger: rc=0 PASS 0s
+[16:17:15]   self_restart_cases_p103: rc=0 PASS 0s
+[16:17:17]   self_validate_data_files: rc=0 PASS 2s
+[16:17:17]   self_data_copy_scope: rc=0 PASS 0s
+[16:17:17]   self_data_file_pairs: rc=0 PASS 0s
+[16:17:18]   self_constraint_census: rc=0 PASS 0s
+[16:17:18]   self_db_test_census: rc=0 PASS 0s
+[16:17:18]   self_interface_matrix_p103: rc=0 PASS 0s
+[16:17:18]   self_new_world: rc=0 PASS 0s
+[16:17:19]   self_cargo_sc_map: rc=0 PASS 1s
+[16:17:40]   self_run_round: rc=0 PASS 22s
+[16:17:40]   sc57_copy_scope: rc=0 PASS 0s
+[16:17:41]   sc58_glob_census: rc=0 PASS 0s
+[16:17:41]   sc59_validate_data: rc=0 PASS 0s
+[16:17:43]   sc127_coverage_strict: rc=0 PASS 3s
+[16:17:43]   sc128_interface_matrix: rc=0 PASS 0s
+[16:17:44]   sc125_self_causation: rc=0 PASS 0s
+[16:17:45]   sc126_constraint_census: rc=0 PASS 1s
+[16:17:46]   sc60_codegen_run1: rc=0 PASS 1s
+[16:17:46]   sc60_codegen_run2: rc=0 PASS 0s
+[16:17:47] == offline: PASS
+[16:17:47] == bots
+[16:17:47]   build_server: rc=0 PASS 1s
+[16:17:48]   build_bots: rc=0 PASS 1s
+[16:17:51]   sc04_new_world: rc=0 PASS 2s
+[16:17:52]   sc04_boot: rc=0 PASS 1s
+[16:17:58]   sc05_reject: rc=0 PASS 6s
+[16:17:58]   sc129_pairs: rc=0 PASS 0s
+[16:17:59]   cycle_new_world: rc=0 PASS 1s
+[16:27:37]   cycle.trade-cycle: rc=0 PASS 577s
+[16:27:39]   cases_new_world: rc=0 PASS 1s
+[16:28:53]   cases.sell-dup: rc=0 PASS 73s
+[16:30:23]   cases.sell-dup-reconnect: rc=0 PASS 90s
+[16:33:05]   cases.sell-dup-cross-kind: rc=0 PASS 162s
+[16:35:00]   cases.cheat-sell-inject: rc=0 PASS 115s
+[16:37:10]   cases.cheat-sell-range: rc=0 PASS 130s
+[16:40:20]   cases.cheat-sell-fast: rc=0 PASS 191s
+[16:42:07]   cases.cheat-sell-overqty: rc=0 PASS 106s
+[16:43:58]   cases.cheat-sell-cooldown: rc=0 PASS 111s
+[16:45:15]   cases.cheat-sell-unknown: rc=0 PASS 77s
+[16:45:18]   leak_new_world: rc=0 PASS 2s
+[16:47:48]   leak.leak-scan-market: rc=0 PASS 149s
+[16:47:50]   trace_new_world: rc=0 PASS 2s
+[16:54:13]   trace.trace-sell-a: rc=0 PASS 382s
+[16:54:46]   trace.trace-sell-b: rc=0 PASS 33s
+[16:54:48]   race_new_world: rc=0 PASS 1s
+[16:56:42]   race.race-sell-same-tick: rc=0 PASS 113s
+[16:58:42]   restart_sell_dup: rc=0 PASS 120s
+[17:02:59]   restart_sell_cas: rc=0 PASS 256s
+[17:06:37]   restart_sell_cas_market: rc=0 PASS 219s
+[17:15:06]   restart_sell_recover: rc=0 PASS 508s
+[17:15:07]   load_new_world: rc=0 PASS 1s
+[17:40:20]   load.sell-load: rc=4 미검증(조건 미발생) 1512s
+[17:40:21] == bots: 미검증(조건 미발생)
+[17:40:21] == judges
+[17:40:23]   sc30_ledger_cycle: rc=0 PASS 2s
+[17:40:26]   sc31_chain_cycle: rc=0 PASS 2s
+[17:40:28]   sc32_conservation_cycle: rc=0 PASS 2s
+[17:40:30]   sc32_negative_without_sales: rc=1 FAIL 2s
+[17:40:32]   sc33_saturation_cycle: rc=0 PASS 2s
+[17:40:34]   sc37_zero_rows_cycle: rc=0 PASS 2s
+[17:40:36]   sc55_history_replay_cycle: rc=0 PASS 2s
+[17:40:36]   sc55_sold_rows_cycle_cycle: rc=0 PASS 0s
+[17:40:39]   sc118_load: rc=0 PASS 3s
+[17:40:41]   sc120_market_events_load: rc=0 PASS 1s
+[17:40:42]   sc123_causation_cycle: rc=0 PASS 2s
+[17:40:44]   sc123_causation_cases: rc=0 PASS 2s
+[17:40:47]   sc123_causation_load: rc=0 PASS 2s
+[17:40:48]   sc124_gaps_cycle: rc=0 PASS 2s
+[17:40:50]   sc124_gaps_cases: rc=0 PASS 1s
+[17:40:52]   sc124_gaps_load: rc=0 PASS 2s
+[17:40:52]   sc122_cycle: rc=0 PASS 0s
+[17:40:52]   sc122_cases: rc=0 PASS 0s
+[17:40:52]   sc122_load: rc=0 PASS 0s
+[17:40:54]   shape_cycle: rc=0 PASS 1s
+[17:40:54] == judges: FAIL
+[17:40:54] == db_stop
+[17:40:54] !! 사람 단계 대기: db_stop — DB 정지(docker compose stop/start postgres)를 포함한다. 팀에 DB 정지를 공지하고, 다른 에이전트의 DB 테스트·서버가 돌지 않는지 확인한 뒤 승인한다.
+[17:40:54] DONE

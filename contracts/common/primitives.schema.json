@@ -57,6 +57,12 @@
       "description": "Amount of money in integer minor units. Floating-point money is forbidden. The currency and its minor-unit scale are defined by the field or data table that uses it.",
       "$ref": "#/$defs/SafeInteger"
     },
+    "CreditAmount": {
+      "description": "An amount of the one currency of MVP-1, credits (p1-03, ADR-0016): a wallet balance, a sale's proceeds or a price. Data-table and wire field names carry the suffix _cr (_cr_per_kg for a price per kilogram). Integer, and 1 credit IS the minor unit - there are no fractional credits anywhere, on the wire, in data/ or in the database. Non-negative: a balance below 0 is not a state the world can be in. Floating point is forbidden for the same reason as MoneyMinor (a rounding step is where money is created or destroyed without a record). Every division in a price rule rounds DOWN (toward the player receiving less), so no rounding step can create credits. Range stops at 2^53-1 so every JSON consumer holds it exactly; a field that must never be 0 narrows this with a sibling minimum.",
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991
+    },
     "GameTime": {
       "description": "Game-calendar timestamp derived deterministically from tick (e.g. 3827-04-13T18:32:11Z). Display and history text only: it is NOT real time and must never be parsed as a real DateTime or used for ordering.",
       "type": "string",

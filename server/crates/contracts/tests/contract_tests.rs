@@ -46,13 +46,21 @@ const SCHEMA_ID_PREFIX: &str = "https://schemas.starfall.invalid/contracts/";
 /// `HISTORICAL_EVENT_NOTICE`·`MINERAL`·`DEPOSIT_FIELD`·`MINING_RULES`·
 /// `SIGNIFICANCE_RULE`) + 공통 스키마 1개(`historical-event-envelope.schema.json`)를
 /// 더했다(01_architect_tasks.md T0/S1). 18 → 29.
-const EXPECTED_SCHEMA_COUNT: usize = 29;
+// p1-03-trading S1: 신규 스키마 파일 7개(SELL_MINERAL·MINERAL_SOLD·WALLET_STATE·
+// SALE_RECEIPT·MARKET_STATE·MARKET·DEPOSIT_RESERVE). DEPOSIT_FIELD 는 기존 파일 개정
+// (schema_version 1 → 2)이라 파일 수에 더하지 않는다. 29 → 36.
+const EXPECTED_SCHEMA_COUNT: usize = 36;
 // R4 S-6: `SESSION_CLOSED.close_reason` 에 `SUPERSEDED` 가 추가되며 유효 fixture 가
 // `superseded.json` 1건 늘었다(architect 계약 변경, 사용자 결정 5). 26 → 27.
 // p1-02-mining S1: 레지스트리 23 타입 실측대로 유효 46 / 반례 74(01_architect_tasks.md
 // "레지스트리 13 → 23, fixture 27/34 → 46/74"). 27 → 46, 34 → 74.
-const EXPECTED_VALID_FIXTURES: usize = 46;
-const EXPECTED_INVALID_FIXTURES: usize = 74;
+// p1-03-trading S1: 레지스트리 23 → 30(SELL_MINERAL·MINERAL_SOLD·WALLET_STATE·
+// SALE_RECEIPT·MARKET_STATE·MARKET·DEPOSIT_RESERVE 7종), 스키마 29 → 36(신규 7 스키마
+// 파일 — DEPOSIT_FIELD 는 기존 파일의 schema_version 개정이라 스키마 "파일" 수는 늘지
+// 않는다). fixture 유효 46 → 57(+11), 반례 74 → 113(+39 — DEPOSIT_FIELD 반례 1 삭제 +
+// 2 신규 포함). 01_architect_tasks.md S1 실측(스펙 §5.2).
+const EXPECTED_VALID_FIXTURES: usize = 57;
+const EXPECTED_INVALID_FIXTURES: usize = 113;
 
 // ---------------------------------------------------------------------------
 // 경로 해석 — 실패하면 명확히 죽는다
@@ -178,6 +186,9 @@ struct RegistryEntry {
     status: String,
     /// `responses: [{type, when}]`(스펙 §5.1a) — 선택 필드, 없으면 빈 목록. SC-38.
     responses: Vec<(String, String)>,
+    /// `data_files: [glob]`(스펙 §4.7·§5.1, `data` kind 에 필수, 그 밖엔 금지 —
+    /// `registry/types.schema.json` 의 `if/then/else`) — 선택 필드, 없으면 빈 목록. SC-44.
+    data_files: Vec<String>,
 }
 
 fn registry_entries() -> Vec<RegistryEntry> {
@@ -210,6 +221,7 @@ fn registry_entries() -> Vec<RegistryEntry> {
                 .expect("status 가 문자열이 아니다")
                 .to_owned(),
             responses: response_list(&entry["responses"]),
+            data_files: string_list(&entry["data_files"]),
         })
         .collect();
     assert!(!entries.is_empty(), "레지스트리가 비어 있다");
@@ -332,7 +344,10 @@ fn schemas_valid_offline() {
         let _ = validator_for(&registry, &expected_schema_id(path));
     }
 
-    println!("[p1-02 SC-35] 오프라인 검증한 스키마: {}건", files.len());
+    println!(
+        "[p1-02 SC-35 / p1-03 SC-42] 오프라인 검증한 스키마: {}건",
+        files.len()
+    );
     for path in &files {
         println!("  - {}", file_name(path));
     }
@@ -391,7 +406,7 @@ fn fixtures_roundtrip() {
     }
 
     println!(
-        "[p1-02 SC-35] 왕복 검증한 유효 fixture: {}건",
+        "[p1-02 SC-35 / p1-03 SC-42] 왕복 검증한 유효 fixture: {}건",
         checked.len()
     );
     for name in &checked {
@@ -428,7 +443,10 @@ fn invalid_rejected_by_schema() {
         }
     }
 
-    println!("[p1-02 SC-35] 스키마가 거부한 반례: {}건", checked.len());
+    println!(
+        "[p1-02 SC-35 / p1-03 SC-42] 스키마가 거부한 반례: {}건",
+        checked.len()
+    );
     for name in &checked {
         println!("  - {name}");
     }
@@ -519,6 +537,41 @@ const SERDE_REJECTION_TABLE: &[(&str, bool)] = &[
     ("range-zero.json", true),              // exclusiveMinimum 0 범위 newtype
     ("foreign-input-rarity.json", true), // SignificanceRuleTable deny_unknown_fields — ADR-0014 §5
     ("rule-version-malformed.json", true), // RuleVersion 패턴
+    // p1-03-trading 신규 — 30건(고유 파일명 기준. `actor-field-injected.json`·
+    // `position-field-injected.json`·`actor-id-null.json`·`causation-id-null.json`·
+    // `importance-level-injected.json`·`reserve-fractional.json`·`no-deposits.json`·
+    // `position-two-components.json` 은 위 p0/p1-01/p1-02 행이 이미 덮는다 — 스펙 §5.3
+    // 표와 대조 완료, 예측과 실측이 일치).
+    ("price-field-injected.json", true), // SellMineralPayload deny_unknown_fields — I-74 대표 반례
+    ("proceeds-field-injected.json", true), // 같은 이유
+    ("balance-field-injected.json", true), // SellMineralPayload·SaleReceiptPayload 둘 다 deny_unknown_fields
+    ("missing-market-id.json", true),      // 필수 필드
+    ("quantity-fractional.json", true),    // MassKg 는 정수
+    ("quantity-above-mass-max.json", true), // MassKg 상한(i32::MAX)
+    ("quantity-zero.json", true),          // de_positive_mass_kg — 0 은 의도가 아니다(I-75)
+    ("missing-pricing-version.json", true), // 필수 필드 — MineralSoldPayload·MarketTable 공유
+    ("missing-floor-price.json", true),    // 필수 필드 — history3 C-1
+    ("proceeds-fractional.json", true),    // CreditAmount 는 정수
+    ("proceeds-zero.json", true), // de_positive_credit_amount — MineralSoldPayload·SaleReceiptPayload 공유
+    ("quantity-after-negative.json", true), // MassKg 음수 불가
+    ("wallet-after-zero.json", true), // de_positive_credit_amount
+    ("fractional-credits.json", true), // CreditAmount 는 정수
+    ("negative-credits.json", true), // CreditAmount 하한 0
+    ("above-safe-integer.json", true), // CreditAmount 상한 2^53-1
+    ("missing-command-id.json", true), // 필수 필드
+    ("unlisted-hint-injected.json", true), // MarketListingState deny_unknown_fields — 누출 경로(I-86)
+    ("missing-last-sale-key.json", true),  // required_nullable — 키 자체가 필수
+    ("price-zero.json", true), // de_positive_credit_amount — MarketTable·MarketListingState 공유
+    ("saturation-negative.json", true), // MassKg 음수 불가
+    ("last-sale-quantity-zero.json", true), // 중첩 LastSale.quantity_kg — de_positive_mass_kg
+    ("server-only-mineral-field.json", true), // Deposit(v2) deny_unknown_fields — 누출 재발 방지 대표 반례
+    ("schema-version-1.json", true),          // ConstSchemaVersion<2>
+    ("reserve-zero.json", true),              // de_positive_mass_kg
+    ("layout-field-injected.json", true),     // DepositReserve deny_unknown_fields
+    ("floor-pct-zero.json", true),            // de_pct_1_100
+    ("no-listings.json", true),               // de_market_listings — 1개 이상
+    ("state-field-injected.json", true), // MarketListing deny_unknown_fields — 데이터 표에 현재 상태를 넣는 실수
+    ("price-fractional.json", true),     // CreditAmount 는 정수
 ];
 
 #[test]
@@ -565,7 +618,7 @@ fn invalid_fixtures_layered() {
     }
 
     println!(
-        "[p1-02 SC-36] serde 매트릭스 검사한 반례: {}건",
+        "[p1-02 SC-36 / p1-03 SC-43] serde 매트릭스 검사한 반례: {}건",
         observed.len()
     );
     assert_eq!(observed.len(), EXPECTED_INVALID_FIXTURES);
@@ -717,7 +770,7 @@ fn registry_consistency() {
     }
 
     println!(
-        "[p1-02 SC-35] 레지스트리 항목 {}건, 대조한 fixture {checked}건",
+        "[p1-02 SC-35 / p1-03 SC-42] 레지스트리 항목 {}건, 대조한 fixture {checked}건",
         entries.len()
     );
     assert_eq!(checked, EXPECTED_VALID_FIXTURES);
@@ -1084,8 +1137,8 @@ fn registry_responses() {
     );
     assert_eq!(
         command_entries.len(),
-        3,
-        "명령 kind 가 3종(PING_SERVER·SET_SHIP_CONTROL·MINE_RESOURCE)이어야 한다"
+        4,
+        "명령 kind 가 4종(PING_SERVER·SET_SHIP_CONTROL·MINE_RESOURCE·SELL_MINERAL)이어야 한다"
     );
     assert_eq!(
         with_responses,
@@ -1108,4 +1161,74 @@ fn registry_responses() {
             entry.name
         );
     }
+}
+
+// ---------------------------------------------------------------------------
+// 테스트 11 (p1-03 SC-44) — `data_files` 는 data 종류에 필수, 그 밖엔 금지
+// ---------------------------------------------------------------------------
+
+#[test]
+fn registry_data_files() {
+    let entries = registry_entries();
+
+    let data_entries: Vec<&RegistryEntry> = entries
+        .iter()
+        .filter(|entry| entry.kind == "data")
+        .collect();
+    let non_data_entries: Vec<&RegistryEntry> = entries
+        .iter()
+        .filter(|entry| entry.kind != "data")
+        .collect();
+
+    // ⊘ 방지 — "0 개를 순회하고 통과"가 "검증기가 꺼진 상태"와 구분되지 않는다
+    // (파일 모듈 문서 "빈 순회는 실패다"). data 종류 수와 그 밖 종류 수를 둘 다 찍는다.
+    println!(
+        "[p1-03 SC-44] data 종류 {}건, 그 밖 종류 {}건",
+        data_entries.len(),
+        non_data_entries.len()
+    );
+    assert_eq!(
+        data_entries.len(),
+        9,
+        "data 종류가 9종(SHIP_CLASS·STAR_SYSTEM·SYNC_TUNING·MINERAL·DEPOSIT_FIELD·\
+         DEPOSIT_RESERVE·MINING_RULES·SIGNIFICANCE_RULE·MARKET)이어야 한다"
+    );
+    assert!(
+        !non_data_entries.is_empty(),
+        "그 밖 종류가 0건 — 비교 대상이 없다"
+    );
+
+    for entry in &data_entries {
+        assert!(
+            !entry.data_files.is_empty(),
+            "{}: data 종류인데 data_files 가 비었다(스펙 §4.7·§5.1)",
+            entry.name
+        );
+    }
+    for entry in &non_data_entries {
+        assert!(
+            entry.data_files.is_empty(),
+            "{}: data 종류가 아닌데 data_files 가 있다 — registry/types.schema.json 의 \
+             if/then/else 가 막아야 한다",
+            entry.name
+        );
+    }
+
+    // SC-44 비고 — `SELL_MINERAL.responses` 의 accepted 순서가 설계대로인지 여기서도
+    // 직접 확인한다(registry_responses 의 전체 비교와 중복되지만, SC-44 가 이 항목을
+    // 지목했으므로 그 필터 이름 아래에서도 통과해야 한다).
+    let sell_mineral =
+        starfall_contracts::registry::find(starfall_contracts::registry::SELL_MINERAL)
+            .expect("SELL_MINERAL 이 CONTRACT_TYPES 에 없다");
+    let accepted_order: Vec<&str> = sell_mineral
+        .responses
+        .iter()
+        .filter(|(_, when)| *when == "accepted")
+        .map(|(response_type, _)| *response_type)
+        .collect();
+    assert_eq!(
+        accepted_order,
+        vec!["SALE_RECEIPT", "INVENTORY_STATE", "WALLET_STATE"],
+        "SELL_MINERAL 의 accepted 응답 순서가 스펙 §5.1a 와 다르다"
+    );
 }

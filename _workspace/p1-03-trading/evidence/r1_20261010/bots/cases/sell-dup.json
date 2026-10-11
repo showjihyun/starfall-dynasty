@@ -1,0 +1,75 @@
+{
+  "actor_id": "01a0b1c2-b010-7000-8000-000000000110",
+  "baseline_accepted": true,
+  "bot_errors": [],
+  "case": "Dup",
+  "cheat_reasons": [
+    "DUPLICATE_COMMAND_ID"
+  ],
+  "close": {
+    "code": 1000,
+    "initiator": "client",
+    "reason": ""
+  },
+  "condition_occurred": true,
+  "connect_error": null,
+  "final_balance": 2000,
+  "goto_failures": 0,
+  "item": "[verdict] p1-03 SC-112 같은 세션 판매 재전송 → DUPLICATE_COMMAND_ID, 지갑 대금 × 1",
+  "label": "bot-110",
+  "mine_until_shortfalls": 0,
+  "receipts": 1,
+  "resent_same_id": true,
+  "sells": [
+    {
+      "command_id": "01a124b6-e5a8-717f-a98b-e29ff89b4ded",
+      "dist_to_exchange_m": 249.8159861998427,
+      "mineral_id": "ferrosite",
+      "quantity_kg": 200,
+      "results": [
+        {
+          "reason": null,
+          "status": "ACCEPTED",
+          "tick": 1374
+        },
+        {
+          "reason": "DUPLICATE_COMMAND_ID",
+          "status": "REJECTED",
+          "tick": 1404
+        }
+      ],
+      "snapshot_tick": 1372,
+      "speed_mps": 0.0
+    },
+    {
+      "command_id": "01a124b6-e5a8-717f-a98b-e29ff89b4ded",
+      "dist_to_exchange_m": 249.8159861998427,
+      "mineral_id": "ferrosite",
+      "quantity_kg": 200,
+      "results": [
+        {
+          "reason": null,
+          "status": "ACCEPTED",
+          "tick": 1374
+        },
+        {
+          "reason": "DUPLICATE_COMMAND_ID",
+          "status": "REJECTED",
+          "tick": 1404
+        }
+      ],
+      "snapshot_tick": 1402,
+      "speed_mps": 0.0
+    }
+  ],
+  "state": {
+    "allowed": "기준 판매의 응답 1 벌",
+    "final_balance": 2000,
+    "final_ferrosite": 200,
+    "receipts_after_baseline": 1,
+    "wallet_messages_after_baseline": 1
+  },
+  "sum_proceeds": 2000,
+  "verdict": "PASS",
+  "wire_errors": []
+}

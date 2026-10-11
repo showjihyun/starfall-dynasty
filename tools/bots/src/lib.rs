@@ -22,6 +22,10 @@ pub mod sql;
 pub mod stats;
 pub mod token;
 pub mod trace;
+pub mod trade;
+pub mod trade_backlog;
+pub mod trade_restart;
+pub mod trade_trace;
 pub mod wire;
 
 /// `mine_run::find_deposit` 의 재수출 — 채굴 케이스가 쓰는 길 찾기 입력.

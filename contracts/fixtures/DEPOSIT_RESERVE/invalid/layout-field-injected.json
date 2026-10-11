@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "star_system_id": "example-system",
+  "deposits": [
+    {
+      "deposit_id": "belt-a",
+      "mineral_id": "example-ore",
+      "initial_reserve_kg": 3200,
+      "position_m": [
+        -3200.0,
+        150.0,
+        -2400.0
+      ]
+    },
+    {
+      "deposit_id": "far-b",
+      "mineral_id": "other-ore",
+      "initial_reserve_kg": 500
+    }
+  ]
+}

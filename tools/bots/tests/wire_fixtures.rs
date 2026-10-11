@@ -78,6 +78,10 @@ fn server_message_fixtures_round_trip() {
         ("INVENTORY_STATE", 2),
         ("DEPOSIT_FIELD_STATE", 2),
         ("HISTORICAL_EVENT_NOTICE", 2),
+        // p1-03 거래 3종
+        ("WALLET_STATE", 2),
+        ("SALE_RECEIPT", 1),
+        ("MARKET_STATE", 2),
     ] {
         let fixtures = read_valid_fixtures(type_name);
         assert_eq!(
@@ -98,6 +102,9 @@ fn server_message_fixtures_round_trip() {
                 Inbound::InventoryState(m) => serde_json::to_value(&*m),
                 Inbound::DepositFieldState(m) => serde_json::to_value(&*m),
                 Inbound::HistoricalEventNotice(m) => serde_json::to_value(&*m),
+                Inbound::WalletState(m) => serde_json::to_value(&*m),
+                Inbound::SaleReceipt(m) => serde_json::to_value(&*m),
+                Inbound::MarketState(m) => serde_json::to_value(&*m),
                 Inbound::Unknown { message_type } => {
                     panic!("{name}: 모르는 타입으로 읽혔다: {message_type}")
                 }
@@ -114,8 +121,8 @@ fn server_message_fixtures_round_trip() {
         }
     }
     assert_eq!(
-        checked, 17,
-        "서버 메시지 유효 fixture 17건을 전부 검사해야 한다 (p1-02 채굴·역사 6건, 거부 사유 3건 포함)"
+        checked, 22,
+        "서버 메시지 유효 fixture 22건을 전부 검사해야 한다 (p1-02 채굴·역사 6건, 거부 사유 3건, p1-03 거래 5건 포함)"
     );
     eprintln!("checked {checked} valid server-message fixtures");
 }
@@ -219,6 +226,75 @@ fn contract_type_literals_are_present() {
     assert_eq!(wire::DEPOSIT_FIELD_STATE, "DEPOSIT_FIELD_STATE");
     assert_eq!(wire::HISTORICAL_EVENT_NOTICE, "HISTORICAL_EVENT_NOTICE");
     assert_eq!(wire::MINERAL_DISCOVERED, "MINERAL_DISCOVERED");
+    assert_eq!(wire::SELL_MINERAL, "SELL_MINERAL");
+    assert_eq!(wire::WALLET_STATE, "WALLET_STATE");
+    assert_eq!(wire::SALE_RECEIPT, "SALE_RECEIPT");
+    assert_eq!(wire::MARKET_STATE, "MARKET_STATE");
+}
+
+/// p1-03: 봇이 **보내는** 판매 명령이 계약 fixture 와 같은 모양이고, payload 키는 셋뿐(I-74).
+#[test]
+fn sell_mineral_fixtures_round_trip() {
+    let fixtures = read_valid_fixtures("SELL_MINERAL");
+    assert_eq!(fixtures.len(), 2, "SELL_MINERAL 유효 fixture 는 2건이다");
+    for (name, text) in &fixtures {
+        let original: serde_json::Value =
+            serde_json::from_str(text).unwrap_or_else(|e| panic!("{name}: {e}"));
+        let cmd: wire::SellMineralCommand =
+            serde_json::from_str(text).unwrap_or_else(|e| panic!("{name}: 봇이 읽지 못한다: {e}"));
+        let back = serde_json::to_value(&cmd).unwrap_or_else(|e| panic!("{name}: {e}"));
+        assert_eq!(back, original, "{name}: 왕복 결과가 원본과 다르다");
+    }
+    let generated = serde_json::to_value(wire::SellMineralCommand::new(
+        uuid::Uuid::now_v7(),
+        "cradle-exchange",
+        "ferrosite",
+        2000,
+    ))
+    .unwrap_or_else(|e| panic!("{e}"));
+    let mut keys: Vec<&String> = generated["payload"]
+        .as_object()
+        .unwrap_or_else(|| panic!("payload 가 객체가 아니다"))
+        .keys()
+        .collect();
+    keys.sort();
+    assert_eq!(
+        keys,
+        vec!["market_id", "mineral_id", "quantity_kg"],
+        "I-74: payload 는 셋뿐"
+    );
+    assert!(generated.get("client_sent_at").is_some_and(|v| v.is_null()));
+}
+
+/// p1-03: 계약 반례 중 봇 타입이 **거부해야** 하는 것 — 주입 필드는 봇 타입이 막는다(그래서 치트는
+/// 원문을 보낸다), `MARKET_STATE.last_sale` 키 누락은 `Option` 이어도 거부한다(required + nullable).
+#[test]
+fn p103_invalid_fixtures_rejected_by_bot_types() {
+    let sell = read_invalid_fixtures("SELL_MINERAL");
+    let injected: Vec<_> = sell
+        .iter()
+        .filter(|(n, _)| n.ends_with("-injected.json"))
+        .collect();
+    assert_eq!(
+        injected.len(),
+        5,
+        "SELL_MINERAL 주입 반례 5건(가격·대금·잔액·위치·actor)"
+    );
+    for (name, text) in &injected {
+        assert!(
+            serde_json::from_str::<wire::SellMineralCommand>(text).is_err(),
+            "{name}: 봇 타입이 주입 필드를 받아들였다"
+        );
+    }
+    let market = read_invalid_fixtures("MARKET_STATE");
+    let (name, text) = market
+        .iter()
+        .find(|(n, _)| n == "missing-last-sale-key.json")
+        .unwrap_or_else(|| panic!("반례 missing-last-sale-key.json 이 없다"));
+    match wire::parse_inbound(text) {
+        Inbound::Malformed { .. } => {}
+        other => panic!("{name}: 키가 빠진 last_sale 을 받아들였다 → {other:?}"),
+    }
 }
 
 /// p1-02: 봇이 **보내는** 채굴 명령이 계약 fixture 와 같은 모양인가.

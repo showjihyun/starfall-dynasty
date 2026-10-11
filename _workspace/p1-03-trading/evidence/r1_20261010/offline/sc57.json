@@ -1,0 +1,27 @@
+{
+  "item": "p1-03 SC-57 (AC-13b) — 클라이언트 사본에 서버 전용 종류 파일 0 (레지스트리 유도, 독립 구현)",
+  "verdict": "PASS",
+  "copy_dir": "C:/WorkSpace/SpaceHistoric/client/Assets/_Project/Data",
+  "kinds_total": 9,
+  "client_kinds": [
+    "DEPOSIT_FIELD",
+    "MARKET",
+    "MINERAL",
+    "MINING_RULES",
+    "SHIP_CLASS",
+    "STAR_SYSTEM",
+    "SYNC_TUNING"
+  ],
+  "server_only_kinds": [
+    "DEPOSIT_RESERVE",
+    "SIGNIFICANCE_RULE"
+  ],
+  "expected_files": 10,
+  "copy_files": 10,
+  "server_only_in_copy": [],
+  "copy_only": [],
+  "missing": [],
+  "bytes_differ": [],
+  "server_only_keys_in_copied_deposit_table": 0,
+  "note": "기대 0 또는 사본 0 이면 FAIL(빈 집합 배제)"
+}

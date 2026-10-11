@@ -215,6 +215,17 @@ async fn serve(config: Config) -> Result<(), Box<dyn std::error::Error>> {
         game_data.deposits.len() as u64,
         game_data.sole_rule_version().unwrap_or_default(),
         game_data.loaded_files.len() as u64,
+        game_data.markets.len() as u64,
+        game_data.deposit_reserves.len() as u64,
+        game_data
+            .sole_market()
+            .map_or("", |market| market.id.as_str()),
+        game_data
+            .sole_market()
+            .map_or("", |market| market.pricing_version.as_str()),
+        game_data
+            .sole_market()
+            .map_or(0, |market| market.listings.len() as u64),
     );
     let (persisted, failed, last_committed, halted, ambiguous_commits) = stats.persist_handles();
     // p1-02(S7, qa SC-04 발견) — 종료 로그가 "커밋 완료"라고 주장할 값은 이 프로세스가
@@ -238,18 +249,7 @@ async fn serve(config: Config) -> Result<(), Box<dyn std::error::Error>> {
     let mut simulation = Simulation::new(world, start_tick);
     // S8 — DB에서 적재한 경제 상태를 sim의 초기값으로 주입한다. `runtime::build`가
     // `simulation`의 소유권을 가져가기 **전**이어야 한다.
-    for row in economic_state.inventory {
-        simulation.seed_inventory(row.actor_id, row.mineral_id, row.quantity_kg);
-    }
-    for row in economic_state.deposits {
-        simulation.seed_deposit_state(
-            row.deposit_id,
-            row.remaining_kg,
-            row.as_of_tick,
-            row.first_extracted_tick,
-        );
-    }
-    simulation.seed_processed_command_ids(economic_state.processed_command_ids);
+    seed_economic_state(&mut simulation, economic_state);
 
     let tick_period = Duration::from_nanos(1_000_000_000 / u64::from(config.tick_hz));
     let (submit, tick_thread) = starfall_gateway::runtime::build(
@@ -582,25 +582,36 @@ fn build_world_constants(
                 )
             })
             .collect(),
+        // p1-03(S2) — `Deposit`(공개부, v2)에는 `mineral_id`·`initial_reserve_kg` 가 없다
+        // (ADR-0015 §2). 서버 전용 `deposit_reserves`(같은 `deposit_id` 키 공간 — S2 의
+        // §4.8 d01·d02 검산이 두 집합의 양방향 일치를 이미 보장한다)에서 끌어온다.
         deposits: game_data
             .deposits
             .values()
             .map(|deposit| {
-                (
+                let reserve = game_data.deposit_reserves.get(deposit.id.as_str()).ok_or_else(
+                    || {
+                        format!(
+                            "deposit_id={} 의 DEPOSIT_RESERVE 짝이 없다 — S2 검산이 이미 막았어야 한다",
+                            deposit.id.as_str()
+                        )
+                    },
+                )?;
+                Ok::<_, Box<dyn std::error::Error>>((
                     deposit.id.clone(),
                     starfall_sim::DepositConstants {
-                        mineral_id: deposit.mineral_id.clone(),
+                        mineral_id: reserve.mineral_id.clone(),
                         position_m: starfall_sim::world::Vec3 {
                             x: deposit.position_m[0],
                             y: deposit.position_m[1],
                             z: deposit.position_m[2],
                         },
                         radius_m: deposit.radius_m,
-                        initial_reserve_kg: i64::from(deposit.initial_reserve_kg.get()),
+                        initial_reserve_kg: i64::from(reserve.initial_reserve_kg.get()),
                     },
-                )
+                ))
             })
-            .collect(),
+            .collect::<Result<_, _>>()?,
         mining_rules: starfall_sim::MiningRuleConstants {
             mining_range_from_surface_m: game_data
                 .mining_rules
@@ -609,7 +620,97 @@ fn build_world_constants(
             max_ship_speed_mps: game_data.mining_rules.extraction.max_ship_speed_mps,
             cooldown_ticks: game_data.mining_cooldown_ticks,
         },
+        // p1-03(S2→S3) — `MarketTable`(공개부, 기동 검산이 광물 당 상장 정확히 하나·
+        // 초 단위 값이 tick_hz 로 정수가 됨을 이미 보장했다) 을 sim 의 상수 모양으로
+        // 그대로 옮긴다(판정 로직 없음, `minerals`·`deposits` 와 같은 자리).
+        markets: game_data
+            .markets
+            .values()
+            .map(|market| {
+                let listings = market
+                    .listings
+                    .iter()
+                    .map(|listing| {
+                        (
+                            listing.mineral_id.clone(),
+                            starfall_sim::ListingConstants {
+                                price: starfall_sim::PriceRule {
+                                    base_price_cr_per_kg: listing.base_price_cr_per_kg.get(),
+                                    band_kg: i64::from(listing.band_kg.get()),
+                                    price_floor_pct: market.rules.price_floor_pct,
+                                    price_drop_pct_per_band: market.rules.price_drop_pct_per_band,
+                                },
+                                recovery_kg: i64::from(listing.recovery_kg.get()),
+                            },
+                        )
+                    })
+                    .collect();
+                (
+                    market.id.clone(),
+                    starfall_sim::MarketConstants {
+                        position_m: starfall_sim::world::Vec3 {
+                            x: market.position_m[0],
+                            y: market.position_m[1],
+                            z: market.position_m[2],
+                        },
+                        radius_m: market.radius_m,
+                        dock_range_from_surface_m: market.rules.dock_range_from_surface_m,
+                        max_ship_speed_mps: market.rules.max_ship_speed_mps,
+                        sell_cooldown_ticks: u64::try_from(market.rules.sell_cooldown_s)
+                            .unwrap_or(0)
+                            .saturating_mul(u64::from(tick_hz)),
+                        recovery_interval_ticks: u64::try_from(market.rules.recovery_interval_s)
+                            .unwrap_or(0)
+                            .saturating_mul(u64::from(tick_hz)),
+                        pricing_version: market.pricing_version.clone(),
+                        listings,
+                    },
+                )
+            })
+            .collect(),
     })
+}
+
+/// DB에서 적재한 경제 상태(인벤토리·매장지·지갑·시장 상태·처리 장부) 전부를
+/// `Simulation`의 초기값으로 주입한다(S8, ADR-0013 §7 2단계, 지갑·시장은
+/// ADR-0016 §2·§4). 호출자(`serve`)는 `runtime::build`가 `simulation` 소유권을
+/// 가져가기 **전**에 이 함수를 불러야 한다.
+///
+/// p1-03(qa3 2026-10-07 실서버 발견) — `02_interface.md` "호출 예"가 지정한
+/// `seed_wallet`/`seed_market_state` 두 루프가 S2→S3 로 코드를 옮기며 빠져 있어서,
+/// 재기동한 actor 의 첫 판매가 비교 후 쓰기(K3) 불일치로 월드를 멈췄다(DB엔
+/// 지갑이 있는데 sim은 모르는 채로 `expected=None`을 보냈다). 함수로 뽑아낸
+/// 것 자체가 그 재발 방지 조치다 — `main()` 안에 흩어져 있으면 단위 테스트가
+/// 닿지 못한다(아래 `seed_economic_state_tests`).
+fn seed_economic_state(
+    simulation: &mut Simulation,
+    economic_state: starfall_persistence::EconomicState,
+) {
+    for row in economic_state.inventory {
+        simulation.seed_inventory(row.actor_id, row.mineral_id, row.quantity_kg);
+    }
+    for row in economic_state.deposits {
+        simulation.seed_deposit_state(
+            row.deposit_id,
+            row.remaining_kg,
+            row.as_of_tick,
+            row.first_extracted_tick,
+        );
+    }
+    for row in economic_state.wallets {
+        simulation.seed_wallet(row.actor_id, row.balance_cr);
+    }
+    for row in economic_state.market_states {
+        simulation.seed_market_state(
+            row.market_id,
+            row.mineral_id,
+            row.saturation_kg,
+            row.as_of_tick,
+            row.last_seller_actor_id,
+            row.last_sale_quantity_kg,
+        );
+    }
+    simulation.seed_processed_command_ids(economic_state.processed_command_ids);
 }
 
 /// `world_id` 의 하위 8바이트를 리틀엔디안 `u64` 로 — 스폰 해시의 `world_seed_le8`
@@ -620,6 +721,253 @@ fn world_seed_from_world_id(world_id: UuidV7) -> u64 {
     let mut low8 = [0u8; 8];
     low8.copy_from_slice(&bytes[8..16]);
     u64::from_le_bytes(low8)
+}
+
+#[cfg(test)]
+mod seed_economic_state_tests {
+    use std::collections::BTreeMap;
+
+    use starfall_contracts::primitives::{DataId, GameCalendar, GameTime};
+    use starfall_persistence::{
+        DepositRow, EconomicState, InventoryRow, MarketStateRow, WalletRow,
+    };
+    use starfall_sim::world::{BoundaryConstants, ShipClassConstants, Vec3};
+    use starfall_sim::{
+        DepositConstants, ListingConstants, MarketConstants, MineralConstants, MiningRuleConstants,
+        PriceRule, ServerMessage, ShipClassData, Simulation, Submission, WorldConstants,
+    };
+
+    use super::{UuidV7, VERSION, seed_economic_state};
+
+    fn id(n: u64) -> UuidV7 {
+        let text = format!(
+            "01a0b1c2-0003-7{:03x}-8{:03x}-{:012x}",
+            n & 0xfff,
+            (n >> 12) & 0xfff,
+            n
+        );
+        UuidV7::parse(&text).expect("정규 UUIDv7 이어야 한다")
+    }
+
+    /// `seed_economic_state_tests` 전용 최소 월드 — 함선 하나, 매장지 하나(시작
+    /// 전부터 드러난 것으로 seed — I-86 재노출과 무관하게 바로 보려고), 시장
+    /// 하나(상장 하나, `test-mineral`) — `MARKET_STATE` 의 `listings` 내용으로
+    /// `seed_market_state`가 실제로 불렸는지까지 직접 확인할 수 있게 한다.
+    fn minimal_world() -> WorldConstants {
+        const SPAWN_POINT_M: [f64; 3] = [0.0, 0.0, 0.0];
+        let mineral_id = DataId::parse("test-mineral").unwrap();
+        let mut minerals = BTreeMap::new();
+        minerals.insert(
+            mineral_id.clone(),
+            MineralConstants {
+                yield_per_extraction_kg: 25,
+                regen_kg: 5,
+                regen_interval_ticks: 10,
+            },
+        );
+        let mut deposits = BTreeMap::new();
+        deposits.insert(
+            DataId::parse("test-deposit").unwrap(),
+            DepositConstants {
+                mineral_id: mineral_id.clone(),
+                position_m: Vec3::new(SPAWN_POINT_M[0], SPAWN_POINT_M[1], SPAWN_POINT_M[2]),
+                radius_m: 10.0,
+                initial_reserve_kg: 1_000,
+            },
+        );
+        let mut listings = BTreeMap::new();
+        listings.insert(
+            mineral_id,
+            ListingConstants {
+                price: PriceRule {
+                    base_price_cr_per_kg: 10,
+                    band_kg: 2_000,
+                    price_floor_pct: 30,
+                    price_drop_pct_per_band: 10,
+                },
+                recovery_kg: 1_000,
+            },
+        );
+        let mut markets = BTreeMap::new();
+        markets.insert(
+            DataId::parse("test-market").unwrap(),
+            MarketConstants {
+                position_m: Vec3::new(SPAWN_POINT_M[0], SPAWN_POINT_M[1], SPAWN_POINT_M[2]),
+                radius_m: 10.0,
+                dock_range_from_surface_m: 150.0,
+                max_ship_speed_mps: 10.0,
+                sell_cooldown_ticks: 20,
+                recovery_interval_ticks: 1_200,
+                pricing_version: starfall_contracts::primitives::RuleVersion::parse(
+                    "test-market@1",
+                )
+                .unwrap(),
+                listings,
+            },
+        );
+
+        WorldConstants {
+            world_id: id(1),
+            calendar: GameCalendar::new(20, GameTime::parse("3800-01-01T00:00:00Z").unwrap(), 60)
+                .unwrap(),
+            server_version: starfall_contracts::primitives::ServerVersion::parse(VERSION)
+                .unwrap_or_else(|| {
+                    starfall_contracts::primitives::ServerVersion::parse("0.1.0").unwrap()
+                }),
+            star_system_id: DataId::parse("test-system").unwrap(),
+            boundary: BoundaryConstants {
+                soft_boundary_radius_m: 10_000.0,
+                hard_boundary_radius_m: 12_000.0,
+                boundary_pull_mps2: 25.0,
+            },
+            spawn_points_m: vec![SPAWN_POINT_M],
+            spawn_clearance_m: 150.0,
+            spawn_max_probe_attempts: 12,
+            spawn_radial_offset_step_m: 100.0,
+            spawn_world_seed: 1,
+            linger_seconds: 30.0,
+            reconnect_resume_window_seconds: 30.0,
+            ship_class_id: DataId::parse("scout-s01").unwrap(),
+            ship_class: ShipClassData {
+                movement: ShipClassConstants {
+                    max_speed_mps: 140.0,
+                    main_thrust_mps2: 35.0,
+                    reverse_thrust_mps2: 18.0,
+                    lateral_thrust_mps2: 18.0,
+                    brake_decel_mps2: 50.0,
+                    assist_linear_decel_mps2: 7.0,
+                    assist_lateral_decel_mps2: 22.0,
+                    turn_rate_max_deg_s: 75.0,
+                    turn_accel_deg_s2: 220.0,
+                    turn_gain_deg_s_per_sin_half: 290.0,
+                    turn_deadzone_sin_half: 0.0009,
+                    roll_rate_max_deg_s: 90.0,
+                    roll_accel_deg_s2: 300.0,
+                    auto_level_rate_deg_s: 40.0,
+                    auto_level_deadzone_sin: 0.002,
+                },
+                hull_radius_m: 12.0,
+            },
+            snapshot_interval_ticks: 2,
+            carry_forward_max_ticks: 10_000,
+            rate_limit_per_tick_cap: 5,
+            max_entities_per_snapshot: 64,
+            minerals,
+            deposits,
+            mining_rules: MiningRuleConstants {
+                mining_range_from_surface_m: 150.0,
+                max_ship_speed_mps: 10.0,
+                cooldown_ticks: 10,
+            },
+            markets,
+        }
+    }
+
+    /// qa3(2026-10-07) 실서버 발견 재발 방지 — DB에서 읽은 지갑·시장 상태 행이
+    /// `seed_economic_state`를 거쳐 세션 시작 `WALLET_STATE`/`MARKET_STATE` 로
+    /// 그대로 나오는지 확인한다. 이 테스트가 처음 잡아낸 버그: `main()` 안에
+    /// 인벤토리·매장지 두 루프만 있고 지갑·시장 상태 두 루프가 없었다(기동
+    /// 경로를 실제로 타는 테스트가 없어서 qa3 가 실서버 재기동 봇으로 먼저
+    /// 찾았다 — 이 테스트는 그 재발을 막는다).
+    #[test]
+    fn seeded_wallet_and_market_state_appear_at_session_start() {
+        let actor_id = id(2);
+        let market_id = DataId::parse("test-market").unwrap();
+        let mineral_id = DataId::parse("test-mineral").unwrap();
+        let last_seller = id(3);
+
+        let economic_state = EconomicState {
+            inventory: vec![InventoryRow {
+                actor_id,
+                mineral_id: mineral_id.clone(),
+                quantity_kg: 10,
+            }],
+            // 드러난 매장지로 적재한다(실서버 기동과 같은 경로) — 그래야
+            // `MARKET_STATE.listings` 에 `test-mineral` 이 보여서 `seed_market_state`
+            // 가 실제로 불렸는지를 내용으로 직접 확인할 수 있다(I-86).
+            deposits: vec![DepositRow {
+                deposit_id: DataId::parse("test-deposit").unwrap(),
+                remaining_kg: 1_000,
+                as_of_tick: 0,
+                first_extracted_tick: 0,
+            }],
+            processed_command_ids: Vec::new(),
+            wallets: vec![WalletRow {
+                actor_id,
+                balance_cr: 2_000,
+            }],
+            market_states: vec![MarketStateRow {
+                market_id: market_id.clone(),
+                mineral_id: mineral_id.clone(),
+                saturation_kg: 500,
+                as_of_tick: 0,
+                last_seller_actor_id: last_seller,
+                last_sale_quantity_kg: 300,
+            }],
+        };
+
+        let mut simulation = Simulation::new(minimal_world(), 0);
+        seed_economic_state(&mut simulation, economic_state);
+
+        let session_id = id(10);
+        let mut next_id = 1_000u64;
+        let outcome = simulation.step(
+            vec![Submission::OpenSession {
+                seq: 0,
+                session_id,
+                actor_id,
+            }],
+            &mut (|| {
+                next_id += 1;
+                id(next_id)
+            }),
+        );
+
+        let wallet = outcome
+            .outbound
+            .iter()
+            .find_map(|out| match &out.message {
+                ServerMessage::WalletState(message) if out.session_id == session_id => {
+                    Some(message.as_ref())
+                }
+                _ => None,
+            })
+            .expect("WALLET_STATE 가 세션 시작에 있어야 한다");
+        assert_eq!(
+            wallet.payload.balance_cr.get(),
+            2_000,
+            "seed_wallet 이 호출되지 않으면 여기가 0이 된다(qa3 재현 1과 같은 증상)"
+        );
+
+        let market_state = outcome
+            .outbound
+            .iter()
+            .find_map(|out| match &out.message {
+                ServerMessage::MarketState(message) if out.session_id == session_id => {
+                    Some(message.as_ref())
+                }
+                _ => None,
+            })
+            .expect("MARKET_STATE 가 세션 시작에 있어야 한다");
+        let listing = market_state
+            .payload
+            .listings
+            .iter()
+            .find(|listing| listing.mineral_id == mineral_id)
+            .expect("test-mineral 상장이 있어야 한다(드러난 매장지 + 상장)");
+        assert_eq!(
+            listing.saturation_kg.get(),
+            500,
+            "seed_market_state 가 호출되지 않으면 포화가 0 이 된다(qa3 재현 2 — 재기동 뒤 \
+             첫 판매가 expected=None 으로 DB 비교 후 쓰기 불일치를 내는 것과 같은 증상)"
+        );
+        let last_sale = listing
+            .last_sale
+            .as_ref()
+            .expect("last_seller_actor_id 를 seed 했으므로 LastSale 이 있어야 한다");
+        assert_eq!(last_sale.actor_id, last_seller);
+        assert_eq!(last_sale.quantity_kg.get(), 300);
+    }
 }
 
 #[cfg(test)]

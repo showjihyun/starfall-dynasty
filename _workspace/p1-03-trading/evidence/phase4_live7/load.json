@@ -1,0 +1,33 @@
+{
+  "bots": 31,
+  "connections_finished": 31,
+  "connections_unfinished": 0,
+  "duration_s": 1200,
+  "item": "[verdict] p1-03 SC-117 · SC-119 · SC-132 sell-load: 31 연결이 채굴·운반·판매 20 분 — tick 초과 ≤ 0.5 %(31 연결 유지·판매 ≥ 1 선단언), RECORDING_BACKLOG 0, 판매 응답 항등식",
+  "max_recording_lag": 51,
+  "min_ws_connections": 31,
+  "overrun_ratio": null,
+  "overruns": null,
+  "recording_backlog_rejects": 38,
+  "results_by_reason": {
+    "<no result>": 7,
+    "ACCEPTED": 588,
+    "INSUFFICIENT_QUANTITY": 19,
+    "RECORDING_BACKLOG": 38,
+    "RESOURCE_DEPLETED": 3287
+  },
+  "sells_accepted": 77,
+  "sold_kg_by_mineral": {
+    "cobaltine": 6960,
+    "ferrosite": 45800,
+    "glacine": 26300
+  },
+  "sub_verdicts": {
+    "sc117": "미검증(조건 미발생)",
+    "sc119": "FAIL",
+    "sc132": "PASS"
+  },
+  "ticks": null,
+  "verdict": "FAIL",
+  "world_id": "01a11821-0b20-7e66-9665-836189cec2e1"
+}

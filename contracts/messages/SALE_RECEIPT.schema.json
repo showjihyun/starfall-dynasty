@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.starfall.invalid/contracts/messages/SALE_RECEIPT.schema.json",
+  "title": "SaleReceiptMessage",
+  "description": "Type-specific answer to an ACCEPTED SELL_MINERAL, to the seller only, in the tick that adjudicated it: after its COMMAND_RESULT and before INVENTORY_STATE and WALLET_STATE (spec p1-03 section 5.1a). What the server ACTUALLY paid - the client's 'expected proceeds' preview (UI-08) is display only and is replaced by this (UI-09). It carries no balance: the balance is WALLET_STATE's alone, so there is one source for it.",
+  "allOf": [
+    {
+      "$ref": "../common/message-envelope.schema.json"
+    }
+  ],
+  "properties": {
+    "message_type": {
+      "const": "SALE_RECEIPT"
+    },
+    "schema_version": {
+      "const": 1
+    },
+    "payload": {
+      "$ref": "#/$defs/SaleReceiptPayload"
+    }
+  },
+  "unevaluatedProperties": false,
+  "$defs": {
+    "SaleReceiptPayload": {
+      "title": "SaleReceiptPayload",
+      "type": "object",
+      "required": [
+        "command_id",
+        "market_id",
+        "mineral_id",
+        "quantity_kg",
+        "proceeds_cr",
+        "price_before_cr_per_kg",
+        "price_after_cr_per_kg"
+      ],
+      "properties": {
+        "command_id": {
+          "$ref": "../common/primitives.schema.json#/$defs/UuidV7",
+          "description": "The SELL_MINERAL being answered (echo)."
+        },
+        "market_id": {
+          "$ref": "../common/primitives.schema.json#/$defs/DataId"
+        },
+        "mineral_id": {
+          "$ref": "../common/primitives.schema.json#/$defs/DataId"
+        },
+        "quantity_kg": {
+          "$ref": "../common/primitives.schema.json#/$defs/MassKg",
+          "minimum": 1
+        },
+        "proceeds_cr": {
+          "$ref": "../common/primitives.schema.json#/$defs/CreditAmount",
+          "minimum": 1
+        },
+        "price_before_cr_per_kg": {
+          "$ref": "../common/primitives.schema.json#/$defs/CreditAmount",
+          "minimum": 1
+        },
+        "price_after_cr_per_kg": {
+          "$ref": "../common/primitives.schema.json#/$defs/CreditAmount",
+          "minimum": 1
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

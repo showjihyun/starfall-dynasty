@@ -1,0 +1,26 @@
+[18:53:11] == freeze
+[18:53:11] !! 경고: _workspace/p1-02-mining/FREEZE 없음
+[18:53:11] == freeze: DRY
+[18:53:11] == gates
+[18:53:11] == gates: DRY
+[18:53:11] == census
+[18:53:11] == census: DRY
+[18:53:11] == repeat
+[18:53:11] == repeat: DRY
+[18:53:11] == unity
+[18:53:11] == unity: DRY
+[18:53:11] == filters
+[18:53:11] == filters: DRY
+[18:53:11] == sources
+[18:53:11] == sources: DRY
+[18:53:11] == offline
+[18:53:11] == offline: DRY
+[18:53:11] == bots
+[18:53:11] == bots: DRY
+[18:53:11] == judges
+[18:53:11] == judges: DRY
+[18:53:11] == db_stop
+[18:53:11] == db_stop: DRY
+[18:53:11] == final
+[18:53:11] == final: DRY
+[18:53:11] DONE

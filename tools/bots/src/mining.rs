@@ -8,7 +8,10 @@
 
 use uuid::Uuid;
 
-use crate::wire::{DepositFieldStateMessage, HistoricalEventNoticeMessage, InventoryStateMessage};
+use crate::wire::{
+    DepositFieldStateMessage, HistoricalEventNoticeMessage, InventoryStateMessage,
+    MarketStateMessage, SaleReceiptMessage, WalletStateMessage,
+};
 
 /// 받은 메시지 1건과 그 수신 좌표.
 #[derive(Debug, Clone)]
@@ -63,6 +66,36 @@ pub struct MiningObs {
     pub control_sent: Vec<(Uuid, u64)>,
     /// 스냅샷 수신 시각(µs) — 기록 지연 구간 안에 스냅샷이 흘렀는지(SC-30). 스냅샷당 8 바이트.
     pub snapshot_at_us: Vec<u64>,
+
+    // ── p1-03 거래 ──────────────────────────────────────────────────────────
+    pub wallets: Vec<Observed<WalletStateMessage>>,
+    pub receipts: Vec<Observed<SaleReceiptMessage>>,
+    pub markets: Vec<Observed<MarketStateMessage>>,
+    /// 이 연결이 보낸 `SELL_MINERAL`(원문 포함 — 재전송은 같은 원문을 다시 보낸다).
+    pub sell_sent: Vec<SentSell>,
+    /// 처음 받은 계약 메시지 타입 몇 개(세션 시작 순서 — 계약 SC-47). 스냅샷도 센다.
+    pub first_types: Vec<(u64, &'static str)>,
+    /// `GoTo`·`PassThroughTo` 가 시간 안에 닿지 못한 수(0 이 아니면 경로를 안 탄 실행).
+    pub goto_failures: u32,
+    /// `MineUntil` 이 목표 보유량에 못 미치고 끝난 수.
+    pub mine_until_shortfalls: u32,
+}
+
+/// 보낸 `SELL_MINERAL` 1건.
+#[derive(Debug, Clone)]
+pub struct SentSell {
+    pub command_id: Uuid,
+    pub market_id: String,
+    pub mineral_id: String,
+    pub quantity_kg: i64,
+    /// 보낸 원문 그대로(주입 필드가 실제로 실렸는가 — 계약 SC-106 ⊘).
+    pub text: String,
+    pub at_us: u64,
+    pub frame_seq_at_send: u64,
+    pub last_snapshot_tick: Option<u64>,
+    /// 보낼 때 알던 자기 함선 위치(m)·속력 — 스냅샷 기준, 판정 입력이 아니라 ⊘ 근거.
+    pub pos_m: Option<[f64; 3]>,
+    pub speed_mps: Option<f64>,
 }
 
 /// 보낸 `MINE_RESOURCE` 1건.
@@ -94,6 +127,51 @@ pub struct NavTrace {
 }
 
 impl MiningObs {
+    /// 처음 8 개 프레임의 타입만 남긴다.
+    pub fn note_type(&mut self, frame_seq: u64, t: &'static str) {
+        if self.first_types.len() < 8 {
+            self.first_types.push((frame_seq, t));
+        }
+    }
+
+    /// 마지막 `INVENTORY_STATE` 의 그 광물 보유량(없으면 0 — 0 kg 항목은 메시지에 없다).
+    pub fn holding(&self, mineral_id: &str) -> i64 {
+        self.inventory
+            .last()
+            .and_then(|o| {
+                o.msg
+                    .payload
+                    .items
+                    .iter()
+                    .find(|i| i.mineral_id == mineral_id)
+            })
+            .map_or(0, |i| i.quantity_kg)
+    }
+
+    /// 판매 의도량. 보유 0 에서 `All` 은 1 kg(서버가 `INSUFFICIENT_QUANTITY` 로 판정한다 — 스키마 최소 1).
+    pub fn sell_quantity(&self, mineral_id: &str, q: crate::conn::SellQty) -> i64 {
+        let h = self.holding(mineral_id);
+        match q {
+            crate::conn::SellQty::Kg(k) => k,
+            crate::conn::SellQty::All => h.max(1),
+            crate::conn::SellQty::HoldingPlus(k) => h + k,
+        }
+    }
+
+    /// 마지막 `WALLET_STATE` 잔액(없으면 `None` — 세션 시작에 반드시 온다, 스펙 §5.1a).
+    pub fn balance(&self) -> Option<i64> {
+        self.wallets.last().map(|o| o.msg.payload.balance_cr)
+    }
+
+    pub fn result_of(&self, id: Uuid) -> Option<&ObservedResult> {
+        self.results.iter().find(|r| r.command_id == id)
+    }
+
+    /// 같은 id 의 결과 전부(재전송은 두 결과를 낳는다).
+    pub fn results_of(&self, id: Uuid) -> Vec<&ObservedResult> {
+        self.results.iter().filter(|r| r.command_id == id).collect()
+    }
+
     pub fn with_raw_capture() -> Self {
         Self {
             raw_frames: Some(Vec::new()),
@@ -241,4 +319,74 @@ pub fn deposit_state_shape(
         }
     }
     (messages, entries, unrevealed, out)
+}
+
+/// 스펙 §5.1a / 계약 SC-132 — **수락된 `SELL_MINERAL` 수 == 결과 뒤 `SALE_RECEIPT` 수 == 그 뒤
+/// `WALLET_STATE` 수**, 순서 `COMMAND_RESULT` → `SALE_RECEIPT` → `INVENTORY_STATE` → `WALLET_STATE`, 같은 tick.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SellPairing {
+    pub accepted_sell: usize,
+    pub complete: usize,
+    pub order_violations: Vec<Uuid>,
+}
+
+impl SellPairing {
+    /// **수락 0 이면 FAIL** — `0 == 0` 은 검사가 아니다.
+    pub fn ok(&self) -> bool {
+        self.accepted_sell > 0
+            && self.complete == self.accepted_sell
+            && self.order_violations.is_empty()
+    }
+}
+
+pub fn pair_sell_responses(obs: &MiningObs, sell_ids: &[Uuid]) -> SellPairing {
+    let mut used_r = vec![false; obs.receipts.len()];
+    let mut used_i = vec![false; obs.inventory.len()];
+    let mut used_w = vec![false; obs.wallets.len()];
+    let mut accepted = 0usize;
+    let mut complete = 0usize;
+    let mut bad = Vec::new();
+    for r in &obs.results {
+        if r.status != "ACCEPTED" || !sell_ids.contains(&r.command_id) {
+            continue;
+        }
+        accepted += 1;
+        let rc = obs.receipts.iter().enumerate().find(|(i, x)| {
+            !used_r[*i]
+                && x.frame_seq > r.frame_seq
+                && x.tick == r.tick
+                && x.msg.payload.command_id == r.command_id
+        });
+        let Some((ri, rcpt)) = rc else {
+            bad.push(r.command_id);
+            continue;
+        };
+        let inv = obs
+            .inventory
+            .iter()
+            .enumerate()
+            .find(|(i, x)| !used_i[*i] && x.frame_seq > rcpt.frame_seq && x.tick == r.tick);
+        let Some((ii, invm)) = inv else {
+            bad.push(r.command_id);
+            continue;
+        };
+        let wal = obs
+            .wallets
+            .iter()
+            .enumerate()
+            .find(|(i, x)| !used_w[*i] && x.frame_seq > invm.frame_seq && x.tick == r.tick);
+        let Some((wi, _)) = wal else {
+            bad.push(r.command_id);
+            continue;
+        };
+        used_r[ri] = true;
+        used_i[ii] = true;
+        used_w[wi] = true;
+        complete += 1;
+    }
+    SellPairing {
+        accepted_sell: accepted,
+        complete,
+        order_violations: bad,
+    }
 }

@@ -594,15 +594,63 @@ def selftest_p1_02() -> int:
     return 0 if fails == 0 else 1
 
 
+# ---------------------------------------------------------------------------
+# p1-03 (계약 SC-128) — 같은 계산부, 타입 목록만 다르다
+# ---------------------------------------------------------------------------
+
+def run_p1_03(args: argparse.Namespace) -> int:
+    import iface_p1_02 as P
+    res = P.compare(types=P.TYPES_P103)
+    empty_types = sorted(t for t in P.TYPES_P103 if res["rows_per_type"].get(t, 0) == 0)
+    ok = not res["mismatches"] and not empty_types and res["rows_total"] > 0
+    out = {
+        "item": "p1-03 SC-128 (AC-22b) 신규·변경 9 타입 스키마·Rust·C# 필드별 표 — 불일치 0",
+        "verdict": "PASS" if ok else ("FAIL(분모 — 행이 없는 타입)" if empty_types else "FAIL"),
+        "types": res["types"], "rows_total": res["rows_total"], "rows_per_type": res["rows_per_type"],
+        "types_with_zero_rows": empty_types, "required_nullable_rows": res["required_nullable_rows"],
+        "mismatches": len(res["mismatches"]), "mismatch_detail": res["mismatches"], "rows": res["rows"],
+    }
+    db.emit(out, args.evidence)
+    return db.EXIT_OK if ok else db.EXIT_FAIL
+
+
+def selftest_p1_03() -> int:
+    import copy
+    import iface_p1_02 as P
+    real = P.rust_structs()
+    base = P.compare(structs=real, types=P.TYPES_P103)
+    cases = [("p1-03 표: 9 타입 전부 스키마 행 > 0", base["types"] == 9 and len(base["rows_per_type"]) == 9
+              and all(v > 0 for v in base["rows_per_type"].values())),
+             ("p1-03 표: MARKET_STATE.last_sale 이 required+nullable 행으로 잡힌다",
+              any(r["type"] == "MARKET_STATE" and r["required"] and r["nullable"] for r in base["rows"]))]
+    if "MarketStateMessage" in real:
+        s1 = copy.deepcopy(real)
+        for st in s1.values():
+            if "proceeds_cr" in st:
+                del st["proceeds_cr"]
+        r1 = P.compare(structs=s1, types=P.TYPES_P103)
+        cases.append(("변이: Rust 의 proceeds_cr 전부 삭제 → 잡힌다",
+                      any(m["field"].endswith("proceeds_cr") for m in r1["mismatches"])))
+    fails = 0
+    for name, ok in cases:
+        print(f"{'OK  ' if ok else 'FAIL'} [p1-03] {name}")
+        fails += 0 if ok else 1
+    print(f"selftest p1-03: {'PASS' if fails == 0 else f'FAIL ({fails})'}  케이스={len(cases)} "
+          f"(실제 행 {base['rows_total']}, 불일치 {len(base['mismatches'])} — 구현 진행 중엔 불일치가 정상)")
+    return 0 if fails == 0 else 1
+
+
 def main() -> int:
-    ap = argparse.ArgumentParser(description="경계면 3자 비교 (p1-01 SC-83 / p1-02 SC-97)")
+    ap = argparse.ArgumentParser(description="경계면 3자 비교 (p1-01 SC-83 / p1-02 SC-97 / p1-03 SC-128)")
     ap.add_argument("mode", nargs="?", choices=["selftest"])
-    ap.add_argument("--slice", default="p1-01", choices=["p1-01", "p1-02"])
+    ap.add_argument("--slice", default="p1-01", choices=["p1-01", "p1-02", "p1-03"])
     ap.add_argument("--evidence")
     ap.add_argument("--markdown", help="사람이 읽는 표를 이 경로에 쓴다")
     args = ap.parse_args()
     if args.mode == "selftest":
-        return selftest_p1_02() if args.slice == "p1-02" else 2
+        return {"p1-02": selftest_p1_02, "p1-03": selftest_p1_03}.get(args.slice, lambda: 2)()
+    if args.slice == "p1-03":
+        return db.main_guard(lambda: run_p1_03(args))
     if args.slice == "p1-02":
         return db.main_guard(lambda: run_p1_02(args))
     return db.main_guard(lambda: run(args))

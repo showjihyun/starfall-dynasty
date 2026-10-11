@@ -1,0 +1,463 @@
+{
+  "tool": "tests/e2e/run_round.py",
+  "format": 1,
+  "slice": "p1-03-trading",
+  "slice_label": "p1-03",
+  "round": "r1",
+  "contract": "_workspace/p1-03-trading/02_sprint_contract.md",
+  "config": "tests/e2e/round_configs/p1-03-trading.json",
+  "out": "_workspace/p1-03-trading/evidence/r1_20261010k",
+  "selected": [
+    "freeze",
+    "filters",
+    "final"
+  ],
+  "dry_run": false,
+  "argv": [
+    "--slice",
+    "p1-03",
+    "--contract",
+    "_workspace/p1-03-trading/02_sprint_contract.md",
+    "--config",
+    "tests/e2e/round_configs/p1-03-trading.json",
+    "--round",
+    "r1",
+    "--out",
+    "_workspace/p1-03-trading/evidence/r1_20261010k",
+    "--only",
+    "filters",
+    "--test-log",
+    "_workspace/p1-03-trading/evidence/r1_20261010j/gates/test.log"
+  ],
+  "env_keys_loaded": [
+    "DATABASE_URL",
+    "POSTGRES_DB",
+    "POSTGRES_PASSWORD",
+    "POSTGRES_USER",
+    "REDIS_URL",
+    "STARFALL_DEV_AUTH_SECRET",
+    "STARFALL_HTTP_ADDR",
+    "STARFALL_LOG_FORMAT",
+    "STARFALL_PG_HOST_PORT",
+    "STARFALL_REDIS_HOST_PORT"
+  ],
+  "started": "2026-10-10T23:44:31+09:00",
+  "finished": "2026-10-10T23:45:41+09:00",
+  "complete": true,
+  "watch": {
+    "enabled": true,
+    "interval_s": 15.0,
+    "checks": 8,
+    "violations": [],
+    "touched_same_content": [],
+    "relax_unity": true,
+    "stage_category": {
+      "freeze": "server",
+      "gates": "server",
+      "census": "server",
+      "repeat": "server",
+      "unity": "client",
+      "filters": "server",
+      "sources": "server",
+      "offline": "client",
+      "bots": "server",
+      "judges": "server",
+      "db_stop": "server",
+      "final": "server"
+    }
+  },
+  "counts": {
+    "PASS": 3,
+    "SKIP": 9
+  },
+  "stages": [
+    {
+      "name": "freeze",
+      "status": "PASS",
+      "raw_status": "PASS",
+      "started": "2026-10-10T23:44:31+09:00",
+      "finished": "2026-10-10T23:44:31+09:00",
+      "seconds": 0.5,
+      "commands": [
+        {
+          "name": "head",
+          "argv": [
+            "git",
+            "rev-parse",
+            "HEAD"
+          ],
+          "cwd": ".",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 0.0,
+          "log": "_workspace/p1-03-trading/evidence/r1_20261010k/freeze/head.txt"
+        },
+        {
+          "name": "porcelain",
+          "argv": [
+            "git",
+            "status",
+            "--porcelain"
+          ],
+          "cwd": ".",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 0.0,
+          "log": "_workspace/p1-03-trading/evidence/r1_20261010k/freeze/porcelain.txt"
+        },
+        {
+          "name": "fp_before",
+          "argv": [
+            "docker",
+            "compose",
+            "exec",
+            "-T",
+            "postgres",
+            "psql",
+            "-q",
+            "-v",
+            "ON_ERROR_STOP=1",
+            "-U",
+            "starfall",
+            "-d",
+            "starfall",
+            "-At",
+            "-F",
+            "|",
+            "-c",
+            "SET default_transaction_read_only = on",
+            "-c",
+            "select (select count(*) from domain_events where world_id = '01a0b1c2-3d4e-7f01-8a2b-9c0d1e2f3a4b') || '|' || (select md5(coalesce(string_agg(event_id::text, ',' order by event_id), '')) from domain_events where world_id = '01a0b1c2-3d4e-7f01-8a2b-9c0d1e2f3a4b') || '|' || (select count(*) from _sqlx_migrations) || '|' || (select count(*) from pg_database where datname like 'starfall_test_%')"
+          ],
+          "cwd": ".",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 0.3,
+          "log": "_workspace/p1-03-trading/evidence/r1_20261010k/freeze/fp_before.txt"
+        }
+      ],
+      "metrics": {
+        "freeze_file": {
+          "path": "_workspace/p1-03-trading/FREEZE",
+          "present": true
+        },
+        "source_files": 532,
+        "fp_before": "4805|d1904d8f18d55911ea101ff9c8435f5e|4|0"
+      },
+      "notes": [],
+      "violations": []
+    },
+    {
+      "name": "gates",
+      "status": "SKIP",
+      "raw_status": "SKIP",
+      "started": "",
+      "finished": "",
+      "seconds": 0.0,
+      "commands": [],
+      "metrics": {},
+      "notes": [],
+      "violations": []
+    },
+    {
+      "name": "census",
+      "status": "SKIP",
+      "raw_status": "SKIP",
+      "started": "",
+      "finished": "",
+      "seconds": 0.0,
+      "commands": [],
+      "metrics": {},
+      "notes": [],
+      "violations": []
+    },
+    {
+      "name": "repeat",
+      "status": "SKIP",
+      "raw_status": "SKIP",
+      "started": "",
+      "finished": "",
+      "seconds": 0.0,
+      "commands": [],
+      "metrics": {},
+      "notes": [],
+      "violations": []
+    },
+    {
+      "name": "unity",
+      "status": "SKIP",
+      "raw_status": "SKIP",
+      "started": "",
+      "finished": "",
+      "seconds": 0.0,
+      "commands": [],
+      "metrics": {},
+      "notes": [],
+      "violations": []
+    },
+    {
+      "name": "filters",
+      "status": "PASS",
+      "raw_status": "PASS",
+      "started": "2026-10-10T23:44:32+09:00",
+      "finished": "2026-10-10T23:45:39+09:00",
+      "seconds": 66.8,
+      "commands": [
+        {
+          "name": "cargo_sc_map",
+          "argv": [
+            "C:\\Users\\CHOISOOYEON\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+            "tests/e2e/cargo_sc_map.py",
+            "run",
+            "--contract",
+            "_workspace/p1-03-trading/02_sprint_contract.md",
+            "--out",
+            "_workspace/p1-03-trading/evidence/r1_20261010k/filters",
+            "--test-log",
+            "_workspace\\p1-03-trading\\evidence\\r1_20261010j\\gates\\test.log"
+          ],
+          "cwd": ".",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 66.8,
+          "log": "_workspace/p1-03-trading/evidence/r1_20261010k/filters/cargo_sc_map.out"
+        }
+      ],
+      "metrics": {
+        "rows": 133,
+        "filters_rust": 66,
+        "filters_rust_cargo": 61,
+        "filters_rust_bare": 5,
+        "filters_unity_bare": 35,
+        "executed": 66,
+        "ran_ge_1": 66,
+        "ran_ge_1_self": 65,
+        "child_proven": 1,
+        "roles": {
+          "RUNNABLE": 65,
+          "CHILD": 1,
+          "MANUAL": 0,
+          "UNCLASSIFIED": 0
+        },
+        "ignore_census": {
+          "raw_ignore_attrs": 5,
+          "attached": 5,
+          "child": [
+            "mining_replay_worker",
+            "replay_worker",
+            "trading_replay_worker"
+          ],
+          "manual": [
+            "live_open_session_is_closed_by_server_shutdown",
+            "live_round_trip_writes_session_rows"
+          ],
+          "unclassified": 0
+        },
+        "prose_runnable": {
+          "rust": 4,
+          "unity_bare": 35
+        },
+        "identities": [
+          {
+            "name": "① Rust 필터 = RUNNABLE + CHILD + MANUAL + UNCLASSIFIED",
+            "lhs": "66 = 65 + 1 + 0 + 0",
+            "holds": true
+          },
+          {
+            "name": "② 자기 실행(ran≥1) + 자식 입증(listed≥1) + 로그 못 읽음 = Rust 필터",
+            "lhs": "65 + 1 + 0 = 66",
+            "holds": true
+          },
+          {
+            "name": "③ 레포 #[ignore] = CHILD + MANUAL + 미분류",
+            "lhs": "5 = 3 + 2 + 0",
+            "holds": true
+          }
+        ],
+        "undecidable": [],
+        "unmeasured": [],
+        "verdict_exit": 0,
+        "child_rows": [
+          {
+            "sc": "SC-40",
+            "name": "trading_replay_worker",
+            "listed": 1,
+            "child_runs": 2,
+            "child_mentions": 3,
+            "child_measurable": true,
+            "expected_child_runs": 2,
+            "child_evidence_source": "test-log:_workspace/p1-03-trading/evidence/r1_20261010j/gates/test.log",
+            "stdout_blocks": [
+              "sc40_two_process_replay_with_trading_is_byte_identical"
+            ],
+            "parent_ran_in_log": true,
+            "child_pids": [
+              "59852",
+              "33900"
+            ],
+            "distinct_child_pids": 2,
+            "pid_equals_parent": [],
+            "parent_named": true,
+            "parent_filters": [
+              "sc40_two_process_replay_with_trading_is_byte_identical"
+            ]
+          }
+        ],
+        "child_unobserved": [],
+        "child_unmeasured": [],
+        "child_runs_mismatch": [],
+        "child_expected_unknown": [],
+        "child_pid_collisions": [],
+        "child_pid_equals_parent": [],
+        "child_parent_missing": [],
+        "log_form_unreadable": [],
+        "static_ghosts": [],
+        "ghosts": [],
+        "failed_tests": [],
+        "nonzero_rc": [],
+        "cross_sc": [],
+        "unity_bare": null
+      },
+      "notes": [],
+      "violations": []
+    },
+    {
+      "name": "sources",
+      "status": "SKIP",
+      "raw_status": "SKIP",
+      "started": "",
+      "finished": "",
+      "seconds": 0.0,
+      "commands": [],
+      "metrics": {},
+      "notes": [],
+      "violations": []
+    },
+    {
+      "name": "offline",
+      "status": "SKIP",
+      "raw_status": "SKIP",
+      "started": "",
+      "finished": "",
+      "seconds": 0.0,
+      "commands": [],
+      "metrics": {},
+      "notes": [],
+      "violations": []
+    },
+    {
+      "name": "bots",
+      "status": "SKIP",
+      "raw_status": "SKIP",
+      "started": "",
+      "finished": "",
+      "seconds": 0.0,
+      "commands": [],
+      "metrics": {},
+      "notes": [],
+      "violations": []
+    },
+    {
+      "name": "judges",
+      "status": "SKIP",
+      "raw_status": "SKIP",
+      "started": "",
+      "finished": "",
+      "seconds": 0.0,
+      "commands": [],
+      "metrics": {},
+      "notes": [],
+      "violations": []
+    },
+    {
+      "name": "db_stop",
+      "status": "SKIP",
+      "raw_status": "SKIP",
+      "started": "",
+      "finished": "",
+      "seconds": 0.0,
+      "commands": [],
+      "metrics": {},
+      "notes": [],
+      "violations": []
+    },
+    {
+      "name": "final",
+      "status": "PASS",
+      "raw_status": "PASS",
+      "started": "2026-10-10T23:45:39+09:00",
+      "finished": "2026-10-10T23:45:40+09:00",
+      "seconds": 1.0,
+      "commands": [
+        {
+          "name": "porcelain_end",
+          "argv": [
+            "git",
+            "status",
+            "--porcelain"
+          ],
+          "cwd": ".",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 0.1,
+          "log": "_workspace/p1-03-trading/evidence/r1_20261010k/final/porcelain_end.txt"
+        },
+        {
+          "name": "src_sha_compare",
+          "argv": [
+            "sha256",
+            "freeze/src_sha_start.txt",
+            "final/src_sha_end.txt"
+          ],
+          "cwd": ".",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 0.0,
+          "log": "_workspace/p1-03-trading/evidence/r1_20261010k/final/src_sha_end.txt"
+        },
+        {
+          "name": "fp_after",
+          "argv": [
+            "docker",
+            "compose",
+            "exec",
+            "-T",
+            "postgres",
+            "psql",
+            "-q",
+            "-v",
+            "ON_ERROR_STOP=1",
+            "-U",
+            "starfall",
+            "-d",
+            "starfall",
+            "-At",
+            "-F",
+            "|",
+            "-c",
+            "SET default_transaction_read_only = on",
+            "-c",
+            "select (select count(*) from domain_events where world_id = '01a0b1c2-3d4e-7f01-8a2b-9c0d1e2f3a4b') || '|' || (select md5(coalesce(string_agg(event_id::text, ',' order by event_id), '')) from domain_events where world_id = '01a0b1c2-3d4e-7f01-8a2b-9c0d1e2f3a4b') || '|' || (select count(*) from _sqlx_migrations) || '|' || (select count(*) from pg_database where datname like 'starfall_test_%')"
+          ],
+          "cwd": ".",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 0.8,
+          "log": "_workspace/p1-03-trading/evidence/r1_20261010k/final/fp_after.txt"
+        }
+      ],
+      "metrics": {
+        "source_files": 532,
+        "source_changed": [],
+        "fp": {
+          "before": "4805|d1904d8f18d55911ea101ff9c8435f5e|4|0",
+          "after": "4805|d1904d8f18d55911ea101ff9c8435f5e|4|0",
+          "same": true
+        }
+      },
+      "notes": [],
+      "violations": []
+    }
+  ]
+}
+DONE

@@ -1,0 +1,13 @@
+[23:52:08] == freeze
+[23:52:08]   head: rc=0 PASS 0s
+[23:52:08]   porcelain: rc=0 PASS 0s
+[23:52:09]   fp_before: rc=0 PASS 0s
+[23:52:09] == freeze: PASS
+[23:52:09] == filters
+[23:52:58]   cargo_sc_map: rc=0 PASS 48s
+[23:52:58] == filters: PASS
+[23:52:58] == final
+[23:52:58]   porcelain_end: rc=0 PASS 0s
+[23:52:58]   fp_after: rc=0 PASS 0s
+[23:52:59] == final: PASS
+[23:52:59] DONE

@@ -1,0 +1,106 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.starfall.invalid/contracts/messages/MARKET_STATE.schema.json",
+  "title": "MarketStateMessage",
+  "description": "Dynamic state of one market, broadcast to EVERY session of the world: after SESSION_READY, in every tick a sale changed it, and in every recovery-multiple tick in which some listed mineral's effective saturation actually changed (at most once per recovery interval). Full state, not a delta. listings holds ONLY minerals with at least one revealed deposit in the star system (simulation state first_extracted_tick - never the history tables, spec p1-03 I-86): an unrevealed mineral's name and value are not on the wire. Ascending mineral_id. price_cr_per_kg is derived by the server from saturation and the data table at `tick` and is not stored anywhere. last_sale is the market's public notice board - the trace a later player sees (design doc section 4): who sold how much of it last, and when; null if never sold in this world. THE CLIENT NEVER COMPUTES A CURRENT PRICE OR SATURATION (spec p1-03 I-78).",
+  "allOf": [
+    {
+      "$ref": "../common/message-envelope.schema.json"
+    }
+  ],
+  "properties": {
+    "message_type": {
+      "const": "MARKET_STATE"
+    },
+    "schema_version": {
+      "const": 1
+    },
+    "payload": {
+      "$ref": "#/$defs/MarketStatePayload"
+    }
+  },
+  "unevaluatedProperties": false,
+  "$defs": {
+    "MarketStatePayload": {
+      "title": "MarketStatePayload",
+      "type": "object",
+      "required": [
+        "market_id",
+        "listings"
+      ],
+      "properties": {
+        "market_id": {
+          "$ref": "../common/primitives.schema.json#/$defs/DataId"
+        },
+        "listings": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/MarketListingState"
+          },
+          "maxItems": 64
+        }
+      },
+      "additionalProperties": false
+    },
+    "MarketListingState": {
+      "title": "MarketListingState",
+      "type": "object",
+      "required": [
+        "mineral_id",
+        "saturation_kg",
+        "price_cr_per_kg",
+        "last_sale"
+      ],
+      "properties": {
+        "mineral_id": {
+          "$ref": "../common/primitives.schema.json#/$defs/DataId"
+        },
+        "saturation_kg": {
+          "$ref": "../common/primitives.schema.json#/$defs/MassKg",
+          "description": "Effective saturation at `tick` (recovery applied)."
+        },
+        "price_cr_per_kg": {
+          "$ref": "../common/primitives.schema.json#/$defs/CreditAmount",
+          "minimum": 1,
+          "description": "price(band(saturation_kg)) - the ticker value."
+        },
+        "last_sale": {
+          "description": "The last accepted sale of this mineral here, or null. Persisted market state: survives restarts and the seller's departure.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LastSale"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "LastSale": {
+      "title": "MarketLastSale",
+      "type": "object",
+      "required": [
+        "actor_id",
+        "quantity_kg",
+        "tick"
+      ],
+      "properties": {
+        "actor_id": {
+          "$ref": "../common/primitives.schema.json#/$defs/UuidV7",
+          "description": "Seller. Shown as the p1-02 I-66 'Pilot-xxxx' tag; never a key for anything but this display."
+        },
+        "quantity_kg": {
+          "$ref": "../common/primitives.schema.json#/$defs/MassKg",
+          "minimum": 1
+        },
+        "tick": {
+          "$ref": "../common/primitives.schema.json#/$defs/Tick",
+          "description": "Tick of that sale. The client shows the elapsed time from the envelope tick."
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

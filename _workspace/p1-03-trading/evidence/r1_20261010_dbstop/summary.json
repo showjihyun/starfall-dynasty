@@ -1,0 +1,284 @@
+{
+  "tool": "tests/e2e/run_round.py",
+  "format": 1,
+  "slice": "p1-03-trading",
+  "slice_label": "p1-03",
+  "round": "r1",
+  "contract": "_workspace/p1-03-trading/02_sprint_contract.md",
+  "config": "tests/e2e/round_configs/p1-03-trading.json",
+  "out": "_workspace/p1-03-trading/evidence/r1_20261010_dbstop",
+  "selected": [
+    "freeze",
+    "db_stop",
+    "final"
+  ],
+  "dry_run": false,
+  "argv": [
+    "--slice",
+    "p1-03",
+    "--contract",
+    "_workspace/p1-03-trading/02_sprint_contract.md",
+    "--config",
+    "tests/e2e/round_configs/p1-03-trading.json",
+    "--round",
+    "r1",
+    "--gate-timeout",
+    "7200",
+    "--only",
+    "db_stop",
+    "--out",
+    "_workspace/p1-03-trading/evidence/r1_20261010_dbstop"
+  ],
+  "env_keys_loaded": [
+    "DATABASE_URL",
+    "POSTGRES_DB",
+    "POSTGRES_PASSWORD",
+    "POSTGRES_USER",
+    "REDIS_URL",
+    "STARFALL_DEV_AUTH_SECRET",
+    "STARFALL_HTTP_ADDR",
+    "STARFALL_LOG_FORMAT",
+    "STARFALL_PG_HOST_PORT",
+    "STARFALL_REDIS_HOST_PORT"
+  ],
+  "started": "2026-10-10T17:42:02+09:00",
+  "finished": "2026-10-10T17:42:04+09:00",
+  "complete": true,
+  "watch": {
+    "enabled": true,
+    "interval_s": 15.0,
+    "checks": 2,
+    "violations": [],
+    "touched_same_content": [],
+    "relax_unity": true,
+    "stage_category": {
+      "freeze": "server",
+      "gates": "server",
+      "census": "server",
+      "repeat": "server",
+      "unity": "client",
+      "filters": "server",
+      "sources": "server",
+      "offline": "client",
+      "bots": "server",
+      "judges": "server",
+      "db_stop": "server",
+      "final": "server"
+    }
+  },
+  "counts": {
+    "PASS": 1,
+    "SKIP": 11
+  },
+  "stages": [
+    {
+      "name": "freeze",
+      "status": "PASS",
+      "raw_status": "PASS",
+      "started": "2026-10-10T17:42:02+09:00",
+      "finished": "2026-10-10T17:42:03+09:00",
+      "seconds": 0.5,
+      "commands": [
+        {
+          "name": "head",
+          "argv": [
+            "git",
+            "rev-parse",
+            "HEAD"
+          ],
+          "cwd": ".",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 0.0,
+          "log": "_workspace/p1-03-trading/evidence/r1_20261010_dbstop/freeze/head.txt"
+        },
+        {
+          "name": "porcelain",
+          "argv": [
+            "git",
+            "status",
+            "--porcelain"
+          ],
+          "cwd": ".",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 0.1,
+          "log": "_workspace/p1-03-trading/evidence/r1_20261010_dbstop/freeze/porcelain.txt"
+        },
+        {
+          "name": "fp_before",
+          "argv": [
+            "docker",
+            "compose",
+            "exec",
+            "-T",
+            "postgres",
+            "psql",
+            "-q",
+            "-v",
+            "ON_ERROR_STOP=1",
+            "-U",
+            "starfall",
+            "-d",
+            "starfall",
+            "-At",
+            "-F",
+            "|",
+            "-c",
+            "SET default_transaction_read_only = on",
+            "-c",
+            "select (select count(*) from domain_events where world_id = '01a0b1c2-3d4e-7f01-8a2b-9c0d1e2f3a4b') || '|' || (select md5(coalesce(string_agg(event_id::text, ',' order by event_id), '')) from domain_events where world_id = '01a0b1c2-3d4e-7f01-8a2b-9c0d1e2f3a4b') || '|' || (select count(*) from _sqlx_migrations) || '|' || (select count(*) from pg_database where datname like 'starfall_test_%')"
+          ],
+          "cwd": ".",
+          "rc": 0,
+          "status": "PASS",
+          "seconds": 0.3,
+          "log": "_workspace/p1-03-trading/evidence/r1_20261010_dbstop/freeze/fp_before.txt"
+        }
+      ],
+      "metrics": {
+        "freeze_file": {
+          "path": "_workspace/p1-03-trading/FREEZE",
+          "present": true
+        },
+        "source_files": 532,
+        "fp_before": "4805|d1904d8f18d55911ea101ff9c8435f5e|4|0"
+      },
+      "notes": [],
+      "violations": []
+    },
+    {
+      "name": "gates",
+      "status": "SKIP",
+      "raw_status": "SKIP",
+      "started": "",
+      "finished": "",
+      "seconds": 0.0,
+      "commands": [],
+      "metrics": {},
+      "notes": [],
+      "violations": []
+    },
+    {
+      "name": "census",
+      "status": "SKIP",
+      "raw_status": "SKIP",
+      "started": "",
+      "finished": "",
+      "seconds": 0.0,
+      "commands": [],
+      "metrics": {},
+      "notes": [],
+      "violations": []
+    },
+    {
+      "name": "repeat",
+      "status": "SKIP",
+      "raw_status": "SKIP",
+      "started": "",
+      "finished": "",
+      "seconds": 0.0,
+      "commands": [],
+      "metrics": {},
+      "notes": [],
+      "violations": []
+    },
+    {
+      "name": "unity",
+      "status": "SKIP",
+      "raw_status": "SKIP",
+      "started": "",
+      "finished": "",
+      "seconds": 0.0,
+      "commands": [],
+      "metrics": {},
+      "notes": [],
+      "violations": []
+    },
+    {
+      "name": "filters",
+      "status": "SKIP",
+      "raw_status": "SKIP",
+      "started": "",
+      "finished": "",
+      "seconds": 0.0,
+      "commands": [],
+      "metrics": {},
+      "notes": [],
+      "violations": []
+    },
+    {
+      "name": "sources",
+      "status": "SKIP",
+      "raw_status": "SKIP",
+      "started": "",
+      "finished": "",
+      "seconds": 0.0,
+      "commands": [],
+      "metrics": {},
+      "notes": [],
+      "violations": []
+    },
+    {
+      "name": "offline",
+      "status": "SKIP",
+      "raw_status": "SKIP",
+      "started": "",
+      "finished": "",
+      "seconds": 0.0,
+      "commands": [],
+      "metrics": {},
+      "notes": [],
+      "violations": []
+    },
+    {
+      "name": "bots",
+      "status": "SKIP",
+      "raw_status": "SKIP",
+      "started": "",
+      "finished": "",
+      "seconds": 0.0,
+      "commands": [],
+      "metrics": {},
+      "notes": [],
+      "violations": []
+    },
+    {
+      "name": "judges",
+      "status": "SKIP",
+      "raw_status": "SKIP",
+      "started": "",
+      "finished": "",
+      "seconds": 0.0,
+      "commands": [],
+      "metrics": {},
+      "notes": [],
+      "violations": []
+    },
+    {
+      "name": "db_stop",
+      "status": "SKIP",
+      "raw_status": "SKIP",
+      "started": "2026-10-10T17:42:03+09:00",
+      "finished": "",
+      "seconds": 0.0,
+      "commands": [],
+      "metrics": {},
+      "notes": [],
+      "violations": []
+    },
+    {
+      "name": "final",
+      "status": "SKIP",
+      "raw_status": "SKIP",
+      "started": "",
+      "finished": "",
+      "seconds": 0.0,
+      "commands": [],
+      "metrics": {},
+      "notes": [],
+      "violations": []
+    }
+  ]
+}
+DONE

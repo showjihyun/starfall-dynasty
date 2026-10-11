@@ -37,7 +37,8 @@ Bash 앞에 한 번: `export PATH="$HOME/.cargo/bin:$HOME/.dotnet/tools:/c/Users
 
 | 목적 | 명령 (cargo는 `server/`에서, 나머지는 레포 루트에서) |
 |------|------|
-| 서버 게이트 | `cargo test --workspace --locked` · `cargo fmt --all --check` · `cargo clippy --workspace --all-targets -- -D warnings` |
+| 서버 게이트 | `cargo test --workspace --locked -- --show-output` · `cargo fmt --all --check` · `cargo clippy --workspace --all-targets -- -D warnings` |
+| | **`-- --show-output` 을 빼지 마라** — 재생 부모가 자식 프로세스를 띄웠다는 `[CHILD]` 줄이 CI 로그에 남지 않으면 "서로 다른 프로세스에서 2회"가 관측 없이 초록이 된다. **`--nocapture`·raw write 로 바꾸지 마라**(libtest 결과 줄을 splice 한다). **`-q` 금지** — `test X ... ok` 줄이 사라져 모든 필터가 유령이 된다 |
 | 릴리스 전용 테스트 | `cargo test -p starfall-sim --release` — `#[cfg(not(debug_assertions))]` 테스트는 표준 게이트에서 **컴파일조차 되지 않는다** |
 | Unity 테스트 | `unity test client --mode EditMode` |
 | 계약 DTO 생성 | `cd tools/codegen && dotnet run ContractsCodegen.cs -- --contracts ../../contracts --out ../../client/Assets/_Project/Scripts/Contracts/Generated` |

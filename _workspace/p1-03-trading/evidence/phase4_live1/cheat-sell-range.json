@@ -1,0 +1,55 @@
+{
+  "actor_id": "01a0b1c2-b010-7000-8000-000000000114",
+  "baseline_accepted": true,
+  "case": "Range",
+  "cheat_reasons": [
+    "TARGET_OUT_OF_RANGE"
+  ],
+  "condition_occurred": true,
+  "dist_at_send_m": 861.8278694298533,
+  "goto_failures": 0,
+  "item": "[verdict] p1-03 SC-107 도킹 구역 밖 판매 → TARGET_OUT_OF_RANGE, 상태 불변",
+  "label": "bot-114",
+  "mine_until_shortfalls": 0,
+  "sells": [
+    {
+      "command_id": "01a11654-d657-7195-8415-fcf5de539e4e",
+      "dist_to_exchange_m": 249.10911935736112,
+      "mineral_id": "ferrosite",
+      "quantity_kg": 200,
+      "results": [
+        {
+          "reason": null,
+          "status": "ACCEPTED",
+          "tick": 10603
+        }
+      ],
+      "snapshot_tick": 10602,
+      "speed_mps": 0.0
+    },
+    {
+      "command_id": "01a11655-145f-7704-9bcf-636febafe90f",
+      "dist_to_exchange_m": 861.8278694298533,
+      "mineral_id": "ferrosite",
+      "quantity_kg": 100,
+      "results": [
+        {
+          "reason": "TARGET_OUT_OF_RANGE",
+          "status": "REJECTED",
+          "tick": 10921
+        }
+      ],
+      "snapshot_tick": 10920,
+      "speed_mps": 0.0
+    }
+  ],
+  "speed_at_send_mps": 0.0,
+  "state": {
+    "allowed": "기준 판매의 응답 1 벌",
+    "final_balance": 2000,
+    "final_ferrosite": 200,
+    "receipts_after_baseline": 1,
+    "wallet_messages_after_baseline": 1
+  },
+  "verdict": "PASS"
+}

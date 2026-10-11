@@ -35,6 +35,11 @@ pub const INVENTORY_STATE: &str = "INVENTORY_STATE";
 pub const DEPOSIT_FIELD_STATE: &str = "DEPOSIT_FIELD_STATE";
 pub const HISTORICAL_EVENT_NOTICE: &str = "HISTORICAL_EVENT_NOTICE";
 pub const MINERAL_DISCOVERED: &str = "MINERAL_DISCOVERED";
+// p1-03 신규 — bots 는 SELL_MINERAL 의 생산자, 세 메시지의 소비자(레지스트리).
+pub const SELL_MINERAL: &str = "SELL_MINERAL";
+pub const WALLET_STATE: &str = "WALLET_STATE";
+pub const SALE_RECEIPT: &str = "SALE_RECEIPT";
+pub const MARKET_STATE: &str = "MARKET_STATE";
 
 /// 명령 envelope (contracts/common/command-envelope.schema.json).
 ///
@@ -476,6 +481,146 @@ impl MineralDiscoveredEvent {
     }
 }
 
+// ── p1-03 거래 ───────────────────────────────────────────────────────────────────
+//
+// 계약 스키마에서 독립으로 쓴다(머리말). 일치는 `tests/wire_fixtures.rs` 가 fixture 왕복으로 본다.
+
+/// 판매 명령(스펙 I-74). **payload 는 `{market_id, mineral_id, quantity_kg}` 뿐이다** — 가격·대금·
+/// 잔액·위치·actor 는 어휘에 없다. 치트 시나리오는 이 타입을 거치지 않고 계약 반례 원문을 보낸다.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct SellMineralCommand {
+    pub command_id: Uuid,
+    pub command_type: String,
+    pub schema_version: u32,
+    pub client_sent_at: Option<String>,
+    pub payload: SellMineralPayload,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct SellMineralPayload {
+    pub market_id: String,
+    pub mineral_id: String,
+    pub quantity_kg: i64,
+}
+
+impl SellMineralCommand {
+    pub fn new(command_id: Uuid, market_id: &str, mineral_id: &str, quantity_kg: i64) -> Self {
+        Self {
+            command_id,
+            command_type: SELL_MINERAL.to_owned(),
+            schema_version: 1,
+            client_sent_at: None,
+            payload: SellMineralPayload {
+                market_id: market_id.to_owned(),
+                mineral_id: mineral_id.to_owned(),
+                quantity_kg,
+            },
+        }
+    }
+}
+
+/// 자기 지갑(세션 시작·변경 tick). 잔액의 유일한 출처(스펙 I-77).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct WalletStateMessage {
+    pub message_id: Uuid,
+    pub message_type: String,
+    pub schema_version: u32,
+    pub tick: u64,
+    pub correlation_id: Option<Uuid>,
+    pub payload: WalletStatePayload,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct WalletStatePayload {
+    pub actor_id: Uuid,
+    pub balance_cr: i64,
+}
+
+/// 수락된 판매의 실제 대금(잔액 없음).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct SaleReceiptMessage {
+    pub message_id: Uuid,
+    pub message_type: String,
+    pub schema_version: u32,
+    pub tick: u64,
+    pub correlation_id: Option<Uuid>,
+    pub payload: SaleReceiptPayload,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct SaleReceiptPayload {
+    pub command_id: Uuid,
+    pub market_id: String,
+    pub mineral_id: String,
+    pub quantity_kg: i64,
+    pub proceeds_cr: i64,
+    pub price_before_cr_per_kg: i64,
+    pub price_after_cr_per_kg: i64,
+}
+
+/// 시장 상태(월드 전원). 드러난 광물만 상장(I-86). `last_sale` 은 **키가 필수, 값이 null 가능** —
+/// `Option` 은 키가 빠져도 `None` 으로 받으므로 키 존재는 `deserialize_with` 로 강제한다.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct MarketStateMessage {
+    pub message_id: Uuid,
+    pub message_type: String,
+    pub schema_version: u32,
+    pub tick: u64,
+    pub correlation_id: Option<Uuid>,
+    pub payload: MarketStatePayload,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct MarketStatePayload {
+    pub market_id: String,
+    pub listings: Vec<MarketListingState>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct MarketListingState {
+    pub mineral_id: String,
+    pub saturation_kg: i64,
+    pub price_cr_per_kg: i64,
+    #[serde(deserialize_with = "required_nullable")]
+    pub last_sale: Option<LastSale>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct LastSale {
+    pub actor_id: Uuid,
+    pub quantity_kg: i64,
+    pub tick: u64,
+}
+
+/// 키는 있어야 하고 값은 null 일 수 있다 — 필드에 `#[serde(default)]` 가 없으므로 키가 빠지면
+/// serde 가 `missing field` 로 거부한다(이 함수는 null 을 `None` 으로 받을 뿐).
+fn required_nullable<'de, D, T>(d: D) -> Result<Option<T>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    T: Deserialize<'de>,
+{
+    Option::<T>::deserialize(d)
+}
+
+impl MarketStateMessage {
+    pub fn listing(&self, mineral_id: &str) -> Option<&MarketListingState> {
+        self.payload
+            .listings
+            .iter()
+            .find(|l| l.mineral_id == mineral_id)
+    }
+}
+
 /// 수신 프레임 1개를 해석한 결과.
 ///
 /// `Unknown` 은 **경고이지 오류가 아니다**(ADR-0005 §5 와 같은 관용). `Malformed` 는
@@ -489,6 +634,9 @@ pub enum Inbound {
     InventoryState(Box<InventoryStateMessage>),
     DepositFieldState(Box<DepositFieldStateMessage>),
     HistoricalEventNotice(Box<HistoricalEventNoticeMessage>),
+    WalletState(Box<WalletStateMessage>),
+    SaleReceipt(Box<SaleReceiptMessage>),
+    MarketState(Box<MarketStateMessage>),
     Unknown { message_type: String },
     Malformed { reason: String, raw: String },
 }
@@ -559,6 +707,27 @@ pub fn parse_inbound(text: &str) -> Inbound {
             Ok(m) => Inbound::HistoricalEventNotice(Box::new(m)),
             Err(e) => Inbound::Malformed {
                 reason: format!("HISTORICAL_EVENT_NOTICE: {e}"),
+                raw: truncate(text),
+            },
+        },
+        WALLET_STATE => match serde_json::from_value(value) {
+            Ok(m) => Inbound::WalletState(Box::new(m)),
+            Err(e) => Inbound::Malformed {
+                reason: format!("WALLET_STATE: {e}"),
+                raw: truncate(text),
+            },
+        },
+        SALE_RECEIPT => match serde_json::from_value(value) {
+            Ok(m) => Inbound::SaleReceipt(Box::new(m)),
+            Err(e) => Inbound::Malformed {
+                reason: format!("SALE_RECEIPT: {e}"),
+                raw: truncate(text),
+            },
+        },
+        MARKET_STATE => match serde_json::from_value(value) {
+            Ok(m) => Inbound::MarketState(Box::new(m)),
+            Err(e) => Inbound::Malformed {
+                reason: format!("MARKET_STATE: {e}"),
                 raw: truncate(text),
             },
         },

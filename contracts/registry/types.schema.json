@@ -45,8 +45,22 @@
           },
           "minItems": 1
         },
+        "data_files": {
+          "description": "Data kinds only, and REQUIRED for them (ADR-0015 section 1, registry_version 5): glob patterns relative to the repository's data/ directory naming every file of this kind. The single source for (1) which schema validates a data file and (2) which files the client copy contains - exactly the files of the kinds whose consumers include client. Every data/**/*.json must match exactly one data kind's globs.",
+          "type": "array",
+          "items": { "type": "string", "pattern": "^[a-z0-9*][a-z0-9*./-]*\\.json$" },
+          "minItems": 1,
+          "uniqueItems": true
+        },
         "description": { "type": "string" }
       },
+      "allOf": [
+        {
+          "if": { "properties": { "kind": { "const": "data" } }, "required": ["kind"] },
+          "then": { "required": ["data_files"] },
+          "else": { "not": { "required": ["data_files"] } }
+        }
+      ],
       "additionalProperties": false
     },
     "Tags": {

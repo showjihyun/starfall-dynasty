@@ -1,0 +1,33 @@
+{
+  "event_id": "01a0b1c2-a003-7e03-8f13-505162738497",
+  "event_type": "MINERAL_SOLD",
+  "schema_version": 1,
+  "world_id": "01a0b1c2-3d4e-7f01-8a2b-9c0d1e2f3a4b",
+  "tick": 26420,
+  "sequence": 1,
+  "occurred_at": "3800-01-01T22:00:00Z",
+  "recorded_at": "2026-10-05T09:12:40.201Z",
+  "correlation_id": "01a0b1c2-4a13-7c02-8d03-1e033f044a06",
+  "causation_id": "01a0b1c2-9c03-7d13-8e23-3f3140516173",
+  "actor_id": "01a0b1c2-2c01-7a45-8b67-89abcdef0123",
+  "payload": {
+    "ship_id": "01a0b1c2-8b01-7a11-8b22-9c33d44e55f6",
+    "session_id": "01a0b1c2-4a11-7b22-9c33-0d44e55f6a77",
+    "star_system_id": "cradle",
+    "market_id": "cradle-exchange",
+    "mineral_id": "ferrosite",
+    "pricing_version": "cradle-exchange@1",
+    "quantity_kg": 14000,
+    "proceeds_cr": 98000,
+    "base_price_cr_per_kg": 10,
+    "floor_price_cr_per_kg": 3,
+    "price_before_cr_per_kg": 10,
+    "price_after_cr_per_kg": 3,
+    "saturation_before_kg": 0,
+    "saturation_after_kg": 14000,
+    "quantity_before_kg": 14500,
+    "quantity_after_kg": 500,
+    "wallet_before_cr": 0,
+    "wallet_after_cr": 98000
+  }
+}

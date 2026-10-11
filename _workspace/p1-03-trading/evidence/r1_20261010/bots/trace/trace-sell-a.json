@@ -1,0 +1,30 @@
+{
+  "actor_id": "01a0b1c2-b010-7000-8000-000000000130",
+  "item": "[verdict] p1-03 SC-113 A 가 Ferrosite 14,000 kg 한 번 판매 → price_after 3, 대금 98,000 (판매 직전 포화 0 선단언)",
+  "receipt": {
+    "price_after": 3,
+    "price_before": 10,
+    "proceeds_cr": 98000,
+    "tick": 7577
+  },
+  "saturation_before_send": 0,
+  "sells": [
+    {
+      "command_id": "01a124ce-1b9d-7788-a94e-9f9ce7dcad80",
+      "dist_to_exchange_m": 249.14001579031822,
+      "mineral_id": "ferrosite",
+      "quantity_kg": 14000,
+      "results": [
+        {
+          "reason": null,
+          "status": "ACCEPTED",
+          "tick": 7577
+        }
+      ],
+      "snapshot_tick": 7576,
+      "speed_mps": 0.0
+    }
+  ],
+  "verdict": "PASS",
+  "world_id": "01a124c8-4c8e-7f6b-8f72-01ad20f10055"
+}

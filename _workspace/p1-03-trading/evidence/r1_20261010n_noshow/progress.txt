@@ -1,0 +1,13 @@
+[23:48:07] == freeze
+[23:48:07]   head: rc=0 PASS 0s
+[23:48:07]   porcelain: rc=0 PASS 0s
+[23:48:08]   fp_before: rc=0 PASS 0s
+[23:48:08] == freeze: PASS
+[23:48:08] == filters
+[23:48:59]   cargo_sc_map: rc=5 미검증(관측 없음) 51s
+[23:48:59] == filters: 미검증(관측 없음)
+[23:48:59] == final
+[23:48:59]   porcelain_end: rc=0 PASS 0s
+[23:49:00]   fp_after: rc=0 PASS 0s
+[23:49:00] == final: PASS
+[23:49:00] DONE

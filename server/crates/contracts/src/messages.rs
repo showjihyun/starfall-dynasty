@@ -6,9 +6,10 @@ use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::historical::MineralDiscoveredEvent;
 use crate::primitives::{
-    AngularVelocityMdegPerSecond, ConstSchemaVersion, DataId, InputSeq, MassKg, PositionMm,
-    ProbeSeq, QuaternionComponentMicro, ServerVersion, Tick, TickHz, UuidV7, VelocityMmPerSecond,
-    de_optional_positive_mass_kg, de_positive_mass_kg, required_nullable,
+    AngularVelocityMdegPerSecond, ConstSchemaVersion, CreditAmount, DataId, InputSeq, MassKg,
+    PositionMm, ProbeSeq, QuaternionComponentMicro, ServerVersion, Tick, TickHz, UuidV7,
+    VelocityMmPerSecond, de_optional_positive_mass_kg, de_positive_credit_amount,
+    de_positive_mass_kg, required_nullable,
 };
 
 /// `PING_REPLY` 의 타입 상수.
@@ -120,8 +121,15 @@ pub enum RejectReasonCode {
     /// 영속화 백로그가 임계를 넘어 상태 변경 명령을 받지 않는다. p1-02 신규(ADR-0013 §6).
     RecordingBacklog,
     /// 이 채굴로 그 광물의 인벤토리가 표현 가능한 최댓값(`MassKg`)을 넘는다. p1-02 신규
-    /// (ADR-0013 §5a) — checked 덧셈이 판정 마지막 단계에서 막는다(panic 없음).
+    /// (ADR-0013 §5a) — checked 덧셈이 판정 마지막 단계에서 막는다(panic 없음). p1-03
+    /// (ADR-0016 §6)에서 뜻이 넓어졌다: 광물 인벤토리 **또는** 크레딧 지갑(`CreditAmount`,
+    /// `2^53-1`)이 표현 가능한 최댓값을 넘는다. 새 코드를 만들지 않는다 — 플레이어에게는
+    /// 같은 뜻(보유 한도)이고 둘 다 실전 도달이 없다.
     CapacityExceeded,
+    /// `SELL_MINERAL.quantity_kg` 가 행위자의 그 광물 보유량보다 많다. p1-03 신규(스펙
+    /// §4.2). `RESOURCE_DEPLETED`(광맥이 비었다)와 다른 뜻이다 — 대상이 광맥이 아니라
+    /// 인벤토리다.
+    InsufficientQuantity,
 }
 
 /// `COMMAND_RESULT` payload.
@@ -583,4 +591,194 @@ pub struct HistoricalEventNoticeMessage {
     pub correlation_id: Option<UuidV7>,
     /// 타입별 payload.
     pub payload: HistoricalEventNoticePayload,
+}
+
+// ---------------------------------------------------------------------------
+// WALLET_STATE (p1-03)
+// ---------------------------------------------------------------------------
+
+/// `WALLET_STATE` 의 타입 상수.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub enum WalletStateType {
+    /// 유일한 값.
+    #[default]
+    #[serde(rename = "WALLET_STATE")]
+    WalletState,
+}
+
+/// `WALLET_STATE` payload.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct WalletStatePayload {
+    /// 소유자. 언제나 이 메시지를 받는 세션의 행위자.
+    pub actor_id: UuidV7,
+    /// 잔액(정수 크레딧). 한 번도 안 팔았으면 0 — "지갑 없음" 상태는 와이어에 없다.
+    pub balance_cr: CreditAmount,
+}
+
+/// `WALLET_STATE` — 이 세션 행위자의 크레딧 잔액 전체(델타가 아니다).
+///
+/// `SESSION_READY` 직후(`INVENTORY_STATE` 뒤) 1회, 그리고 그 행위자의 잔액이 바뀐 모든
+/// tick마다(수락된 `SELL_MINERAL` 의 `COMMAND_RESULT`·`SALE_RECEIPT`·`INVENTORY_STATE`
+/// 뒤, 스펙 p1-03 §5.1a). **클라이언트는 잔액을 스스로 계산하지 않는다**(I-77) —
+/// 언제나 마지막으로 받은 이 메시지를 보여준다.
+///
+/// 대응 스키마: `contracts/messages/WALLET_STATE.schema.json`
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct WalletStateMessage {
+    /// 추적·로그 상관용 서버 생성 UUIDv7.
+    pub message_id: UuidV7,
+    /// 언제나 `WALLET_STATE`.
+    pub message_type: WalletStateType,
+    /// 언제나 1.
+    pub schema_version: ConstSchemaVersion<1>,
+    /// 이 상태를 만든 tick.
+    pub tick: Tick,
+    /// 명령의 응답이 아니므로 언제나 `null`.
+    #[serde(deserialize_with = "required_nullable")]
+    pub correlation_id: Option<UuidV7>,
+    /// 타입별 payload.
+    pub payload: WalletStatePayload,
+}
+
+// ---------------------------------------------------------------------------
+// SALE_RECEIPT (p1-03)
+// ---------------------------------------------------------------------------
+
+/// `SALE_RECEIPT` 의 타입 상수.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub enum SaleReceiptType {
+    /// 유일한 값.
+    #[default]
+    #[serde(rename = "SALE_RECEIPT")]
+    SaleReceipt,
+}
+
+/// `SALE_RECEIPT` payload. **잔액이 없다** — 잔액의 출처는 `WALLET_STATE` 하나뿐이다.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SaleReceiptPayload {
+    /// 답하는 `SELL_MINERAL` 의 `command_id`(echo).
+    pub command_id: UuidV7,
+    /// 판 시장.
+    pub market_id: DataId,
+    /// 판 광물.
+    pub mineral_id: DataId,
+    /// 판 양.
+    #[serde(deserialize_with = "de_positive_mass_kg")]
+    pub quantity_kg: MassKg,
+    /// 실제로 받은 대금 — 클라이언트의 "예상 대금" 미리보기(UI-08)를 대체하는 실측값
+    /// (UI-09).
+    #[serde(deserialize_with = "de_positive_credit_amount")]
+    pub proceeds_cr: CreditAmount,
+    /// 판매 직전 시세.
+    #[serde(deserialize_with = "de_positive_credit_amount")]
+    pub price_before_cr_per_kg: CreditAmount,
+    /// 판매 직후 시세.
+    #[serde(deserialize_with = "de_positive_credit_amount")]
+    pub price_after_cr_per_kg: CreditAmount,
+}
+
+/// `SALE_RECEIPT` — 수락된 `SELL_MINERAL` 에 대한 서버의 답, 판 사람에게만.
+///
+/// 그 tick 에서 `COMMAND_RESULT` 다음, `INVENTORY_STATE`·`WALLET_STATE` 보다 먼저
+/// (스펙 p1-03 §5.1a).
+///
+/// 대응 스키마: `contracts/messages/SALE_RECEIPT.schema.json`
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SaleReceiptMessage {
+    /// 추적·로그 상관용 서버 생성 UUIDv7.
+    pub message_id: UuidV7,
+    /// 언제나 `SALE_RECEIPT`.
+    pub message_type: SaleReceiptType,
+    /// 언제나 1.
+    pub schema_version: ConstSchemaVersion<1>,
+    /// 판정한 tick.
+    pub tick: Tick,
+    /// 명령의 응답이지만 이 슬라이스에서는 언제나 `null`(스펙 §5.2, 기존 메시지들과 같다).
+    #[serde(deserialize_with = "required_nullable")]
+    pub correlation_id: Option<UuidV7>,
+    /// 타입별 payload.
+    pub payload: SaleReceiptPayload,
+}
+
+// ---------------------------------------------------------------------------
+// MARKET_STATE (p1-03)
+// ---------------------------------------------------------------------------
+
+/// `MARKET_STATE` 의 타입 상수.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub enum MarketStateType {
+    /// 유일한 값.
+    #[default]
+    #[serde(rename = "MARKET_STATE")]
+    MarketState,
+}
+
+/// 시장의 공개 게시판 — 그 광물을 마지막으로 판 사람(디자인 §4). 영속 상태라
+/// 재기동과 판매자의 퇴장을 넘는다.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct LastSale {
+    /// 판 사람. `Pilot-xxxx` 표지로만 보인다 — 이 표시 외에는 키가 아니다.
+    pub actor_id: UuidV7,
+    /// 판 양.
+    #[serde(deserialize_with = "de_positive_mass_kg")]
+    pub quantity_kg: MassKg,
+    /// 그 판매의 tick.
+    pub tick: Tick,
+}
+
+/// 상장 하나의 동적 상태 — 그 광물이 드러난 뒤에만 존재한다(I-86).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct MarketListingState {
+    /// 상장된 광물.
+    pub mineral_id: DataId,
+    /// `tick` 시점의 실효 포화(회복 적용 후).
+    pub saturation_kg: MassKg,
+    /// `price(band(saturation_kg))` — 시세 티커 값.
+    #[serde(deserialize_with = "de_positive_credit_amount")]
+    pub price_cr_per_kg: CreditAmount,
+    /// 이 시장에서 그 광물의 마지막 판매, 또는 한 번도 안 팔렸으면 `null`. **키는 항상
+    /// 있다**(I-5) — p1-02 의 `missing-mineral-key` 와 같은 꼴.
+    #[serde(deserialize_with = "required_nullable")]
+    pub last_sale: Option<LastSale>,
+}
+
+/// `MARKET_STATE` payload.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct MarketStatePayload {
+    /// 이 시장.
+    pub market_id: DataId,
+    /// 드러난 광맥이 하나라도 있는 광물만(I-86), `mineral_id` 오름차순.
+    pub listings: Vec<MarketListingState>,
+}
+
+/// `MARKET_STATE` — 한 시장의 동적 상태, 그 월드의 **모든** 세션에게.
+///
+/// `SESSION_READY` 직후 1회, 판매가 그 시장을 바꾼 모든 tick, 그리고 회복 배수 tick 중
+/// 실효 포화가 실제로 바뀐 상장이 있을 때(분당 최대 1회). **클라이언트는 현재 시세·
+/// 포화를 스스로 계산하지 않는다**(I-78).
+///
+/// 대응 스키마: `contracts/messages/MARKET_STATE.schema.json`
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct MarketStateMessage {
+    /// 추적·로그 상관용 서버 생성 UUIDv7.
+    pub message_id: UuidV7,
+    /// 언제나 `MARKET_STATE`.
+    pub message_type: MarketStateType,
+    /// 언제나 1.
+    pub schema_version: ConstSchemaVersion<1>,
+    /// 이 상태를 만든 tick.
+    pub tick: Tick,
+    /// 명령의 응답이 아니다(월드 브로드캐스트) — 언제나 `null`.
+    #[serde(deserialize_with = "required_nullable")]
+    pub correlation_id: Option<UuidV7>,
+    /// 타입별 payload.
+    pub payload: MarketStatePayload,
 }

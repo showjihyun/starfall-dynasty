@@ -751,6 +751,39 @@ where
     }
 }
 
+// 정수 크레딧 — MVP-1 의 유일한 화폐(p1-03, ADR-0016 §2). 1 credit 이 최소 단위이고
+// 소수 크레딧은 없다 — 반올림 지점을 금지하는 이유는 MassKg 와 같다(크레딧이 조용히
+// 생기거나 사라지는 자리를 만들지 않는다). 하한 0(음수 잔액은 세계가 있을 수 있는
+// 상태가 아니다), 상한은 모든 JSON 소비자가 정확히 들 수 있는 `2^53-1`.
+bounded_int_newtype!(
+    CreditAmount,
+    i64,
+    0i64,
+    9_007_199_254_740_991i64,
+    "CreditAmount"
+);
+
+/// `CreditAmount` 인데 그 자리에서 **0 을 추가로 금지**하는 필드용(스키마의 `$ref
+/// CreditAmount` + 형제 `"minimum": 1`, 예: `MINERAL_SOLD.proceeds_cr`). 대금·가격은 바닥값도
+/// 1 cr/kg 이상(기동 검증)이므로 0 은 애초에 나올 수 없는 값이다 — 타입 경계에서도 지킨다.
+///
+/// # Errors
+///
+/// 값이 0이거나 `CreditAmount` 범위 밖이면 실패한다.
+pub fn de_positive_credit_amount<'de, D>(deserializer: D) -> Result<CreditAmount, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let value = CreditAmount::deserialize(deserializer)?;
+    if value.get() >= 1 {
+        Ok(value)
+    } else {
+        Err(DeError::custom(
+            "CreditAmount 는 이 필드에서 0일 수 없다 (최소 1)",
+        ))
+    }
+}
+
 // ---------------------------------------------------------------------------
 // DataId — data/ 테이블 `id` 필드와 글자 그대로 같은 문자열 (ADR-0009 §2)
 // ---------------------------------------------------------------------------
@@ -1090,6 +1123,14 @@ mod tests {
         assert!(serde_json::from_str::<MassKg>("2147483647").is_ok());
         assert!(serde_json::from_str::<MassKg>("-1").is_err());
         assert!(serde_json::from_str::<MassKg>("2147483648").is_err());
+    }
+
+    #[test]
+    fn credit_amount_rejects_negative_and_above_2_53_minus_1() {
+        assert!(serde_json::from_str::<CreditAmount>("0").is_ok());
+        assert!(serde_json::from_str::<CreditAmount>("9007199254740991").is_ok());
+        assert!(serde_json::from_str::<CreditAmount>("-1").is_err());
+        assert!(serde_json::from_str::<CreditAmount>("9007199254740992").is_err());
     }
 
     #[test]

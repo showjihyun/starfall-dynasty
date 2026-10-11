@@ -217,12 +217,66 @@ pub enum MineStep {
     /// 코디네이터가 보내는 명령을 받아 그때그때 채굴한다(`Stop` 이나 채널 닫힘에서 끝).
     /// 기다리는 동안에도 받은 메시지를 처리한다.
     Remote(RemoteRx),
+
+    // ── p1-03 거래 ──────────────────────────────────────────────────────────
+    /// 다른 지점으로 날아가 멈춘다(광맥 ↔ 거래소 왕복). 실패하면 `mining.goto_failures` 를 센다.
+    GoTo {
+        target_m: [f64; 3],
+        stop_radius_m: f64,
+        timeout: Duration,
+    },
+    /// 멈추지 않고 `speed_mps` 로 지나가다가 반경 안에 들어온 순간 다음 단계로(SHIP_TOO_FAST 경로).
+    PassThroughTo {
+        target_m: [f64; 3],
+        radius_m: f64,
+        speed_mps: f64,
+        timeout: Duration,
+    },
+    /// 이 광맥에서 그 광물 보유가 `kg` 이상이 될 때까지 `every` 마다 채굴한다(`INVENTORY_STATE` 기준).
+    MineUntil {
+        deposit_id: String,
+        target_m: [f64; 3],
+        mineral_id: String,
+        kg: i64,
+        every: Duration,
+        timeout: Duration,
+    },
+    /// 새 `command_id` 로 판매.
+    Sell {
+        market_id: String,
+        mineral_id: String,
+        qty: SellQty,
+    },
+    /// 정해 둔 `command_id` 로 판매(재기동·종류 교차 — 연결 밖에서 id 를 들고 온다).
+    SellId {
+        id: Uuid,
+        market_id: String,
+        mineral_id: String,
+        qty: SellQty,
+    },
+    /// `k` 번째로 보낸 판매(0 부터)의 프레임을 그대로 다시 보낸다(같은 `command_id`).
+    SellResend(usize),
+    /// 원문 프레임 그대로(치트 주입). `{COMMAND_ID}` 는 새 id 로 바꿔 보낸다.
+    SellRaw(String),
+    /// 마지막 스냅샷 tick 이 `t` 이상이 될 때까지 기다린다(같은 tick 겨냥).
+    WaitUntilTick(std::sync::Arc<std::sync::atomic::AtomicU64>),
+}
+
+/// 판매량 — 보낼 순간의 보유량(마지막 `INVENTORY_STATE`)에서 정한다. 보유량은 **의도** 계산에만 쓴다
+/// (서버가 판정한다, 스펙 I-75).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SellQty {
+    Kg(i64),
+    All,
+    HoldingPlus(i64),
 }
 
 /// 원격 조종 명령(`MineStep::Remote`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RemoteCmd {
     Mine,
+    /// p1-03 기록 지연 케이스: 거래소 `cradle-exchange` 에 Ferrosite 100 kg 판매(새 id).
+    SellFerrosite100,
     /// 제자리 유지 조작 한 프레임(브레이크) — 기록 지연 중에도 이동 명령이 수락되는지(SC-30).
     Control,
     Stop,
@@ -360,6 +414,7 @@ pub async fn run_connection(spec: BotSpec) -> ConnectionOutcome {
         ready_at_us: None,
         closed: false,
         own: None,
+        ctl_seq: 0,
         last_actors: std::collections::BTreeSet::new(),
         last_actors_tick: None,
     };
@@ -472,6 +527,8 @@ struct Conn {
     closed: bool,
     /// p1-02 비행용 — 마지막 스냅샷의 자기 함선과 그 tick.
     own: Option<(u64, ShipState)>,
+    /// 세션 전체의 `input_seq` — 여러 번 나는 스크립트(광맥 ↔ 거래소)에서 역행하지 않게(STALE_INPUT).
+    ctl_seq: u64,
     /// 마지막 스냅샷에 함선이 있던 actor 들과 그 tick(디스폰 관측).
     last_actors: std::collections::BTreeSet<Uuid>,
     last_actors_tick: Option<u64>,
@@ -520,6 +577,7 @@ impl Conn {
                 self.mining.capture_raw(frame_seq, text.as_str());
                 match wire::parse_inbound(text.as_str()) {
                     Inbound::SessionReady(m) => {
+                        self.mining.note_type(frame_seq, crate::wire::SESSION_READY);
                         if self.ready_at_us.is_none() {
                             self.ready_at_us = Some(at);
                             self.mining.session_ready_frame_seq = Some(frame_seq);
@@ -588,6 +646,8 @@ impl Conn {
                             at,
                             m.tick,
                         );
+                        self.mining
+                            .note_type(frame_seq, crate::wire::COMMAND_RESULT);
                         self.mining.results.push(ObservedResult {
                             frame_seq,
                             tick: m.tick,
@@ -597,6 +657,8 @@ impl Conn {
                         });
                     }
                     Inbound::InventoryState(m) => {
+                        self.mining
+                            .note_type(frame_seq, crate::wire::INVENTORY_STATE);
                         self.mining.inventory.push(Observed {
                             frame_seq,
                             at_us: at,
@@ -605,6 +667,8 @@ impl Conn {
                         });
                     }
                     Inbound::DepositFieldState(m) => {
+                        self.mining
+                            .note_type(frame_seq, crate::wire::DEPOSIT_FIELD_STATE);
                         self.mining.deposits.push(Observed {
                             frame_seq,
                             at_us: at,
@@ -612,7 +676,36 @@ impl Conn {
                             msg: *m,
                         });
                     }
+                    Inbound::WalletState(m) => {
+                        self.mining.note_type(frame_seq, crate::wire::WALLET_STATE);
+                        self.mining.wallets.push(Observed {
+                            frame_seq,
+                            at_us: at,
+                            tick: m.tick,
+                            msg: *m,
+                        });
+                    }
+                    Inbound::SaleReceipt(m) => {
+                        self.mining.note_type(frame_seq, crate::wire::SALE_RECEIPT);
+                        self.mining.receipts.push(Observed {
+                            frame_seq,
+                            at_us: at,
+                            tick: m.tick,
+                            msg: *m,
+                        });
+                    }
+                    Inbound::MarketState(m) => {
+                        self.mining.note_type(frame_seq, crate::wire::MARKET_STATE);
+                        self.mining.markets.push(Observed {
+                            frame_seq,
+                            at_us: at,
+                            tick: m.tick,
+                            msg: *m,
+                        });
+                    }
                     Inbound::HistoricalEventNotice(m) => {
+                        self.mining
+                            .note_type(frame_seq, crate::wire::HISTORICAL_EVENT_NOTICE);
                         self.mining.notices.push(Observed {
                             frame_seq,
                             at_us: at,
@@ -627,6 +720,8 @@ impl Conn {
                                     .to_owned(),
                             );
                         }
+                        self.mining
+                            .note_type(frame_seq, crate::wire::WORLD_SNAPSHOT);
                         self.snapshots.on_snapshot(&m, text.len());
                         self.last_actors = m.payload.ships.iter().map(|s| s.actor_id).collect();
                         self.last_actors_tick = Some(m.tick);
@@ -900,6 +995,71 @@ impl Conn {
         }
     }
 
+    async fn send_sell(
+        &mut self,
+        command_id: Uuid,
+        market_id: &str,
+        mineral_id: &str,
+        quantity_kg: i64,
+    ) {
+        let cmd =
+            crate::wire::SellMineralCommand::new(command_id, market_id, mineral_id, quantity_kg);
+        let text = match serde_json::to_string(&cmd) {
+            Ok(t) => t,
+            Err(e) => {
+                self.ledger.on_error(format!("serialize failed: {e}"));
+                return;
+            }
+        };
+        self.send_sell_text(
+            command_id,
+            text,
+            market_id.to_owned(),
+            mineral_id.to_owned(),
+            quantity_kg,
+        )
+        .await;
+    }
+
+    /// 판매 프레임(원문 그대로)을 보내고 `sell_sent` 에 남긴다 — 보낸 순간의 스냅샷 tick·거리 계산용 위치·속력.
+    async fn send_sell_text(
+        &mut self,
+        command_id: Uuid,
+        text: String,
+        market_id: String,
+        mineral_id: String,
+        quantity_kg: i64,
+    ) {
+        let (tick, pos, speed) = match &self.own {
+            Some((t, s)) => (Some(*t), Some(own_pos_m(s)), Some(s.speed_mm_s() / 1000.0)),
+            None => (None, None, None),
+        };
+        let seq = self.next_seq;
+        self.next_seq = self.next_seq.wrapping_add(1);
+        let at = self.clock.us();
+        match self.sink.send(Message::text(text.clone())).await {
+            Ok(()) => {
+                self.ledger.on_sent_no_reply(command_id, seq, at);
+                self.mining.sell_sent.push(crate::mining::SentSell {
+                    command_id,
+                    market_id,
+                    mineral_id,
+                    quantity_kg,
+                    text,
+                    at_us: at,
+                    frame_seq_at_send: self.frame_seq,
+                    last_snapshot_tick: tick,
+                    pos_m: pos,
+                    speed_mps: speed,
+                });
+            }
+            Err(e) => {
+                self.ledger.on_error(format!("send failed: {e}"));
+                self.closed = true;
+            }
+        }
+    }
+
     /// 광맥으로 날아가 멈춘다. 도착하면 `true`. 조작 간격 50 ms, 판단은 마지막 스냅샷으로.
     async fn fly_to(
         &mut self,
@@ -914,7 +1074,6 @@ impl Conn {
             ..NavTrace::default()
         };
         let deadline = tokio::time::Instant::now() + timeout;
-        let mut seq: u64 = 0;
         // 첫 스냅샷을 기다린다.
         while self.own.is_none() && !self.closed && tokio::time::Instant::now() < deadline {
             self.pump_for(Duration::from_millis(100)).await;
@@ -949,9 +1108,9 @@ impl Conn {
                 trace.arrive_speed_mps = Some(speed);
                 arrived = true;
             }
-            seq += 1;
+            self.ctl_seq += 1;
             let [ax, ay, az, aw] = cmd.aim_micro;
-            let ctl = SetShipControlCommand::new(Uuid::now_v7(), seq)
+            let ctl = SetShipControlCommand::new(Uuid::now_v7(), self.ctl_seq)
                 .with_thrust(0, 0, cmd.thrust_z_milli)
                 .with_brake(cmd.brake || arrived)
                 .with_aim(ax, ay, az, aw);
@@ -1063,7 +1222,6 @@ impl Conn {
         while self.own.is_none() && !self.closed && tokio::time::Instant::now() < deadline {
             self.pump_for(Duration::from_millis(100)).await;
         }
-        let mut seq: u64 = 0;
         let mut trace = NavTrace::default();
         while !self.closed && tokio::time::Instant::now() < deadline {
             let Some((_, ship)) = self.own.clone() else {
@@ -1101,8 +1259,8 @@ impl Conn {
             // 목표 속도를 크게 넘으면 브레이크(선회 중 과속 방지).
             let brake = v > speed_mps * 1.5;
             let a = aim.map(|c| (c * 1_000_000.0).round() as i32);
-            seq += 1;
-            let ctl = SetShipControlCommand::new(Uuid::now_v7(), seq)
+            self.ctl_seq += 1;
+            let ctl = SetShipControlCommand::new(Uuid::now_v7(), self.ctl_seq)
                 .with_thrust(0, 0, thrust)
                 .with_brake(brake)
                 .with_aim(a[0], a[1], a[2], a[3]);
@@ -1190,6 +1348,9 @@ impl Conn {
                                         self.send_mine(id, deposit_id, target_m).await;
                                         ids.push(id);
                                     }
+                                    Some(RemoteCmd::SellFerrosite100) => {
+                                        self.send_sell(Uuid::now_v7(), "cradle-exchange", "ferrosite", 100).await;
+                                    }
                                     Some(RemoteCmd::Control) => {
                                         // fly_to 의 input_seq(작은 수)와 겹치지 않는 큰 수에서 시작한다.
                                         remote_seq += 1;
@@ -1255,6 +1416,103 @@ impl Conn {
                                 break;
                             }
                             self.pump_for(Duration::from_millis(100)).await;
+                        }
+                    }
+                    MineStep::GoTo {
+                        target_m,
+                        stop_radius_m,
+                        timeout,
+                    } => {
+                        if self
+                            .fly_to("goto", *target_m, *stop_radius_m, *timeout)
+                            .await
+                        {
+                            self.pump_for(Duration::from_millis(300)).await;
+                        } else {
+                            self.mining.goto_failures += 1;
+                        }
+                    }
+                    MineStep::PassThroughTo {
+                        target_m,
+                        radius_m,
+                        speed_mps,
+                        timeout,
+                    } => {
+                        if !self
+                            .pass_through(*target_m, *radius_m, *speed_mps, *timeout)
+                            .await
+                        {
+                            self.mining.goto_failures += 1;
+                        }
+                    }
+                    MineStep::MineUntil {
+                        deposit_id: dep,
+                        target_m: tgt,
+                        mineral_id,
+                        kg,
+                        every,
+                        timeout,
+                    } => {
+                        let deadline = tokio::time::Instant::now() + *timeout;
+                        while !self.closed
+                            && tokio::time::Instant::now() < deadline
+                            && self.mining.holding(mineral_id) < *kg
+                        {
+                            let id = Uuid::now_v7();
+                            self.send_mine(id, dep, *tgt).await;
+                            ids.push(id);
+                            self.pump_for(*every).await;
+                        }
+                        // 마지막 채굴의 INVENTORY_STATE 가 늦게 오면 한 박자 더 받는다.
+                        self.pump_for(Duration::from_millis(300)).await;
+                        if self.mining.holding(mineral_id) < *kg {
+                            self.mining.mine_until_shortfalls += 1;
+                        }
+                    }
+                    MineStep::Sell {
+                        market_id,
+                        mineral_id,
+                        qty,
+                    } => {
+                        let q = self.mining.sell_quantity(mineral_id, *qty);
+                        self.send_sell(Uuid::now_v7(), market_id, mineral_id, q)
+                            .await;
+                    }
+                    MineStep::SellId {
+                        id,
+                        market_id,
+                        mineral_id,
+                        qty,
+                    } => {
+                        let q = self.mining.sell_quantity(mineral_id, *qty);
+                        self.send_sell(*id, market_id, mineral_id, q).await;
+                    }
+                    MineStep::SellResend(k) => {
+                        if let Some(sent) = self.mining.sell_sent.get(*k).cloned() {
+                            self.send_sell_text(
+                                sent.command_id,
+                                sent.text,
+                                sent.market_id,
+                                sent.mineral_id,
+                                sent.quantity_kg,
+                            )
+                            .await;
+                        }
+                    }
+                    MineStep::SellRaw(template) => {
+                        let id = Uuid::now_v7();
+                        let text = template.replace("{COMMAND_ID}", &id.to_string());
+                        self.send_sell_text(id, text, String::new(), String::new(), 0)
+                            .await;
+                    }
+                    MineStep::WaitUntilTick(target) => {
+                        let t = target.load(std::sync::atomic::Ordering::SeqCst);
+                        let deadline = tokio::time::Instant::now() + Duration::from_secs(30);
+                        while !self.closed
+                            && tokio::time::Instant::now() < deadline
+                            && self.own.as_ref().is_none_or(|(tick, _)| *tick < t)
+                        {
+                            self.pump_for(Duration::from_millis(5)).await;
                         }
                     }
                     MineStep::Burst { every, total } => {

@@ -323,8 +323,9 @@ use serde_json::Value;
 use sqlx::postgres::{PgPool, PgPoolOptions};
 use sqlx::{Row, Transaction};
 use starfall_contracts::events::{
-    MineralMinedEvent, MineralMinedType, SessionClosedEvent, SessionClosedType, SessionOpenedEvent,
-    SessionOpenedType, ShipDespawnedEvent, ShipDespawnedType, ShipSpawnedEvent, ShipSpawnedType,
+    MineralMinedEvent, MineralMinedType, MineralSoldEvent, MineralSoldType, SessionClosedEvent,
+    SessionClosedType, SessionOpenedEvent, SessionOpenedType, ShipDespawnedEvent,
+    ShipDespawnedType, ShipSpawnedEvent, ShipSpawnedType,
 };
 use starfall_contracts::primitives::{
     ConstSchemaVersion, DataId, GameCalendar, GameTime, RealTime, ServerVersion, UuidV7,
@@ -542,11 +543,42 @@ pub struct DepositRow {
     pub first_extracted_tick: u64,
 }
 
-/// 기동 시 적재하는 한 월드의 경제 상태 전체(ADR-0013 §7 2단계, S8).
+/// 지갑 행 하나(`load_economic_state`, ADR-0016 §2) — `starfall_sim::Simulation::seed_wallet`
+/// 의 인자 둘과 1:1.
+#[derive(Debug, Clone)]
+pub struct WalletRow {
+    /// 소유자.
+    pub actor_id: UuidV7,
+    /// 잔액(credits). 행은 첫 판매에만 생긴다(ADR-0016 §2 — "행 없음 = 0" 규약).
+    pub balance_cr: i64,
+}
+
+/// 시장 상태 행 하나(`load_economic_state`, ADR-0016 §4) — **그 시장·광물의 첫 판매가
+/// 있었던 행만** 있다. `starfall_sim::Simulation::seed_market_state` 의 인자 여섯과(첫
+/// 번째가 `market_id`) 1:1.
+#[derive(Debug, Clone)]
+pub struct MarketStateRow {
+    /// 시장.
+    pub market_id: DataId,
+    /// 광물.
+    pub mineral_id: DataId,
+    /// `as_of_tick` 시점 기준 포화(회복 미적용 — sim 이 적용한다).
+    pub saturation_kg: i64,
+    /// `saturation_kg` 를 기록한 tick(= 마지막 판매 tick, 이 표는 판매로만 쓰이므로
+    /// 둘은 언제나 같다).
+    pub as_of_tick: u64,
+    /// 공개 게시판(ADR-0016 §4) — 마지막으로 이 광물을 이 시장에 판 actor.
+    pub last_seller_actor_id: UuidV7,
+    /// 공개 게시판 — 그 마지막 판매의 kg.
+    pub last_sale_quantity_kg: i64,
+}
+
+/// 기동 시 적재하는 한 월드의 경제 상태 전체(ADR-0013 §7 2단계, S8. 지갑·시장은
+/// ADR-0016 §2·§4, T0).
 ///
-/// 세 필드는 각각 `starfall_sim::Simulation` 의 `seed_inventory`/`seed_deposit_state`/
-/// `seed_processed_command_ids` 인자로 그대로 넘길 수 있는 모양이다 — server 는 반복문
-/// 세 개만 쓰면 된다:
+/// 각 필드는 `starfall_sim::Simulation` 의 `seed_inventory`/`seed_deposit_state`/
+/// `seed_processed_command_ids`/`seed_wallet`/`seed_market_state` 인자로 그대로 넘길 수
+/// 있는 모양이다 — server 는 반복문만 쓰면 된다:
 ///
 /// ```ignore
 /// let economic = starfall_persistence::load_economic_state(&pool, world_id).await?;
@@ -557,6 +589,13 @@ pub struct DepositRow {
 ///     sim.seed_deposit_state(row.deposit_id, row.remaining_kg, row.as_of_tick, row.first_extracted_tick);
 /// }
 /// sim.seed_processed_command_ids(economic.processed_command_ids);
+/// for row in economic.wallets {
+///     sim.seed_wallet(row.actor_id, row.balance_cr);
+/// }
+/// for row in economic.market_states {
+///     sim.seed_market_state(row.market_id, row.mineral_id, row.saturation_kg, row.as_of_tick,
+///         row.last_seller_actor_id, row.last_sale_quantity_kg);
+/// }
 /// ```
 #[derive(Debug, Clone)]
 pub struct EconomicState {
@@ -567,6 +606,10 @@ pub struct EconomicState {
     /// `processed_commands` 의 `command_id` 전체(이 월드) — 지속 중복 기억의 기동 시
     /// 적재분(ADR-0013 §3).
     pub processed_command_ids: Vec<UuidV7>,
+    /// `wallets` 전 행(이 월드) — 첫 판매가 있었던 actor 만(ADR-0016 §2).
+    pub wallets: Vec<WalletRow>,
+    /// `market_states` 전 행(이 월드) — 첫 판매가 있었던 (시장, 광물) 쌍만(ADR-0016 §4).
+    pub market_states: Vec<MarketStateRow>,
 }
 
 /// 한 월드의 경제 상태(인벤토리·매장지·처리 장부) 전부를 적재한다(ADR-0013 §7 2단계).
@@ -661,10 +704,85 @@ pub async fn load_economic_state(
         processed_command_ids.push(command_id);
     }
 
+    let wallet_rows = sqlx::query(
+        "SELECT actor_id, balance_cr FROM wallets WHERE world_id = $1 ORDER BY actor_id",
+    )
+    .bind(world_id.get())
+    .fetch_all(pool)
+    .await?;
+    let mut wallets = Vec::with_capacity(wallet_rows.len());
+    for row in wallet_rows {
+        let actor_id_raw: uuid::Uuid = row.try_get("actor_id")?;
+        let actor_id = UuidV7::from_uuid(actor_id_raw).ok_or_else(|| {
+            PersistenceError::CorruptEconomicRow {
+                table: "wallets",
+                world_id,
+                detail: format!("actor_id={actor_id_raw} 는 UUIDv7 이 아니다"),
+            }
+        })?;
+        let balance_cr: i64 = row.try_get("balance_cr")?;
+        wallets.push(WalletRow {
+            actor_id,
+            balance_cr,
+        });
+    }
+
+    let market_state_rows = sqlx::query(
+        "SELECT market_id, mineral_id, saturation_kg, as_of_tick, \
+                last_seller_actor_id, last_sale_quantity_kg \
+         FROM market_states WHERE world_id = $1 ORDER BY market_id, mineral_id",
+    )
+    .bind(world_id.get())
+    .fetch_all(pool)
+    .await?;
+    let mut market_states = Vec::with_capacity(market_state_rows.len());
+    for row in market_state_rows {
+        let market_id_raw: String = row.try_get("market_id")?;
+        let market_id = DataId::parse(market_id_raw.clone()).ok_or_else(|| {
+            PersistenceError::CorruptEconomicRow {
+                table: "market_states",
+                world_id,
+                detail: format!("market_id={market_id_raw:?} 는 유효한 DataId 가 아니다"),
+            }
+        })?;
+        let mineral_id_raw: String = row.try_get("mineral_id")?;
+        let mineral_id = DataId::parse(mineral_id_raw.clone()).ok_or_else(|| {
+            PersistenceError::CorruptEconomicRow {
+                table: "market_states",
+                world_id,
+                detail: format!("mineral_id={mineral_id_raw:?} 는 유효한 DataId 가 아니다"),
+            }
+        })?;
+        let saturation_kg: i64 = row.try_get("saturation_kg")?;
+        let as_of_tick: i64 = row.try_get("as_of_tick")?;
+        let last_seller_actor_id_raw: uuid::Uuid = row.try_get("last_seller_actor_id")?;
+        let last_seller_actor_id =
+            UuidV7::from_uuid(last_seller_actor_id_raw).ok_or_else(|| {
+                PersistenceError::CorruptEconomicRow {
+                    table: "market_states",
+                    world_id,
+                    detail: format!(
+                        "last_seller_actor_id={last_seller_actor_id_raw} 는 UUIDv7 이 아니다"
+                    ),
+                }
+            })?;
+        let last_sale_quantity_kg: i64 = row.try_get("last_sale_quantity_kg")?;
+        market_states.push(MarketStateRow {
+            market_id,
+            mineral_id,
+            saturation_kg,
+            as_of_tick: u64::try_from(as_of_tick).unwrap_or(0),
+            last_seller_actor_id,
+            last_sale_quantity_kg,
+        });
+    }
+
     Ok(EconomicState {
         inventory,
         deposits,
         processed_command_ids,
+        wallets,
+        market_states,
     })
 }
 
@@ -987,6 +1105,25 @@ async fn commit(
             .execute(&mut *tx)
             .await?;
         }
+
+        // p1-03, ADR-0016 §1 — SELL_MINERAL 도 같은 장부, 같은 PK(월드 범위) —
+        // 명령 종류가 달라도 같은 command_id 는 한 번만 세계를 바꾼다(T0 합의). 같은
+        // 이유로 `ON CONFLICT DO NOTHING` 을 쓰지 않는다(위 MineralMined 분기 주석과
+        // 동일 — SC-28 `dup_reaching_db_halts`).
+        if let DomainEventBody::MineralSold(_) = &event.body {
+            let command_id = event.causation_id.unwrap_or(event.event_id);
+            sqlx::query(
+                "INSERT INTO processed_commands (world_id, command_id, actor_id, command_type, tick)
+                 VALUES ($1, $2, $3, $4, $5)",
+            )
+            .bind(world_id.get())
+            .bind(command_id.get())
+            .bind(event.actor_id.get())
+            .bind(starfall_contracts::registry::SELL_MINERAL)
+            .bind(i64::try_from(event.tick.get()).unwrap_or(i64::MAX))
+            .execute(&mut *tx)
+            .await?;
+        }
     }
 
     for write in &batch.state_writes {
@@ -1139,6 +1276,132 @@ async fn apply_state_write(
                 });
             }
         }
+        StateWrite::Wallet {
+            actor_id,
+            expected,
+            new,
+        } => {
+            // p1-03, ADR-0016 §2 — `Inventory` 와 완전히 같은 모양(T0 합의,
+            // `02_interface.md`).
+            let result = match expected {
+                None => {
+                    sqlx::query(
+                        "INSERT INTO wallets (world_id, actor_id, balance_cr)
+                     VALUES ($1, $2, $3)
+                     ON CONFLICT (world_id, actor_id) DO NOTHING",
+                    )
+                    .bind(world_id.get())
+                    .bind(actor_id.get())
+                    .bind(new)
+                    .execute(&mut **tx)
+                    .await?
+                }
+                Some(expected_balance) => {
+                    sqlx::query(
+                        "UPDATE wallets SET balance_cr = $3
+                         WHERE world_id = $1 AND actor_id = $2 AND balance_cr = $4",
+                    )
+                    .bind(world_id.get())
+                    .bind(actor_id.get())
+                    .bind(new)
+                    .bind(expected_balance)
+                    .execute(&mut **tx)
+                    .await?
+                }
+            };
+            if result.rows_affected() != 1 {
+                // SC-25/SC-34 — 인벤토리·매장지와 같은 이유(위 주석). 같은 트랜잭션에서
+                // 실제 DB 값을 읽어 정지 로그에 싣는다(곧 롤백되므로 안전).
+                let actual: Option<i64> = sqlx::query_scalar(
+                    "SELECT balance_cr FROM wallets WHERE world_id = $1 AND actor_id = $2",
+                )
+                .bind(world_id.get())
+                .bind(actor_id.get())
+                .fetch_optional(&mut **tx)
+                .await?;
+                return Err(CommitError::CompareAndSetMismatch {
+                    detail: format!("wallets({actor_id}) expected={expected:?} actual={actual:?}"),
+                });
+            }
+        }
+        StateWrite::MarketState {
+            market_id,
+            mineral_id,
+            expected,
+            new,
+            last_seller_actor_id,
+            last_sale_quantity_kg,
+        } => {
+            // p1-03, ADR-0016 §4 — CAS 비교 대상은 `(saturation_kg, as_of_tick)` 뿐이다.
+            // `last_seller_actor_id`·`last_sale_quantity_kg`는 WHERE에 들어가지 않고
+            // 언제나 이번 판매 값으로 덮어쓴다(T0 합의, `02_interface.md` — `Deposit`의
+            // `first_extracted_tick`과 같은 자리지만 매번 갱신된다는 점은 다르다).
+            let (new_saturation, new_as_of_tick) = new;
+            let new_as_of_tick_i64 = i64::try_from(*new_as_of_tick).unwrap_or(i64::MAX);
+            let result = match expected {
+                None => {
+                    sqlx::query(
+                        "INSERT INTO market_states
+                             (world_id, market_id, mineral_id, saturation_kg, as_of_tick,
+                              last_seller_actor_id, last_sale_quantity_kg)
+                         VALUES ($1, $2, $3, $4, $5, $6, $7)
+                         ON CONFLICT (world_id, market_id, mineral_id) DO NOTHING",
+                    )
+                    .bind(world_id.get())
+                    .bind(market_id.as_str())
+                    .bind(mineral_id.as_str())
+                    .bind(new_saturation)
+                    .bind(new_as_of_tick_i64)
+                    .bind(last_seller_actor_id.get())
+                    .bind(last_sale_quantity_kg)
+                    .execute(&mut **tx)
+                    .await?
+                }
+                Some((expected_saturation, expected_as_of_tick)) => {
+                    let expected_as_of_tick_i64 =
+                        i64::try_from(*expected_as_of_tick).unwrap_or(i64::MAX);
+                    sqlx::query(
+                        "UPDATE market_states SET saturation_kg = $4, as_of_tick = $5,
+                             last_seller_actor_id = $6, last_sale_quantity_kg = $7
+                         WHERE world_id = $1 AND market_id = $2 AND mineral_id = $3
+                           AND saturation_kg = $8 AND as_of_tick = $9",
+                    )
+                    .bind(world_id.get())
+                    .bind(market_id.as_str())
+                    .bind(mineral_id.as_str())
+                    .bind(new_saturation)
+                    .bind(new_as_of_tick_i64)
+                    .bind(last_seller_actor_id.get())
+                    .bind(last_sale_quantity_kg)
+                    .bind(expected_saturation)
+                    .bind(expected_as_of_tick_i64)
+                    .execute(&mut **tx)
+                    .await?
+                }
+            };
+            if result.rows_affected() != 1 {
+                // SC-25/SC-35 — 같은 이유. `(saturation_kg, as_of_tick)` 쌍만 읽는다
+                // (마지막 거래 두 필드는 비교 대상이 아니므로 로그에도 안 싣는다).
+                let actual_row = sqlx::query(
+                    "SELECT saturation_kg, as_of_tick FROM market_states \
+                     WHERE world_id = $1 AND market_id = $2 AND mineral_id = $3",
+                )
+                .bind(world_id.get())
+                .bind(market_id.as_str())
+                .bind(mineral_id.as_str())
+                .fetch_optional(&mut **tx)
+                .await?;
+                let actual: Option<(i64, i64)> = match actual_row {
+                    Some(row) => Some((row.try_get("saturation_kg")?, row.try_get("as_of_tick")?)),
+                    None => None,
+                };
+                return Err(CommitError::CompareAndSetMismatch {
+                    detail: format!(
+                        "market_states({market_id}, {mineral_id}) expected={expected:?} actual={actual:?}"
+                    ),
+                });
+            }
+        }
     }
     Ok(())
 }
@@ -1253,6 +1516,29 @@ fn contract_payload(
             };
             Ok((
                 starfall_contracts::registry::MINERAL_MINED,
+                extract_payload(&full, event.event_id)?,
+            ))
+        }
+        DomainEventBody::MineralSold(payload) => {
+            let full = MineralSoldEvent {
+                event_id: event.event_id,
+                event_type: MineralSoldType::MineralSold,
+                schema_version: ConstSchemaVersion,
+                world_id: event.world_id,
+                tick: event.tick,
+                sequence: event.sequence,
+                occurred_at: event.occurred_at.clone(),
+                recorded_at: recorded_at.clone(),
+                correlation_id: event.correlation_id,
+                // MINERAL_SOLD 는 계약이 causation_id 를 비-null 로 좁힌다(ADR-0016 §3) —
+                // sim 이 언제나 SELL_MINERAL 의 command_id 를 채워 보낸다는 것이 불변식
+                // 이다. MINERAL_MINED 와 같은 방어(패닉 대신 자기 id 로 대체 + 로그).
+                causation_id: non_null_causation(event),
+                actor_id: event.actor_id,
+                payload: payload.clone(),
+            };
+            Ok((
+                starfall_contracts::registry::MINERAL_SOLD,
                 extract_payload(&full, event.event_id)?,
             ))
         }

@@ -1,0 +1,109 @@
+{
+  "item": "p1-03 SC-59 (AC-13d) — data/ 실제 파일 전부의 계약 스키마 검증, 대상은 레지스트리 data_files 유도",
+  "verdict": "PASS",
+  "kinds": 9,
+  "globs": 9,
+  "files_checked": 12,
+  "files_expected_at_contract": 12,
+  "files_differ_from_contract": false,
+  "fields_checked": 283,
+  "errors_total": 0,
+  "rows": [
+    {
+      "file": "data/ships/scout-s01.json",
+      "kind": "SHIP_CLASS",
+      "schema": "contracts/data/ship-class.schema.json",
+      "fields_checked": 44,
+      "errors": 0,
+      "detail": []
+    },
+    {
+      "file": "data/world/systems/cradle.json",
+      "kind": "STAR_SYSTEM",
+      "schema": "contracts/data/star-system.schema.json",
+      "fields_checked": 58,
+      "errors": 0,
+      "detail": []
+    },
+    {
+      "file": "data/movement/sync-tuning.json",
+      "kind": "SYNC_TUNING",
+      "schema": "contracts/data/sync-tuning.schema.json",
+      "fields_checked": 26,
+      "errors": 0,
+      "detail": []
+    },
+    {
+      "file": "data/minerals/cobaltine.json",
+      "kind": "MINERAL",
+      "schema": "contracts/data/mineral.schema.json",
+      "fields_checked": 10,
+      "errors": 0,
+      "detail": []
+    },
+    {
+      "file": "data/minerals/ferrosite.json",
+      "kind": "MINERAL",
+      "schema": "contracts/data/mineral.schema.json",
+      "fields_checked": 10,
+      "errors": 0,
+      "detail": []
+    },
+    {
+      "file": "data/minerals/glacine.json",
+      "kind": "MINERAL",
+      "schema": "contracts/data/mineral.schema.json",
+      "fields_checked": 10,
+      "errors": 0,
+      "detail": []
+    },
+    {
+      "file": "data/minerals/starfall-glass.json",
+      "kind": "MINERAL",
+      "schema": "contracts/data/mineral.schema.json",
+      "fields_checked": 10,
+      "errors": 0,
+      "detail": []
+    },
+    {
+      "file": "data/world/deposits/cradle.json",
+      "kind": "DEPOSIT_FIELD",
+      "schema": "contracts/data/deposit-field.schema.json",
+      "fields_checked": 36,
+      "errors": 0,
+      "detail": []
+    },
+    {
+      "file": "data/world/deposit-reserves/cradle.json",
+      "kind": "DEPOSIT_RESERVE",
+      "schema": "contracts/data/deposit-reserve.schema.json",
+      "fields_checked": 28,
+      "errors": 0,
+      "detail": []
+    },
+    {
+      "file": "data/mining/mining-rules.json",
+      "kind": "MINING_RULES",
+      "schema": "contracts/data/mining-rules.schema.json",
+      "fields_checked": 8,
+      "errors": 0,
+      "detail": []
+    },
+    {
+      "file": "data/history/rules/mineral-discovery.json",
+      "kind": "SIGNIFICANCE_RULE",
+      "schema": "contracts/data/significance-rule.schema.json",
+      "fields_checked": 10,
+      "errors": 0,
+      "detail": []
+    },
+    {
+      "file": "data/market/cradle-exchange.json",
+      "kind": "MARKET",
+      "schema": "contracts/data/market.schema.json",
+      "fields_checked": 33,
+      "errors": 0,
+      "detail": []
+    }
+  ]
+}

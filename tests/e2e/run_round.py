@@ -65,6 +65,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
 
+from keep_awake import keep_awake
+
 for _s in (sys.stdout, sys.stderr):
     try:
         _s.reconfigure(encoding="utf-8")
@@ -85,8 +87,17 @@ HUMAN_GATES = {"db_stop": "DB 정지(docker compose stop/start postgres)를 포�
 
 PASS, FAIL = "PASS", "FAIL"
 ENV, HUMAN, NOCOND, NOINPUT = "미검증(환경)", "미검증(사람 대기)", "미검증(조건 미발생)", "미검증(입력 없음)"
+# 깨진 것은 없고 **관측 경로가 끊겼다.** PASS 는 "쟀고 통과했다" 를 뜻하므로 여기 해당하면 PASS 가 아니다.
+NOOBS = "미검증(관측 없음)"
 INVALID, SKIP, DRY = "무효(동결 위반)", "SKIP", "DRY"
 E2E_EXIT = {0: PASS, 1: FAIL, 2: ENV, 3: "FAIL(구현 없음)", 4: NOCOND}
+# 음성 대조(`"exit": "negative"`): 계약이 **FAIL 이어야 한다**고 적은 단계다. rc 0 을 FAIL 로
+# 두는 쪽이 핵심이다 — 대조가 걸리지 않았다는 뜻이고 그러면 검출기가 죽은 것이다. rc 1 을
+# PASS 로만 바꾸고 0 을 PASS 로 남겨 두면 이 단계는 영원히 초록이 되어 아무것도 재지 않는다.
+# (p1-03 r1: sc32_negative_without_sales 가 올바르게 실패했는데 단계가 FAIL 로 집계됐다.
+#  그 상태의 위험은 다음 사람이 "대조를 통과하게" 고쳐 대조 자체를 지우는 것이다.)
+E2E_EXIT_NEGATIVE = {0: FAIL, 1: PASS, 2: ENV, 3: "FAIL(구현 없음)", 4: NOCOND}
+EXIT_MODES = {"e2e": E2E_EXIT, "negative": E2E_EXIT_NEGATIVE, "plain": {0: PASS}}
 
 # 동결 대상 소스 — 슬라이스 공용(제품 소스·계약·데이터). qa 도구(tests/e2e)는 넣지 않는다.
 SOURCE_ROOTS = {
@@ -178,6 +189,15 @@ def sha_snapshot(files: list[Path], root: Path = REPO) -> dict:
         except OSError:
             continue
     return snap
+
+
+def exit_mode(step: dict) -> dict:
+    """단계의 `exit` 모드 → exit_map. 모르는 값은 **막는다** — 조용히 `{0: PASS}` 로 떨어지면
+    오타 하나가 게이트를 약하게 만들고 출력에 표시가 남지 않는다(§7b 규칙 9 의 도구 판)."""
+    mode = step.get("exit", "e2e")
+    if mode not in EXIT_MODES:
+        raise RuntimeError(f"알 수 없는 exit 모드 {mode!r} — {sorted(EXIT_MODES)} 중 하나여야 한다")
+    return EXIT_MODES[mode]
 
 
 def sql_is_read_only(sql: str) -> bool:
@@ -493,10 +513,15 @@ def aggregate(cmds: list[Cmd]) -> str:
         return DRY
     if any(s.startswith(FAIL) for s in st):
         return FAIL
-    if any(s == ENV for s in st):
-        return ENV
-    if any(s == NOCOND for s in st):
-        return NOCOND
+    for kind in (ENV, NOCOND, NOOBS):
+        if any(s == kind for s in st):
+            return kind
+    # **선언되지 않은 통로를 막는다.** 전에는 목록에 없는 `미검증(…)` 이 조용히 PASS 로 떨어졌다 —
+    # `미검증(관측 없음)` 을 넣고 처음 돌렸을 때 단계가 PASS 로 올라와서 실행으로 잡았다.
+    # "재지 못한 실행" 과 "재서 통과한 실행" 이 같은 라벨을 달면 안 된다.
+    leftover = sorted({s for s in st if s.startswith("미검증")})
+    if leftover:
+        return leftover[0]
     return PASS
 
 
@@ -561,10 +586,15 @@ def stage_gates(ctx: Ctx) -> None:
     ctx.run("fmt", ["cargo", "fmt", "--all", "--check"], cwd=srv, env=env, log=d / "fmt.log", timeout=600)
     ctx.run("clippy", ["cargo", "clippy", "--workspace", "--all-targets", "--", "-D", "warnings"], cwd=srv, env=env,
             log=d / "clippy.log", timeout=3600)
-    ctx.run("test", ["cargo", "test", "--workspace", "--locked", "--no-fail-fast"], cwd=srv, env=env,
-            log=d / "test.log", timeout=3600)
+    # `-- --show-output` (architect D-2): 통과한 테스트의 `println!` 출력을 **캡처를 유지한 채**
+    # 실행 뒤 `---- <테스트> stdout ----` 블록으로 찍는다. 세 부모의 `[CHILD] …` 자식 관측이
+    # **표준 게이트 로그**에 남는 자리다 — 증거가 게이트 전용 실행에만 있으면 CI 는 눈이 먼다.
+    # **`-q`·`--quiet` 를 넣지 마라** — `test X ... ok` 줄이 사라져 유령 검출기가 통째로 눈먼다.
+    ctx.run("test", ["cargo", "test", "--workspace", "--locked", "--no-fail-fast", "--", "--show-output"],
+            cwd=srv, env=env, log=d / "test.log", timeout=3600)
     for crate in g.get("release_crates", ["starfall-sim"]):
-        ctx.run(f"release_{crate}", ["cargo", "test", "-p", crate, "--release", "--locked", "--no-fail-fast"],
+        ctx.run(f"release_{crate}", ["cargo", "test", "-p", crate, "--release", "--locked", "--no-fail-fast",
+                                     "--", "--show-output"],
                 cwd=srv, env=env, log=d / f"release_{crate}.log", timeout=3600)
     if not ctx.dry:
         ctx.stage.metrics["test"] = test_totals(d / "test.log")
@@ -659,18 +689,31 @@ def stage_unity(ctx: Ctx) -> None:
 
 def stage_filters(ctx: Ctx) -> None:
     d = ctx.sdir()
-    argv = ctx.py("cargo_sc_map.py", "run", "--contract", ctx.args.contract, "--out", d)
+    # 자식 입증의 주 우물은 **표준 게이트 로그**다 — 게이트 전용 실행에만 증거가 있으면 CI 는 눈이 먼다
+    argv = ctx.py("cargo_sc_map.py", "run", "--contract", ctx.args.contract, "--out", d,
+                  "--test-log", str(test_log_path(ctx)))
     for x in sorted((ctx.out / "unity").glob("*.xml")) if (ctx.out / "unity").is_dir() else []:
         argv += ["--unity-xml", x]
     for x in ctx.args.unity_xml or []:
         argv += ["--unity-xml", x]
     env = dict(ctx.env, STARFALL_DB_TESTS="required")
     ctx.run("cargo_sc_map", argv, env=env, log=d / "cargo_sc_map.out", timeout=4 * 3600,
-            exit_map={0: PASS, 1: FAIL, 2: ENV})
+            # 4 = **판정하지 않는다**(역할 분류가 깨짐 · 항등식 불성립) → FAIL, 조용한 통과로 떨어지지
+            # 않게 **명시적으로** 막는다. 5 = **미검증(관측 없음)** — 깨진 것은 없고 관측 경로가 끊겼다.
+            # "재지 못한 실행" 과 "재서 통과한 실행" 이 같은 라벨을 달면 안 된다(리더 판정).
+            exit_map={0: PASS, 1: FAIL, 2: ENV, 4: FAIL, 5: NOOBS})
     if not ctx.dry and (d / "filters.json").is_file():
         s = json.loads((d / "filters.json").read_text(encoding="utf-8"))["summary"]
+        # D-1 만기: 역할 수·**항등식 값**·자식 입증·산문 RUNNABLE 분모가 **summary.json 에도** 올라와야
+        # 한다. cargo_sc_map.out 에만 있으면 리포트가 보는 자리에는 그 수가 없다.
         ctx.stage.metrics = {k: s.get(k) for k in ("rows", "filters_rust", "filters_rust_cargo", "filters_rust_bare",
-                                                    "filters_unity_bare", "executed", "ran_ge_1", "static_ghosts",
+                                                    "filters_unity_bare", "executed", "ran_ge_1", "ran_ge_1_self",
+                                                    "child_proven", "roles", "ignore_census", "prose_runnable",
+                                                    "identities", "undecidable", "unmeasured", "verdict_exit", "parent_census",
+                                                    "child_rows", "child_unobserved", "child_unmeasured",
+                                                    "child_runs_mismatch", "child_expected_unknown",
+                                                    "child_pid_collisions", "child_pid_equals_parent",
+                                                    "child_parent_missing", "log_form_unreadable", "static_ghosts",
                                                     "ghosts", "failed_tests", "nonzero_rc", "cross_sc", "unity_bare")}
     ctx.stage.status = aggregate(ctx.stage.commands)
 
@@ -703,7 +746,7 @@ def run_step(ctx: Ctx, step: dict, d: Path) -> None:
         else:
             kw["log"] = d / f"{name}.log"
         ctx.run(name, argv, cwd=cwd, timeout=step.get("timeout", 1800),
-                exit_map=E2E_EXIT if step.get("exit", "e2e") == "e2e" else {0: PASS}, extra_env=step.get("env"), **kw)
+                exit_map=exit_mode(step), extra_env=step.get("env"), **kw)
     elif t == "sql":
         worlds = step.get("for_each") or [None]
         for w in worlds:
@@ -1307,6 +1350,20 @@ def selftest() -> int:
     r6.write(False)
     cases.append(("중간 summary 에는 DONE 줄이 없다",
                   "DONE" not in (ctx6.out / "summary.json").read_text(encoding="utf-8").split("\n")))
+
+    # aggregate 의 **선언되지 않은 통로** — 목록에 없는 `미검증(…)` 이 조용히 PASS 로 떨어졌다.
+    # `미검증(관측 없음)` 을 처음 붙였을 때 cargo_sc_map 이 exit 5 를 냈는데도 단계가 PASS 로
+    # 올라와서 실행으로 잡았다. 양방향으로 못박는다 — 아는 것도, 모르는 것도 PASS 가 아니다.
+    def cmds(*sts):
+        return [Cmd(name="c", argv=[], cwd=".", status=s) for s in sts]
+    cases += [
+        ("aggregate: 미검증(관측 없음) 은 PASS 로 떨어지지 않는다",
+         aggregate(cmds(PASS, NOOBS)) == NOOBS),
+        ("aggregate: **목록에 없는** 미검증도 PASS 로 떨어지지 않는다(다음 사유가 조용히 통과하지 않게)",
+         aggregate(cmds(PASS, "미검증(앞으로 생길 사유)")) == "미검증(앞으로 생길 사유)"),
+        ("aggregate: FAIL 이 미검증보다 세다 · 전부 PASS 면 PASS",
+         aggregate(cmds(NOOBS, FAIL)) == FAIL and aggregate(cmds(PASS, PASS)) == PASS),
+    ]
     shutil.rmtree(tmp, ignore_errors=True)
     bad = 0
     for name, ok in cases:
@@ -1378,7 +1435,9 @@ def main() -> int:
         runner.funcs = dict(STAGE_FUNCS, freeze=freeze_then_watch)
         if "freeze" not in selected:
             watcher.baseline = sha_snapshot(source_files())
-    s = runner.run()
+    # 라운드 전체 동안만 절전 방지(사용자 결정 2026-10-09: 전원 설정은 바꾸지 않는다)
+    with keep_awake(f"run_round {a.round}" + (" dry-run" if a.dry_run else "")):
+        s = runner.run()
     print(json.dumps(s["counts"], ensure_ascii=False))
     if a.dry_run:
         miss = [(st["name"], c["name"], m) for st in s["stages"] for c in st["commands"] for m in c.get("missing", [])]

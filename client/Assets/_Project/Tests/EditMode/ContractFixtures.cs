@@ -27,31 +27,40 @@ namespace Starfall.Tests.EditMode
         /// DEPOSIT_FIELD_STATE, HISTORICAL_EVENT_NOTICE, MINERAL, DEPOSIT_FIELD, MINING_RULES)
         /// plus SIGNIFICANCE_RULE, with COMMAND_RESULT gaining 4 new valid fixtures (3
         /// reject-reason variants + CAPACITY_EXCEEDED) on top of its existing 1: 27 -> 46
-        /// (sprint contract SC-66, architect-measured 2026-09-27). The loader asserts against
-        /// this so a silent zero-fixture run cannot be mistaken for a pass (invariant I-4).
+        /// (sprint contract SC-66, architect-measured 2026-09-27). p1-03-trading adds 5 new
+        /// registry types (SELL_MINERAL, MINERAL_SOLD, WALLET_STATE, SALE_RECEIPT,
+        /// MARKET_STATE, 2 valid fixtures each = 10) plus MARKET and DEPOSIT_RESERVE (1 each =
+        /// 2): 46 -> 57 (sprint contract SC-60(b)/SC-61, client-measured 2026-10-06, matches
+        /// architect's predicted count in 02_sprint_contract.md section 8). The loader asserts
+        /// against this so a silent zero-fixture run cannot be mistaken for a pass (invariant
+        /// I-4).
         /// </summary>
-        public const int ExpectedValidFixtureCount = 46;
+        public const int ExpectedValidFixtureCount = 57;
 
         /// <summary>
         /// Counter-example fixtures the contract currently defines. There is no formula for
         /// this one - PING_SERVER has 4, PING_REPLY and SESSION_CLOSED have 3, the rest have 2
         /// - so it is a stated constant, and architect updates the spec and this number
         /// together when it changes (spec section 5.3). p1-01 baseline 34 + p1-02-mining's 40
-        /// new counter-examples (sprint contract section 0.5) = 74.
+        /// new counter-examples (sprint contract section 0.5) = 74. p1-03-trading: 40 new
+        /// counter-examples minus 1 retired (DEPOSIT_FIELD/reserve-fractional.json - the field
+        /// it exercised moved to DEPOSIT_RESERVE) = net +39, 74 -> 113 (sprint contract section
+        /// 0.5, client-measured 2026-10-06).
         /// </summary>
-        public const int ExpectedInvalidFixtureCount = 74;
+        public const int ExpectedInvalidFixtureCount = 113;
 
         /// <summary>
-        /// Of the 46 valid fixtures, how many carry an envelope type discriminator and
-        /// therefore round-trip through a generated DTO (sprint contract SC-66). Non-round-trip
+        /// Of the 57 valid fixtures, how many carry an envelope type discriminator and
+        /// therefore round-trip through a generated DTO (sprint contract SC-61(b)). Non-round-trip
         /// candidates are the "kind": "data" registry types with no envelope, no discriminator,
         /// where AC-10(d) deliberately generates no DTO: p1-01's SHIP_CLASS, STAR_SYSTEM,
         /// SYNC_TUNING (2 fixtures each = 6) plus p1-02-mining's MINERAL, DEPOSIT_FIELD,
-        /// MINING_RULES, SIGNIFICANCE_RULE (1 fixture each = 4) = 10 non-round-trippable, so
-        /// 46 - 10 = 36. Measured by running Fixtures_RoundTrip_Found46_RoundTripped36, not
+        /// MINING_RULES, SIGNIFICANCE_RULE (1 fixture each = 4) plus p1-03-trading's
+        /// DEPOSIT_RESERVE, MARKET (1 fixture each = 2) = 12 non-round-trippable, so
+        /// 57 - 12 = 45. Measured by running Fixtures_RoundTrip_Found57_RoundTripped45, not
         /// assumed (contract section 0.7: expected numbers come from contracts/fixtures/ only).
         /// </summary>
-        public const int ExpectedRoundTrippableValidFixtureCount = 36;
+        public const int ExpectedRoundTrippableValidFixtureCount = 45;
 
         /// <summary>Registry type names for which the generator produces no DTO (AC-10(d)).
         /// A fixture under one of these carries no message_type/command_type/event_type
@@ -61,6 +70,7 @@ namespace Starfall.Tests.EditMode
             {
                 "SHIP_CLASS", "STAR_SYSTEM", "SYNC_TUNING",
                 "MINERAL", "DEPOSIT_FIELD", "MINING_RULES", "SIGNIFICANCE_RULE",
+                "DEPOSIT_RESERVE", "MARKET",
             };
 
         /// <summary>True for a fixture belonging to one of <see cref="DataOnlyTypes"/> - no

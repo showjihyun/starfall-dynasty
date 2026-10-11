@@ -1,0 +1,10 @@
+{
+  "actor_id": null,
+  "goto_failures": 0,
+  "item": "[verdict] p1-03 SC-110 수락 직후 0.5 s 판매 → COOLDOWN_ACTIVE, 연결 유지, 쿨다운 뒤 재수락",
+  "label": "bot-117",
+  "mine_until_shortfalls": 0,
+  "sells": [],
+  "verdict": "미검증(조건 미발생)",
+  "why": "판매를 하나도 보내지 못했다(도킹 실패?)"
+}

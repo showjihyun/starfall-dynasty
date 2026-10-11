@@ -6,11 +6,16 @@
 * **빈 씬** — Editor 를 환경 변수 없이 띄웠다(p1-01 R21, p1-02 SC-68 1차). 그래서 여기서는 Editor 를
   **이 스크립트가** 띄우고, `STARFALL_GREYBOX_AUTOBUILD=1`·`STARFALL_NET_AUTOCONNECT=1`·dev 비밀값을
   **그 자식 프로세스 환경에만** 넣는다. 영구 환경 변수·`os.environ` 은 건드리지 않는다.
+* **Play 는 Editor 가 누른다**(사용자 요청 2026-10-09) — `start` 는 기본으로 `STARFALL_AUTOPLAY=1` 도 자식
+  환경에 넣는다(`--no-autoplay` 로 끈다). Editor 쪽 Editor 스크립트가 로드 뒤 Play 에 들어간다. 접속은
+  `status --wait-connected <초>` 로 live_connections 가 오를 때까지 기다려 확인한다.
 * **서버 조기 종료** — 실행 한도가 PC 절전 중에도 흘러 세션 도중 서버가 꺼졌다(SC-68 1차 run1). 한도는
-  `--hours`(기본 6) 로 넉넉히 잡고, `status` 가 서버 생존을 보여 준다. 절전 자체는 막지 못한다 — README.
+  `--hours`(기본 6) 로 넉넉히 잡고, `status` 가 서버 생존을 보여 준다. 서버가 도는 동안은 `server_boot.py serve` 의 `keep_awake` 가
+  시스템 절전을 막는다(2026-10-09).
 
     python tests/e2e/unity_session.py start --slice p1-02-mining --tag SC-68 --new-world
     python tests/e2e/unity_session.py status --slice p1-02-mining --tag SC-68     # Play 뒤 접속 확인
+    python tests/e2e/unity_session.py status --slice p1-02-mining --tag SC-68 --wait-connected 180
     python tests/e2e/unity_session.py stop   --slice p1-02-mining --tag SC-68     # 서버만 정상 종료
     python tests/e2e/unity_session.py selftest
 
@@ -59,6 +64,7 @@ VAR_AUTOBUILD = "STARFALL_GREYBOX_AUTOBUILD"
 VAR_AUTOCONNECT = "STARFALL_NET_AUTOCONNECT"
 VAR_WS_URL = "STARFALL_WS_URL"
 VAR_SECRET = "STARFALL_DEV_AUTH_SECRET"
+VAR_AUTOPLAY = "STARFALL_AUTOPLAY"  # Editor 스크립트(client4)가 로드 뒤 Play 에 들어간다
 VAR_TWO_SESSION = "STARFALL_TWO_SESSION_AUTOBUILD"  # 켜면 같은 subject 로 서로를 밀어낸다(절차서 §3.0)
 CS_CONSTANTS = {
     VAR_AUTOBUILD: "client/Assets/_Project/Scripts/Greybox/GreyboxSession.cs",
@@ -66,6 +72,7 @@ CS_CONSTANTS = {
     VAR_WS_URL: "client/Assets/_Project/Scripts/Net/StarfallNetHost.cs",
     VAR_SECRET: "client/Assets/_Project/Scripts/Net/DevAuthToken.cs",
     VAR_TWO_SESSION: "client/Assets/_Project/Scripts/Greybox/TwoSessionHarness.cs",
+    VAR_AUTOPLAY: "client/Assets/_Project/Scripts/Greybox/AutoPlayDecision.cs",  # 정확히 "1" 만 켠다
 }
 
 TAG = re.compile(r"^[A-Za-z0-9-]{1,40}$")
@@ -92,7 +99,8 @@ class Stop(Exception):
 
 # --------------------------------------------------------------------------- 순수 함수 (selftest 대상)
 
-def build_editor_env(base: Mapping[str, str], server_env: Mapping[str, str], http_addr: str) -> dict[str, str]:
+def build_editor_env(base: Mapping[str, str], server_env: Mapping[str, str], http_addr: str,
+                     autoplay: bool = True) -> dict[str, str]:
     """Editor 자식 프로세스 환경을 **새 dict 로** 만든다. `base`(보통 os.environ)는 읽기만 한다.
 
     비밀값은 **서버가 실제로 받은 환경**(`server_boot.load_dotenv()`)에서 가져온다 — 서버와 Editor 가 같은
@@ -107,6 +115,10 @@ def build_editor_env(base: Mapping[str, str], server_env: Mapping[str, str], htt
     env[VAR_SECRET] = secret
     env[VAR_WS_URL] = f"ws://{http_addr}/ws"
     env.pop(VAR_TWO_SESSION, None)
+    if autoplay:
+        env[VAR_AUTOPLAY] = "1"
+    else:
+        env.pop(VAR_AUTOPLAY, None)  # 부모 셸에 남은 값이 --no-autoplay 를 뒤집지 않게
     return env
 
 
@@ -121,7 +133,8 @@ def secret_source(base: Mapping[str, str], dotenv_text: str) -> str:
     return "server_boot.load_dotenv 기본값(dev_only)"
 
 
-def env_isolation_check(builder: Callable[[], dict[str, str]], probe: Mapping[str, str]) -> list[str]:
+def env_isolation_check(builder: Callable[[], dict[str, str]], probe: Mapping[str, str],
+                        autoplay: bool = True) -> list[str]:
     """`builder` 를 부르기 전후로 `probe`(os.environ) 가 같은지와 반환값이 별개 객체인지 본다. 문제 목록을 돌려준다."""
     before = dict(probe)
     child = builder()
@@ -139,7 +152,37 @@ def env_isolation_check(builder: Callable[[], dict[str, str]], probe: Mapping[st
         problems.append(f"자식 환경에 {VAR_SECRET} 가 없다")
     if VAR_TWO_SESSION in child:
         problems.append(f"자식 환경에 {VAR_TWO_SESSION} 가 남아 있다")
+    if autoplay and child.get(VAR_AUTOPLAY) != "1":
+        problems.append(f"자식 환경에 {VAR_AUTOPLAY}=1 이 없다")
+    if not autoplay and VAR_AUTOPLAY in child:
+        problems.append(f"--no-autoplay 인데 자식 환경에 {VAR_AUTOPLAY} 가 있다")
     return problems
+
+
+def wait_connected(poll: Callable[[], dict | None], alive: Callable[[], bool], timeout: float,
+                   want: int = 1, interval: float = 2.0, clock: Callable[[], float] = time.monotonic,
+                   sleep: Callable[[float], None] = time.sleep) -> dict:
+    """`live_connections >= want` 가 될 때까지 `poll`(/debug/stats) 을 부른다. 서버가 죽으면 바로 멈춘다.
+
+    돌려주는 값: connected, reason(connected·timeout·server_dead), waited_s, polls, last(마지막 live_connections).
+    """
+    start = clock()
+    polls, last = 0, None
+    while True:
+        stats = poll()
+        polls += 1
+        if stats is not None:
+            last = stats.get("live_connections")
+            if isinstance(last, int) and last >= want:
+                return {"connected": True, "reason": "connected", "waited_s": round(clock() - start, 1),
+                        "polls": polls, "last": last}
+        if not alive():
+            return {"connected": False, "reason": "server_dead", "waited_s": round(clock() - start, 1),
+                    "polls": polls, "last": last}
+        if clock() - start >= timeout:
+            return {"connected": False, "reason": "timeout", "waited_s": round(clock() - start, 1),
+                    "polls": polls, "last": last}
+        sleep(interval)
 
 
 def leaks_secret(secret: str, *texts: str) -> bool:
@@ -440,13 +483,14 @@ def cmd_start(args) -> int:
     editor_log = (ev / "unity_editor.log").resolve()
     if editor_log.exists():
         editor_log.rename(editor_log.with_name(f"unity_editor.{int(time.time())}.log"))
-    child_env = build_editor_env(os.environ, server_env, addr)
+    child_env = build_editor_env(os.environ, server_env, addr, autoplay=args.autoplay)
     ecmd = [str(exe), "-projectPath", str(CLIENT.resolve()), "-logFile", str(editor_log)]
     editor, emode = popen_detached(ecmd, cwd=str(CLIENT), env=child_env, stdin=subprocess.DEVNULL,
                                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     del child_env
     print(f"[6] Editor 기동 pid={editor.pid} ({emode}) — {VAR_AUTOBUILD}=1 {VAR_AUTOCONNECT}=1 "
-          f"{VAR_WS_URL}=ws://{addr}/ws {VAR_SECRET}=<.env, 자식 환경에만>")
+          + (f"{VAR_AUTOPLAY}=1 " if args.autoplay else "")
+          + f"{VAR_WS_URL}=ws://{addr}/ws {VAR_SECRET}=<.env, 자식 환경에만>")
 
     # 7. 로그 파일이 실제로 생겼는가(R21: Unity 는 경로가 이상해도 조용히 엉뚱한 곳에 쓴다).
     deadline = time.monotonic() + 90
@@ -457,8 +501,10 @@ def cmd_start(args) -> int:
     log_ok = editor_log.exists() and editor_log.stat().st_size > 0
     doc["editor"] = {"exe": str(exe), "version": version, "pid": editor.pid, "detach": emode,
                      "log": rel(editor_log), "log_created": log_ok, "alive_after_wait": editor.poll() is None,
-                     "env_injected": [VAR_AUTOBUILD, VAR_AUTOCONNECT, VAR_WS_URL, VAR_SECRET],
-                     "env_removed": [VAR_TWO_SESSION]}
+                     "env_injected": [VAR_AUTOBUILD, VAR_AUTOCONNECT, VAR_WS_URL, VAR_SECRET]
+                     + ([VAR_AUTOPLAY] if args.autoplay else []),
+                     "env_removed": [VAR_TWO_SESSION] + ([] if args.autoplay else [VAR_AUTOPLAY]),
+                     "autoplay": args.autoplay}
     write_session(session_path, doc, secret)
     print(f"[7] Editor 로그 {'생김' if log_ok else '없음'}: {editor_log}")
     print(f"[8] {rel(session_path)}")
@@ -466,7 +512,11 @@ def cmd_start(args) -> int:
         print("FAIL: Editor 로그 파일이 생기지 않았다 — Editor 화면을 확인한다(서버는 떠 있다; 끝낼 때 stop)",
               file=sys.stderr)
         return EXIT_FAIL
-    print("준비 끝. Editor 가 열리면 Play 를 누르고, 그 뒤 `status` 로 live_connections 를 확인한다.")
+    if args.autoplay:
+        print("준비 끝. Editor 가 로드 뒤 스스로 Play 에 들어간다 — "
+              f"`status --slice {args.slice} --tag {args.tag} --wait-connected 180` 으로 접속을 기다린다.")
+    else:
+        print("준비 끝. Editor 가 열리면 Play 를 누르고, 그 뒤 `status` 로 live_connections 를 확인한다.")
     return EXIT_OK
 
 
@@ -476,6 +526,12 @@ def cmd_status(args) -> int:
     addr, world = s["server"]["addr"], s["world_id"]
     serve_alive = pid_alive(s["server"].get("serve_pid"))
     server_alive = pid_alive(s["server"].get("pid"))
+    waited = None
+    if args.wait_connected:
+        waited = wait_connected(lambda: http_stats(addr), lambda: pid_alive(s["server"].get("serve_pid")),
+                                args.wait_connected, want=args.min_connections)
+        server_alive = pid_alive(s["server"].get("pid"))
+        serve_alive = pid_alive(s["server"].get("serve_pid"))
     stats = http_stats(addr)
     out: dict = {"world_id": world, "server_pid_alive": server_alive, "serve_pid_alive": serve_alive,
                  "ready_file": (REPO / s["server"]["ready_file"]).exists()}
@@ -497,7 +553,11 @@ def cmd_status(args) -> int:
             out[table] = {r[0]: int(r[1]) for r in rows}
     except db.EnvironmentProblem as e:
         out["db"] = f"미검증(환경): {e}"
+    if waited is not None:
+        out["wait_connected"] = waited
     print(json.dumps(out, indent=2, ensure_ascii=False))
+    if waited is not None and not waited["connected"]:
+        return EXIT_FAIL
     return EXIT_OK if stats is not None else EXIT_FAIL
 
 
@@ -637,6 +697,50 @@ def cmd_selftest(_args) -> int:
     cases.append(("serve 출력 파싱", p["server_pid"] == 4242 and p["shutdown_exit"] == 0 and not p["hard_terminated"]))
     p2 = parse_serve_stdout("READY a pid=1\n!! 서버가 스스로 종료됐다\nSHUTDOWN exit=1\n")
     cases.append(("음성 대조: 서버 자진 종료는 표시된다", p2["self_exited"] and p2["shutdown_exit"] == 1))
+    # (1b) autoplay — 기본 켬, 끄면 부모 셸 값까지 지운다
+    child = build_editor_env({"PATH": "x"}, server_env, "127.0.0.1:8080")
+    cases.append(("autoplay 기본: 자식에 STARFALL_AUTOPLAY=1", child.get(VAR_AUTOPLAY) == "1"))
+    child = build_editor_env({VAR_AUTOPLAY: "1", "PATH": "x"}, server_env, "127.0.0.1:8080", autoplay=False)
+    cases.append(("--no-autoplay: 부모 셸의 STARFALL_AUTOPLAY 도 자식에서 지운다", VAR_AUTOPLAY not in child))
+    cases.append(("env_isolation_check(autoplay=False) 통과",
+                  not env_isolation_check(lambda: build_editor_env({}, server_env, "a", autoplay=False), {},
+                                          autoplay=False)))
+    cases.append(("음성 대조: autoplay 를 요구했는데 빠진 환경은 걸린다",
+                  any(VAR_AUTOPLAY in p for p in env_isolation_check(
+                      lambda: build_editor_env({}, server_env, "a", autoplay=False), {}, autoplay=True))))
+    ap_ns = main_parser().parse_args(["start", "--slice", "x", "--tag", "t"])
+    ap_off = main_parser().parse_args(["start", "--slice", "x", "--tag", "t", "--no-autoplay"])
+    cases.append(("CLI: start 기본 autoplay=True, --no-autoplay 면 False", ap_ns.autoplay is True and ap_off.autoplay is False))
+    st_ns = main_parser().parse_args(["status", "--slice", "x", "--tag", "t", "--wait-connected", "180"])
+    cases.append(("CLI: status --wait-connected 180, 기본 min 1",
+                  st_ns.wait_connected == 180.0 and st_ns.min_connections == 1
+                  and main_parser().parse_args(["status", "--slice", "x", "--tag", "t"]).wait_connected == 0.0))
+
+    # (1c) wait_connected — 가짜 시계로 건다
+    def run_wait(seq, alive_seq=None, timeout=10.0):
+        t = [0.0]
+        it = iter(seq)
+        al = iter(alive_seq) if alive_seq is not None else None
+        return wait_connected(lambda: next(it, {"live_connections": 0}),
+                              lambda: next(al, True) if al else True, timeout, interval=2.0,
+                              clock=lambda: t[0], sleep=lambda d: t.__setitem__(0, t[0] + d))
+    r = run_wait([None, {"live_connections": 0}, {"live_connections": 1}])
+    cases.append(("wait: 응답 없음→0→1 이면 세 번째 폴에서 connected, 4 s", r["connected"] and r["polls"] == 3
+                  and r["waited_s"] == 4.0 and r["reason"] == "connected"))
+    r = run_wait([])
+    cases.append(("wait: 끝까지 0 이면 timeout, connected False, last 0",
+                  not r["connected"] and r["reason"] == "timeout" and r["last"] == 0 and r["waited_s"] >= 10.0))
+    r = run_wait([None, None], alive_seq=[True, False])
+    cases.append(("wait: 서버가 죽으면 timeout 전에 server_dead", r["reason"] == "server_dead" and r["polls"] == 2))
+    r = run_wait([{"live_connections": 2}])
+    cases.append(("wait: 첫 폴에 이미 접속이면 기다리지 않는다", r["connected"] and r["waited_s"] == 0.0))
+    r = run_wait([{"ws_connections": 5}])
+    cases.append(("음성 대조: live_connections 키가 없으면 접속으로 치지 않는다", not r["connected"]))
+
+    cs_hits = [str(f.relative_to(REPO)) for f in (REPO / "client" / "Assets").rglob("*.cs")
+               if f'"{VAR_AUTOPLAY}"' in f.read_text(encoding="utf-8", errors="replace")]
+    cases.append((f"C# 에 {VAR_AUTOPLAY} 상수가 있다(client4 Editor 스크립트) — {cs_hits or '없음'}", bool(cs_hits)))
+
     drift = []
     for var, f in CS_CONSTANTS.items():
         src = (REPO / f).read_text(encoding="utf-8")
@@ -652,7 +756,7 @@ def cmd_selftest(_args) -> int:
     return 0 if fails == 0 else 1
 
 
-def main() -> int:
+def main_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
     st = sub.add_parser("start", help="Editor 확인 → 빌드 → (새 월드) → 서버 → Editor")
@@ -661,6 +765,8 @@ def main() -> int:
     st.add_argument("--new-world", action="store_true")
     st.add_argument("--world")
     st.add_argument("--hours", type=float, default=6.0, help="서버 실행 한도(시간, 기본 6)")
+    st.add_argument("--autoplay", action=argparse.BooleanOptionalAction, default=True,
+                    help=f"Editor 자식 환경에 {VAR_AUTOPLAY}=1 (기본 켬, --no-autoplay 로 끈다)")
     st.add_argument("--skip-editor", action="store_true",
                     help="도구 자체 점검용: Editor 를 띄우지 않고, 열린 Editor 가 있어도 서버까지만 띄운다")
     st.set_defaults(func=cmd_start)
@@ -669,9 +775,17 @@ def main() -> int:
         p = sub.add_parser(name, help=h)
         p.add_argument("--slice", required=True)
         p.add_argument("--tag", required=True)
+        if name == "status":
+            p.add_argument("--wait-connected", type=float, default=0.0, metavar="초",
+                           help="live_connections 가 오를 때까지 최대 이 초만큼 기다린다(0 = 기다리지 않음)")
+            p.add_argument("--min-connections", type=int, default=1)
         p.set_defaults(func=fn)
     sub.add_parser("selftest", help="Unity·서버 없이 순수 부분을 양성·음성 대조로 건다").set_defaults(func=cmd_selftest)
-    args = ap.parse_args()
+    return ap
+
+
+def main() -> int:
+    args = main_parser().parse_args()
     try:
         return args.func(args)
     except Stop as e:

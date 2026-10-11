@@ -104,6 +104,7 @@ python tests/e2e/run_block.py probes
 |---------|--------|------|
 | `cargo_sc_map.py scan/run/map/selftest` | 계약 §1 방법 칸의 테스트 지명을 뽑아 **계약 명령 그대로** 필터마다 `cargo test` 를 돌린다. 필터마다 실행 수, 실패, 잡힌 테스트를 다른 SC 도 지명했는지(`also_named_by`)를 찍는다. 실행 0 = **유령**, 코드에 없는 맨 이름 = 정적 유령 | r1~r3 결함 셋을 고쳤다: 백틱 안의 맨 이름, `--test X` 같은 값 플래그, 열 밀림(`\|` 이스케이프·CR). 셸·TSV 를 거치지 않고 `subprocess` 인자 목록으로 실행한다. 종료 1 = 유령·실패 있음 |
 | `run_round.py` | 라운드 판정 **입력**을 한 번에 모은다. 단계: freeze → gates → census → repeat → unity → filters → sources → offline → bots → judges → db_stop(사람 단계) → final | 슬라이스 값은 `round_configs/<슬라이스 폴더>.json` 에 둔다. 판정(PASS/FAIL)은 리포트가 계약 문구로 한다 |
+| `keep_awake.py selftest/hold/state` | 실행 중에만 시스템 절전을 막는다(`SetThreadExecutionState(ES_CONTINUOUS\|ES_SYSTEM_REQUIRED)`, 화면 유지 없음, 끝나면 해제, 비 Windows 는 no-op). `run_round.py` 전체와 `server_boot.py serve` 유지 구간에 걸려 있어 봇·`unity_session` 도 덮인다 | 사용자 결정 2026-10-09: 전원 설정은 바꾸지 않는다. 확인은 `state`(관리자 불필요). `powercfg /requests` 는 관리자 권한이 필요하다 |
 
 ```bash
 # 계약 필터 전수 실행 (DB 테스트 포함 — .env 를 읽고 STARFALL_DB_TESTS=required)
@@ -130,8 +131,9 @@ until grep -qx DONE _workspace/<slice>/evidence/<round>_<날짜>/summary.json; d
 
 빈 씬(환경 변수 미주입)과 세션 중 서버 종료를 막는 준비 도구다. 판정 도구가 아니다(`starfall-dev/references/screen-elements.md` S4).
 
-    python tests/e2e/unity_session.py start  --slice p1-02-mining --tag SC-68 --new-world   # 또는 --world <id>, --hours 6
+    python tests/e2e/unity_session.py start  --slice p1-02-mining --tag SC-68 --new-world   # 또는 --world <id>, --hours 6. 기본 STARFALL_AUTOPLAY=1(Editor 가 Play 에 들어간다), --no-autoplay 로 끈다
     python tests/e2e/unity_session.py status --slice p1-02-mining --tag SC-68   # Play 뒤: live_connections, 이 월드의 이벤트 종류별 개수
+    python tests/e2e/unity_session.py status --slice p1-02-mining --tag SC-68 --wait-connected 180   # 접속까지 기다림(실패 시 종료 1, 서버가 죽으면 즉시)
     python tests/e2e/unity_session.py stop   --slice p1-02-mining --tag SC-68   # stop 파일 → stdin shutdown. Editor 는 사람이 닫는다
 
 - `start` 는 이 프로젝트의 Editor 가 열려 있거나 `client/Temp/UnityLockfile` 이 잠겨 있으면 "Editor 를 닫아 주세요" 하고 멈춘다(프로세스를 죽이지 않는다).

@@ -535,7 +535,25 @@ sealed class Generator
                 };
             }
 
-            if (shape.Nested is not null) model.Nested.Add(shape.Nested);
+            if (shape.Nested is not null)
+            {
+                // ADR-0002 section 4: a nested class's name must never equal its own property's
+                // name in the SAME containing class - C# rejects a type and a member sharing one
+                // name (CS0102). Caught here, at generation time, with the schema path that
+                // caused it, instead of surfacing only as a Unity compiler error after the fact
+                // (measured regression: MARKET_STATE's $defs/LastSale, titled "LastSale", named
+                // the SAME as its "last_sale" property's PascalCase inside MarketListingState -
+                // team-lead/architect3 decision: the schema's title is how this is resolved
+                // ("MarketLastSale"), never a generator-side renaming rule - this check only
+                // catches the NEXT occurrence before Unity does.
+                if (shape.Nested.ClassName == csName)
+                    throw new CodegenException(
+                        $"{propPath}: nested class '{shape.Nested.ClassName}' has the same name as its own " +
+                        $"property '{csName}' in '{model.ClassName}' - C# rejects a type and member sharing " +
+                        $"one name (CS0102). Rename the schema's 'title' at {propPath} to something distinct " +
+                        $"from '{csName}' (ADR-0002 section 4).");
+                model.Nested.Add(shape.Nested);
+            }
             model.Props.Add(prop);
         }
 

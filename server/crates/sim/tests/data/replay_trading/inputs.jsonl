@@ -1,0 +1,10 @@
+{"kind":"MineResource","tick":1,"session":"01a0b1c2-0002-700b-8000-00000000000b","deposit_id":"replay-deposit"}
+{"kind":"SellMineral","tick":2,"session":"01a0b1c2-0002-700b-8000-00000000000b","market_id":"replay-market","mineral_id":"replay-mineral","quantity_kg":300}
+{"kind":"SetShipControl","tick":2,"session":"01a0b1c2-0002-7015-8000-000000000015","payload":{"input_seq":1,"thrust_x_milli":0,"thrust_y_milli":0,"thrust_z_milli":1000,"roll_milli":0,"aim_x_micro":70360,"aim_y_micro":-703598,"aim_z_micro":0,"aim_w_micro":707107,"brake":false,"flight_assist":true}}
+{"kind":"SellMineral","tick":3,"session":"01a0b1c2-0002-700b-8000-00000000000b","market_id":"replay-market","mineral_id":"replay-mineral","quantity_kg":50}
+{"kind":"SetShipControl","tick":5,"session":"01a0b1c2-0002-700b-8000-00000000000b","payload":{"input_seq":1,"thrust_x_milli":0,"thrust_y_milli":0,"thrust_z_milli":50,"roll_milli":0,"aim_x_micro":70360,"aim_y_micro":-703598,"aim_z_micro":0,"aim_w_micro":707107,"brake":false,"flight_assist":true}}
+{"kind":"SetShipControl","tick":6,"session":"01a0b1c2-0002-700b-8000-00000000000b","payload":{"input_seq":2,"thrust_x_milli":0,"thrust_y_milli":0,"thrust_z_milli":0,"roll_milli":0,"aim_x_micro":70360,"aim_y_micro":-703598,"aim_z_micro":0,"aim_w_micro":707107,"brake":false,"flight_assist":true}}
+{"kind":"SellMineral","tick":9,"session":"01a0b1c2-0002-7015-8000-000000000015","market_id":"replay-market","mineral_id":"replay-mineral","quantity_kg":1}
+{"kind":"SellMineral","tick":25,"session":"01a0b1c2-0002-700b-8000-00000000000b","market_id":"replay-market","mineral_id":"replay-mineral","quantity_kg":300}
+{"kind":"SellMineral","tick":26,"session":"01a0b1c2-0002-700b-8000-00000000000b","market_id":"replay-market","mineral_id":"replay-mineral","quantity_kg":200}
+{"kind":"SellMineral","tick":70,"session":"01a0b1c2-0002-7015-8000-000000000015","market_id":"replay-market","mineral_id":"replay-mineral","quantity_kg":1}

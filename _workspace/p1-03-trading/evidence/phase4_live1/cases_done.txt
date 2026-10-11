@@ -1,0 +1,9 @@
+sell-dup-reconnect rc=0
+sell-dup-cross-kind rc=0
+cheat-sell-inject rc=0
+cheat-sell-range rc=0
+cheat-sell-fast rc=0
+cheat-sell-overqty rc=4
+cheat-sell-cooldown rc=4
+cheat-sell-unknown rc=4
+DONE

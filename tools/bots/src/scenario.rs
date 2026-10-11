@@ -291,6 +291,45 @@ pub enum ProbeCase {
     NoticeGap,
     /// SC-87·89·99·64: 31 연결 10 분 채굴 부하(`bots run --stage mine-load` 가 부른다).
     MineLoad,
+    // ── p1-03 거래 (`trade` 모듈) ──
+    /// p1-03 SC-121 · SC-132 trade-cycle: A·B Ferrosite 채굴·판매 반복 중
+    TradeCycle,
+    /// p1-03 SC-45 · SC-46 · SC-47 leak-scan-market: 첫 채굴 전 상장 0, 첫
+    LeakScanMarket,
+    /// p1-03 SC-106 판매에 가격·대금·잔액·위치·actor 주입, quantity 0·1.5 → 7 경우
+    CheatSellInject,
+    /// p1-03 SC-107 도킹 구역 밖 판매 → TARGET_OUT_OF_RANGE, 상태 불변
+    CheatSellRange,
+    /// p1-03 SC-108 30 m/s 통과 중 판매 → SHIP_TOO_FAST, 상태 불변
+    CheatSellFast,
+    /// p1-03 SC-109 보유 + 1 판매 → INSUFFICIENT_QUANTITY, 상태 불변
+    CheatSellOverqty,
+    /// p1-03 SC-110 수락 직후 0.5 s 판매 → COOLDOWN_ACTIVE, 연결 유지, 쿨다운 뒤
+    CheatSellCooldown,
+    /// p1-03 SC-111 없는 시장·없는 광물 → 둘 다 TARGET_UNKNOWN
+    CheatSellUnknown,
+    /// p1-03 SC-112 같은 세션 판매 재전송 → DUPLICATE_COMMAND_ID, 지갑 대금 × 1
+    SellDup,
+    /// p1-03 SC-112 잔류 창 안 재접속 뒤 판매 재전송 → DUPLICATE_COMMAND_ID, 지갑
+    SellDupReconnect,
+    /// p1-03 SC-112 명령 종류 교차(채굴 키 → 판매, 판매 키 → 채굴) → 둘 다 DUPLICATE_
+    SellDupCrossKind,
+    /// p1-03 SC-113 A 가 Ferrosite 14,000 kg 한 번 판매 → price_after 3,
+    TraceSellA,
+    /// p1-03 SC-114 · SC-115 A 디스폰 뒤 판매 tick + 1,200 안에 B 첫 접속(별도 프
+    TraceSellB,
+    /// p1-03 SC-116 두 봇 같은 tick Ferrosite 2,000 kg 판매 → 20,000 / 18
+    RaceSellSameTick,
+    /// 참고: p1-03 사람 세션 보조 — 세션 월드에 다른 actor 의 Ferrosite 판매 1 건(SC-9
+    SellOnce,
+    /// SC-117·119·132 31 연결 20 분 판매 부하
+    SellLoad,
+    /// SC-39 판매 중 postgres 정지·재개
+    SellBacklog,
+    SellDupRestart,
+    SellCasHalt,
+    SellCasReload,
+    SellRecoverRestart,
 }
 
 /// 이 probe 가 계약 항목에 대해 **무엇을 주장하는가** — 출처 게이트가 산문이 아니라 이
@@ -316,6 +355,34 @@ impl std::fmt::Display for ContractRef {
 }
 
 impl ProbeCase {
+    /// p1-03 거래 케이스인가 — `cmd_probe` 가 `probe_trade` 로 보낸다.
+    pub fn is_trading(self) -> bool {
+        matches!(
+            self,
+            Self::TradeCycle
+                | Self::LeakScanMarket
+                | Self::CheatSellInject
+                | Self::CheatSellRange
+                | Self::CheatSellFast
+                | Self::CheatSellOverqty
+                | Self::CheatSellCooldown
+                | Self::CheatSellUnknown
+                | Self::SellDup
+                | Self::SellDupReconnect
+                | Self::SellDupCrossKind
+                | Self::TraceSellA
+                | Self::TraceSellB
+                | Self::RaceSellSameTick
+                | Self::SellOnce
+                | Self::SellLoad
+                | Self::SellBacklog
+                | Self::SellDupRestart
+                | Self::SellCasHalt
+                | Self::SellCasReload
+                | Self::SellRecoverRestart
+        )
+    }
+
     /// p1-02 채굴 케이스인가 — `cmd_probe` 가 `mine_cases::run` 으로 보낸다.
     pub fn is_mining(self) -> bool {
         matches!(
@@ -382,6 +449,27 @@ impl ProbeCase {
             "backlog" => Some(Self::Backlog),
             "notice-gap" => Some(Self::NoticeGap),
             "mine-load" => Some(Self::MineLoad),
+            "trade-cycle" => Some(Self::TradeCycle),
+            "leak-scan-market" => Some(Self::LeakScanMarket),
+            "cheat-sell-inject" => Some(Self::CheatSellInject),
+            "cheat-sell-range" => Some(Self::CheatSellRange),
+            "cheat-sell-fast" => Some(Self::CheatSellFast),
+            "cheat-sell-overqty" => Some(Self::CheatSellOverqty),
+            "cheat-sell-cooldown" => Some(Self::CheatSellCooldown),
+            "cheat-sell-unknown" => Some(Self::CheatSellUnknown),
+            "sell-dup" => Some(Self::SellDup),
+            "sell-dup-reconnect" => Some(Self::SellDupReconnect),
+            "sell-dup-cross-kind" => Some(Self::SellDupCrossKind),
+            "trace-sell-a" => Some(Self::TraceSellA),
+            "trace-sell-b" => Some(Self::TraceSellB),
+            "race-sell-same-tick" => Some(Self::RaceSellSameTick),
+            "sell-once" => Some(Self::SellOnce),
+            "sell-load" => Some(Self::SellLoad),
+            "sell-backlog" => Some(Self::SellBacklog),
+            "sell-dup-restart" => Some(Self::SellDupRestart),
+            "sell-cas-halt" => Some(Self::SellCasHalt),
+            "sell-cas-reload" => Some(Self::SellCasReload),
+            "sell-recover-restart" => Some(Self::SellRecoverRestart),
             _ => None,
         }
     }
@@ -425,6 +513,27 @@ impl ProbeCase {
             Self::Backlog => "backlog",
             Self::NoticeGap => "notice-gap",
             Self::MineLoad => "mine-load",
+            Self::TradeCycle => "trade-cycle",
+            Self::LeakScanMarket => "leak-scan-market",
+            Self::CheatSellInject => "cheat-sell-inject",
+            Self::CheatSellRange => "cheat-sell-range",
+            Self::CheatSellFast => "cheat-sell-fast",
+            Self::CheatSellOverqty => "cheat-sell-overqty",
+            Self::CheatSellCooldown => "cheat-sell-cooldown",
+            Self::CheatSellUnknown => "cheat-sell-unknown",
+            Self::SellDup => "sell-dup",
+            Self::SellDupReconnect => "sell-dup-reconnect",
+            Self::SellDupCrossKind => "sell-dup-cross-kind",
+            Self::TraceSellA => "trace-sell-a",
+            Self::TraceSellB => "trace-sell-b",
+            Self::RaceSellSameTick => "race-sell-same-tick",
+            Self::SellOnce => "sell-once",
+            Self::SellLoad => "sell-load",
+            Self::SellBacklog => "sell-backlog",
+            Self::SellDupRestart => "sell-dup-restart",
+            Self::SellCasHalt => "sell-cas-halt",
+            Self::SellCasReload => "sell-cas-reload",
+            Self::SellRecoverRestart => "sell-recover-restart",
         }
     }
 
@@ -539,6 +648,69 @@ impl ProbeCase {
             ),
             Self::MineDupCrossActor => ContractRef::Verdict(
                 "p1-02 SC-108 다른 actor 둘이 같은 command_id → 둘째 DUPLICATE_COMMAND_ID, 서버 생존·커밋 계속(재기동 뒤 변형 포함)",
+            ),
+            Self::TradeCycle => ContractRef::Verdict(
+                "p1-03 SC-121 · SC-132 trade-cycle: A·B Ferrosite 채굴·판매 반복 중 C 가 Glacine 첫 채굴 — LIVE 지연 max ≤ 5 s(판매 ≥ 1 선행), 판매 응답 항등식(수락 0 이면 FAIL)",
+            ),
+            Self::LeakScanMarket => ContractRef::Verdict(
+                "p1-03 SC-45 · SC-46 · SC-47 leak-scan-market: 첫 채굴 전 상장 0, 첫 채굴 tick 에 그 광물만 상장(Ferrosite·Starfall Glass), 세션 시작 5 메시지 순서",
+            ),
+            Self::CheatSellInject => ContractRef::Verdict(
+                "p1-03 SC-106 판매에 가격·대금·잔액·위치·actor 주입, quantity 0·1.5 → 7 경우 전부 MALFORMED_COMMAND, 상태 불변",
+            ),
+            Self::CheatSellRange => ContractRef::Verdict(
+                "p1-03 SC-107 도킹 구역 밖 판매 → TARGET_OUT_OF_RANGE, 상태 불변",
+            ),
+            Self::CheatSellFast => {
+                ContractRef::Verdict("p1-03 SC-108 30 m/s 통과 중 판매 → SHIP_TOO_FAST, 상태 불변")
+            }
+            Self::CheatSellOverqty => ContractRef::Verdict(
+                "p1-03 SC-109 보유 + 1 판매 → INSUFFICIENT_QUANTITY, 상태 불변",
+            ),
+            Self::CheatSellCooldown => ContractRef::Verdict(
+                "p1-03 SC-110 수락 직후 0.5 s 판매 → COOLDOWN_ACTIVE, 연결 유지, 쿨다운 뒤 재수락",
+            ),
+            Self::CheatSellUnknown => {
+                ContractRef::Verdict("p1-03 SC-111 없는 시장·없는 광물 → 둘 다 TARGET_UNKNOWN")
+            }
+            Self::SellDup => ContractRef::Verdict(
+                "p1-03 SC-112 같은 세션 판매 재전송 → DUPLICATE_COMMAND_ID, 지갑 대금 × 1",
+            ),
+            Self::SellDupReconnect => ContractRef::Verdict(
+                "p1-03 SC-112 잔류 창 안 재접속 뒤 판매 재전송 → DUPLICATE_COMMAND_ID, 지갑 불변",
+            ),
+            Self::SellDupCrossKind => ContractRef::Verdict(
+                "p1-03 SC-112 명령 종류 교차(채굴 키 → 판매, 판매 키 → 채굴) → 둘 다 DUPLICATE_COMMAND_ID",
+            ),
+            Self::TraceSellA => ContractRef::Verdict(
+                "p1-03 SC-113 A 가 Ferrosite 14,000 kg 한 번 판매 → price_after 3, 대금 98,000 (판매 직전 포화 0 선단언)",
+            ),
+            Self::TraceSellB => ContractRef::Verdict(
+                "p1-03 SC-114 · SC-115 A 디스폰 뒤 판매 tick + 1,200 안에 B 첫 접속(별도 프로세스) — B 의 첫 MARKET_STATE: Ferrosite < 기준가, last_sale = A·14,000 kg",
+            ),
+            Self::RaceSellSameTick => ContractRef::Verdict(
+                "p1-03 SC-116 두 봇 같은 tick Ferrosite 2,000 kg 판매 → 20,000 / 18,000, 지갑 합 38,000 (같은 tick·포화 0 선단언)",
+            ),
+            Self::SellOnce => ContractRef::Reference(
+                "참고: p1-03 사람 세션 보조 — 세션 월드에 다른 actor 의 Ferrosite 판매 1 건(SC-98 의 장면 준비)",
+            ),
+            Self::SellDupRestart => ContractRef::Reference(
+                "참고: p1-03 재기동 단계 — run(판매 수락·상태 파일) / resume(같은 원문 재전송). 판정은 restart_cases.py sell-dup (SC-112)",
+            ),
+            Self::SellCasHalt => ContractRef::Reference(
+                "참고: p1-03 변조 단계 — 판매 수락 → ready → (지갑 또는 시장 행 SQL 변조) → 판매. 판정은 restart_cases.py sell-cas·sell-cas-market (SC-34·35)",
+            ),
+            Self::SellCasReload => ContractRef::Reference(
+                "참고: p1-03 재기동 뒤 판매 — 변조 값 위에서 수락되는가. 판정은 restart_cases.py sell-cas (SC-36)",
+            ),
+            Self::SellRecoverRestart => ContractRef::Reference(
+                "참고: p1-03 회복·재기동 단계 — 바닥 판매·회복 관측 / 재기동 뒤 보존·첫 배수 회복 관측. 판정은 restart_cases.py sell-recover (SC-51)",
+            ),
+            Self::SellBacklog => ContractRef::Verdict(
+                "p1-03 SC-39 판매 중 postgres stop → recording_lag > 20 뒤 SELL_MINERAL 은 RECORDING_BACKLOG, 같은 구간 SET_SHIP_CONTROL 수락, start 뒤 판매 재수락 (정지 전 수락 ≥ 1·거부 ≥ 1 선단언)",
+            ),
+            Self::SellLoad => ContractRef::Verdict(
+                "p1-03 SC-117 · SC-119 · SC-132 sell-load: 31 연결이 채굴·운반·판매 20 분 — tick 초과 ≤ 0.5 %(31 연결 유지·판매 ≥ 1 선단언), RECORDING_BACKLOG 0, 판매 응답 항등식",
             ),
             Self::MineLoad => ContractRef::Verdict(
                 "p1-02 SC-87 · SC-89 · SC-99 · SC-64 mine-load: 31 연결 이동 + 쿨다운마다 채굴 10 분 — tick 초과 ≤ 0.5 %, RECORDING_BACKLOG 0, 응답 항등식, LIVE 지연 max ≤ 5 s",
@@ -738,6 +910,27 @@ pub async fn run_probe(
         | ProbeCase::LastKg
         | ProbeCase::Backlog
         | ProbeCase::NoticeGap
+        | ProbeCase::TradeCycle
+        | ProbeCase::LeakScanMarket
+        | ProbeCase::CheatSellInject
+        | ProbeCase::CheatSellRange
+        | ProbeCase::CheatSellFast
+        | ProbeCase::CheatSellOverqty
+        | ProbeCase::CheatSellCooldown
+        | ProbeCase::CheatSellUnknown
+        | ProbeCase::SellDup
+        | ProbeCase::SellDupReconnect
+        | ProbeCase::SellDupCrossKind
+        | ProbeCase::TraceSellA
+        | ProbeCase::TraceSellB
+        | ProbeCase::RaceSellSameTick
+        | ProbeCase::SellOnce
+        | ProbeCase::SellLoad
+        | ProbeCase::SellBacklog
+        | ProbeCase::SellDupRestart
+        | ProbeCase::SellCasHalt
+        | ProbeCase::SellCasReload
+        | ProbeCase::SellRecoverRestart
         | ProbeCase::MineLoad => Behavior::Burst {
             pings: 0,
             grace: Duration::ZERO,

@@ -29,6 +29,8 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
+from keep_awake import keep_awake
+
 for _stream in (sys.stdout, sys.stderr):
     try:
         _stream.reconfigure(encoding="utf-8")  # type: ignore[union-attr]
@@ -854,6 +856,207 @@ def cmd_p1_02_reject(args) -> int:
     return code
 
 
+# ── p1-03 (계약 SC-04 · SC-05) ────────────────────────────────────────────────
+
+# /debug/stats 의 필드 이름 — server3 Q-7 답(2026-10-06, 계약 SC-04 칸).
+P103_STATS_KEYS = {"markets": "markets_loaded", "market_id": "sole_market_id",
+                   "pricing_version": "sole_market_pricing_version", "listings": "sole_market_listings_loaded",
+                   "deposits": "deposits_loaded", "reserves": "deposit_reserves_loaded", "minerals": "minerals_loaded"}
+
+
+def p103_expected_from_files(root: Path = REPO) -> dict:
+    """계약 SC-04: 기대값은 **같은 실행에서** 파일로 센다."""
+    markets = [json.loads(p.read_text(encoding="utf-8")) for p in sorted((root / "data/market").glob("*.json"))]
+    res = [json.loads(p.read_text(encoding="utf-8")) for p in sorted((root / "data/world/deposit-reserves").glob("*.json"))]
+    one = markets[0] if len(markets) == 1 else None
+    return {
+        "markets": len(markets),
+        "market_id": one["id"] if one else None,
+        "pricing_version": one["pricing_version"] if one else None,
+        "listings": len(one["listings"]) if one else None,
+        "deposits": sum(len(json.loads(p.read_text(encoding="utf-8"))["deposits"])
+                        for p in (root / "data/world/deposits").glob("*.json")),
+        "reserves": sum(len(r.get("reserves", r.get("deposits", []))) for r in res),
+        "minerals": len(list((root / "data/minerals").glob("*.json"))),
+    }
+
+
+def judge_p103_boot(expected: dict, stats, rc) -> dict:
+    present = {k: (stats is not None and v in stats) for k, v in P103_STATS_KEYS.items()}
+    got = {k: (stats or {}).get(v) for k, v in P103_STATS_KEYS.items()}
+    nonzero = expected["markets"] == 1 and all(expected[k] for k in ("listings", "deposits", "reserves", "minerals"))
+    same = all(got[k] == expected[k] for k in P103_STATS_KEYS)
+    ok = all(present.values()) and nonzero and same and rc == 0
+    return {"ok": ok, "present": present, "got": got, "nonzero_expected": nonzero, "same": same}
+
+
+def cmd_p1_03_boot(args) -> int:
+    """p1-03 SC-04 (AC-2a) — 새 월드로 실제 data/ 를 띄워 /debug/stats 의 시장 1(id·pricing_version·상장 수)·
+    광맥·예비·광물 수가 파일과 같은지. 기동 로그는 SC-129(`data_file_pairs.py --boot-log`) 입력."""
+    env = load_dotenv()
+    if not re.fullmatch(r"[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}", args.world or ""):
+        print("사용법: --world <new_world.py 가 만든 UUIDv7>", file=sys.stderr)
+        return 2
+    env["STARFALL_WORLD_ID"] = args.world
+    addr = env.get("STARFALL_HTTP_ADDR", "127.0.0.1:8080")
+    if not EXE.is_file():
+        print(f"미검증(환경): {EXE} 가 없다 — cargo build -p starfall-game-server", file=sys.stderr)
+        return 2
+    expected = p103_expected_from_files()
+    proc, log_buf = spawn(env)
+    stats = None
+    deadline = time.monotonic() + args.timeout
+    try:
+        while time.monotonic() < deadline and proc.poll() is None:
+            try:
+                stats = http_json(f"http://{addr}/debug/stats")
+                break
+            except (urllib.error.URLError, OSError, TimeoutError):
+                time.sleep(0.25)
+        rc = graceful_shutdown(proc) if proc.poll() is None else proc.returncode
+    finally:
+        if proc.poll() is None:
+            proc.kill()
+    _drain_settle(proc)
+    log = "".join(log_buf).splitlines()
+    if args.log:
+        Path(args.log).write_text("\n".join(log) + "\n", encoding="utf-8")
+    j = judge_p103_boot(expected, stats, rc)
+    out = {
+        "item": "p1-03 SC-04 (AC-2a) 정상 data/ 기동 — /debug/stats 시장(id·pricing_version·상장)·광맥·예비·광물이 파일과 일치",
+        "verdict": "PASS" if j["ok"] else ("FAIL(stats 에 필드 없음)" if not all(j["present"].values()) else "FAIL"),
+        "world_id": args.world, "expected_from_files": expected, "stats_keys": P103_STATS_KEYS,
+        "stats_fields_present": j["present"], "stats_values": j["got"], "shutdown_exit_code": rc, "hard_kill": False,
+        "boot_log_lines": len(log), "provenance": source_provenance(), "migration_freeze": LAST_PREFLIGHT,
+    }
+    text = json.dumps(out, indent=2, ensure_ascii=False)
+    print(text)
+    if args.evidence:
+        Path(args.evidence).write_text(text + "\n", encoding="utf-8")
+    return 0 if j["ok"] else 1
+
+
+def _m03_drop_glacine(d):
+    d["listings"] = [x for x in d["listings"] if x["mineral_id"] != "glacine"]
+
+
+def _m10_floor_zero(d):
+    d["listings"][0]["base_price_cr_per_kg"] = 1          # 1 × 30 div 100 = 0 (스키마 minimum 1 은 통과)
+
+
+def _d02_reserve_only(d):
+    d["deposits"].append({"deposit_id": "qa-reserve-only", "mineral_id": "ferrosite", "initial_reserve_kg": 1000})
+
+
+def _d03_schema_v1(d):
+    d["schema_version"] = 1
+
+
+# 계약 SC-05 qa 몫 — 실바이너리 4 경우. (케이스, 파일, 변형, field= 가 끝나야 할 이름들, 줄 어딘가에 있어야 할 토큰)
+P103_CASES = [
+    ("m03-mineral-without-listing", "market/cradle-exchange.json", _m03_drop_glacine, ("listings", "mineral_id"), "glacine"),
+    ("m10-floor-price-zero", "market/cradle-exchange.json", _m10_floor_zero,
+     ("base_price_cr_per_kg", "price_floor_pct", "listings"), "base_price_cr_per_kg"),
+    ("d02-deposit-only-in-reserves", "world/deposit-reserves/cradle.json", _d02_reserve_only, ("deposit_id",), "qa-reserve-only"),
+    ("d03-deposit-field-schema-v1", "world/deposits/cradle.json", _d03_schema_v1, ("schema_version",), "schema_version"),
+]
+
+
+def judge_refusal(log: str, rc, field_ends, must) -> dict:
+    refused = [l for l in log.splitlines() if "기동 거부" in l or "데이터 검증 실패" in l]
+    # 검산층은 `field=<경로>`, 스키마층은 `error=<경로>: … rule=schema` 로 필드를 찍는다(S2 실측 2026-10-06).
+    # 둘 다 "주입한 필드 이름" 이다 — 스키마층을 `rule=schema` 만으로 받으면 필드 없는 메시지도 통과한다.
+    pat = re.compile(r"field=(\S+)|error=([\w\[\]\.]+):.*rule=schema")
+    def field_of(l):
+        m = pat.search(l)
+        return (m.group(1) or m.group(2)) if m else None
+    named = [f for l in refused if (f := field_of(l))]
+    hit = [l for l in refused if (f := field_of(l)) and f.endswith(tuple(field_ends)) and must in l]
+    return {"ok": rc not in (0, None) and bool(hit), "field_tokens_seen": named[:3], "refusal_lines": refused[:3]}
+
+
+def cmd_p1_03_reject(args) -> int:
+    """p1-03 SC-05 qa 몫 — 임시 data/ 사본에서 한 조건만 깨고 실바이너리 기동 실패 + 로그에 주입 필드.
+    음성 대조(무변경 사본은 통과)를 같은 실행에서. 레포 data/ 원본은 건드리지 않는다."""
+    env0 = load_dotenv()
+    if not EXE.is_file():
+        print("미검증(환경): " + str(EXE) + " 가 없다", file=sys.stderr)
+        return 2
+    preflight_binary_clean()
+    work = Path(args.workdir).resolve()
+    results = []
+    for name, rel, fn, field_ends, must in P103_CASES:
+        case_dir = work / ("p103-" + name)
+        if case_dir.exists():
+            shutil.rmtree(case_dir)
+        shutil.copytree(REPO / "data", case_dir)
+        target = case_dir / rel
+        doc = json.loads(target.read_text(encoding="utf-8"))
+        before = json.dumps(doc, sort_keys=True)
+        fn(doc)
+        if json.dumps(doc, sort_keys=True) == before:
+            results.append({"case": name, "verdict": "FAIL(변형이 아무것도 안 바꿈)"})
+            continue
+        target.write_text(json.dumps(doc, indent=2), encoding="utf-8")
+        env = dict(env0)
+        env["STARFALL_DATA_DIR"] = str(case_dir)
+        proc = subprocess.run([str(EXE)], cwd=str(REPO), env=env, input="", capture_output=True, text=True,
+                              encoding="utf-8", errors="replace", timeout=args.timeout)
+        j = judge_refusal((proc.stdout or "") + (proc.stderr or ""), proc.returncode, field_ends, must)
+        results.append({"case": name, "verdict": "PASS" if j["ok"] else "FAIL", "exit_code": proc.returncode,
+                        "accepted_field_tokens": list(field_ends), "must_contain": must,
+                        "field_tokens_seen": j["field_tokens_seen"], "refusal_lines": j["refusal_lines"]})
+    clean = work / "p103-0-negative-control-unmodified"
+    if clean.exists():
+        shutil.rmtree(clean)
+    shutil.copytree(REPO / "data", clean)
+    neg = negative_control(env0, clean, args.timeout)
+    passed = sum(1 for r in results if r["verdict"] == "PASS")
+    if neg["verdict"] != "PASS":
+        verdict, code = "미검증(증거 요건: 음성 대조 실패)", 4
+    elif passed == len(P103_CASES) == len(results):
+        verdict, code = "PASS", 0
+    else:
+        verdict, code = "FAIL", 1
+    out = {"item": "p1-03 SC-05 (AC-2b) 실바이너리 기동 거부 4 경우(m03·m10·d02·d03) — 로그에 주입 필드",
+           "verdict": verdict, "cases_run": len(results), "passed": passed,
+           "scope_note": "16 경우 중 실바이너리 4. 나머지는 cargo data::tests::market_reject_*·deposit_split_reject_* 몫",
+           "negative_control": neg, "results": results, "source_provenance": source_provenance()}
+    text = json.dumps(out, indent=2, ensure_ascii=False)
+    print(text)
+    if args.evidence:
+        Path(args.evidence).write_text(text + "\n", encoding="utf-8")
+    return code
+
+
+def p103_selftest_cases() -> list[tuple[str, bool]]:
+    """cmd_selftest 가 부른다 — 판정 함수의 양성·음성 대조(서버 없이)."""
+    exp = p103_expected_from_files()
+    good = {v: exp[k] for k, v in P103_STATS_KEYS.items()}
+    out = [("p1-03 boot: 파일 기대값 — 시장 1, 상장 4, 광맥 8, 예비 8, 광물 4",
+            (exp["markets"], exp["listings"], exp["deposits"], exp["reserves"], exp["minerals"]) == (1, 4, 8, 8, 4)),
+           ("p1-03 boot: stats 가 파일과 같으면 PASS", judge_p103_boot(exp, good, 0)["ok"]),
+           ("p1-03 boot 음성: stats 필드 없음(None 끼리 비교 금지) → FAIL",
+            not judge_p103_boot(exp, {k: v for k, v in good.items() if k != P103_STATS_KEYS["reserves"]}, 0)["ok"]),
+           ("p1-03 boot 음성: 상장 수 3 → FAIL", not judge_p103_boot(exp, {**good, P103_STATS_KEYS["listings"]: 3}, 0)["ok"]),
+           ("p1-03 boot 음성: 종료 코드 ≠ 0 → FAIL", not judge_p103_boot(exp, good, 1)["ok"])]
+    line = "ERROR 기동 거부: 데이터 검증 실패 file=market/cradle-exchange.json field=listings[1].base_price_cr_per_kg"
+    schema_line = "ERROR 기동 거부: 데이터 검증 실패 file=world/deposits/cradle.json error=schema_version: 2 여야 한다 (받음: 1) at line 2 rule=schema"
+    out += [("p1-03 reject: 주입 필드가 field= 끝에 있으면 PASS", judge_refusal(line, 1, ("base_price_cr_per_kg",), "base_price_cr_per_kg")["ok"]),
+            ("p1-03 reject 음성: 종료 0 이면 FAIL", not judge_refusal(line, 0, ("base_price_cr_per_kg",), "base_price_cr_per_kg")["ok"]),
+            ("p1-03 reject 음성: 다른 필드로 거부 → FAIL", not judge_refusal(line, 1, ("schema_version",), "schema_version")["ok"]),
+            ("p1-03 reject: 스키마층 `error=<필드>: … rule=schema` 도 주입 필드로 읽는다",
+             judge_refusal(schema_line, 1, ("schema_version",), "schema_version")["ok"]),
+            ("p1-03 reject 음성: 스키마층인데 필드 없는 메시지 → FAIL",
+             not judge_refusal("ERROR 기동 거부: 데이터 검증 실패 rule=schema", 1, ("schema_version",), "schema_version")["ok"])]
+    for name, rel, fn, _f, _m in P103_CASES:
+        doc = json.loads((REPO / "data" / rel).read_text(encoding="utf-8"))
+        before = json.dumps(doc, sort_keys=True)
+        fn(doc)
+        out.append((f"p1-03 reject 변형이 실제 data/ 모양에서 무언가를 바꾼다: {name}", json.dumps(doc, sort_keys=True) != before))
+    return out
+
+
 def cmd_rejudge(args) -> int:
     """이미 남긴 거부 로그를 **새 판정 기준으로 다시 판정한다** — 서버를 다시 돌리지 않는다.
 
@@ -1023,7 +1226,12 @@ def cmd_selftest(args) -> int:
         failures += 0 if ok else 1
         print(("ok   " if ok else "FAIL ") + label + ": 기대 " + str(want) + " / 실제 " + str(got))
 
-    total = len(cases) + len(schema_cases) + len(neg_cases) + len(mig_cases)
+    p103 = p103_selftest_cases()
+    for label, ok in p103:
+        failures += 0 if ok else 1
+        print(("ok   " if ok else "FAIL ") + label)
+
+    total = len(cases) + len(schema_cases) + len(neg_cases) + len(mig_cases) + len(p103)
     print("\n" + str(total - failures) + "/" + str(total) + " 케이스 통과"
           + " (judge_case " + str(len(cases)) + " · schema 필드 특정 "
           + str(len(schema_cases)) + " · judge_negative_control "
@@ -1049,6 +1257,12 @@ def cmd_serve(args) -> int:
         stop.unlink()
     log_path = Path(args.log) if args.log else None
 
+    # 서버 유지 구간 동안만 절전 방지(사용자 결정 2026-10-09) — unity_session·봇 그룹도 serve 를 거친다
+    with keep_awake("server_boot serve"):
+        return _serve_held(args, env, addr, stop, log_path)
+
+
+def _serve_held(args, env, addr, stop, log_path) -> int:
     proc, log_buf = spawn(env)
     deadline = time.monotonic() + args.ready_timeout
     ready = False
@@ -1117,6 +1331,17 @@ def main() -> int:
     pr.add_argument("--timeout", type=float, default=60.0)
     pr.add_argument("--evidence")
     pr.set_defaults(func=cmd_p1_02_reject)
+    pb3 = sub.add_parser("p1-03-boot", help="p1-03 SC-04: 새 월드로 띄워 시장·광맥·예비·광물 stats 와 기동 로그")
+    pb3.add_argument("--world", required=True)
+    pb3.add_argument("--timeout", type=float, default=40.0)
+    pb3.add_argument("--log", help="기동 로그 전문 — SC-129 data_file_pairs.py --boot-log 입력")
+    pb3.add_argument("--evidence")
+    pb3.set_defaults(func=cmd_p1_03_boot)
+    pr3 = sub.add_parser("p1-03-reject", help="p1-03 SC-05: 실바이너리 기동 거부 m03·m10·d02·d03 + 음성 대조")
+    pr3.add_argument("--workdir", required=True)
+    pr3.add_argument("--timeout", type=float, default=60.0)
+    pr3.add_argument("--evidence")
+    pr3.set_defaults(func=cmd_p1_03_reject)
     st = sub.add_parser("selftest", help="judge_case 를 합성 로그로 건다 (양성·음성 대조)")
     st.set_defaults(func=cmd_selftest)
     v = sub.add_parser("serve", help="서버를 띄우고 중지 파일이 생길 때까지 붙잡는다 (블록 3~5)")

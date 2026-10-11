@@ -1,10 +1,12 @@
-//! 채굴 판정에 필요한 정적 상수·순수 계산 (스펙 p1-02 §4.2·§4.6·§4.3, ADR-0013).
+//! 채굴 + 거래 판정에 필요한 정적 상수·순수 계산(스펙 p1-02 §4.2·§4.6·§4.3, ADR-0013;
+//! p1-03 는 [`StateWrite`] 에 `Wallet`·`MarketState` variant 만 더한다, T0 합의
+//! `_workspace/p1-03-trading/02_interface.md`).
 //!
 //! 이 모듈은 `Simulation` 의 상태를 모른다 — 값을 받아 값을 돌려주는 순수 함수와, `data/`
-//! 에서 온 불변 상수 타입만 있다. 판정 흐름 자체(8단계, 이벤트·메시지 생성, 재고·매장지
-//! 상태 변경)는 `simulation.rs` 가 소유한다(그 파일이 이미 `Simulation::step` 의 유일한
-//! 소유자다, I-13). 여기 있는 함수는 시계를 읽지 않고 난수도 쓰지 않는다(I-58) — `tick`
-//! 은 언제나 호출자가 넘긴다.
+//! 에서 온 불변 상수 타입만 있다. 판정 흐름 자체(8단계, 이벤트·메시지 생성, 재고·매장지·
+//! 지갑·시장 상태 변경)는 `simulation.rs` 가 소유한다(그 파일이 이미 `Simulation::step` 의
+//! 유일한 소유자다, I-13). 여기 있는 함수는 시계를 읽지 않고 난수도 쓰지 않는다(I-58) —
+//! `tick` 은 언제나 호출자가 넘긴다.
 
 use starfall_contracts::primitives::{DataId, UuidV7};
 
@@ -145,6 +147,39 @@ pub enum StateWrite {
         /// 그 매장지의 `first_extracted_tick`(첫 채굴이면 지금 tick, 아니면 기존 값 — 절대
         /// 바뀌지 않는다).
         first_extracted_tick: u64,
+    },
+    /// 지갑 행 하나(p1-03, ADR-0016 §2). `Inventory` 와 완전히 같은 모양이다 — 행은
+    /// 첫 판매에 생기고, 지우지 않는다.
+    Wallet {
+        /// 행위자(소유자).
+        actor_id: UuidV7,
+        /// 저장된 `balance_cr` 이 이것과 같아야 쓴다. `None` = "행이 없어야 한다"(첫 판매
+        /// — `INSERT`).
+        expected: Option<i64>,
+        /// 새 `balance_cr`.
+        new: i64,
+    },
+    /// 시장의 광물 하나의 상태 행(p1-03, ADR-0016 §4). `Deposit` 과 같은 자리이지만
+    /// CAS 비교 대상은 `(saturation_kg, as_of_tick)` 뿐이다 — `last_seller_actor_id`·
+    /// `last_sale_quantity_kg` 는 이전 DB 값에서 유도되지 않고 이번 판매의 사실을 그대로
+    /// 쓰는 값이라 비교할 "기대하는 이전 값" 이 없다(T0 합의, serverdb3 제안
+    /// 2026-10-05 — `Deposit::first_extracted_tick` 과 같은 성격, 다만 매번 갱신된다는
+    /// 점은 다르다).
+    MarketState {
+        /// 시장.
+        market_id: DataId,
+        /// 상장 광물.
+        mineral_id: DataId,
+        /// 저장된 `(saturation_kg, as_of_tick)` 이 이것과 같아야 쓴다. `None` = "행이
+        /// 없어야 한다"(그 시장·광물의 첫 판매 — `INSERT`).
+        expected: Option<(i64, u64)>,
+        /// 새 `(saturation_kg, as_of_tick)`.
+        new: (i64, u64),
+        /// 시장의 공개 게시판(디자인 §4) — 비교 대상이 아니라 언제나 이번 판매 값으로
+        /// 덮어쓴다.
+        last_seller_actor_id: UuidV7,
+        /// 같은 이유.
+        last_sale_quantity_kg: i64,
     },
 }
 

@@ -477,6 +477,199 @@ async fn cmd_mine(raw: &[String]) -> ExitCode {
 }
 
 /// p1-02 채굴 케이스 — `--deposit <id> [--data data] [--contracts contracts] [--out <json>]`.
+/// p1-03 거래 케이스 — `trade` 모듈. 판정은 봇이 받은 메시지로만 한다.
+async fn probe_trade(
+    case: ProbeCase,
+    args: &Args,
+    url: &str,
+    secret: &str,
+    label: &str,
+) -> ExitCode {
+    use starfall_bots::trade::{self, SellCase};
+    let deposit = args.str_or("deposit", "inner-belt-1");
+    let data_dir = args.str_or("data", "data");
+    let contracts_dir = args.str_or("contracts", "contracts");
+    let out = args.str_or("out", "");
+    let world = args.str_or("world", "");
+    let label_b = args.str_or("label-b", "");
+    let label_c = args.str_or("label-c", "");
+    let seller = args.str_or("seller-label", "");
+    let pf = starfall_bots::trade_restart::PhaseFiles {
+        phase: args.str_or("phase", ""),
+        state: starfall_bots::trade_restart::path_opt(&args.str_or("state", "")),
+        ready: starfall_bots::trade_restart::path_opt(&args.str_or("ready-file", "")),
+        tampered: starfall_bots::trade_restart::path_opt(&args.str_or("tampered-file", "")),
+    };
+    let cycles: usize = match args.num_or("cycles", 5usize) {
+        Ok(v) => v,
+        Err(e) => return usage_error(&e),
+    };
+    if let Err(e) = args.reject_unused() {
+        return usage_error(&e);
+    }
+    let dd = std::path::Path::new(&data_dir);
+    let (site, ex) = match (trade::site(dd, &deposit), trade::find_exchange(dd)) {
+        (Ok(s), Ok(x)) => (s, x),
+        (Err(e), _) | (_, Err(e)) => return usage_error(&e),
+    };
+    let need = |v: &str, k: &str| -> Result<(), String> {
+        if v.is_empty() {
+            Err(format!("--{k} 가 필요하다"))
+        } else {
+            Ok(())
+        }
+    };
+    let other = |id: &str| trade::site(dd, id);
+    let single = |c: SellCase| c;
+    let (verdict, mut v) = match case {
+        ProbeCase::CheatSellInject
+        | ProbeCase::CheatSellRange
+        | ProbeCase::CheatSellFast
+        | ProbeCase::CheatSellOverqty
+        | ProbeCase::CheatSellCooldown
+        | ProbeCase::CheatSellUnknown
+        | ProbeCase::SellDup
+        | ProbeCase::SellDupCrossKind
+        | ProbeCase::SellOnce => {
+            let c = single(match case {
+                ProbeCase::CheatSellInject => SellCase::Inject,
+                ProbeCase::CheatSellRange => SellCase::Range,
+                ProbeCase::CheatSellFast => SellCase::Fast,
+                ProbeCase::CheatSellOverqty => SellCase::OverQty,
+                ProbeCase::CheatSellCooldown => SellCase::Cooldown,
+                ProbeCase::CheatSellUnknown => SellCase::Unknown,
+                ProbeCase::SellDup => SellCase::Dup,
+                ProbeCase::SellDupCrossKind => SellCase::CrossKind,
+                _ => SellCase::Once,
+            });
+            trade::run_single(
+                c,
+                &site,
+                &ex,
+                url,
+                secret,
+                label,
+                std::path::Path::new(&contracts_dir),
+            )
+            .await
+        }
+        ProbeCase::SellDupReconnect => trade::run_reconnect(&site, &ex, url, secret, label).await,
+        ProbeCase::TraceSellA => match other("inner-belt-3") {
+            Ok(ib3) => trade::run_trace_a(&site, &ib3, &ex, url, secret, label).await,
+            Err(e) => return usage_error(&e),
+        },
+        ProbeCase::TraceSellB => {
+            if let Err(e) = need(&seller, "seller-label").and(need(&world, "world")) {
+                return usage_error(&e);
+            }
+            starfall_bots::trade_trace::run_b(&site, url, secret, label, &seller, &world).await
+        }
+        ProbeCase::RaceSellSameTick => {
+            if let Err(e) = need(&label_b, "label-b") {
+                return usage_error(&e);
+            }
+            match other("inner-belt-2") {
+                Ok(ib2) => trade::run_race(&site, &ib2, &ex, url, secret, label, &label_b).await,
+                Err(e) => return usage_error(&e),
+            }
+        }
+        ProbeCase::LeakScanMarket => {
+            if let Err(e) = need(&label_b, "label-b") {
+                return usage_error(&e);
+            }
+            match other("far-reach") {
+                Ok(far) => trade::run_leak_market(&site, &far, url, secret, label, &label_b).await,
+                Err(e) => return usage_error(&e),
+            }
+        }
+        ProbeCase::TradeCycle => {
+            if let Err(e) = need(&label_b, "label-b").and(need(&label_c, "label-c")) {
+                return usage_error(&e);
+            }
+            match (other("inner-belt-2"), other("vela-orbit-2")) {
+                (Ok(b), Ok(c)) => {
+                    trade::run_trade_cycle(
+                        &site,
+                        &b,
+                        &c,
+                        &ex,
+                        url,
+                        secret,
+                        [label, &label_b, &label_c],
+                        cycles,
+                    )
+                    .await
+                }
+                (Err(e), _) | (_, Err(e)) => return usage_error(&e),
+            }
+        }
+        ProbeCase::SellDupRestart => {
+            starfall_bots::trade_restart::run_dup_restart(&site, &ex, url, secret, label, &pf).await
+        }
+        ProbeCase::SellCasHalt => {
+            starfall_bots::trade_restart::run_cas_halt(&site, &ex, url, secret, label, &pf).await
+        }
+        ProbeCase::SellCasReload => {
+            starfall_bots::trade_restart::run_cas_reload(&site, &ex, url, secret, label).await
+        }
+        ProbeCase::SellRecoverRestart => match other("inner-belt-3") {
+            Ok(ib3) => {
+                starfall_bots::trade_restart::run_recover(&site, &ib3, &ex, url, secret, label, &pf)
+                    .await
+            }
+            Err(e) => return usage_error(&e),
+        },
+        ProbeCase::SellBacklog => {
+            // SC-39 의 둘째 도구(trade_ledger.py accepted)가 읽는 파일 — --out 옆 `<stem>.accepted.txt`.
+            let acc = (!out.is_empty()).then(|| {
+                let p = std::path::Path::new(&out);
+                p.with_file_name(format!(
+                    "{}.accepted.txt",
+                    p.file_stem()
+                        .and_then(|x| x.to_str())
+                        .unwrap_or("sell-backlog")
+                ))
+            });
+            starfall_bots::trade_backlog::run_sell_backlog(
+                &site,
+                &ex,
+                url,
+                secret,
+                label,
+                acc.as_deref(),
+            )
+            .await
+        }
+        ProbeCase::SellLoad => {
+            let base: u32 = label.trim_start_matches("bot-").parse().unwrap_or(500);
+            let secs: u64 = std::env::var("STARFALL_SELL_LOAD_SECS")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(1200);
+            let bots: usize = std::env::var("STARFALL_SELL_LOAD_BOTS")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(31);
+            trade::run_sell_load(dd, url, secret, bots, base, Duration::from_secs(secs)).await
+        }
+        _ => return usage_error("거래 케이스가 아니다"),
+    };
+    if !world.is_empty() {
+        v["world_id"] = serde_json::json!(world);
+    }
+    v["item"] = serde_json::json!(case.contract_item().to_string());
+    v["verdict"] = serde_json::json!(verdict.as_str());
+    let text = serde_json::to_string_pretty(&v).unwrap_or_default();
+    println!("{text}");
+    if !out.is_empty()
+        && let Err(e) = std::fs::write(&out, format!("{text}\n"))
+    {
+        eprintln!("--out 쓰기 실패: {e}");
+        return ExitCode::from(2);
+    }
+    ExitCode::from(verdict.exit_code())
+}
+
 async fn probe_mining(
     case: ProbeCase,
     args: &Args,
@@ -738,6 +931,9 @@ async fn cmd_probe(raw: &[String]) -> ExitCode {
     let url = args.str_or("url", DEFAULT_URL);
     // 판정에 쓰는 신원은 언제나 server 정본의 `bot-NNN` 이다(§3.3 정렬).
     let label = args.str_or("label", "bot-000");
+    if case.is_trading() {
+        return probe_trade(case, &args, &url, &secret, &label).await;
+    }
     if case.is_mining() {
         return probe_mining(case, &args, &url, &secret, &label).await;
     }

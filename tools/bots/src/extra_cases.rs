@@ -600,7 +600,11 @@ pub struct StatSample {
     pub oldest_pending_tick: Option<u64>,
 }
 
-async fn sample_series(url: String, every: Duration, stop: Arc<AtomicBool>) -> Vec<StatSample> {
+pub(crate) async fn sample_series(
+    url: String,
+    every: Duration,
+    stop: Arc<AtomicBool>,
+) -> Vec<StatSample> {
     let mut v = Vec::new();
     while !stop.load(Ordering::Relaxed) {
         if let Ok(s) = fetch_stats(&url).await {
@@ -621,7 +625,7 @@ async fn sample_series(url: String, every: Duration, stop: Arc<AtomicBool>) -> V
     v
 }
 
-fn now_ms() -> u64 {
+pub(crate) fn now_ms() -> u64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_millis() as u64)
@@ -629,7 +633,7 @@ fn now_ms() -> u64 {
 }
 
 /// `docker compose <verb> postgres` — 계약 SC-29~31 의 qa 절차(stop/start). `down` 은 절대 쓰지 않는다.
-fn compose_postgres(verb: &str) -> Result<(), String> {
+pub(crate) fn compose_postgres(verb: &str) -> Result<(), String> {
     assert!(verb == "stop" || verb == "start", "stop/start 만 허용");
     let out = std::process::Command::new("docker")
         .args(["compose", verb, "postgres"])

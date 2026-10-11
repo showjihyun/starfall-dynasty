@@ -1,0 +1,28 @@
+{
+  "bots": 31,
+  "connections_finished": 1,
+  "connections_unfinished": 30,
+  "duration_s": 1200,
+  "item": "[verdict] p1-03 SC-117 · SC-119 · SC-132 sell-load: 31 연결이 채굴·운반·판매 20 분 — tick 초과 ≤ 0.5 %(31 연결 유지·판매 ≥ 1 선단언), RECORDING_BACKLOG 0, 판매 응답 항등식",
+  "max_recording_lag": 0,
+  "min_ws_connections": 31,
+  "overrun_ratio": 0.0,
+  "overruns": 0,
+  "recording_backlog_rejects": 0,
+  "results_by_reason": {
+    "ACCEPTED": 51,
+    "RESOURCE_DEPLETED": 244
+  },
+  "sells_accepted": 8,
+  "sold_kg_by_mineral": {
+    "glacine": 6450
+  },
+  "sub_verdicts": {
+    "sc117": "PASS",
+    "sc119": "PASS(검출기 생존은 sc38·39 짝)",
+    "sc132": "PASS"
+  },
+  "ticks": 24008,
+  "verdict": "PASS",
+  "world_id": "01a12581-1eae-7413-abbc-33952e018479"
+}
