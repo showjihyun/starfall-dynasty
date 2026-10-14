@@ -216,7 +216,10 @@ pub enum ServerMsg {
     Toast { text: String },
     Profile(Profile),
     EnterSystem { system: SystemId, you: EntityId },
-    Snapshot { tick: u64, entities: Vec<EntityState> },
+    /// Compact world state. `infos` carries static descriptions only when an entity is new or
+    /// changed (`full` = complete set, e.g. after entering a system); `dynamic` carries every
+    /// live entity's quantized motion each tick. Rebuild with [`SnapshotCache`].
+    Snapshot { tick: u64, full: bool, infos: Vec<EntityInfo>, dynamic: Vec<DynState> },
     Fx(Vec<Fx>),
     WarpCharging { system: SystemId, seconds: f32 },
     ScanProgress { poi: u32, frac: f32 },
@@ -234,6 +237,102 @@ pub enum ServerMsg {
     Pong { t: f64 },
 }
 
+/// Rarely-changing part of an entity.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct EntityInfo {
+    pub id: EntityId,
+    pub kind: EntityKind,
+    pub name: String,
+    pub hull_class: Option<HullClass>,
+    pub rank: u8,
+    pub livery: u8,
+    pub radius: f32,
+    pub fleet: Option<FleetId>,
+    pub owner: Option<PlayerId>,
+    pub alliance: Option<AllianceId>,
+    pub class: Option<SizeClass>,
+}
+
+/// Per-tick motion, quantized to integers:
+/// `[id, px, py, pz (×10), qx, qy, qz, qw (×10000), vx, vy, vz (×10), hull, shield (×1000), flags, mining]`.
+pub type DynState = [i32; 15];
+
+const F_BOOST: i32 = 1;
+const F_DOCKED: i32 = 2;
+const F_WANTED: i32 = 4;
+
+pub fn pack(e: &EntityState) -> (EntityInfo, DynState) {
+    let q = |v: f32, k: f32| (v * k).round() as i32;
+    let info = EntityInfo { id: e.id, kind: e.kind, name: e.name.clone(), hull_class: e.hull_class, rank: e.rank, livery: e.livery, radius: e.radius, fleet: e.fleet, owner: e.owner, alliance: e.alliance, class: e.class };
+    let flags = (e.boosting as i32 * F_BOOST) | (e.docked as i32 * F_DOCKED) | (e.wanted as i32 * F_WANTED);
+    let d = [
+        e.id as i32,
+        q(e.pos[0], 10.0),
+        q(e.pos[1], 10.0),
+        q(e.pos[2], 10.0),
+        q(e.rot[0], 10000.0),
+        q(e.rot[1], 10000.0),
+        q(e.rot[2], 10000.0),
+        q(e.rot[3], 10000.0),
+        q(e.vel[0], 10.0),
+        q(e.vel[1], 10.0),
+        q(e.vel[2], 10.0),
+        q(e.hull, 1000.0),
+        q(e.shield, 1000.0),
+        flags,
+        e.mining.map(|m| m as i32).unwrap_or(-1),
+    ];
+    (info, d)
+}
+
+pub fn unpack(i: &EntityInfo, d: &DynState) -> EntityState {
+    let f = |v: i32, k: f32| v as f32 / k;
+    let rot = [f(d[4], 1e4), f(d[5], 1e4), f(d[6], 1e4), f(d[7], 1e4)];
+    let n = (rot.iter().map(|x| x * x).sum::<f32>()).sqrt().max(1e-6);
+    EntityState {
+        id: i.id,
+        kind: i.kind,
+        name: i.name.clone(),
+        hull_class: i.hull_class,
+        rank: i.rank,
+        livery: i.livery,
+        pos: [f(d[1], 10.0), f(d[2], 10.0), f(d[3], 10.0)],
+        rot: [rot[0] / n, rot[1] / n, rot[2] / n, rot[3] / n],
+        vel: [f(d[8], 10.0), f(d[9], 10.0), f(d[10], 10.0)],
+        hull: f(d[11], 1000.0),
+        shield: f(d[12], 1000.0),
+        radius: i.radius,
+        fleet: i.fleet,
+        wanted: d[13] & F_WANTED != 0,
+        boosting: d[13] & F_BOOST != 0,
+        mining: (d[14] >= 0).then_some(d[14] as u32),
+        docked: d[13] & F_DOCKED != 0,
+        owner: i.owner,
+        alliance: i.alliance,
+        class: i.class,
+    }
+}
+
+/// Receiver side: remembers entity infos and turns compact snapshots back into full states.
+#[derive(Default)]
+pub struct SnapshotCache {
+    pub infos: std::collections::HashMap<EntityId, EntityInfo>,
+}
+
+impl SnapshotCache {
+    pub fn apply(&mut self, full: bool, infos: Vec<EntityInfo>, dynamic: &[DynState]) -> Vec<EntityState> {
+        if full {
+            self.infos.clear();
+        }
+        for i in infos {
+            self.infos.insert(i.id, i);
+        }
+        let live: std::collections::HashSet<EntityId> = dynamic.iter().map(|d| d[0] as EntityId).collect();
+        self.infos.retain(|id, _| live.contains(id));
+        dynamic.iter().filter_map(|d| self.infos.get(&(d[0] as EntityId)).map(|i| unpack(i, d))).collect()
+    }
+}
+
 pub fn encode<T: Serialize>(m: &T) -> String {
     serde_json::to_string(m).expect("serialize")
 }
@@ -245,6 +344,20 @@ pub fn decode<'a, T: Deserialize<'a>>(s: &'a str) -> Result<T, serde_json::Error
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn snapshot_pack_roundtrip_and_cache() {
+        let e = EntityState { id: 7, kind: EntityKind::Player, name: "A".into(), hull_class: Some(HullClass::Talon), rank: 3, livery: 2, pos: [1234.56, -7.25, 9000.0], rot: [0.0, 0.7071, 0.0, 0.7071], vel: [12.3, 0.0, -4.5], hull: 0.5, shield: 0.25, radius: 11.0, fleet: None, wanted: true, boosting: true, mining: Some(3), docked: false, owner: Some(1), alliance: Some(2), class: Some(SizeClass::Cruiser) };
+        let (info, d) = pack(&e);
+        let back = unpack(&info, &d);
+        assert!((back.pos[0] - e.pos[0]).abs() < 0.06 && back.wanted && back.boosting && back.mining == Some(3) && !back.docked);
+        let mut c = SnapshotCache::default();
+        assert_eq!(c.apply(true, vec![info], &[d]).len(), 1);
+        // Later ticks carry no info: the cache supplies it. Missing from dynamic = gone.
+        assert_eq!(c.apply(false, vec![], &[d]).len(), 1);
+        assert!(c.apply(false, vec![], &[]).is_empty());
+        assert!(c.infos.is_empty());
+    }
 
     #[test]
     fn roundtrip() {

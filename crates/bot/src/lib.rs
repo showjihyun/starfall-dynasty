@@ -21,12 +21,13 @@ pub struct Bot {
     pub ents: HashMap<EntityId, EntityState>,
     pub log: Vec<ServerMsg>,
     pub dead: bool,
+    pub cache: SnapshotCache,
 }
 
 impl Bot {
     pub async fn connect(url: &str, name: &str) -> Result<Bot, String> {
         let (ws, _) = tokio_tungstenite::connect_async(url).await.map_err(|e| e.to_string())?;
-        Ok(Bot { ws, name: name.into(), token: None, profile: None, me: None, system: 0, ents: HashMap::new(), log: vec![], dead: false })
+        Ok(Bot { ws, name: name.into(), token: None, profile: None, me: None, system: 0, ents: HashMap::new(), log: vec![], dead: false, cache: SnapshotCache::default() })
     }
 
     pub async fn send(&mut self, m: ClientMsg) {
@@ -46,8 +47,9 @@ impl Bot {
                 self.ents.clear();
                 self.dead = false;
             }
-            ServerMsg::Snapshot { entities, .. } => {
-                self.ents = entities.iter().map(|e| (e.id, e.clone())).collect();
+            ServerMsg::Snapshot { full, infos, dynamic, .. } => {
+                let entities = self.cache.apply(*full, infos.clone(), dynamic);
+                self.ents = entities.into_iter().map(|e| (e.id, e)).collect();
             }
             ServerMsg::Died { .. } => {
                 self.dead = true;

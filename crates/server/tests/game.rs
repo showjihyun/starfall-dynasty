@@ -401,16 +401,17 @@ fn capital_ship_turrets_fight_all_around_and_escorts_follow() {
         }
     }
     assert!(g.ent(3, pirate).is_none(), "turret batteries destroyed a target behind the ship");
-    assert!(g.out.iter().any(|(_, m)| matches!(m, ServerMsg::Fx(v) if v.iter().any(|f| matches!(f, Fx::Shot { weapon: shared::ships::WeaponKind::Pulse, .. })))));
+    assert!(g.out_shared.iter().any(|(_, m)| matches!(m, ServerMsg::Fx(v) if v.iter().any(|f| matches!(f, Fx::Shot { weapon: shared::ships::WeaponKind::Pulse, .. })))));
     assert_eq!(g.store.profile(pid).unwrap().kills, 1);
     // Main gun: trigger with a target dead ahead fires a beam volley.
     let ahead = flag.pos + flag.forward() * (flag.stats.radius + 900.0);
     let p2 = g.spawn_npc(3, NpcArchetype::Raider, 0, ahead, None);
     g.ent_mut(s, me).unwrap().target = Some(p2);
     g.out.clear();
+    g.out_shared.clear();
     g.handle(1, ClientMsg::Controls(Controls { fire: true, ..Default::default() }));
     run(&mut g, 2.0);
-    assert!(g.out.iter().any(|(_, m)| matches!(m, ServerMsg::Fx(v) if v.iter().any(|f| matches!(f, Fx::Shot { weapon: shared::ships::WeaponKind::MainBeam, .. })))));
+    assert!(g.out_shared.iter().any(|(_, m)| matches!(m, ServerMsg::Fx(v) if v.iter().any(|f| matches!(f, Fx::Shot { weapon: shared::ships::WeaponKind::MainBeam, .. })))));
     // Escorts follow the flagship when it moves.
     g.handle(1, ClientMsg::Controls(Controls { thrust: 1.0, ..Default::default() }));
     run(&mut g, 20.0);

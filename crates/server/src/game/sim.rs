@@ -688,22 +688,48 @@ impl Game {
         }
     }
 
+    /// One compact snapshot per system, encoded once and shared by every viewer there.
+    /// Static infos travel only when new/changed (or in full to viewers who just arrived).
     fn send_snapshots(&mut self) {
-        let mut by_sys: BTreeMap<SystemId, Vec<ConnId>> = BTreeMap::new();
-        for (c, s) in &self.sessions {
-            if s.player.is_some() && self.store.profile(s.player.unwrap()).is_some() {
-                by_sys.entry(s.system).or_default().push(*c);
+        let mut by_sys: BTreeMap<SystemId, (Vec<ConnId>, Vec<ConnId>)> = BTreeMap::new();
+        for (c, s) in self.sessions.iter_mut() {
+            if s.player.is_some() && s.entity.is_some() || s.dead {
+                let e = by_sys.entry(s.system).or_default();
+                if std::mem::take(&mut s.needs_full) {
+                    e.1.push(*c);
+                } else {
+                    e.0.push(*c);
+                }
             }
         }
         let fx = std::mem::take(&mut self.pending_fx);
-        for (sys, conns) in by_sys {
-            let states: Vec<EntityState> = self.systems[&sys].ents.values().filter(|e| !e.dead).map(|e| e.state()).collect();
-            let fxs = fx.get(&sys).cloned().unwrap_or_default();
-            for c in conns {
-                self.out.push((c, ServerMsg::Snapshot { tick: self.tick, entities: states.clone() }));
-                if !fxs.is_empty() {
-                    self.out.push((c, ServerMsg::Fx(fxs.clone())));
+        for (sys, (delta_conns, full_conns)) in by_sys {
+            let sysm = self.systems.get_mut(&sys).unwrap();
+            let mut dynamic = Vec::with_capacity(sysm.ents.len());
+            let mut all_infos = Vec::with_capacity(sysm.ents.len());
+            let mut changed = vec![];
+            for e in sysm.ents.values().filter(|e| !e.dead) {
+                let (info, d) = pack(&e.state());
+                if sysm.sent_infos.get(&e.id) != Some(&info) {
+                    sysm.sent_infos.insert(e.id, info.clone());
+                    changed.push(info.clone());
                 }
+                dynamic.push(d);
+                all_infos.push(info);
+            }
+            let live: HashSet<EntityId> = dynamic.iter().map(|d| d[0] as EntityId).collect();
+            sysm.sent_infos.retain(|id, _| live.contains(id));
+            let tick = self.tick;
+            if !delta_conns.is_empty() {
+                self.out_shared.push((delta_conns.clone(), ServerMsg::Snapshot { tick, full: false, infos: changed, dynamic: dynamic.clone() }));
+            }
+            if !full_conns.is_empty() {
+                self.out_shared.push((full_conns.clone(), ServerMsg::Snapshot { tick, full: true, infos: all_infos, dynamic }));
+            }
+            if let Some(f) = fx.get(&sys).filter(|f| !f.is_empty()) {
+                let mut conns = delta_conns;
+                conns.extend(full_conns);
+                self.out_shared.push((conns, ServerMsg::Fx(f.clone())));
             }
         }
     }

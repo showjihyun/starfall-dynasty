@@ -181,6 +181,8 @@ pub struct Sys {
     pub pirate_cd: f32,
     pub engagement: Option<Engagement>,
     pub wrecks: HashMap<EntityId, usize>,
+    /// Last static info broadcast per entity (delta snapshots).
+    pub sent_infos: HashMap<EntityId, EntityInfo>,
 }
 
 #[derive(Default)]
@@ -196,6 +198,8 @@ pub struct Session {
     pub dead: bool,
     pub escorts: Vec<EntityId>,
     pub escort_attack: bool,
+    /// Next snapshot must carry every entity's info (just entered a system / reconnected).
+    pub needs_full: bool,
     pub alliance_invite: Option<AllianceId>,
 }
 
@@ -226,6 +230,8 @@ pub struct Game {
     next_fleet: FleetId,
     pub kicked: Vec<ConnId>,
     pub pending_fx: BTreeMap<SystemId, Vec<Fx>>,
+    /// Broadcasts: one message for many connections, encoded once by the network layer.
+    pub out_shared: Vec<(Vec<ConnId>, ServerMsg)>,
     /// QA cheats (`/grow N`, `/cash`) — only when the server runs with `--dev`.
     pub dev_mode: bool,
 }
@@ -247,10 +253,11 @@ impl Game {
             next_fleet: 1,
             kicked: Vec::new(),
             pending_fx: BTreeMap::new(),
+            out_shared: Vec::new(),
             dev_mode: false,
         };
         for def in galaxy::SYSTEMS {
-            g.systems.insert(def.id, Sys { id: def.id, layout: galaxy::system_layout(def.id), ents: BTreeMap::new(), pirate_cd: 1.0, engagement: None, wrecks: HashMap::new() });
+            g.systems.insert(def.id, Sys { id: def.id, layout: galaxy::system_layout(def.id), ents: BTreeMap::new(), pirate_cd: 1.0, engagement: None, wrecks: HashMap::new(), sent_infos: HashMap::new() });
         }
         // Restore persisted wrecks (expired ones are dropped).
         let wrecks: Vec<(usize, SystemId, Vec3, String)> = g
@@ -524,6 +531,7 @@ impl Game {
             s.warp = None;
             s.scan = None;
             s.dead = false;
+            s.needs_full = true;
         }
         if let Some(p) = self.store.profile_mut(pid) {
             p.last_system = system;

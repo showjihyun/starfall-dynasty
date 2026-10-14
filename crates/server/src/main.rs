@@ -88,6 +88,14 @@ async fn main() -> std::io::Result<()> {
                         let _ = o.send(Message::text(encode(&msg)));
                     }
                 }
+                for (conns, msg) in game.out_shared.drain(..) {
+                    let frame = Message::text(encode(&msg));
+                    for c in conns {
+                        if let Some(o) = outs.get(&c) {
+                            let _ = o.send(frame.clone());
+                        }
+                    }
+                }
                 for k in game.kicked.drain(..) {
                     if let Some(o) = outs.remove(&k) {
                         let _ = o.send(Message::Close(None));

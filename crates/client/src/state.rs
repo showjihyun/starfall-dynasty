@@ -73,6 +73,7 @@ pub struct Session {
     pub server_url: String,
     /// Last time shots involved our ship (drives battle music).
     pub last_combat: f64,
+    pub snap_cache: SnapshotCache,
 }
 
 impl Session {
@@ -230,7 +231,8 @@ fn apply(s: &mut Session, m: ServerMsg, now: f64, next: &mut NextState<Screen>) 
             s.scan = None;
             next.set(Screen::Playing);
         }
-        ServerMsg::Snapshot { entities, .. } => {
+        ServerMsg::Snapshot { full, infos, dynamic, .. } => {
+            let entities = s.snap_cache.apply(full, infos, &dynamic);
             s.snaps.push_back(Snap { at: now, ents: entities.into_iter().map(|e| (e.id, e)).collect() });
             while s.snaps.len() > 12 {
                 s.snaps.pop_front();
