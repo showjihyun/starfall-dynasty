@@ -5,15 +5,8 @@ use history::{DomainEvent, Side};
 use shared::galaxy::RiskTier;
 
 const BOUNDS: f32 = 16_000.0;
-const LASER_CONE: f32 = 0.11; // ~6.3°
-const LOCK_CONE: f32 = 0.22; // ~12.6° for a locked target
-const NPC_CONE: f32 = 0.35;
 
-struct Shot {
-    from: EntityId,
-    to: EntityId,
-    dmg: f32,
-}
+use super::weapons::Shot;
 
 impl Game {
     pub fn fx(&mut self, sys: SystemId, fx: Fx) {
@@ -33,14 +26,23 @@ impl Game {
         if !te.is_ship() || te.dead || te.docked || ae.docked {
             return false;
         }
-        if ae.fleet.is_some() && ae.fleet == te.fleet {
-            return false;
+        match (ae.side(), te.side()) {
+            // NPC hostiles never fight each other.
+            (None, None) => false,
+            (None, Some(_)) | (Some(_), None) => true,
+            (Some(pa), Some(pt)) => {
+                if pa == pt || (ae.fleet.is_some() && ae.fleet == te.fleet) || (ae.alliance.is_some() && ae.alliance == te.alliance) {
+                    return false;
+                }
+                self.pvp_allowed(sys, ae.alliance, te.alliance)
+            }
         }
-        match (ae.kind, te.kind) {
-            (EntityKind::Npc(_), EntityKind::Npc(_)) => false,
-            (EntityKind::Player, EntityKind::Player) => galaxy::system(sys).tier.pvp_allowed(),
-            _ => true,
-        }
+    }
+
+    /// PvP: Wild/War Zone/Deep always; anywhere but Core between alliances at war.
+    pub fn pvp_allowed(&self, sys: SystemId, a: Option<AllianceId>, b: Option<AllianceId>) -> bool {
+        let tier = galaxy::system(sys).tier;
+        tier.pvp_allowed() || (tier != RiskTier::Core && self.at_war(a, b))
     }
 
     pub fn tick(&mut self, dt: f32, unix: u64) {
@@ -217,60 +219,11 @@ impl Game {
             }
         }
 
-        // Weapons.
+        // Weapons: forward guns, turret batteries, bow main gun.
         for &id in &ids {
-            let Some(e) = self.ent(sys, id) else { continue };
-            if e.dead || e.docked || !e.is_ship() || e.fire_cd > 0.0 {
-                continue;
-            }
-            let wants = match e.kind {
-                EntityKind::Player => e.controls.fire,
-                EntityKind::Npc(_) => e.ai.as_ref().is_some_and(|a| a.target.is_some()),
-                _ => false,
-            };
-            if !wants {
-                continue;
-            }
-            let fwd = e.forward();
-            let range = e.stats.weapon_range;
-            let mut best: Option<(EntityId, f32)> = None;
-            let cone = if e.kind == EntityKind::Player { LASER_CONE } else { NPC_CONE };
-            let preferred = if let EntityKind::Npc(_) = e.kind { e.ai.as_ref().and_then(|a| a.target) } else { e.target };
-            for (&tid, t) in &self.systems[&sys].ents {
-                if tid == id || !t.is_ship() || t.dead {
-                    continue;
-                }
-                let to = t.pos - e.pos;
-                let dist = to.length();
-                if dist > range + t.stats.radius {
-                    continue;
-                }
-                // Angular size of the target widens the cone a little.
-                let ang = fwd.angle_between(to.normalize_or_zero()) - (t.stats.radius / dist.max(1.0)).atan();
-                let limit = if Some(tid) == preferred { LOCK_CONE.max(cone) } else { cone };
-                if ang < limit && self.can_damage(sys, id, tid) && best.is_none_or(|(_, a)| ang < a) {
-                    best = Some((tid, ang));
-                }
-            }
-            let mut dmg = e.stats.damage;
-            if let Some(pid) = e.owner
-                && self.store.profile(pid).is_some_and(|p| p.profession == Profession::CombatPilot)
-            {
-                dmg *= 1.08;
-            }
-            let interval = e.stats.fire_interval;
-            match (e.kind, best) {
-                (EntityKind::Npc(_), None) => continue,
-                _ => {}
-            }
-            self.ent_mut(sys, id).unwrap().fire_cd = interval;
-            match best {
-                Some((tid, _)) => {
-                    shots.push(Shot { from: id, to: tid, dmg });
-                    self.fx(sys, Fx::Laser { from: id, to: tid, hit: true });
-                }
-                None => self.fx(sys, Fx::Laser { from: id, to: 0, hit: false }),
-            }
+            self.fire_forward_guns(sys, id, &mut shots);
+            self.fire_turrets(sys, id, dt, &mut shots);
+            self.fire_main_gun(sys, id, dt, &mut shots);
         }
 
         // Missiles.
@@ -343,6 +296,9 @@ impl Game {
     fn think(&mut self, sys: SystemId, id: EntityId, dt: f32) {
         let Some(e) = self.ent(sys, id) else { return };
         let Some(ai) = e.ai.clone() else { return };
+        if let Some(owner) = ai.escort_of {
+            return self.think_escort(sys, id, owner);
+        }
         let mut ai = ai;
         ai.think_cd -= dt;
         let aggro = 1500.0 + 300.0 * ai.level as f32;
@@ -412,7 +368,7 @@ impl Game {
         let Some(e) = self.ent(sys, id) else { return };
         let (Some(aid), Some(pid)) = (e.mining, e.owner) else { return };
         let Some(a) = self.systems[&sys].layout.asteroids.iter().find(|a| a.id == aid).cloned() else { return };
-        if e.docked || e.pos.distance(a.pos) > galaxy::MINE_RANGE + a.radius + 30.0 {
+        if e.docked || e.pos.distance(a.pos) > galaxy::MINE_RANGE + a.radius + e.stats.radius + 30.0 {
             self.ent_mut(sys, id).unwrap().mining = None;
             self.toast(pid, "채굴 대상이 사거리를 벗어났습니다");
             return;
@@ -445,9 +401,10 @@ impl Game {
         }
         let now = self.now;
         let tier = galaxy::system(sys).tier;
-        let (attacker_pid, attacker_kind, attacker_fleet) = {
+        // Kill credit, crime and battles belong to the *player side* (escorts fight for their owner).
+        let (attacker_pid, attacker_fleet, attacker_alliance) = {
             let a = self.ent(sys, from).unwrap();
-            (a.owner.filter(|_| a.kind == EntityKind::Player), a.kind, a.fleet)
+            (a.side(), a.fleet, a.alliance)
         };
         let dir;
         {
@@ -467,21 +424,28 @@ impl Game {
         // NPCs retaliate.
         if let Some(ai) = self.ent_mut(sys, to).unwrap().ai.as_mut()
             && ai.target.is_none()
-            && attacker_kind == EntityKind::Player
+            && ai.escort_of.is_none()
+            && attacker_pid.is_some()
         {
             ai.target = Some(from);
         }
         let target = self.ent(sys, to).unwrap();
-        if attacker_kind != EntityKind::Player || target.kind != EntityKind::Player {
-            return;
-        }
-        let victim_pid = target.owner.unwrap();
-        let victim_wanted = target.wanted;
-        let self_defence = target.attackers.iter().any(|_| false) || self.ent(sys, from).unwrap().attackers.iter().any(|(a, _, t)| *a == to && now - t < 30.0);
-        let attacker_pid = attacker_pid.unwrap();
-        // Crime in Wild space: attacking an innocent makes you Wanted.
-        if tier.crime_tracked() && !victim_wanted && !self_defence {
-            let already = self.ent(sys, from).unwrap().wanted;
+        let (Some(attacker_pid), Some(victim_pid)) = (attacker_pid, target.side()) else { return };
+        let victim_fleet = target.fleet;
+        let victim_alliance = target.alliance;
+        let victim_wanted = self.player_entity(victim_pid).and_then(|(s, e)| self.ent(s, e)).is_some_and(|v| v.wanted);
+        let at_war = self.at_war(attacker_alliance, victim_alliance);
+        // Self-defence: the victim's side hit the attacker's side recently.
+        let self_defence = self
+            .systems[&sys]
+            .ents
+            .values()
+            .filter(|e| e.side() == Some(attacker_pid))
+            .any(|e| e.attackers.iter().any(|(_, p, t)| *p == Some(victim_pid) && now - t < 30.0));
+        // Crime in Wild space: attacking an innocent makes you Wanted (wars are not crimes).
+        if tier.crime_tracked() && !victim_wanted && !self_defence && !at_war {
+            let flagship = self.player_entity(attacker_pid);
+            let already = flagship.and_then(|(s, e)| self.ent(s, e)).is_some_and(|e| e.wanted);
             if !already {
                 let rank = self.store.profile(attacker_pid).map(|p| p.ship.rank()).unwrap_or(0) as u64;
                 let amount = 2000 + 600 * rank;
@@ -490,28 +454,19 @@ impl Game {
                     pm.bounty += amount;
                     pm.reputation -= 5;
                 }
-                self.ent_mut(sys, from).unwrap().wanted = true;
+                if let Some((s, e)) = flagship
+                    && let Some(f) = self.ent_mut(s, e)
+                {
+                    f.wanted = true;
+                }
                 self.history.record(self.unix, DomainEvent::BountyPlaced { target: name, amount, system: sys, reason: "무고한 함장 공격".into() });
                 self.toast(attacker_pid, format!("⚠ 범죄 기록: 현상금 {amount} CR이 걸렸습니다"));
                 self.push_profile(attacker_pid);
             }
         }
-        // Engagement tracking (any PvP fire).
-        let side = |g: &Game, pid: PlayerId, fleet: Option<FleetId>| -> (String, String) {
-            match fleet {
-                Some(f) => {
-                    let leader = g.fleets.get(&f).and_then(|fl| g.store.profile(fl.leader)).map(|p| p.name.clone()).unwrap_or_default();
-                    (format!("F{f}"), format!("{leader}의 함대"))
-                }
-                None => {
-                    let n = g.store.profile(pid).map(|p| p.name.clone()).unwrap_or_default();
-                    (format!("P{pid}"), n)
-                }
-            }
-        };
-        let (ak, an) = side(self, attacker_pid, attacker_fleet);
-        let victim_fleet = self.ent(sys, to).unwrap().fleet;
-        let (vk, vn) = side(self, victim_pid, victim_fleet);
+        // Engagement tracking: sides are alliances, else fleets, else lone captains.
+        let (ak, an) = self.side_key(attacker_pid, attacker_fleet, attacker_alliance);
+        let (vk, vn) = self.side_key(victim_pid, victim_fleet, victim_alliance);
         let aname = self.store.profile(attacker_pid).unwrap().name.clone();
         let vname = self.store.profile(victim_pid).unwrap().name.clone();
         let s = self.systems.get_mut(&sys).unwrap();
@@ -526,6 +481,20 @@ impl Game {
             for (c, _) in self.players_in(sys) {
                 self.send(c, ServerMsg::Engagement { active: true, sides: names.clone() });
             }
+        }
+    }
+
+    /// Engagement side key + display name for a player.
+    pub fn side_key(&self, pid: PlayerId, fleet: Option<FleetId>, alliance: Option<AllianceId>) -> (String, String) {
+        if let Some(a) = alliance.and_then(|a| self.alliance(a)) {
+            return (format!("A{}", a.id), format!("[{}] {}", a.tag, a.name));
+        }
+        match fleet {
+            Some(f) => {
+                let leader = self.fleets.get(&f).and_then(|fl| self.store.profile(fl.leader)).map(|p| p.name.clone()).unwrap_or_default();
+                (format!("F{f}"), format!("{leader}의 함대"))
+            }
+            None => (format!("P{pid}"), self.store.profile(pid).map(|p| p.name.clone()).unwrap_or_default()),
         }
     }
 
@@ -578,8 +547,17 @@ impl Game {
                     self.scenario_wave_kill(owner, id);
                 }
             }
+            EntityKind::Escort => {
+                if let Some(owner) = e.owner {
+                    if let Some(c) = self.conn_of.get(&owner).copied() {
+                        self.sessions.get_mut(&c).unwrap().escorts.retain(|x| *x != id);
+                    }
+                    self.toast(owner, format!("{} 격침 — 도킹하면 재편성됩니다", e.name));
+                }
+            }
             EntityKind::Player => {
                 let vpid = e.owner.unwrap();
+                self.despawn_escorts(vpid);
                 let vprof = self.store.profile(vpid).unwrap().clone();
                 let (killer_name, killer_ship) = match killer {
                     Some((_, kp)) => {
@@ -641,10 +619,7 @@ impl Game {
                     self.send(c, ServerMsg::Died { killer: killer_name.clone(), wreck: wid });
                 }
                 // Engagement loss bookkeeping.
-                let vkey = match e.fleet {
-                    Some(f) => format!("F{f}"),
-                    None => format!("P{vpid}"),
-                };
+                let vkey = self.side_key(vpid, e.fleet, e.alliance).0;
                 if let Some(eng) = self.systems.get_mut(&sys).unwrap().engagement.as_mut()
                     && let Some(side) = eng.sides.get_mut(&vkey)
                 {

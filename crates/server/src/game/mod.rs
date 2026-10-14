@@ -2,6 +2,8 @@
 //! messages and drains `out`; tests drive it directly.
 
 mod actions;
+mod diplomacy;
+mod weapons;
 mod sim;
 
 use crate::store::Store;
@@ -31,6 +33,9 @@ pub struct Ai {
     pub scenario_owner: Option<PlayerId>,
     pub think_cd: f32,
     pub orbit_sign: f32,
+    /// Friendly escort of this player's flagship.
+    pub escort_of: Option<PlayerId>,
+    pub slot: u8,
 }
 
 #[derive(Clone, Debug)]
@@ -71,9 +76,58 @@ pub struct Ent {
     /// (attacker entity, attacker player, time) — for kill credit, assists, self-defence.
     pub attackers: Vec<(EntityId, Option<PlayerId>, f64)>,
     pub dead: bool,
+    pub alliance: Option<AllianceId>,
+    pub class: Option<shared::ships::SizeClass>,
+    /// Per-turret cooldowns (cruisers, capitals, big NPCs).
+    pub turret_cds: Vec<f32>,
+    pub main_cd: f32,
 }
 
 impl Ent {
+    /// Fresh entity with neutral defaults; callers override what they need.
+    pub fn base(id: EntityId, kind: EntityKind, name: String, stats: Stats, pos: Vec3, rot: Quat) -> Ent {
+        Ent {
+            id,
+            kind,
+            name,
+            owner: None,
+            hull_class: None,
+            rank: 0,
+            livery: 0,
+            pos,
+            rot,
+            vel: Vec3::ZERO,
+            stats,
+            hull: stats.max_hull,
+            shield: stats.max_shield,
+            last_hit: -100.0,
+            fire_cd: 0.0,
+            missile_cd: 0.0,
+            controls: Controls::default(),
+            target: None,
+            fleet: None,
+            wanted: false,
+            mining: None,
+            mine_acc: 0.0,
+            docked: false,
+            ai: None,
+            missile: None,
+            attackers: vec![],
+            dead: false,
+            alliance: None,
+            class: None,
+            turret_cds: (0..stats.turrets).map(|i| 0.2 + i as f32 * 0.137 % 0.9).collect(),
+            main_cd: 1.0,
+        }
+    }
+
+    /// The player this entity fights for: the player itself, an escort's owner, or None for NPC hostiles.
+    pub fn side(&self) -> Option<PlayerId> {
+        match self.kind {
+            EntityKind::Player | EntityKind::Escort | EntityKind::Missile => self.owner,
+            _ => None,
+        }
+    }
     pub fn forward(&self) -> Vec3 {
         self.rot * Vec3::NEG_Z
     }
@@ -98,11 +152,13 @@ impl Ent {
             mining: self.mining,
             docked: self.docked,
             owner: self.owner,
+            alliance: self.alliance,
+            class: self.class,
         }
     }
 
     pub fn is_ship(&self) -> bool {
-        matches!(self.kind, EntityKind::Player | EntityKind::Npc(_))
+        matches!(self.kind, EntityKind::Player | EntityKind::Npc(_) | EntityKind::Escort)
     }
 }
 
@@ -138,6 +194,16 @@ pub struct Session {
     pub wave: Vec<EntityId>,
     pub wave_system: Option<SystemId>,
     pub dead: bool,
+    pub escorts: Vec<EntityId>,
+    pub escort_attack: bool,
+    pub alliance_invite: Option<AllianceId>,
+}
+
+/// Formation offsets (in flagship radii) for escort slots, behind and to the sides.
+pub fn escort_slot(k: u8) -> Vec3 {
+    let side = if k % 2 == 0 { -1.0 } else { 1.0 };
+    let row = (k / 2) as f32;
+    Vec3::new(side * (0.9 + row * 0.5), 0.25 - row * 0.2, 0.6 + row * 0.6)
 }
 
 pub struct Fleet {
@@ -311,6 +377,11 @@ impl Game {
     }
 
     pub fn disconnect(&mut self, conn: ConnId) {
+        if let Some(pid) = self.sessions.get(&conn).and_then(|s| s.player)
+            && self.conn_of.get(&pid) == Some(&conn)
+        {
+            self.despawn_escorts(pid);
+        }
         if let Some(s) = self.sessions.remove(&conn) {
             if let Some(pid) = s.player {
                 if self.conn_of.get(&pid) == Some(&conn) {
@@ -370,6 +441,7 @@ impl Game {
         if let Some(p) = acc.profile {
             self.spawn_player(pid, p.last_system, true);
             self.broadcast_fleet(pid);
+            self.send_alliances(pid);
         }
     }
 
@@ -417,7 +489,8 @@ impl Game {
     pub fn spawn_player(&mut self, pid: PlayerId, system: SystemId, docked: bool) {
         let Some(conn) = self.conn_of.get(&pid).copied() else { return };
         let prof = self.store.profile(pid).unwrap().clone();
-        // Remove an old entity if any.
+        // Remove an old entity (and its escorts) if any.
+        self.despawn_escorts(pid);
         if let Some(s) = self.sessions.get(&conn)
             && let Some(e) = s.entity
             && let Some(sys) = self.systems.get_mut(&s.system)
@@ -427,38 +500,19 @@ impl Game {
         let id = self.alloc_entity();
         let layout = &self.systems[&system].layout;
         let station = layout.station;
-        let pos = if docked { station + Vec3::new(0.0, -40.0, 60.0) } else { layout.jump_point };
         let stats = prof.ship.stats();
-        let fleet = self.fleet_of(pid);
-        let ent = Ent {
-            id,
-            kind: EntityKind::Player,
-            name: format!("{} 「{}」", prof.name, prof.ship.name),
-            owner: Some(pid),
-            hull_class: Some(prof.ship.hull),
-            rank: prof.ship.rank(),
-            livery: prof.ship.livery,
-            pos,
-            rot: Quat::from_rotation_y(std::f32::consts::PI),
-            vel: Vec3::ZERO,
-            stats,
-            hull: stats.max_hull,
-            shield: stats.max_shield,
-            last_hit: -100.0,
-            fire_cd: 0.0,
-            missile_cd: 0.0,
-            controls: Controls::default(),
-            target: None,
-            fleet,
-            wanted: prof.bounty > 0,
-            mining: None,
-            mine_acc: 0.0,
-            docked,
-            ai: None,
-            missile: None,
-            attackers: vec![],
-            dead: false,
-        };
+        // Big ships park further out from the station.
+        let pos = if docked { station + Vec3::new(0.0, -40.0, 60.0 + stats.radius) } else { layout.jump_point };
+        let mut ent = Ent::base(id, EntityKind::Player, self.display_name(pid), stats, pos, Quat::from_rotation_y(std::f32::consts::PI));
+        ent.owner = Some(pid);
+        ent.hull_class = Some(prof.ship.hull);
+        ent.rank = prof.ship.rank();
+        ent.livery = prof.ship.livery;
+        ent.fleet = self.fleet_of(pid);
+        ent.alliance = self.alliance_of(pid);
+        ent.class = Some(prof.ship.size_class());
+        ent.wanted = prof.bounty > 0;
+        ent.docked = docked;
         self.systems.get_mut(&system).unwrap().ents.insert(id, ent);
         {
             let s = self.sessions.get_mut(&conn).unwrap();
@@ -474,43 +528,97 @@ impl Game {
         self.send(conn, ServerMsg::EnterSystem { system, you: id });
         let scanned: Vec<u32> = prof.scanned.iter().filter(|(s, _)| *s == system).map(|(_, p)| *p).collect();
         self.send(conn, ServerMsg::Scanned { pois: scanned });
+        if !docked {
+            self.spawn_escorts(pid);
+        }
         self.progress(pid, Progress::Visited(system));
         self.scenario_on_enter(pid);
     }
 
+    /// "[TAG] name 「ship」" — the alliance tag is part of how others see you.
+    pub fn display_name(&self, pid: PlayerId) -> String {
+        let p = self.store.profile(pid).unwrap();
+        match self.alliance_of(pid).and_then(|a| self.alliance(a)) {
+            Some(a) => format!("[{}] {} 「{}」", a.tag, p.name, p.ship.name),
+            None => format!("{} 「{}」", p.name, p.ship.name),
+        }
+    }
+
+    pub fn alliance(&self, id: AllianceId) -> Option<&crate::store::Alliance> {
+        self.store.data.alliances.iter().find(|a| a.id == id)
+    }
+
+    pub fn alliance_of(&self, pid: PlayerId) -> Option<AllianceId> {
+        self.store.data.alliances.iter().find(|a| a.members.contains(&pid)).map(|a| a.id)
+    }
+
+    pub fn at_war(&self, a: Option<AllianceId>, b: Option<AllianceId>) -> bool {
+        match (a, b) {
+            (Some(a), Some(b)) if a != b => self.alliance(a).is_some_and(|x| x.wars.contains(&b)),
+            _ => false,
+        }
+    }
+
+    /// Escort squadron flying with a cruiser/capital flagship.
+    pub fn spawn_escorts(&mut self, pid: PlayerId) {
+        self.despawn_escorts(pid);
+        let Some((sys, eid)) = self.player_entity(pid) else { return };
+        let Some(flag) = self.ent(sys, eid).cloned() else { return };
+        if flag.docked {
+            return;
+        }
+        let n = flag.stats.escorts;
+        let prof = self.store.profile(pid).unwrap().clone();
+        let mut ids = vec![];
+        for k in 0..n {
+            let id = self.alloc_entity();
+            let mut st = Stats {
+                max_hull: flag.stats.max_hull * 0.12,
+                max_shield: flag.stats.max_shield * 0.12,
+                shield_regen: flag.stats.shield_regen * 0.12,
+                speed: (flag.stats.speed * 1.35).max(80.0),
+                accel: (flag.stats.accel * 2.0).max(60.0),
+                turn: 1.6,
+                damage: flag.stats.damage * 0.9,
+                fire_interval: 0.45,
+                weapon_range: (flag.stats.weapon_range * 0.6).max(500.0),
+                radius: (flag.stats.radius * 0.09).clamp(10.0, 32.0),
+                ..Default::default()
+            };
+            st.turrets = 0;
+            let off = escort_slot(k) * flag.stats.radius * 1.6;
+            let mut e = Ent::base(id, EntityKind::Escort, format!("{} 호위함 {}", prof.ship.name, k + 1), st, flag.pos + flag.rot * off, flag.rot);
+            e.owner = Some(pid);
+            e.hull_class = Some(prof.ship.hull);
+            e.rank = 2;
+            e.livery = prof.ship.livery;
+            e.fleet = flag.fleet;
+            e.alliance = flag.alliance;
+            e.class = Some(shared::ships::SizeClass::Small);
+            e.ai = Some(Ai { archetype: NpcArchetype::Raider, level: 0, home: flag.pos, target: None, scenario_owner: None, think_cd: 0.0, orbit_sign: if k % 2 == 0 { 1.0 } else { -1.0 }, escort_of: Some(pid), slot: k });
+            self.systems.get_mut(&sys).unwrap().ents.insert(id, e);
+            ids.push(id);
+        }
+        if let Some(c) = self.conn_of.get(&pid).copied() {
+            self.sessions.get_mut(&c).unwrap().escorts = ids;
+        }
+    }
+
+    pub fn despawn_escorts(&mut self, pid: PlayerId) {
+        let Some(c) = self.conn_of.get(&pid).copied() else { return };
+        let Some(s) = self.sessions.get_mut(&c) else { return };
+        let ids = std::mem::take(&mut s.escorts);
+        for sys in self.systems.values_mut() {
+            for id in &ids {
+                sys.ents.remove(id);
+            }
+        }
+    }
+
     pub fn spawn_wreck_entity(&mut self, sys: SystemId, pos: Vec3, name: String, stored: usize) -> EntityId {
         let id = self.alloc_entity();
-        let mut s = shared::ships::Ship::new(String::new(), shared::ships::HullClass::Wren, 0).stats();
-        s.radius = 14.0;
-        let ent = Ent {
-            id,
-            kind: EntityKind::Wreck,
-            name,
-            owner: None,
-            hull_class: None,
-            rank: 0,
-            livery: 0,
-            pos,
-            rot: Quat::from_rotation_z((id as f32) * 0.7),
-            vel: Vec3::ZERO,
-            stats: s,
-            hull: 0.0,
-            shield: 0.0,
-            last_hit: 0.0,
-            fire_cd: 0.0,
-            missile_cd: 0.0,
-            controls: Controls::default(),
-            target: None,
-            fleet: None,
-            wanted: false,
-            mining: None,
-            mine_acc: 0.0,
-            docked: false,
-            ai: None,
-            missile: None,
-            attackers: vec![],
-            dead: false,
-        };
+        let st = Stats { radius: 14.0, ..Default::default() };
+        let ent = Ent::base(id, EntityKind::Wreck, name, st, pos, Quat::from_rotation_z((id as f32) * 0.7));
         let sysm = self.systems.get_mut(&sys).unwrap();
         sysm.ents.insert(id, ent);
         sysm.wrecks.insert(id, stored);
@@ -520,6 +628,13 @@ impl Game {
     pub fn spawn_npc(&mut self, sys: SystemId, arch: NpcArchetype, level: u8, pos: Vec3, scenario_owner: Option<PlayerId>) -> EntityId {
         let id = self.alloc_entity();
         let (hull, shield, damage, interval, speed, radius) = arch.stats(level);
+        let weapon_range = 520.0 + radius * 4.0;
+        // Warlords and Sentinels are capital ships: they carry turret batteries too.
+        let turrets = match arch {
+            NpcArchetype::Warlord => 6,
+            NpcArchetype::Sentinel => 12,
+            _ => 0,
+        };
         let stats = Stats {
             max_hull: hull,
             max_shield: shield,
@@ -527,48 +642,23 @@ impl Game {
             speed,
             accel: speed * 0.8,
             turn: if radius > 25.0 { 0.7 } else { 1.6 },
-            warp_range: 0.0,
             damage,
             fire_interval: interval,
-            weapon_range: 520.0 + radius * 4.0,
-            missile_damage: 0.0,
+            weapon_range,
             missile_cooldown: 99.0,
-            scan_range: 0.0,
-            scan_time: 0.0,
-            mine_rate: 0.0,
-            cargo: 0.0,
             radius,
+            turrets,
+            turret_damage: damage * 0.5,
+            turret_interval: 1.1,
+            turret_range: weapon_range * 1.2,
+            ..Default::default()
         };
         let r = (id as f32 * 1.618).fract();
-        let ent = Ent {
-            id,
-            kind: EntityKind::Npc(arch),
-            name: format!("{} Lv{}", arch.name(), level),
-            owner: None,
-            hull_class: None,
-            rank: level,
-            livery: 7,
-            pos,
-            rot: Quat::from_rotation_y(r * std::f32::consts::TAU),
-            vel: Vec3::ZERO,
-            stats,
-            hull,
-            shield,
-            last_hit: -100.0,
-            fire_cd: 1.0 + r,
-            missile_cd: 0.0,
-            controls: Controls::default(),
-            target: None,
-            fleet: None,
-            wanted: false,
-            mining: None,
-            mine_acc: 0.0,
-            docked: false,
-            ai: Some(Ai { archetype: arch, level, home: pos, target: None, scenario_owner, think_cd: 0.0, orbit_sign: if r > 0.5 { 1.0 } else { -1.0 } }),
-            missile: None,
-            attackers: vec![],
-            dead: false,
-        };
+        let mut ent = Ent::base(id, EntityKind::Npc(arch), format!("{} Lv{}", arch.name(), level), stats, pos, Quat::from_rotation_y(r * std::f32::consts::TAU));
+        ent.rank = level;
+        ent.livery = 7;
+        ent.fire_cd = 1.0 + r;
+        ent.ai = Some(Ai { archetype: arch, level, home: pos, target: None, scenario_owner, think_cd: 0.0, orbit_sign: if r > 0.5 { 1.0 } else { -1.0 }, escort_of: None, slot: 0 });
         self.systems.get_mut(&sys).unwrap().ents.insert(id, ent);
         id
     }

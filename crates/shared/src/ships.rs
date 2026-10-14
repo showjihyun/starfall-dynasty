@@ -239,29 +239,52 @@ impl Ship {
         RANKS[self.rank() as usize]
     }
 
+    /// The growth line: a small fighter, then a cruiser, then a capital warship.
+    pub fn size_class(&self) -> SizeClass {
+        SizeClass::of_rank(self.rank())
+    }
+
     pub fn stats(&self) -> Stats {
         let b = self.hull.base();
         let lv = |m: Module| (self.level(m) as f32 - 1.0).max(0.0);
         let engine = 1.0 + 0.07 * lv(Module::Engine);
         let reactor = lv(Module::Reactor);
+        let rank = self.rank() as f32;
+        let class = self.size_class();
+        let k = class.scaling(rank);
+        let damage = b.damage * (1.0 + 0.14 * lv(Module::Weapons));
+        let weapon_range = b.weapon_range * (1.0 + 0.03 * lv(Module::Weapons)) * k.range;
+        let (turrets, main_mult, main_interval, escorts) = match class {
+            SizeClass::Small => (0, 0.0, 0.0, 0),
+            SizeClass::Cruiser => (4 + (rank as u8 - 3), 6.0, 5.0, 1 + (rank as u8 >= 5) as u8),
+            SizeClass::Capital => (10 + 2 * (rank as u8 - 7), 14.0, 6.0, 3 + (rank as u8 - 7) / 2),
+        };
         Stats {
-            max_hull: b.hull * (1.0 + 0.15 * lv(Module::Hull)),
-            max_shield: b.shield * (1.0 + 0.18 * lv(Module::Shield)),
-            shield_regen: b.shield * (0.06 + 0.012 * reactor),
-            speed: b.speed * engine,
-            accel: b.accel * engine,
-            turn: b.turn * (1.0 + 0.05 * lv(Module::Engine)),
+            max_hull: b.hull * (1.0 + 0.15 * lv(Module::Hull)) * k.hp,
+            max_shield: b.shield * (1.0 + 0.18 * lv(Module::Shield)) * k.hp,
+            shield_regen: b.shield * (0.06 + 0.012 * reactor) * k.hp,
+            speed: b.speed * engine * k.speed,
+            accel: b.accel * engine * k.accel,
+            turn: b.turn * (1.0 + 0.05 * lv(Module::Engine)) * k.turn,
             warp_range: b.warp + 0.55 * lv(Module::WarpCore),
-            damage: b.damage * (1.0 + 0.14 * lv(Module::Weapons)),
+            damage,
             fire_interval: b.fire_interval / (1.0 + 0.05 * reactor),
-            weapon_range: b.weapon_range * (1.0 + 0.03 * lv(Module::Weapons)),
-            missile_damage: b.missile_damage * (1.0 + 0.14 * lv(Module::Weapons)),
+            weapon_range,
+            missile_damage: b.missile_damage * (1.0 + 0.14 * lv(Module::Weapons)) * k.hp.sqrt(),
             missile_cooldown: 7.0 / (1.0 + 0.04 * reactor),
-            scan_range: b.scan_range * (1.0 + 0.12 * lv(Module::Scanner)),
+            scan_range: b.scan_range * (1.0 + 0.12 * lv(Module::Scanner)) * k.range,
             scan_time: 4.0 / (1.0 + 0.1 * lv(Module::Scanner)),
-            mine_rate: b.mine_rate * (1.0 + 0.1 * lv(Module::Scanner)),
-            cargo: b.cargo * (1.0 + 0.25 * lv(Module::Cargo)),
-            radius: b.radius * (1.0 + 0.04 * self.rank() as f32),
+            mine_rate: b.mine_rate * (1.0 + 0.1 * lv(Module::Scanner)) * k.hp.sqrt(),
+            cargo: b.cargo * (1.0 + 0.25 * lv(Module::Cargo)) * k.hp.sqrt(),
+            radius: b.radius * k.size,
+            turrets,
+            turret_damage: damage * 0.7,
+            turret_interval: 0.9 / (1.0 + 0.05 * reactor),
+            turret_range: weapon_range * 1.15,
+            main_damage: damage * main_mult,
+            main_interval,
+            main_range: weapon_range * 1.8,
+            escorts,
         }
     }
 
@@ -276,7 +299,53 @@ pub const RANKS: [&str; 11] = [
     "Scout", "Courier", "Corvette", "Frigate", "Destroyer", "Cruiser", "Battlecruiser", "Battleship", "Dreadnought", "Titan", "Leviathan",
 ];
 
-#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum SizeClass {
+    /// Rank 0–2: one-person fighter. Forward guns, nimble.
+    Small,
+    /// Rank 3–6: cruiser. Turret batteries, bow cannon, first escort.
+    Cruiser,
+    /// Rank 7–10: capital warship. Main beam battery, many turrets, an escort squadron.
+    Capital,
+}
+
+pub struct ClassScaling {
+    pub size: f32,
+    pub hp: f32,
+    pub speed: f32,
+    pub accel: f32,
+    pub turn: f32,
+    pub range: f32,
+}
+
+impl SizeClass {
+    pub fn of_rank(rank: u8) -> SizeClass {
+        match rank {
+            0..=2 => SizeClass::Small,
+            3..=6 => SizeClass::Cruiser,
+            _ => SizeClass::Capital,
+        }
+    }
+
+    pub fn name(self) -> &'static str {
+        match self {
+            SizeClass::Small => "소형함",
+            SizeClass::Cruiser => "순양함",
+            SizeClass::Capital => "주력함",
+        }
+    }
+
+    /// Bigger ships are vastly tougher and reach further, but turn like mountains.
+    pub fn scaling(self, rank: f32) -> ClassScaling {
+        match self {
+            SizeClass::Small => ClassScaling { size: 1.0 + 0.1 * rank, hp: 1.0, speed: 1.0, accel: 1.0, turn: 1.0, range: 1.0 },
+            SizeClass::Cruiser => ClassScaling { size: 5.5 + 0.7 * (rank - 3.0), hp: 3.0 + 0.4 * (rank - 3.0), speed: 0.72, accel: 0.55, turn: 0.42, range: 1.5 },
+            SizeClass::Capital => ClassScaling { size: 15.0 + 1.5 * (rank - 7.0), hp: 8.0 + 1.2 * (rank - 7.0), speed: 0.55, accel: 0.32, turn: 0.2, range: 2.2 },
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize)]
 pub struct Stats {
     pub max_hull: f32,
     pub max_shield: f32,
@@ -295,6 +364,28 @@ pub struct Stats {
     pub mine_rate: f32,
     pub cargo: f32,
     pub radius: f32,
+    /// Auto-aiming turret batteries (cruisers and capitals).
+    pub turrets: u8,
+    pub turret_damage: f32,
+    pub turret_interval: f32,
+    pub turret_range: f32,
+    /// Bow main-gun volley (0 = none).
+    pub main_damage: f32,
+    pub main_interval: f32,
+    pub main_range: f32,
+    /// Escort ships that fly in formation.
+    pub escorts: u8,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum WeaponKind {
+    /// Forward pulse lasers (fighters).
+    Laser,
+    /// Turret battery cannon.
+    Pulse,
+    /// Bow main-gun beam volley.
+    MainBeam,
+    Missile,
 }
 
 #[cfg(test)]
@@ -329,6 +420,30 @@ mod tests {
                 prev = c;
             }
         }
+    }
+
+    #[test]
+    fn ship_grows_from_fighter_to_capital() {
+        let mut s = Ship::new("A".into(), HullClass::Bastion, 0);
+        let small = s.stats();
+        assert_eq!(s.size_class(), SizeClass::Small);
+        assert_eq!(small.turrets, 0);
+        for m in Module::ALL {
+            s.modules.insert(m, 5);
+        }
+        assert_eq!(s.size_class(), SizeClass::Cruiser);
+        let cruiser = s.stats();
+        for m in Module::ALL {
+            s.modules.insert(m, 9);
+        }
+        assert_eq!(s.size_class(), SizeClass::Capital);
+        let cap = s.stats();
+        assert!(cruiser.radius > small.radius * 4.0 && cap.radius > cruiser.radius * 2.0);
+        assert!(cap.max_hull > cruiser.max_hull * 2.0);
+        assert!(cap.turn < cruiser.turn && cruiser.turn < small.turn);
+        assert!(cap.turrets >= 10 && cap.main_damage > 0.0 && cap.escorts >= 3);
+        // A capital ship length lands in the hundreds of metres.
+        assert!(cap.radius * 2.2 > 400.0, "len {}", cap.radius * 2.2);
     }
 
     #[test]

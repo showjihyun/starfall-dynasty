@@ -4,7 +4,7 @@
 use crate::chronicle::{BioEntry, Evidence, EventId, Headline, HistoricalEvent};
 use crate::galaxy::{Ore, Species, SystemId};
 use crate::missions::{DailyMission, NpcArchetype};
-use crate::ships::{HullClass, Materials, Module, Ship};
+use crate::ships::{HullClass, Materials, Module, Ship, SizeClass, WeaponKind};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
@@ -15,6 +15,7 @@ pub const TICK_HZ: f32 = 20.0;
 pub type EntityId = u32;
 pub type PlayerId = u64;
 pub type FleetId = u32;
+pub type AllianceId = u32;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Profession {
@@ -90,6 +91,14 @@ pub enum ClientMsg {
     RequestBiography { name: String },
     PublishResearch { event: EventId, thesis: String, cite: Vec<u64> },
     DisputeResearch { event: EventId, author: String },
+    AllianceCreate { name: String, tag: String },
+    AllianceInvite { name: String },
+    AllianceAccept { alliance: AllianceId },
+    AllianceLeave,
+    AllianceDeclareWar { target: AllianceId },
+    AlliancePeace { target: AllianceId },
+    RequestAlliances,
+    EscortCommand { attack: bool },
     Ping { t: f64 },
 }
 
@@ -138,6 +147,8 @@ impl Profile {
 pub enum EntityKind {
     Player,
     Npc(NpcArchetype),
+    /// Friendly escort flying with a player's flagship (`owner`).
+    Escort,
     Missile,
     Wreck,
 }
@@ -162,16 +173,32 @@ pub struct EntityState {
     pub mining: Option<u32>,
     pub docked: bool,
     pub owner: Option<PlayerId>,
+    #[serde(default)]
+    pub alliance: Option<AllianceId>,
+    /// Size class drives the model tier (fighter / cruiser / capital).
+    #[serde(default)]
+    pub class: Option<SizeClass>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum Fx {
-    Laser { from: EntityId, to: EntityId, hit: bool },
+    /// `to == 0` means a miss along the barrel. `mount` picks the muzzle/turret on the model.
+    Shot { from: EntityId, to: EntityId, weapon: WeaponKind, mount: u8, hit: bool },
     MissileLaunch { from: EntityId, missile: EntityId },
     Explosion { pos: [f32; 3], size: f32 },
     ShieldHit { entity: EntityId, dir: [f32; 3] },
     WarpOut { entity: EntityId },
     WarpIn { entity: EntityId },
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct AllianceInfo {
+    pub id: AllianceId,
+    pub name: String,
+    pub tag: String,
+    pub leader: String,
+    pub members: Vec<String>,
+    pub wars: Vec<AllianceId>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -202,6 +229,8 @@ pub enum ServerMsg {
     Fleet { id: Option<FleetId>, members: Vec<FleetMember> },
     Engagement { active: bool, sides: Vec<String> },
     Chat { from: String, text: String },
+    AllianceInvite { from: String, alliance: AllianceId, name: String },
+    Alliances { mine: Option<AllianceId>, list: Vec<AllianceInfo> },
     Pong { t: f64 },
 }
 

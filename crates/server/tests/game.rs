@@ -363,3 +363,142 @@ fn persistence_roundtrip() {
     assert!(!g.history.biography("Arin").is_empty());
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// Give a player a ship upgraded to all modules at `lvl` and respawn it undocked in `sys`.
+fn grow(g: &mut Game, conn: ConnId, lvl: u8, sys: u16) {
+    let pid = g.sessions[&conn].player.unwrap();
+    {
+        let p = g.store.profile_mut(pid).unwrap();
+        for m in Module::ALL {
+            p.ship.modules.insert(m, lvl);
+        }
+    }
+    g.spawn_player(pid, sys, false);
+}
+
+#[test]
+fn capital_ship_turrets_fight_all_around_and_escorts_follow() {
+    use shared::ships::SizeClass;
+    let mut g = game();
+    let pid = join(&mut g, 1, "Reinhard", Species::Human, HullClass::Bastion, Profession::CombatPilot);
+    grow(&mut g, 1, 9, 3);
+    clear_npcs(&mut g, 3);
+    let (s, me) = ent_of(&g, 1);
+    let flag = g.ent(s, me).unwrap().clone();
+    assert_eq!(flag.class, Some(SizeClass::Capital));
+    assert!(flag.stats.radius * 2.2 > 400.0, "capital ship is hundreds of metres long");
+    let escorts = g.sessions[&1].escorts.clone();
+    assert_eq!(escorts.len() as u8, flag.stats.escorts);
+    assert!(escorts.iter().all(|e| g.ent(s, *e).is_some_and(|x| x.kind == EntityKind::Escort && x.owner == Some(pid))));
+    // A pirate sits BEHIND the flagship: fighter lasers couldn't hit it, turrets can.
+    let behind = flag.pos - flag.forward() * (flag.stats.radius + 400.0);
+    let pirate = g.spawn_npc(3, NpcArchetype::Gunship, 1, behind, None);
+    g.ent_mut(s, me).unwrap().target = Some(pirate);
+    for _ in 0..600 {
+        g.tick(DT, T0);
+        if g.ent(3, pirate).is_none() {
+            break;
+        }
+    }
+    assert!(g.ent(3, pirate).is_none(), "turret batteries destroyed a target behind the ship");
+    assert!(g.out.iter().any(|(_, m)| matches!(m, ServerMsg::Fx(v) if v.iter().any(|f| matches!(f, Fx::Shot { weapon: shared::ships::WeaponKind::Pulse, .. })))));
+    assert_eq!(g.store.profile(pid).unwrap().kills, 1);
+    // Main gun: trigger with a target dead ahead fires a beam volley.
+    let ahead = flag.pos + flag.forward() * (flag.stats.radius + 900.0);
+    let p2 = g.spawn_npc(3, NpcArchetype::Raider, 0, ahead, None);
+    g.ent_mut(s, me).unwrap().target = Some(p2);
+    g.out.clear();
+    g.handle(1, ClientMsg::Controls(Controls { fire: true, ..Default::default() }));
+    run(&mut g, 2.0);
+    assert!(g.out.iter().any(|(_, m)| matches!(m, ServerMsg::Fx(v) if v.iter().any(|f| matches!(f, Fx::Shot { weapon: shared::ships::WeaponKind::MainBeam, .. })))));
+    // Escorts follow the flagship when it moves.
+    g.handle(1, ClientMsg::Controls(Controls { thrust: 1.0, ..Default::default() }));
+    run(&mut g, 20.0);
+    let fpos = g.ent(s, me).unwrap().pos;
+    let r = g.ent(s, me).unwrap().stats.radius;
+    for e in g.sessions[&1].escorts.clone() {
+        let d = g.ent(s, e).unwrap().pos.distance(fpos);
+        assert!(d < r * 6.0, "escort kept formation ({d} vs radius {r})");
+    }
+}
+
+#[test]
+fn fighter_has_no_turrets_and_docking_scales_with_size() {
+    let mut g = game();
+    join(&mut g, 1, "Yang", Species::Human, HullClass::Talon, Profession::CombatPilot);
+    grow(&mut g, 1, 5, 0);
+    let (s, me) = ent_of(&g, 1);
+    let e = g.ent(s, me).unwrap().clone();
+    assert_eq!(e.class, Some(shared::ships::SizeClass::Cruiser));
+    assert!(!e.turret_cds.is_empty());
+    // A cruiser is too big to get within the small-ship docking radius of the hub, but can still dock.
+    let station = g.systems[&0].layout.station;
+    place(&mut g, 1, station + Vec3::X * (shared::galaxy::DOCK_RANGE + e.stats.radius), station);
+    g.handle(1, ClientMsg::Dock);
+    assert!(g.ent(s, me).unwrap().docked);
+    assert!(g.sessions[&1].escorts.is_empty(), "escorts stand down while docked");
+}
+
+#[test]
+fn alliances_share_colours_and_wars_open_frontier_space() {
+    let mut g = game();
+    let a = join(&mut g, 1, "Yang", Species::Human, HullClass::Talon, Profession::CombatPilot);
+    let a2 = join(&mut g, 2, "Julian", Species::Human, HullClass::Wren, Profession::CombatPilot);
+    let b = join(&mut g, 3, "Reinhard", Species::Kharz, HullClass::Bastion, Profession::CombatPilot);
+    g.handle(1, ClientMsg::AllianceCreate { name: "Free Planets".into(), tag: "FPA".into() });
+    g.handle(3, ClientMsg::AllianceCreate { name: "Galactic Empire".into(), tag: "EMP".into() });
+    let fpa = g.alliance_of(a).unwrap();
+    let emp = g.alliance_of(b).unwrap();
+    g.handle(1, ClientMsg::AllianceInvite { name: "Julian".into() });
+    g.handle(2, ClientMsg::AllianceAccept { alliance: fpa });
+    assert_eq!(g.alliance_of(a2), Some(fpa));
+    assert!(g.history.events.iter().any(|e| e.kind == "ALLIANCE"));
+
+    for c in [1, 2, 3] {
+        move_to_system(&mut g, c, 3); // Orion Drift: Frontier, normally no PvP
+    }
+    clear_npcs(&mut g, 3);
+    let (_, ea) = ent_of(&g, 1);
+    let (_, ea2) = ent_of(&g, 2);
+    let (_, eb) = ent_of(&g, 3);
+    assert!(g.ent(3, ea).unwrap().name.starts_with("[FPA]"));
+    assert!(!g.can_damage(3, ea, eb), "no PvP in Frontier at peace");
+    // Only the leader may declare war.
+    g.handle(2, ClientMsg::AllianceDeclareWar { target: emp });
+    assert!(!g.at_war(Some(fpa), Some(emp)));
+    g.handle(1, ClientMsg::AllianceDeclareWar { target: emp });
+    assert!(g.at_war(Some(fpa), Some(emp)) && g.at_war(Some(emp), Some(fpa)));
+    assert!(g.history.events.iter().any(|e| e.kind == "WAR"));
+    assert!(g.can_damage(3, ea, eb), "war opens Frontier space");
+    assert!(!g.can_damage(3, ea, ea2), "allies never hurt each other");
+    // Core space stays safe even at war.
+    for c in [1, 3] {
+        move_to_system(&mut g, c, 0);
+    }
+    let (_, ea) = ent_of(&g, 1);
+    let (_, eb) = ent_of(&g, 3);
+    assert!(!g.can_damage(0, ea, eb));
+
+    // An alliance battle in Wild space is no crime, and is recorded with alliance names.
+    for c in [1, 3] {
+        move_to_system(&mut g, c, 5);
+    }
+    clear_npcs(&mut g, 5);
+    let (_, ea) = ent_of(&g, 1);
+    let (_, eb) = ent_of(&g, 3);
+    for _ in 0..200 {
+        if g.ent(5, eb).is_none() {
+            break;
+        }
+        g.apply_damage(5, ea, eb, 80.0);
+        g.tick(DT, T0);
+    }
+    assert_eq!(g.store.profile(a).unwrap().bounty, 0, "war is not a crime");
+    run(&mut g, 21.0);
+    let battle = g.history.events.iter().find(|e| e.kind == "BATTLE").expect("battle");
+    assert!(battle.summary.contains("[FPA]") && battle.summary.contains("[EMP]"), "{}", battle.summary);
+
+    g.handle(1, ClientMsg::AlliancePeace { target: emp });
+    assert!(!g.at_war(Some(fpa), Some(emp)));
+    assert!(g.history.events.iter().any(|e| e.kind == "PEACE"));
+}

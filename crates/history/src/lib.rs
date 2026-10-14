@@ -35,6 +35,9 @@ pub enum DomainEvent {
     WreckInvestigated { investigator: String, event: EventId, found: u32 },
     ResearchPublished { author: String, event: EventId, thesis: String, cited: Vec<u64>, historian: bool },
     ResearchDisputed { disputer: String, author: String, event: EventId },
+    AllianceFounded { alliance: String, founder: String },
+    WarDeclared { aggressor: String, target: String, by: String },
+    PeaceMade { a: String, b: String, by: String },
 }
 
 #[derive(Serialize, Deserialize)]
@@ -132,6 +135,7 @@ impl HistoryEngine {
 
     pub fn apply(&mut self, unix: u64, ev: DomainEvent) -> Option<EventId> {
         match ev {
+            ev @ (DomainEvent::AllianceFounded { .. } | DomainEvent::WarDeclared { .. } | DomainEvent::PeaceMade { .. }) => self.apply_diplomacy(unix, ev),
             DomainEvent::PlayerFounded { player, species, ship, hull } => {
                 self.bio(&player, unix, format!("{species} 출신 함장으로 등록. 평생의 함선 「{ship}」({hull})을 인수했다."), None);
                 self.ship_bio(ship_key(&player, &ship), unix, format!("진수. 함장 {player}. 함급 {hull}."), None);
@@ -337,6 +341,32 @@ impl HistoryEngine {
         }
     }
 
+    fn apply_diplomacy(&mut self, unix: u64, ev: DomainEvent) -> Option<EventId> {
+        match ev {
+            DomainEvent::AllianceFounded { alliance, founder } => {
+                let id = self.push_event(unix, 0, "ALLIANCE", format!("{alliance} 결성"), format!("{founder}이(가) 동맹 「{alliance}」을(를) 창설했다."), vec![founder.clone()], vec![], Importance::Notable, vec![]);
+                let e = self.add_evidence(id, EvidenceKind::KharzContract, &format!("{alliance} 창립 서약"), format!("「{alliance}」의 깃발 아래 서로를 쏘지 않으며, 적을 함께 맞는다."), 0.9);
+                self.attach(id, vec![e]);
+                self.bio(&founder, unix, format!("동맹 「{alliance}」을(를) 창설했다."), Some(id));
+                Some(id)
+            }
+            DomainEvent::WarDeclared { aggressor, target, by } => {
+                let id = self.push_event(unix, 0, "WAR", format!("{aggressor}, {target}에 선전포고"), format!("{by}의 이름으로 「{aggressor}」이(가) 「{target}」에 전쟁을 선포했다. 이제 두 동맹의 함대는 어디서든 서로를 노린다."), vec![by.clone()], vec![], Importance::Major, vec![]);
+                let e = self.add_evidence(id, EvidenceKind::ArchiveRecord, "은하 공보", format!("{aggressor} 측 선전포고문 공표."), 0.95);
+                self.attach(id, vec![e]);
+                self.bio(&by, unix, format!("「{target}」에 선전포고했다."), Some(id));
+                Some(id)
+            }
+            DomainEvent::PeaceMade { a, b, by } => {
+                let causes: Vec<EventId> = self.events.iter().filter(|e| e.kind == "WAR" && e.title.contains(&a) && e.title.contains(&b)).map(|e| e.id).collect();
+                let id = self.push_event(unix, 0, "PEACE", format!("{a}–{b} 강화"), format!("{by}의 제안으로 「{a}」과(와) 「{b}」 사이의 전쟁이 끝났다."), vec![by.clone()], vec![], Importance::Major, causes);
+                self.bio(&by, unix, format!("「{a}」–「{b}」 강화를 성사시켰다."), Some(id));
+                Some(id)
+            }
+            _ => None,
+        }
+    }
+
     pub fn chronicle(&self, min: Importance, limit: usize) -> Vec<HistoricalEvent> {
         self.events.iter().rev().filter(|e| e.importance >= min).take(limit).cloned().collect()
     }
@@ -393,6 +423,9 @@ impl HistoryEngine {
                 "SCENARIO" => format!("영웅의 귀환: {}", e.title),
                 "CONTROVERSY" => format!("학계 격돌: {}", e.title),
                 "BOSS_DESTROYED" => format!("공포의 종말: {}", e.title),
+                "WAR" => format!("전쟁 발발 — {}", e.title),
+                "PEACE" => format!("포성이 멎다: {}", e.title),
+                "ALLIANCE" => format!("새 깃발: {}", e.title),
                 _ => e.title.clone(),
             };
             let mut body = e.summary.clone();

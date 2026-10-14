@@ -34,9 +34,22 @@ impl Game {
                 {
                     e.docked = false;
                     e.vel = e.forward() * 30.0;
-                    e.pos += e.forward() * 80.0;
+                    let r = e.stats.radius;
+                    e.pos += e.forward() * (80.0 + r);
+                    self.spawn_escorts(pid);
                 }
             }
+            ClientMsg::EscortCommand { attack } => {
+                self.sessions.get_mut(&conn).unwrap().escort_attack = attack;
+                self.toast(pid, if attack { "호위함: 목표를 공격하라!" } else { "호위함: 기함 호위로 복귀" });
+            }
+            ClientMsg::AllianceCreate { name, tag } => self.alliance_create(pid, name, tag),
+            ClientMsg::AllianceInvite { name } => self.alliance_invite(pid, &name),
+            ClientMsg::AllianceAccept { alliance } => self.alliance_accept(conn, pid, alliance),
+            ClientMsg::AllianceLeave => self.alliance_leave(pid),
+            ClientMsg::AllianceDeclareWar { target } => self.alliance_war(pid, target, true),
+            ClientMsg::AlliancePeace { target } => self.alliance_war(pid, target, false),
+            ClientMsg::RequestAlliances => self.send_alliances(pid),
             ClientMsg::Mine { asteroid } => self.mine(pid, sys, eid, asteroid),
             ClientMsg::Scan { poi } => self.start_scan(conn, pid, sys, eid, poi),
             ClientMsg::InvestigateWreck { wreck } => self.investigate(pid, sys, eid, wreck),
@@ -132,35 +145,16 @@ impl Game {
         stats.radius = 2.0;
         stats.speed = 300.0;
         stats.turn = 3.2;
-        let m = Ent {
-            id: mid,
-            kind: EntityKind::Missile,
-            name: "Missile".into(),
-            owner: Some(pid),
-            hull_class: None,
-            rank: 0,
-            livery: 0,
-            pos: pos + fwd * 20.0,
-            rot: self.ent(sys, eid).unwrap().rot,
-            vel: vel + fwd * 120.0,
-            stats,
-            hull: 1.0,
-            shield: 0.0,
-            last_hit: 0.0,
-            fire_cd: 0.0,
-            missile_cd: 0.0,
-            controls: Controls::default(),
-            target: Some(tid),
-            fleet: None,
-            wanted: false,
-            mining: None,
-            mine_acc: 0.0,
-            docked: false,
-            ai: None,
-            missile: Some(Missile { owner: eid, target: tid, damage: dmg * prof_bonus, life: 7.0 }),
-            attackers: vec![],
-            dead: false,
-        };
+        stats.turrets = 0;
+        let radius = self.ent(sys, eid).unwrap().stats.radius;
+        let rot = self.ent(sys, eid).unwrap().rot;
+        let mut m = Ent::base(mid, EntityKind::Missile, "Missile".into(), stats, pos + fwd * (radius + 10.0), rot);
+        m.owner = Some(pid);
+        m.vel = vel + fwd * 120.0;
+        m.hull = 1.0;
+        m.shield = 0.0;
+        m.target = Some(tid);
+        m.missile = Some(Missile { owner: eid, target: tid, damage: dmg * prof_bonus, life: 7.0 });
         self.systems.get_mut(&sys).unwrap().ents.insert(mid, m);
         self.fx(sys, Fx::MissileLaunch { from: eid, missile: mid });
     }
@@ -189,7 +183,7 @@ impl Game {
         let station = self.systems[&sys].layout.station;
         let now = self.now;
         let Some(e) = eid.and_then(|e| self.ent_mut(sys, e)) else { return };
-        if e.pos.distance(station) > DOCK_RANGE + 80.0 {
+        if e.pos.distance(station) > DOCK_RANGE + 80.0 + e.stats.radius {
             return self.toast(pid, "정거장에 더 가까이 접근하세요");
         }
         if now - e.last_hit < COMBAT_LOCK {
@@ -200,6 +194,7 @@ impl Game {
         e.mining = None;
         e.hull = e.stats.max_hull;
         e.shield = e.stats.max_shield;
+        self.despawn_escorts(pid);
         self.toast(pid, "도킹 완료 — 수리 및 재충전되었습니다");
     }
 
@@ -216,7 +211,7 @@ impl Game {
         if e.docked {
             return;
         }
-        if e.pos.distance(a.pos) > MINE_RANGE + a.radius {
+        if e.pos.distance(a.pos) > MINE_RANGE + a.radius + e.stats.radius {
             return self.toast(pid, "채굴 레이저 사거리 밖입니다");
         }
         e.mining = Some(aid);
@@ -376,11 +371,24 @@ impl Game {
             e.hull = hf * e.stats.max_hull;
             e.shield = sf * e.stats.max_shield;
             e.rank = new_rank;
+            e.class = Some(ship.size_class());
+            e.turret_cds.resize(e.stats.turrets as usize, 0.5);
         }
         self.toast(pid, format!("{} Lv{} → Lv{} 업그레이드 완료", module.name(), lvl, lvl + 1));
         if new_rank > old_rank {
+            let old_class = shared::ships::SizeClass::of_rank(old_rank);
+            let class = ship.size_class();
             self.history.record(self.unix, DomainEvent::ShipAscended { player: name, ship: ship_name, designation: designation.clone() });
-            self.toast(pid, format!("함선이 {designation}급으로 진급했습니다!"));
+            if class != old_class {
+                let st = ship.stats();
+                let what = match class {
+                    shared::ships::SizeClass::Cruiser => format!("★ 「{}」이(가) 순양함으로 재건조되었습니다! 포탑 {}문, 함수포, 호위함 {}척", ship.name, st.turrets, st.escorts),
+                    _ => format!("★★ 「{}」이(가) 주력함으로 거듭났습니다! 주포 일제사격, 포탑 {}문, 호위 함대 {}척", ship.name, st.turrets, st.escorts),
+                };
+                self.toast(pid, what);
+            } else {
+                self.toast(pid, format!("함선이 {designation}급으로 진급했습니다!"));
+            }
         }
         self.push_profile(pid);
     }

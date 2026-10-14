@@ -34,6 +34,21 @@ pub struct StoreData {
     pub wrecks: Vec<StoredWreck>,
     /// Accumulated supply per (system, ore) — drives local prices.
     pub supply: Vec<(SystemId, Ore, f32)>,
+    #[serde(default)]
+    pub alliances: Vec<Alliance>,
+    #[serde(default)]
+    pub next_alliance: u32,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Alliance {
+    pub id: u32,
+    pub name: String,
+    pub tag: String,
+    pub leader: PlayerId,
+    pub members: Vec<PlayerId>,
+    /// Alliances this one is at war with (kept symmetric).
+    pub wars: Vec<u32>,
 }
 
 pub struct Store {
