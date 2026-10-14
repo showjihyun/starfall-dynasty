@@ -134,3 +134,33 @@ async fn thirty_concurrent_captains() {
     }
     println!("30 captains, {total} snapshots received");
 }
+
+/// A client that dies without closing the WebSocket (TCP reset) must not leave a ghost ship behind.
+#[tokio::test(flavor = "multi_thread")]
+async fn abrupt_disconnect_leaves_no_ghost() {
+    use futures_util::{SinkExt, StreamExt};
+    use tokio_tungstenite::tungstenite::Message;
+    let port = 7813;
+    let _srv = start_server(port).await;
+    let url = format!("ws://127.0.0.1:{port}");
+    {
+        let tcp = tokio::net::TcpStream::connect(("127.0.0.1", port)).await.unwrap();
+        #[allow(deprecated)] // zero linger is exactly what we want: drop => RST, no close handshake
+        tcp.set_linger(Some(Duration::ZERO)).unwrap();
+        let (mut ws, _) = tokio_tungstenite::client_async(url.clone(), tcp).await.unwrap();
+        ws.send(Message::text(encode(&ClientMsg::Hello { version: PROTOCOL_VERSION, name: "Ghost".into(), token: None }))).await.unwrap();
+        ws.send(Message::text(encode(&ClientMsg::CreateCharacter { species: Species::Human, profession: Profession::Explorer, hull: HullClass::Talon, ship_name: "Phantom".into(), livery: 0 }))).await.unwrap();
+        while let Some(Ok(m)) = ws.next().await {
+            if let Message::Text(t) = m
+                && t.contains("EnterSystem")
+            {
+                break;
+            }
+        }
+    }
+    tokio::time::sleep(Duration::from_millis(500)).await;
+    let mut obs = Bot::connect(&url, "Watcher").await.unwrap();
+    obs.login_and_create(HullClass::Wren, Species::Human, Profession::Explorer).await.unwrap();
+    obs.until(3.0, |m| matches!(m, ServerMsg::Snapshot { .. })).await;
+    assert!(obs.ents.values().all(|e| !e.name.contains("Phantom")), "ghost ship left behind: {:?}", obs.ents.values().map(|e| &e.name).collect::<Vec<_>>());
+}

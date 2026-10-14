@@ -123,7 +123,15 @@ async fn connection(id: ConnId, stream: TcpStream, tx: mpsc::UnboundedSender<Inb
         }
     });
     while let Some(frame) = source.next().await {
-        match frame? {
+        // A reset connection must still reach the game loop as a Close, or the ship stays as a ghost.
+        let frame = match frame {
+            Ok(f) => f,
+            Err(e) => {
+                eprintln!("[conn {id}] closed: {e}");
+                break;
+            }
+        };
+        match frame {
             Message::Text(t) => match decode::<ClientMsg>(&t) {
                 Ok(m) => {
                     tx.send(Inbound::Msg(id, m)).ok();
