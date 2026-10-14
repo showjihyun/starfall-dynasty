@@ -1,2 +1,0 @@
-9f5738dd921c26827c10974ab2a81d3da8f3a702673f3e2a636bb6d72595f61e  server/crates/history/tests/data/golden/mineral-discovery@1.hash.txt
-559348e57607496f1f74dbe90538d17f25a0ede79ee0169a2565838980ba5180  server/crates/history/tests/data/golden/mineral-discovery@1.output.txt

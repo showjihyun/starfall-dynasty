@@ -1,4 +1,0 @@
-ferrosite|floor_band=7|prices=[10,9,8,7,6,5,4,3]|sell(0,band_kg)=20000|sell(0,2*band_kg)=38000
-glacine|floor_band=7|prices=[14,12,11,9,8,7,5,4]|sell(0,band_kg)=21000|sell(0,2*band_kg)=39000
-cobaltine|floor_band=7|prices=[40,36,32,28,24,20,16,12]|sell(0,band_kg)=24000|sell(0,2*band_kg)=45600
-starfall-glass|floor_band=7|prices=[250,225,200,175,150,125,100,75]|sell(0,band_kg)=25000|sell(0,2*band_kg)=47500

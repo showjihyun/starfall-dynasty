@@ -1,2 +1,0 @@
-load rc=124
-DONE

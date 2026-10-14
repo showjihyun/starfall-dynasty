@@ -1,4 +1,0 @@
-798fce4f4c73722cc4bfe64343931eff26c52e312dbbbb2e615e924f107e5d9b  server/crates/sim/tests/data/replay_mining/events.jsonl
-d0bf2c496a4a65871c19fa295090fbfe52b14a0941a64b25e0d023ce3dd43950  server/crates/sim/tests/data/replay_mining/initial.json
-0a80a880144ddd9f5b1db46b1cb4b37266c3e395cd401abdff47ff59ed00f428  server/crates/sim/tests/data/replay_mining/inputs.jsonl
-d6f6c0a23d9d164d1bd3c2038883cbdd65bdfad3e6d7c1b77cec8065650e177e  server/crates/sim/tests/data/replay_mining/snapshots.jsonl

@@ -1,9 +1,0 @@
-{
-  "purpose": "새 월드 (계약 §0.2) — 준비 도구, 판정 아님",
-  "world_id": "01a12574-7e75-70f9-a589-57c81e4c9f39",
-  "insert_sql": "INSERT INTO worlds (world_id, name, tick_hz, calendar_epoch, calendar_scale, sim_version, last_tick) VALUES ('01a12574-7e75-70f9-a589-57c81e4c9f39', 'qa-p1-02-p103-cas-wallet-202610101955', 20, '3800-01-01T00:00:00Z', 60, 1, NULL);",
-  "row": "qa-p1-02-p103-cas-wallet-202610101955|20|3800-01-01T00:00:00Z|60|1|NULL",
-  "domain_events_in_new_world": 0,
-  "empty": true,
-  "env": "STARFALL_WORLD_ID=01a12574-7e75-70f9-a589-57c81e4c9f39"
-}

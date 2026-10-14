@@ -1,9 +1,0 @@
-{
-  "purpose": "새 월드 (계약 §0.2) — 준비 도구, 판정 아님",
-  "world_id": "01a124fb-72e7-7c9d-b711-febc55fe366d",
-  "insert_sql": "INSERT INTO worlds (world_id, name, tick_hz, calendar_epoch, calendar_scale, sim_version, last_tick) VALUES ('01a124fb-72e7-7c9d-b711-febc55fe366d', 'qa-p1-02-r1-sell-backlog-202610101743', 20, '3800-01-01T00:00:00Z', 60, 1, NULL);",
-  "row": "qa-p1-02-r1-sell-backlog-202610101743|20|3800-01-01T00:00:00Z|60|1|NULL",
-  "domain_events_in_new_world": 0,
-  "empty": true,
-  "env": "STARFALL_WORLD_ID=01a124fb-72e7-7c9d-b711-febc55fe366d"
-}

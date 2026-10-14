@@ -1,9 +1,0 @@
-[17:42:40] == freeze
-[17:42:40]   head: rc=0 PASS 0s
-[17:42:40]   porcelain: rc=0 PASS 0s
-[17:42:41]   fp_before: rc=0 PASS 0s
-[17:42:41] == freeze: PASS
-[17:42:41] == db_stop
-[17:42:41] !! 사람 단계 대기: db_stop — DB 정지(docker compose stop/start postgres)를 포함한다. 팀에 DB 정지를 공지하고, 다른 에이전트의 DB 테스트·서버가 돌지 않는지 확인한 뒤 승인한다.
-[17:43:41]   fp_before_db_stop: rc=0 PASS 0s
-[17:43:43]   backlog_new_world: rc=0 PASS 2s
