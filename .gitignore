@@ -1,4 +1,5 @@
 /target
 /data
 *.log
-/screenshots/*.tmp
+/screenshots
+crates/client/spike.png

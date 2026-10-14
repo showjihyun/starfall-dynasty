@@ -2131,6 +2131,13 @@ dependencies = [
 [[package]]
 name = "bot"
 version = "0.1.0"
+dependencies = [
+ "futures-util",
+ "serde_json",
+ "shared",
+ "tokio",
+ "tokio-tungstenite",
+]
 
 [[package]]
 name = "bumpalo"
@@ -2273,6 +2280,12 @@ version = "0.1.0"
 dependencies = [
  "bevy",
  "bevy_egui",
+ "crossbeam-channel",
+ "futures-util",
+ "serde_json",
+ "shared",
+ "tokio",
+ "tokio-tungstenite",
 ]
 
 [[package]]
