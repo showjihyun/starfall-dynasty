@@ -27,9 +27,13 @@ pub struct Visuals {
     pub epoch: u32,
 }
 
+/// Ship models are loaded lazily: a 600 m capital's 4096² textures cost hundreds of MB of VRAM,
+/// so only hulls that actually appear on screen get loaded.
 #[derive(Resource)]
 pub struct Models {
-    pub glb: HashMap<String, Handle<WorldAsset>>,
+    available: std::collections::HashSet<String>,
+    cache: std::sync::Mutex<HashMap<String, Handle<WorldAsset>>>,
+    server: AssetServer,
     pub plume: Handle<Mesh>,
     pub shield: Handle<Mesh>,
 }
@@ -65,6 +69,8 @@ pub struct ShipVis {
     pub bridge: Option<Entity>,
     /// What the turrets are tracking (from the latest turret shots) and when.
     pub aim: Option<(EntityId, f64)>,
+    /// Last values written to (hull, engine, shield) materials.
+    pub sent: (Vec4, Vec2, Vec4),
 }
 
 #[derive(Component)]
@@ -117,7 +123,7 @@ pub fn stage_model(models: &Models, hull: HullClass, class: SizeClass) -> (Strin
         SizeClass::Small => 2,
     };
     for (name, len) in stages[start..].iter() {
-        if models.glb.contains_key(name) {
+        if models.has(name) {
             return (name.clone(), *len);
         }
     }
@@ -148,8 +154,22 @@ pub fn assets_dir() -> std::path::PathBuf {
     std::env::current_exe().ok().and_then(|p| p.parent().map(|d| d.join("assets"))).unwrap_or_else(|| "assets".into())
 }
 
+impl Models {
+    pub fn has(&self, name: &str) -> bool {
+        self.available.contains(name)
+    }
+
+    pub fn handle(&self, name: &str) -> Option<Handle<WorldAsset>> {
+        if !self.has(name) {
+            return None;
+        }
+        let mut c = self.cache.lock().unwrap();
+        Some(c.entry(name.to_string()).or_insert_with(|| self.server.load(GltfAssetLabel::Scene(0).from_asset(format!("models/{name}.glb")))).clone())
+    }
+}
+
 fn load_models(mut commands: Commands, server: Res<AssetServer>, mut meshes: ResMut<Assets<Mesh>>) {
-    let mut glb = HashMap::new();
+    let mut available = std::collections::HashSet::new();
     let mut names: Vec<String> = ["npc_raider", "npc_gunship", "npc_warden", "npc_warlord", "npc_sentinel", "wreck"].iter().map(|s| s.to_string()).collect();
     for h in HullClass::ALL {
         let base = hull_lengths(h).0;
@@ -158,12 +178,20 @@ fn load_models(mut commands: Commands, server: Res<AssetServer>, mut meshes: Res
     for name in names {
         let file = format!("models/{name}.glb");
         if assets_dir().join(&file).exists() {
-            glb.insert(name, server.load(GltfAssetLabel::Scene(0).from_asset(file)));
+            available.insert(name);
         } else {
             warn!("model {file} missing — using procedural fallback");
         }
     }
-    commands.insert_resource(Models { glb, plume: meshes.add(meshes::plume(0.25)), shield: meshes.add(Sphere::new(1.0).mesh().ico(4).unwrap()) });
+    // STARFALL_PRELOAD_ALL=1 restores eager loading (for comparing memory/load time).
+    let preload = std::env::var("STARFALL_PRELOAD_ALL").is_ok();
+    let m = Models { available, cache: Default::default(), server: server.clone(), plume: meshes.add(meshes::plume(0.25)), shield: meshes.add(Sphere::new(1.0).mesh().ico(4).unwrap()) };
+    if preload {
+        for n in m.available.clone() {
+            m.handle(&n);
+        }
+    }
+    commands.insert_resource(m);
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -213,7 +241,10 @@ fn sync_visuals(
                     tf.rotation = rot;
                     // Docked ships vanish into the station; in a fighter's cockpit view our own hull is hidden.
                     let cockpit = Some(*id) == s.me && cam.first_person && v.class == SizeClass::Small;
-                    *visibility = if st2.docked || cockpit { Visibility::Hidden } else { Visibility::Inherited };
+                    let want = if st2.docked || cockpit { Visibility::Hidden } else { Visibility::Inherited };
+                    if *visibility != want {
+                        *visibility = want;
+                    }
                     let max_speed = 140.0;
                     v.throttle = v.throttle + ((speed / max_speed).clamp(0.05, 1.0) - v.throttle) * 0.1;
                     v.boost = if st2.boosting { (v.boost + dt * 3.0).min(1.0) } else { (v.boost - dt * 2.0).max(0.0) };
@@ -269,6 +300,7 @@ fn spawn_visual(
         mains: vec![],
         bridge: None,
         aim: None,
+        sent: (Vec4::splat(-1.0), Vec2::splat(-1.0), Vec4::splat(-1.0)),
     };
     match st.kind {
         EntityKind::Missile => {
@@ -282,9 +314,9 @@ fn spawn_visual(
             });
             root
         }
-        EntityKind::Wreck if models.glb.contains_key("wreck") => {
+        EntityKind::Wreck if models.has("wreck") => {
             let root = commands.spawn((v, tf, Visibility::default())).id();
-            let model = commands.spawn((WorldAssetRoot(models.glb["wreck"].clone()), crate::scene::Spin(Vec3::new(0.01, 0.03, 0.008)), Transform::default())).id();
+            let model = commands.spawn((WorldAssetRoot(models.handle("wreck").unwrap()), crate::scene::Spin(Vec3::new(0.01, 0.03, 0.008)), Transform::default())).id();
             commands.entity(root).add_child(model);
             root
         }
@@ -309,7 +341,7 @@ fn spawn_visual(
         _ => {
             let (name, len) = match (st.kind, st.hull_class) {
                 (EntityKind::Player | EntityKind::Escort, Some(h)) => stage_model(models, h, st.class.unwrap_or(SizeClass::Small)),
-                _ => npc_model(st.kind).filter(|(n, _)| models.glb.contains_key(*n)).map(|(n, l)| (n.to_string(), l)).unwrap_or_else(|| {
+                _ => npc_model(st.kind).filter(|(n, _)| models.has(n)).map(|(n, l)| (n.to_string(), l)).unwrap_or_else(|| {
                     let (n, l) = model_for(st.hull_class, st.kind);
                     (n.to_string(), l)
                 }),
@@ -321,7 +353,7 @@ fn spawn_visual(
             commands.entity(root).with_children(|c| {
                 c.spawn((NotShadowCaster, Mesh3d(models.shield.clone()), MeshMaterial3d(shield), Transform::from_scale(Vec3::new(1.15, 0.7, 1.35) * st.radius)));
             });
-            if let Some(h) = models.glb.get(&name) {
+            if let Some(h) = models.handle(&name) {
                 let model = commands.spawn((WorldAssetRoot(h.clone()), ModelRoot(root), Transform::from_scale(Vec3::splat(scale)))).observe(on_model_ready).id();
                 commands.entity(root).add_child(model);
             } else {
@@ -429,40 +461,50 @@ fn on_model_ready(
 fn update_ship_fx(
     time: Res<Time>,
     s: Res<Session>,
-    mut ships: Query<(&mut ShipVis, &Transform)>,
+    mut ships: Query<&mut ShipVis>,
     mut hull_mats: ResMut<Assets<HullMat>>,
     mut engine_mats: ResMut<Assets<EngineMat>>,
     mut shield_mats: ResMut<Assets<ShieldMat>>,
     mut parts: Query<(&RankPart, &mut Visibility, &ChildOf)>,
     parents: Query<&ChildOf>,
 ) {
+    // Touching a material asset re-uploads its bind group, so only write values that changed.
     let dt = time.delta_secs();
     let Some(latest) = s.latest() else { return };
-    for (mut v, tf) in &mut ships {
+    for mut v in &mut ships {
         let Some(st) = latest.ents.get(&v.id) else { continue };
         v.hit_flash = (v.hit_flash - dt * 4.0).max(0.0);
-        v.hit_age += dt;
-        let damage = 1.0 - st.hull;
-        for h in &v.hull_mats {
-            if let Some(mut m) = hull_mats.get_mut(h) {
-                m.extension.p.state = Vec4::new(damage, v.hit_flash, v.boost, v.seed);
+        if v.hit_age < 3.0 {
+            v.hit_age += dt;
+        }
+        let q = |x: f32, step: f32| (x / step).round() * step;
+        let hull_state = Vec4::new(q(1.0 - st.hull, 0.02), q(v.hit_flash, 0.02), q(v.boost, 0.05), v.seed);
+        if hull_state != v.sent.0 {
+            v.sent.0 = hull_state;
+            for h in &v.hull_mats {
+                if let Some(mut m) = hull_mats.get_mut(h) {
+                    m.extension.p.state = hull_state;
+                }
             }
         }
-        for h in &v.plumes {
-            if let Some(mut m) = engine_mats.get_mut(h) {
-                m.p.color.w = v.throttle;
-                m.p.core.w = v.boost;
+        let engine = Vec2::new(q(v.throttle, 0.05), q(v.boost, 0.05));
+        if engine != v.sent.1 {
+            v.sent.1 = engine;
+            for h in &v.plumes {
+                if let Some(mut m) = engine_mats.get_mut(h) {
+                    m.p.color.w = engine.x;
+                    m.p.core.w = engine.y;
+                }
             }
         }
-        if let Some(h) = &v.shield
+        let shield = Vec4::new(q(st.shield, 0.02), v.hit_dir.x, v.hit_dir.y, if v.hit_age < 3.0 { v.hit_age } else { 3.0 });
+        if shield != v.sent.2
+            && let Some(h) = &v.shield
             && let Some(mut m) = shield_mats.get_mut(h)
         {
-            m.p.color.w = st.shield;
-            m.p.center = tf.translation.extend(v.radius);
-            let local = tf.rotation.inverse() * v.hit_dir;
-            m.p.hit = local.extend(v.hit_age);
-            // Shield direction uniform is compared against world normals in the shader.
-            m.p.hit = v.hit_dir.extend(v.hit_age);
+            v.sent.2 = shield;
+            m.p.color.w = shield.x;
+            m.p.hit = v.hit_dir.extend(shield.w);
         }
     }
     // Rank parts: visible once the ship reaches the part's rank.
@@ -470,7 +512,7 @@ fn update_ship_fx(
         let mut e = parent.parent();
         let mut rank = None;
         for _ in 0..16 {
-            if let Ok((v, _)) = ships.get(e) {
+            if let Ok(v) = ships.get(e) {
                 rank = Some(v.rank);
                 break;
             }
@@ -480,7 +522,10 @@ fn update_ship_fx(
             }
         }
         if let Some(r) = rank {
-            *vis = if r >= part.0 { Visibility::Inherited } else { Visibility::Hidden };
+            let want = if r >= part.0 { Visibility::Inherited } else { Visibility::Hidden };
+            if *vis != want {
+                *vis = want;
+            }
         }
     }
 }

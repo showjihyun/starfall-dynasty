@@ -66,9 +66,29 @@ cargo build -p server && cargo test -p bot
 - `server/tests/game.rs` — 함선 1척 제한, 워프 거리, PvE 보상/일일 진행, PvP 규칙·전투 기록·잔해 조사·연구, 수배·현상금, 함대, 업그레이드 상한, 시나리오 1장 완주, 채굴/시장, 영속화
 - `bot/tests/e2e.rs` — 실제 서버 프로세스에서 두 함장이 3회 워프 후 War Zone에서 교전 → 연대기 확인, 30명 동시 접속
 
-## 사운드
+## 사운드 · 음악
+
+배경음악은 CC0 곡 3개(탐험 2, 전투 1 — 출처는 `crates/client/assets/music/CREDITS.md`)로, 평소엔 성계별 탐험곡, 교전 중엔 전투곡으로 자동 크로스페이드한다. F2 음소거, `-`/`=` 음량.
 
 무기마다 다른 발사음(레이저 / 포탑 포격 / 주포 충전+굉음 / 미사일)과 폭발·실드 피격·워프음이 오디오 파일 없이 런타임에 합성되며, 카메라와의 거리에 따라 감쇠한다.
+
+## 성능
+
+측정 도구:
+
+```
+cargo run -p server --release --example bench 60      서버: 60명 War Zone 난전의 틱 시간·송신량
+client --bench 20                                       클라이언트: 68척 함대전 장면 프레임 시간 (V-Sync 끔)
+client --dump-sfx DIR                                   합성 효과음을 WAV로 출력
+```
+
+| 항목 | 최적화 전 | 최적화 후 |
+|---|---|---|
+| 접속자당 송신량 (60명 교전) | 1137 KB/s | 253 KB/s (정적/동적 분리 델타 스냅샷) |
+| 스냅샷 인코딩 | 4.26 ms/틱 | 0.025 ms/틱 (성계별 1회 인코딩 공유) |
+| 클라이언트 68척 함대전 (RTX 4070S, 1600×900) | 56 fps | 170–210 fps (변경된 머티리얼만 갱신) |
+| 같은 장면 3440×1369 | — | 165 fps |
+| 일반 장면 RAM / GPU 메모리 | 2.9 GB / 4.6 GB | 1.3 GB / 2.8 GB (모델 지연 로딩) |
 
 ## 시각 확인 도구
 
@@ -76,6 +96,6 @@ cargo build -p server && cargo test -p bot
 
 
 ```
-client --showroom [성계번호] [--hull talon]      서버 없이 모델·셰이더·이펙트 확인
+client --showroom [성계번호] [--hull talon] [--look gate|ruin]   서버 없이 모델·셰이더·이펙트 확인
 client --name X --auto --script "undock 1;warp 3;attack 40" --shot out.png --shot-at 30
 ```

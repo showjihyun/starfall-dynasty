@@ -23,7 +23,8 @@ fn hex(uv: vec2<f32>) -> f32 {
 
 @fragment
 fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
-    let n = normalize(in.world_position.xyz - p.center.xyz);
+    // The shield mesh is a sphere: its normal is the radial direction, no world centre needed.
+    let n = normalize(in.world_normal);
     let v = normalize(view.world_position - in.world_position.xyz);
     let fres = pow(1.0 - abs(dot(n, v)), 3.0);
     let t = globals.time;

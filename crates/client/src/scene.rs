@@ -164,7 +164,7 @@ fn build_system(
     ));
     commands.spawn((
         SystemScene,
-        DirectionalLight { color: Color::linear_rgb(star_col[0], star_col[1], star_col[2]), illuminance: 2_600.0, shadow_maps_enabled: true, ..default() },
+        DirectionalLight { color: Color::linear_rgb(star_col[0], star_col[1], star_col[2]), illuminance: 2_600.0, shadow_maps_enabled: std::env::var("STARFALL_NO_SHADOWS").is_err(), ..default() },
         Transform::from_translation(Vec3::ZERO).looking_at(lay.station, Vec3::Y),
     ));
 

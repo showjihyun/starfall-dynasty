@@ -4,6 +4,7 @@
 //! `       [--shot out.png --shot-at 8] [--showroom [system]] [--script "undock;thrust 3;fire 2"]`
 
 mod audio;
+mod bench;
 mod control;
 mod fx;
 mod materials;
@@ -47,11 +48,18 @@ fn main() {
         return;
     }
     let args = parse_args();
+    let bench_secs: Option<f32> = std::env::args().position(|a| a == "--bench").map(|i| std::env::args().nth(i + 1).and_then(|v| v.parse().ok()).unwrap_or(20.0));
     let mut app = App::new();
     app.add_plugins(
         DefaultPlugins
             .set(WindowPlugin {
-                primary_window: Some(Window { title: "STARFALL DYNASTY".into(), resolution: (1600, 900).into(), ..default() }),
+                primary_window: Some(Window {
+                    title: "STARFALL DYNASTY".into(),
+                    resolution: std::env::var("STARFALL_RES").ok().and_then(|r| r.split_once('x').and_then(|(w, h)| Some((w.parse::<u32>().ok()?, h.parse::<u32>().ok()?)))).unwrap_or((1600, 900)).into(),
+                    // Benchmarks measure uncapped frame times.
+                    present_mode: if bench_secs.is_some() { bevy::window::PresentMode::AutoNoVsync } else { bevy::window::PresentMode::AutoVsync },
+                    ..default()
+                }),
                 ..default()
             })
             .set(AssetPlugin { file_path: ships::assets_dir().to_string_lossy().into_owned(), ..default() }),
@@ -66,10 +74,16 @@ fn main() {
     .add_systems(PreUpdate, state::pump_network)
     .add_systems(EguiPrimaryContextPass, ui::ui_system)
     .add_systems(Update, (automation, ping));
+    if let Some(secs) = bench_secs {
+        app.add_plugins(bench::BenchPlugin { seconds: secs });
+    }
     app.run();
 }
 
 fn startup(mut commands: Commands, args: Res<Args>, mut s: ResMut<Session>, mut next: ResMut<NextState<Screen>>) {
+    if std::env::args().any(|a| a == "--bench") {
+        return;
+    }
     if args.showroom {
         showroom(&mut s, &args);
         next.set(Screen::Playing);
