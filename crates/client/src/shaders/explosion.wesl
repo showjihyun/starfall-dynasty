@@ -1,11 +1,11 @@
 // Explosion fireball: turbulent noise sphere whose temperature ramp cools from
 // white-hot through orange to dark smoke as it ages; additive.
 import bevy_pbr::render::forward_io::VertexOutput;
-import bevy_pbr::render::mesh_view_bindings::view;
+import bevy_pbr::render::mesh_view_bindings::{globals, view};
 
 struct ExplosionParams {
-    center: vec4<f32>,  // xyz, w = radius now
-    state: vec4<f32>,   // x = age 0..1, y = seed, z = brightness
+    life: vec4<f32>,    // x = spawn time (globals.time), y = lifetime
+    state: vec4<f32>,   // y = seed, z = brightness
 }
 
 @group(constants::MATERIAL_BIND_GROUP) @binding(0) var<uniform> p: ExplosionParams;
@@ -57,9 +57,10 @@ fn ramp(t: f32) -> vec3<f32> {
 
 @fragment
 fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
-    let n = normalize(in.world_position.xyz - p.center.xyz);
+    // Unit sphere mesh: the normal is the radial direction, so no centre uniform is needed.
+    let n = normalize(in.world_normal);
     let v = normalize(view.world_position - in.world_position.xyz);
-    let age = p.state.x;
+    let age = clamp((globals.time - p.life.x) / max(p.life.y, 1e-3), 0.0, 1.0);
     let facing = abs(dot(n, v));
     let turb = fbm(n * 3.0 + p.state.y + vec3<f32>(age * 2.0));
     let heat = clamp(facing * 1.2 - age * 1.1 + turb * 0.6 - 0.2, 0.0, 1.0);

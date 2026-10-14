@@ -8,7 +8,7 @@
 use futures_util::{SinkExt, StreamExt};
 use server::game::{ConnId, Game};
 use server::store::Store;
-use shared::protocol::{ClientMsg, TICK_HZ, decode, encode, DEFAULT_PORT};
+use shared::protocol::{ClientMsg, DEFAULT_PORT, ServerMsg, TICK_HZ, decode, encode};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -121,6 +121,8 @@ async fn connection(id: ConnId, stream: TcpStream, tx: mpsc::UnboundedSender<Inb
     let ws = tokio_tungstenite::accept_async(stream).await?;
     let (mut sink, mut source) = ws.split();
     let (otx, mut orx) = mpsc::unbounded_channel::<Message>();
+    // Pings are answered right here so the HUD shows network round-trip, not tick queueing.
+    let pong = otx.clone();
     tx.send(Inbound::Open(id, otx)).ok();
     let writer = tokio::spawn(async move {
         while let Some(m) = orx.recv().await {
@@ -141,6 +143,9 @@ async fn connection(id: ConnId, stream: TcpStream, tx: mpsc::UnboundedSender<Inb
         };
         match frame {
             Message::Text(t) => match decode::<ClientMsg>(&t) {
+                Ok(ClientMsg::Ping { t }) => {
+                    pong.send(Message::text(encode(&ServerMsg::Pong { t }))).ok();
+                }
                 Ok(m) => {
                     tx.send(Inbound::Msg(id, m)).ok();
                 }

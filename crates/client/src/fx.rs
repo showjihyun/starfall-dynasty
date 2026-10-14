@@ -34,7 +34,15 @@ struct Ttl {
 }
 
 #[derive(Component)]
-struct BeamFx(Handle<BeamMat>, f32);
+struct BeamFx(Handle<BeamMat>);
+
+/// Expired beams and fireballs are hidden and reused instead of despawned, so a big battle
+/// doesn't allocate entities, materials and bind groups for every shot.
+#[derive(Resource, Default)]
+struct FxPool {
+    beams: Vec<(Entity, Handle<BeamMat>)>,
+    booms: Vec<(Entity, Handle<ExplosionMat>)>,
+}
 
 #[derive(Component)]
 struct Boom {
@@ -55,6 +63,7 @@ struct MiningBeam(u32, Handle<BeamMat>);
 struct Tunnel(Handle<WarpMat>);
 
 fn setup(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>) {
+    commands.init_resource::<FxPool>();
     commands.insert_resource(FxAssets { beam: meshes.add(meshes::beam()), sphere: meshes.add(Sphere::new(1.0).mesh().ico(4).unwrap()), tunnel: meshes.add(meshes::tunnel()) });
 }
 
@@ -72,8 +81,12 @@ fn spawn_fx(
     mut muzzle_toggle: Local<usize>,
     mut sfx: ResMut<SfxQueue>,
     time: Res<Time<Real>>,
+    shader_time: Res<Time>,
+    mut pool: ResMut<FxPool>,
 ) {
     let now = time.elapsed_secs_f64();
+    // The clock the shaders see as `globals.time`.
+    let t = shader_time.elapsed_secs_wrapped();
     let fx: Vec<Fx> = std::mem::take(&mut s.fx);
     for f in fx {
         match f {
@@ -99,9 +112,9 @@ fn spawn_fx(
                         let start = pick(&sv.muzzles, *muzzle_toggle).unwrap_or(stf.translation + fwd * sv.radius);
                         let end = target_pos.unwrap_or(start + fwd * 650.0);
                         let col = if friendly { [0.25, 0.75, 1.0] } else { [1.0, 0.25, 0.12] };
-                        spawn_beam(&mut commands, &assets, &mut beams, start, end, col, 1.8, 0.14);
+                        spawn_beam(&mut commands, &assets, &mut beams, &mut pool, t, start, end, col, 1.8, 0.14);
                         if hit && to != 0 {
-                            spawn_boom(&mut commands, &assets, &mut booms, end + (start - end).normalize_or_zero() * 4.0, 0.15, 0.35);
+                            spawn_boom(&mut commands, &assets, &mut booms, &mut pool, t, end + (start - end).normalize_or_zero() * 4.0, 0.15, 0.35);
                         }
                         sfx.play(Sfx::Laser, Some(start));
                     }
@@ -115,8 +128,8 @@ fn spawn_fx(
                         let Some(end) = target_pos else { continue };
                         let col = if friendly { [1.0, 0.75, 0.3] } else { [1.0, 0.3, 0.15] };
                         let w = (sv.radius * 0.012).clamp(2.0, 6.0);
-                        spawn_beam(&mut commands, &assets, &mut beams, start, end, col, w, 0.12);
-                        spawn_boom(&mut commands, &assets, &mut booms, end + (start - end).normalize_or_zero() * 6.0, 0.25, 0.4);
+                        spawn_beam(&mut commands, &assets, &mut beams, &mut pool, t, start, end, col, w, 0.12);
+                        spawn_boom(&mut commands, &assets, &mut booms, &mut pool, t, end + (start - end).normalize_or_zero() * 6.0, 0.25, 0.4);
                         sfx.play(Sfx::Pulse, Some(start));
                         if let Ok((mut svm, _)) = ships.get_mut(fe) {
                             svm.aim = Some((to, now));
@@ -130,10 +143,10 @@ fn spawn_fx(
                         for (i, p) in ports.iter().enumerate() {
                             let end = target_pos.map(|t| t + (*p - ports[0]) * 0.3).unwrap_or(*p + fwd * reach);
                             let col = if friendly { [0.55, 0.8, 1.0] } else { [1.0, 0.45, 0.3] };
-                            spawn_beam(&mut commands, &assets, &mut beams, *p, end, col, w, 0.75);
-                            spawn_boom(&mut commands, &assets, &mut booms, *p + fwd * w, w * 0.04, 0.5);
+                            spawn_beam(&mut commands, &assets, &mut beams, &mut pool, t, *p, end, col, w, 0.75);
+                            spawn_boom(&mut commands, &assets, &mut booms, &mut pool, t, *p + fwd * w, w * 0.04, 0.5);
                             if hit && i == 0 {
-                                spawn_boom(&mut commands, &assets, &mut booms, end, (w * 0.12).max(1.0), 1.4);
+                                spawn_boom(&mut commands, &assets, &mut booms, &mut pool, t, end, (w * 0.12).max(1.0), 1.4);
                             }
                         }
                         sfx.play(Sfx::MainBeam, Some(stf.translation));
@@ -144,13 +157,13 @@ fn spawn_fx(
             Fx::Explosion { pos, size } => {
                 let p = Vec3::from(pos);
                 sfx.play(if size >= 3.0 { Sfx::ExplosionBig } else { Sfx::ExplosionSmall }, Some(p));
-                spawn_boom(&mut commands, &assets, &mut booms, p, size, 1.6);
+                spawn_boom(&mut commands, &assets, &mut booms, &mut pool, t, p, size, 1.6);
                 commands.spawn((Ttl { left: 0.9, total: 0.9 }, FlashLight(4.0e9 * size), PointLight { color: Color::srgb(1.0, 0.7, 0.4), intensity: 4.0e9 * size, range: 900.0 * size.sqrt(), ..default() }, Transform::from_translation(p)));
                 // Debris ring of smaller blasts.
                 for k in 0..(3 + size as usize) {
                     let a = k as f32 * 2.4;
                     let off = Vec3::new(a.cos(), (a * 1.7).sin() * 0.5, a.sin()) * 10.0 * size;
-                    spawn_boom(&mut commands, &assets, &mut booms, p + off, size * 0.35, 1.0 + k as f32 * 0.1);
+                    spawn_boom(&mut commands, &assets, &mut booms, &mut pool, t, p + off, size * 0.35, 1.0 + k as f32 * 0.1);
                 }
             }
             Fx::ShieldHit { entity, dir } => {
@@ -190,23 +203,35 @@ fn spawn_fx(
 }
 
 #[allow(clippy::too_many_arguments)]
-fn spawn_beam(commands: &mut Commands, assets: &FxAssets, beams: &mut Assets<BeamMat>, start: Vec3, end: Vec3, col: [f32; 3], width: f32, ttl: f32) {
+fn spawn_beam(commands: &mut Commands, assets: &FxAssets, beams: &mut Assets<BeamMat>, pool: &mut FxPool, now: f32, start: Vec3, end: Vec3, col: [f32; 3], width: f32, ttl: f32) {
     let d = end - start;
     let len = d.length().max(1.0);
-    let m = beams.add(BeamMat { p: BeamParams { color: v4(col, 1.0), flow: Vec4::new(0.08, 30.0, len, 0.0) } });
-    commands.spawn((
-        Ttl { left: ttl, total: ttl },
-        BeamFx(m.clone(), 1.0),
-        NotShadowCaster,
-        Mesh3d(assets.beam.clone()),
-        MeshMaterial3d(m),
-        Transform::from_translation(start).with_rotation(Quat::from_rotation_arc(Vec3::Z, d / len)).with_scale(Vec3::new(width, width, len)),
-    ));
+    let params = BeamParams { color: v4(col, 1.0), flow: Vec4::new(0.08, 30.0, len, 0.0), life: Vec4::new(now, ttl, 0.0, 0.0) };
+    let tf = Transform::from_translation(start).with_rotation(Quat::from_rotation_arc(Vec3::Z, d / len)).with_scale(Vec3::new(width, width, len));
+    if let Some((e, h)) = pool.beams.pop() {
+        if let Some(mut m) = beams.get_mut(&h) {
+            m.p = params;
+        }
+        commands.entity(e).insert((Ttl { left: ttl, total: ttl }, tf, Visibility::Inherited));
+        return;
+    }
+    let m = beams.add(BeamMat { p: params });
+    commands.spawn((Ttl { left: ttl, total: ttl }, BeamFx(m.clone()), NotShadowCaster, Mesh3d(assets.beam.clone()), MeshMaterial3d(m), tf));
 }
 
-fn spawn_boom(commands: &mut Commands, assets: &FxAssets, booms: &mut Assets<ExplosionMat>, p: Vec3, size: f32, ttl: f32) {
-    let m = booms.add(ExplosionMat { p: ExplosionParams { center: p.extend(1.0), state: Vec4::new(0.0, p.x * 0.013 + p.z * 0.007, 1.0, 0.0) } });
-    commands.spawn((Ttl { left: ttl, total: ttl }, Boom { mat: m.clone(), size }, NotShadowCaster, Mesh3d(assets.sphere.clone()), MeshMaterial3d(m), Transform::from_translation(p).with_scale(Vec3::splat(1.0))));
+#[allow(clippy::too_many_arguments)]
+fn spawn_boom(commands: &mut Commands, assets: &FxAssets, booms: &mut Assets<ExplosionMat>, pool: &mut FxPool, now: f32, p: Vec3, size: f32, ttl: f32) {
+    let params = ExplosionParams { life: Vec4::new(now, ttl, 0.0, 0.0), state: Vec4::new(0.0, p.x * 0.013 + p.z * 0.007, 1.2, 0.0) };
+    let tf = Transform::from_translation(p).with_scale(Vec3::splat(size * 6.0));
+    if let Some((e, h)) = pool.booms.pop() {
+        if let Some(mut m) = booms.get_mut(&h) {
+            m.p = params;
+        }
+        commands.entity(e).insert((Ttl { left: ttl, total: ttl }, Boom { mat: h, size }, tf, Visibility::Inherited));
+        return;
+    }
+    let m = booms.add(ExplosionMat { p: params });
+    commands.spawn((Ttl { left: ttl, total: ttl }, Boom { mat: m.clone(), size }, NotShadowCaster, Mesh3d(assets.sphere.clone()), MeshMaterial3d(m), tf));
 }
 
 #[allow(clippy::type_complexity)]
@@ -214,31 +239,28 @@ fn tick_fx(
     mut commands: Commands,
     time: Res<Time>,
     mut q: Query<(Entity, &mut Ttl, Option<&BeamFx>, Option<&Boom>, Option<&FlashLight>, Option<&GlowFx>, &mut Transform, Option<&mut PointLight>)>,
-    mut beams: ResMut<Assets<BeamMat>>,
-    mut booms: ResMut<Assets<ExplosionMat>>,
     mut glows: ResMut<Assets<GlowMat>>,
+    mut pool: ResMut<FxPool>,
 ) {
     let dt = time.delta_secs();
     for (e, mut ttl, beam, boom, flash, glow, mut tf, light) in &mut q {
         ttl.left -= dt;
         if ttl.left <= 0.0 {
-            commands.entity(e).despawn();
+            // Beam/fireball fades run in the shader; here they only go back to the pool.
+            if let Some(b) = beam {
+                commands.entity(e).remove::<Ttl>().insert(Visibility::Hidden);
+                pool.beams.push((e, b.0.clone()));
+            } else if let Some(b) = boom {
+                commands.entity(e).remove::<Ttl>().insert(Visibility::Hidden);
+                pool.booms.push((e, b.mat.clone()));
+            } else {
+                commands.entity(e).despawn();
+            }
             continue;
         }
         let age = 1.0 - ttl.left / ttl.total;
-        if let Some(b) = beam
-            && let Some(mut m) = beams.get_mut(&b.0)
-        {
-            m.p.color.w = (1.0 - age).powf(1.5) * b.1;
-        }
         if let Some(b) = boom {
-            let r = b.size * (6.0 + 30.0 * (1.0 - (1.0 - age).powf(3.0)));
-            tf.scale = Vec3::splat(r);
-            if let Some(mut m) = booms.get_mut(&b.mat) {
-                m.p.center = tf.translation.extend(r);
-                m.p.state.x = age;
-                m.p.state.z = 1.2;
-            }
+            tf.scale = Vec3::splat(b.size * (6.0 + 30.0 * (1.0 - (1.0 - age).powf(3.0))));
         }
         if let (Some(f), Some(mut l)) = (flash, light) {
             l.intensity = f.0 * (1.0 - age).powf(2.0);
@@ -277,7 +299,7 @@ fn mining_beams(
         if let Some((_, _, mut et)) = existing.iter_mut().find(|(_, mb, _)| mb.0 == *id) {
             *et = t;
         } else {
-            let m = beams.add(BeamMat { p: BeamParams { color: Vec4::new(0.3, 1.0, 0.5, 0.8), flow: Vec4::new(0.05, 12.0, len, 0.0) } });
+            let m = beams.add(BeamMat { p: BeamParams { color: Vec4::new(0.3, 1.0, 0.5, 0.8), flow: Vec4::new(0.05, 12.0, len, 0.0), life: Vec4::ZERO } });
             commands.spawn((MiningBeam(*id, m.clone()), NotShadowCaster, Mesh3d(assets.beam.clone()), MeshMaterial3d(m), t));
         }
     }

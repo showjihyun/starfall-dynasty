@@ -96,8 +96,8 @@ simple_material!(PlanetMat, PlanetParams { center, kind, col_a, col_b, atmo, sta
 simple_material!(RingMat, RingParams { center, color, radii, star }, "ring.wesl", AlphaMode::Premultiplied, cull: false, zwrite: false);
 simple_material!(EngineMat, EngineParams { color, core, seed }, "engine.wesl", AlphaMode::Add, cull: false, zwrite: false);
 simple_material!(ShieldMat, ShieldParams { color, hit, center }, "shield.wesl", AlphaMode::Add, cull: true, zwrite: false);
-simple_material!(BeamMat, BeamParams { color, flow }, "beam.wesl", AlphaMode::Add, cull: false, zwrite: false);
-simple_material!(ExplosionMat, ExplosionParams { center, state }, "explosion.wesl", AlphaMode::Add, cull: true, zwrite: false);
+simple_material!(BeamMat, BeamParams { color, flow, life }, "beam.wesl", AlphaMode::Add, cull: false, zwrite: false);
+simple_material!(ExplosionMat, ExplosionParams { life, state }, "explosion.wesl", AlphaMode::Add, cull: true, zwrite: false);
 simple_material!(WarpMat, WarpParams { color, accent }, "warp.wesl", AlphaMode::Add, cull: false, zwrite: false);
 
 /// Hull extension over the Blender-baked StandardMaterial.
