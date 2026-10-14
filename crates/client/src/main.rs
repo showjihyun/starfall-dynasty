@@ -8,6 +8,7 @@ mod control;
 mod fx;
 mod materials;
 mod meshes;
+mod music;
 mod net;
 mod scene;
 mod ships;
@@ -33,11 +34,18 @@ fn parse_args() -> Args {
         shot: get("--shot"),
         shot_at: get("--shot-at").and_then(|v| v.parse().ok()).unwrap_or(8.0),
         showroom: has("--showroom"),
+        look: get("--look"),
         script: get("--script").map(|s| s.split(';').map(|x| x.trim().to_string()).filter(|x| !x.is_empty()).collect()).unwrap_or_default(),
     }
 }
 
 fn main() {
+    if let Some(i) = std::env::args().position(|a| a == "--dump-sfx") {
+        let dir = std::env::args().nth(i + 1).unwrap_or_else(|| "sfx".into());
+        audio::dump(std::path::Path::new(&dir)).expect("dump sfx");
+        println!("wrote sound effects to {dir}");
+        return;
+    }
     let args = parse_args();
     let mut app = App::new();
     app.add_plugins(
@@ -49,9 +57,9 @@ fn main() {
             .set(AssetPlugin { file_path: ships::assets_dir().to_string_lossy().into_owned(), ..default() }),
     )
     .add_plugins(EguiPlugin::default())
-    .add_plugins((materials::MaterialsPlugin, scene::ScenePlugin, ships::ShipsPlugin, fx::FxPlugin, control::ControlPlugin, audio::AudioFxPlugin))
+    .add_plugins((materials::MaterialsPlugin, scene::ScenePlugin, ships::ShipsPlugin, fx::FxPlugin, control::ControlPlugin, audio::AudioFxPlugin, music::MusicPlugin))
     .init_state::<Screen>()
-    .insert_resource(Session { server_url: args.server.clone(), ..default() })
+    .insert_resource(Session { server_url: args.server.clone(), last_combat: -1e9, ..default() })
     .init_resource::<ui::Form>()
     .insert_resource(args.clone())
     .add_systems(Startup, startup)

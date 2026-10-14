@@ -193,9 +193,19 @@ fn synth(kind: Sfx) -> Vec<f32> {
     }
 }
 
+/// `client --dump-sfx DIR`: write every synthesized effect as a WAV for offline inspection.
+pub fn dump(dir: &std::path::Path) -> std::io::Result<()> {
+    std::fs::create_dir_all(dir)?;
+    for k in ALL {
+        std::fs::write(dir.join(format!("{k:?}.wav")), wav(&synth(k)))?;
+    }
+    Ok(())
+}
+
+const ALL: [Sfx; 9] = [Sfx::Laser, Sfx::Pulse, Sfx::MainBeam, Sfx::Missile, Sfx::ExplosionSmall, Sfx::ExplosionBig, Sfx::ShieldHit, Sfx::WarpCharge, Sfx::WarpJump];
+
 fn build_bank(mut commands: Commands, mut sources: ResMut<Assets<AudioSource>>) {
-    let kinds = [Sfx::Laser, Sfx::Pulse, Sfx::MainBeam, Sfx::Missile, Sfx::ExplosionSmall, Sfx::ExplosionBig, Sfx::ShieldHit, Sfx::WarpCharge, Sfx::WarpJump];
-    let bank = kinds.iter().map(|k| (*k, sources.add(AudioSource { bytes: wav(&synth(*k)).into() }))).collect();
+    let bank = ALL.iter().map(|k| (*k, sources.add(AudioSource { bytes: wav(&synth(*k)).into() }))).collect();
     commands.insert_resource(SfxBank(bank));
 }
 

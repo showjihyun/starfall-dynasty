@@ -332,7 +332,10 @@ fn build_system(
                     c.spawn((Spin(Vec3::Z * 0.2), Mesh3d(meshes.add(Torus::new(size * 0.8, size * 0.82))), MeshMaterial3d(std_mats.add(emis(6.0))), Transform::from_rotation(Quat::from_rotation_x(std::f32::consts::FRAC_PI_2))));
                 }
             }
-            c.spawn((NotShadowCaster, Mesh3d(meshes.add(Sphere::new(size * 3.0).mesh().ico(3).unwrap())), MeshMaterial3d(glows.add(GlowMat { p: GlowParams { color: v4(col, 0.5), center: p.pos.extend(size * 0.3), shape: Vec4::new(3.5, 2.0, size * 3.0, 0.0) } }))));
+            // Detailed Blender props carry their own glow; keep only a faint beacon halo around them.
+            let modeled = (p.kind == PoiKind::Ruin && props.assets.ruin.is_some()) || (p.kind == PoiKind::AncientGate && props.assets.gate.is_some());
+            let halo = if modeled { 0.08 } else { 0.5 };
+            c.spawn((NotShadowCaster, Mesh3d(meshes.add(Sphere::new(size * 3.0).mesh().ico(3).unwrap())), MeshMaterial3d(glows.add(GlowMat { p: GlowParams { color: v4(col, halo), center: p.pos.extend(size * 0.3), shape: Vec4::new(3.5, 2.0, size * 3.0, 0.0) } }))));
         });
     }
     env.layout = Some(lay);

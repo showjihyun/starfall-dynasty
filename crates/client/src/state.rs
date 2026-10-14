@@ -71,6 +71,8 @@ pub struct Session {
     pub disconnected: Option<String>,
     pub ping_ms: f32,
     pub server_url: String,
+    /// Last time shots involved our ship (drives battle music).
+    pub last_combat: f64,
 }
 
 impl Session {
@@ -128,6 +130,8 @@ pub struct Args {
     pub shot_at: f32,
     pub showroom: bool,
     pub script: Vec<String>,
+    /// Showroom: orbit a point of interest (`gate`, `ruin`, `station`).
+    pub look: Option<String>,
 }
 
 /// Per-user config dir only (never a shared temp dir); `None` means the token is not persisted.

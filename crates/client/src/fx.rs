@@ -78,6 +78,9 @@ fn spawn_fx(
     for f in fx {
         match f {
             Fx::Shot { from, to, weapon, mount, hit } => {
+                if s.me.is_some_and(|m| m == from || m == to) {
+                    s.last_combat = now;
+                }
                 let Some(&fe) = vis.map.get(&from) else { continue };
                 let Ok((sv, stf)) = ships.get(fe) else { continue };
                 // Colour by relation to me: friends blue/amber, enemies red.

@@ -76,6 +76,7 @@ fn chase_camera(
     mut cs: ResMut<CamState>,
     scroll: Res<AccumulatedMouseScroll>,
     wants: Option<Res<EguiWantsInput>>,
+    args: Res<crate::state::Args>,
 ) {
     let Ok(mut ct) = cam.single_mut() else { return };
     if !wants.as_ref().is_some_and(|w| w.is_pointer_over_area()) {
@@ -102,10 +103,20 @@ fn chase_camera(
             (pos, rot)
         }
         _ => {
-            // Docked or dead: slow orbit around the station or the wreck site.
-            let center = env.layout.as_ref().map(|l| l.station).unwrap_or(Vec3::new(0.0, 0.0, 3400.0));
+            // Docked or dead: slow orbit around the station (or a showroom point of interest).
+            let look = args.look.as_deref().and_then(|k| {
+                let l = env.layout.as_ref()?;
+                let kind = match k {
+                    "gate" => shared::galaxy::PoiKind::AncientGate,
+                    "ruin" => shared::galaxy::PoiKind::Ruin,
+                    "derelict" => shared::galaxy::PoiKind::Derelict,
+                    _ => return None,
+                };
+                l.pois.iter().find(|p| p.kind == kind).map(|p| (p.pos, if kind == shared::galaxy::PoiKind::AncientGate { 1500.0 } else { 300.0 }))
+            });
+            let (center, dist) = look.unwrap_or((env.layout.as_ref().map(|l| l.station).unwrap_or(Vec3::new(0.0, 0.0, 3400.0)), 520.0));
             let a = time.elapsed_secs() * 0.05;
-            let pos = center + Vec3::new(a.cos() * 520.0 * cs.zoom, 140.0 * cs.zoom, a.sin() * 520.0 * cs.zoom);
+            let pos = center + Vec3::new(a.cos() * dist * cs.zoom, dist * 0.27 * cs.zoom, a.sin() * dist * cs.zoom);
             (pos, Transform::from_translation(pos).looking_at(center, Vec3::Y).rotation)
         }
     };
