@@ -33,8 +33,10 @@ fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
     let fade = 1.0 - smoothstep(0.0, reach, along);
     let flicker = 0.85 + 0.15 * sin(t * 40.0 + p.seed.x * 10.0) * hash1(floor(t * 30.0) + p.seed.x);
     let diamonds = 0.75 + 0.25 * cos(along * 48.0 - t * 30.0) * (1.0 - along);
-    let core = pow(facing, 6.0) * pow(1.0 - along, 3.0);
-    let sheath = pow(facing, 1.5) * fade;
-    let c = p.core.rgb * core * 6.0 + p.color.rgb * sheath * diamonds * 2.5;
+    // View-independent body so the plume reads from straight behind (chase camera) as well as from the side.
+    let body = pow(1.0 - along, 2.2) * (0.35 + 0.65 * facing);
+    let core = (pow(facing, 6.0) + 0.25) * pow(1.0 - along, 5.0);
+    let sheath = body * fade;
+    let c = p.core.rgb * core * 4.0 + p.color.rgb * sheath * diamonds * 1.6;
     return vec4<f32>(c * flicker * (0.45 + throttle * 0.9 + boost * 1.2), 0.0);
 }

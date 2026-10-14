@@ -74,6 +74,18 @@ pub const LIVERIES: [[f32; 3]; 8] = [
     [0.8, 0.12, 0.1],   // hostile red
 ];
 
+/// Dedicated enemy model (name, nominal length) if the archetype has one.
+pub fn npc_model(kind: EntityKind) -> Option<(&'static str, f32)> {
+    match kind {
+        EntityKind::Npc(NpcArchetype::Raider) => Some(("npc_raider", 20.0)),
+        EntityKind::Npc(NpcArchetype::Gunship) => Some(("npc_gunship", 32.0)),
+        EntityKind::Npc(NpcArchetype::Warden) => Some(("npc_warden", 26.0)),
+        EntityKind::Npc(NpcArchetype::Warlord) => Some(("npc_warlord", 66.0)),
+        EntityKind::Npc(NpcArchetype::Sentinel) => Some(("npc_sentinel", 130.0)),
+        _ => None,
+    }
+}
+
 pub fn model_for(hull: Option<HullClass>, kind: EntityKind) -> (&'static str, f32) {
     let h = match kind {
         EntityKind::Npc(NpcArchetype::Raider) => HullClass::Wren,
@@ -100,7 +112,7 @@ pub fn assets_dir() -> std::path::PathBuf {
 
 fn load_models(mut commands: Commands, server: Res<AssetServer>, mut meshes: ResMut<Assets<Mesh>>) {
     let mut glb = HashMap::new();
-    for name in ["wren", "talon", "bastion", "mule", "seer"] {
+    for name in ["wren", "talon", "bastion", "mule", "seer", "npc_raider", "npc_gunship", "npc_warden", "npc_warlord", "npc_sentinel", "wreck"] {
         let file = format!("models/{name}.glb");
         if assets_dir().join(&file).exists() {
             glb.insert(name, server.load(GltfAssetLabel::Scene(0).from_asset(file)));
@@ -212,6 +224,12 @@ fn spawn_visual(
             });
             root
         }
+        EntityKind::Wreck if models.glb.contains_key("wreck") => {
+            let root = commands.spawn((v, tf, Visibility::default())).id();
+            let model = commands.spawn((WorldAssetRoot(models.glb["wreck"].clone()), crate::scene::Spin(Vec3::new(0.01, 0.03, 0.008)), Transform::default())).id();
+            commands.entity(root).add_child(model);
+            root
+        }
         EntityKind::Wreck => {
             let hull = std_mats.add(StandardMaterial { base_color: Color::srgb(0.16, 0.15, 0.15), metallic: 0.7, perceptual_roughness: 0.75, ..default() });
             let ember = std_mats.add(StandardMaterial { base_color: Color::BLACK, emissive: LinearRgba::rgb(3.0, 0.7, 0.1), ..default() });
@@ -231,7 +249,7 @@ fn spawn_visual(
             root
         }
         _ => {
-            let (name, len) = model_for(st.hull_class, st.kind);
+            let (name, len) = npc_model(st.kind).filter(|(n, _)| models.glb.contains_key(n)).unwrap_or_else(|| model_for(st.hull_class, st.kind));
             let scale = st.radius * 2.2 / len;
             let shield = shield_mats.add(ShieldMat { p: ShieldParams { color: if hostile { Vec4::new(1.0, 0.35, 0.2, 1.0) } else { Vec4::new(0.35, 0.7, 1.0, 1.0) }, hit: Vec4::new(0.0, 0.0, 1.0, 10.0), center: pos.extend(st.radius) } });
             v.shield = Some(shield.clone());
@@ -290,7 +308,7 @@ fn on_model_ready(
                 let m = engine_mats.add(EngineMat { p: EngineParams { color: v4(col, 0.4), core: v4(core, 0.0), seed: Vec4::splat(ship.seed + ship.plumes.len() as f32) } });
                 ship.plumes.push(m.clone());
                 commands.entity(d).with_children(|c| {
-                    c.spawn((NotShadowCaster, Mesh3d(models.plume.clone()), MeshMaterial3d(m), Transform::from_scale(Vec3::new(0.95, 0.95, 9.0))));
+                    c.spawn((NotShadowCaster, Mesh3d(models.plume.clone()), MeshMaterial3d(m), Transform::from_scale(Vec3::new(0.9, 0.9, 13.0))));
                 });
             } else if n.starts_with("Gun_") {
                 ship.muzzles.push(d);
@@ -311,13 +329,14 @@ fn on_model_ready(
                 } else {
                     0.0
                 };
-                hull_mats.add(HullMat { base, extension: HullExt { p: HullParams { livery: v4(ship.livery, kind), glow: v4(ship.glow, if kind == 3.0 { 4.0 } else { 6.0 }), state: Vec4::new(0.0, 0.0, 0.0, ship.seed) } } })
+                hull_mats.add(HullMat { base, extension: HullExt { p: HullParams { livery: v4(ship.livery, kind), glow: v4(ship.glow, if kind == 3.0 { 1.6 } else { 4.0 }), state: Vec4::new(0.0, 0.0, 0.0, ship.seed) } } })
             });
             ship.hull_mats.push(hm.clone());
             commands.entity(d).remove::<MeshMaterial3d<StandardMaterial>>().insert(MeshMaterial3d(hm.clone()));
         }
     }
     ship.hull_mats.dedup();
+    info!("model ready for {}: {} plumes, {} hull mats, {} muzzles", ship.id, ship.plumes.len(), ship.hull_mats.len(), ship.muzzles.len());
 }
 
 #[allow(clippy::too_many_arguments)]

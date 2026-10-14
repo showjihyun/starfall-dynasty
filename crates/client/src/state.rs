@@ -138,7 +138,18 @@ pub fn save_token(name: &str, token: &str) {
     if let Some(d) = p.parent() {
         let _ = std::fs::create_dir_all(d);
     }
-    let _ = std::fs::write(p, token);
+    // The token is a login credential: owner-only on Unix (on Windows %APPDATA% is already per-user).
+    let mut opts = std::fs::OpenOptions::new();
+    opts.write(true).create(true).truncate(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        opts.mode(0o600);
+    }
+    if let Ok(mut f) = opts.open(p) {
+        use std::io::Write;
+        let _ = f.write_all(token.as_bytes());
+    }
 }
 
 pub fn pump_network(net: Option<Res<Net>>, mut s: ResMut<Session>, time: Res<Time<Real>>, mut next: ResMut<NextState<Screen>>, screen: Res<State<Screen>>) {

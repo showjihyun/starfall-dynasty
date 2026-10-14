@@ -5,13 +5,77 @@ use crate::meshes;
 use crate::state::{Screen, Session};
 use bevy::light::{GeneratedEnvironmentMapLight, NotShadowCaster};
 use bevy::prelude::*;
+use bevy::gltf::{Gltf, GltfMesh, GltfNode};
+use bevy::world_serialization::{WorldAsset, WorldAssetRoot, WorldInstanceReady};
 use shared::galaxy::{self, Layout, Ore, PlanetKind, PoiKind};
 
 pub struct ScenePlugin;
 
 impl Plugin for ScenePlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<Env>().add_systems(Update, (build_system, follow_sky, spin_things).run_if(in_state(Screen::Playing)));
+        app.init_resource::<Env>().add_systems(Startup, load_props).add_systems(Update, (build_system, follow_sky, spin_things).run_if(in_state(Screen::Playing)));
+    }
+}
+
+/// Optional Blender-made props; anything missing falls back to procedural geometry.
+#[derive(Resource, Default)]
+pub struct PropAssets {
+    pub station: Option<Handle<WorldAsset>>,
+    pub gate: Option<Handle<WorldAsset>>,
+    pub ruin: Option<Handle<WorldAsset>>,
+    pub rocks: Option<Handle<Gltf>>,
+}
+
+fn load_props(mut commands: Commands, server: Res<AssetServer>) {
+    let dir = crate::ships::assets_dir();
+    let scene = |f: &str| dir.join(format!("models/{f}.glb")).exists().then(|| server.load(GltfAssetLabel::Scene(0).from_asset(format!("models/{f}.glb"))));
+    commands.insert_resource(PropAssets {
+        station: scene("station"),
+        gate: scene("ancient_gate"),
+        ruin: scene("ruin"),
+        rocks: dir.join("models/asteroids.glb").exists().then(|| server.load("models/asteroids.glb")),
+    });
+}
+
+#[derive(bevy::ecs::system::SystemParam)]
+pub struct Props<'w> {
+    assets: Res<'w, PropAssets>,
+    gltfs: Res<'w, Assets<Gltf>>,
+    nodes: Res<'w, Assets<GltfNode>>,
+    gmeshes: Res<'w, Assets<GltfMesh>>,
+    gmats: Res<'w, Assets<bevy::gltf::GltfMaterial>>,
+    server: Res<'w, AssetServer>,
+}
+
+impl Props<'_> {
+    /// Wait for prop assets so a system isn't built half with placeholders.
+    fn ready(&self) -> bool {
+        let done = |id: bevy::asset::UntypedAssetId| self.server.is_loaded_with_dependencies(id) || self.server.load_state(id).is_failed();
+        self.assets.station.as_ref().is_none_or(|h| done(h.id().untyped()))
+            && self.assets.gate.as_ref().is_none_or(|h| done(h.id().untyped()))
+            && self.assets.ruin.as_ref().is_none_or(|h| done(h.id().untyped()))
+            && self.assets.rocks.as_ref().is_none_or(|h| done(h.id().untyped()))
+    }
+
+    /// (mesh, material) primitives of each `Rock_N` node in asteroids.glb.
+    fn rocks(&self) -> Vec<Vec<(Handle<Mesh>, Option<Handle<bevy::gltf::GltfMaterial>>)>> {
+        let Some(g) = self.assets.rocks.as_ref().and_then(|h| self.gltfs.get(h)) else { return vec![] };
+        let mut out = vec![];
+        for k in 0..6 {
+            let Some(node) = g.named_nodes.get(format!("Rock_{k}").as_str()).and_then(|n| self.nodes.get(n)) else { continue };
+            let Some(gm) = node.mesh.as_ref().and_then(|m| self.gmeshes.get(m)) else { continue };
+            out.push(gm.primitives.iter().map(|p| (p.mesh.clone(), p.material.clone())).collect());
+        }
+        out
+    }
+}
+
+/// Spin the station's habitat ring (node "Ring") once the GLB is instanced.
+fn spin_ring(ev: On<WorldInstanceReady>, mut commands: Commands, children: Query<&Children>, names: Query<&Name>) {
+    for d in children.iter_descendants(ev.entity) {
+        if names.get(d).is_ok_and(|n| n.as_str() == "Ring") {
+            commands.entity(d).insert(Spin(Vec3::Z * 0.04));
+        }
     }
 }
 
@@ -25,6 +89,7 @@ pub struct Skybox;
 pub struct Spin(pub Vec3);
 
 #[derive(Component)]
+#[allow(dead_code)]
 pub struct PoiMarker(pub u32);
 
 #[derive(Resource, Default)]
@@ -51,8 +116,9 @@ fn build_system(
     mut planets: ResMut<Assets<PlanetMat>>,
     mut rings: ResMut<Assets<RingMat>>,
     mut cams: Query<&mut GeneratedEnvironmentMapLight, With<Camera3d>>,
+    props: Props,
 ) {
-    if s.system_epoch == env.epoch || s.system_epoch == 0 {
+    if s.system_epoch == env.epoch || s.system_epoch == 0 || !props.ready() {
         return;
     }
     env.epoch = s.system_epoch;
@@ -156,7 +222,45 @@ fn build_system(
     let ferrite = std_mats.add(rock([0.34, 0.29, 0.26], [0.0; 3], 0.92));
     let lumen = std_mats.add(rock([0.3, 0.33, 0.36], [0.0, 0.012, 0.02], 0.85));
     let xenite = std_mats.add(rock([0.27, 0.23, 0.29], [0.02, 0.003, 0.035], 0.8));
-    for a in &lay.asteroids {
+    let rocks = props.rocks();
+    if !rocks.is_empty() {
+        // Blender rocks: tint the shared rock material per ore and light up crystal veins.
+        let mut tinted: std::collections::HashMap<(AssetId<bevy::gltf::GltfMaterial>, u8), Handle<StandardMaterial>> = Default::default();
+        for a in &lay.asteroids {
+            let r = a.seed as f32;
+            let mut e = commands.spawn((
+                SystemScene,
+                AsteroidVis(a.id),
+                Spin(Vec3::new((r * 0.13).sin(), (r * 0.71).cos(), (r * 0.37).sin()) * 0.05),
+                Transform::from_translation(a.pos).with_scale(Vec3::splat(a.radius / 2.0)).with_rotation(Quat::from_euler(EulerRot::XYZ, r, r * 0.3, r * 0.7)),
+                Visibility::default(),
+            ));
+            for (mesh, mat) in &rocks[a.seed as usize % rocks.len()] {
+                let Some(mat) = mat else { continue };
+                let m = tinted
+                    .entry((mat.id(), a.ore as u8))
+                    .or_insert_with(|| {
+                        let mut base = props.gmats.get(mat).map(bevy::pbr::gltf::standard_material_from_gltf_material).unwrap_or_default();
+                        let crystal = base.emissive.red + base.emissive.green + base.emissive.blue > 0.1;
+                        let (tint, glow) = match a.ore {
+                            Ore::Ferrite => ([0.78, 0.64, 0.54], [1.2, 0.5, 0.2]),
+                            Ore::Lumen => ([0.62, 0.72, 0.86], [0.3, 1.6, 2.2]),
+                            Ore::Xenite => ([0.62, 0.52, 0.76], [1.6, 0.3, 2.4]),
+                        };
+                        if crystal {
+                            base.emissive = LinearRgba::rgb(glow[0], glow[1], glow[2]);
+                        } else {
+                            let c = base.base_color.to_linear();
+                            base.base_color = Color::linear_rgb(c.red * tint[0], c.green * tint[1], c.blue * tint[2]);
+                        }
+                        std_mats.add(base)
+                    })
+                    .clone();
+                e.with_child((Mesh3d(mesh.clone()), MeshMaterial3d(m)));
+            }
+        }
+    }
+    for a in lay.asteroids.iter().filter(|_| rocks.is_empty()) {
         let m = match a.ore {
             Ore::Ferrite => ferrite.clone(),
             Ore::Lumen => lumen.clone(),
@@ -173,7 +277,13 @@ fn build_system(
         ));
     }
 
-    spawn_station(&mut commands, &mut meshes, &mut std_mats, &mut glows, lay.station);
+    match &props.assets.station {
+        Some(h) => {
+            commands.spawn((SystemScene, WorldAssetRoot(h.clone()), Transform::from_translation(lay.station))).observe(spin_ring);
+            commands.spawn((SystemScene, PointLight { color: Color::srgb(1.0, 0.85, 0.6), intensity: 1.5e8, range: 700.0, ..default() }, Transform::from_translation(lay.station + Vec3::new(0.0, 0.0, 220.0))));
+        }
+        None => spawn_station(&mut commands, &mut meshes, &mut std_mats, &mut glows, lay.station),
+    }
     spawn_jump_point(&mut commands, &mut meshes, &mut std_mats, &mut glows, lay.jump_point);
 
     for p in &lay.pois {
@@ -190,6 +300,9 @@ fn build_system(
             match p.kind {
                 PoiKind::Anomaly => {
                     c.spawn((Spin(Vec3::new(0.2, 0.5, 0.1)), Mesh3d(meshes.add(Sphere::new(size * 0.4).mesh().ico(1).unwrap())), MeshMaterial3d(std_mats.add(emis(8.0)))));
+                }
+                PoiKind::Ruin if props.assets.ruin.is_some() => {
+                    c.spawn((WorldAssetRoot(props.assets.ruin.clone().unwrap()), Spin(Vec3::Y * 0.01), Transform::default()));
                 }
                 PoiKind::Ruin => {
                     let stone = std_mats.add(StandardMaterial { base_color: Color::srgb(0.42, 0.38, 0.33), perceptual_roughness: 0.95, ..default() });
@@ -210,6 +323,9 @@ fn build_system(
                 PoiKind::Signal => {
                     c.spawn((Spin(Vec3::Y), Mesh3d(meshes.add(Cone { radius: 6.0, height: 26.0 })), MeshMaterial3d(std_mats.add(emis(10.0)))));
                 }
+                PoiKind::AncientGate if props.assets.gate.is_some() => {
+                    c.spawn((WorldAssetRoot(props.assets.gate.clone().unwrap()), Transform::default()));
+                }
                 PoiKind::AncientGate => {
                     let stone = std_mats.add(StandardMaterial { base_color: Color::srgb(0.2, 0.18, 0.24), metallic: 0.3, perceptual_roughness: 0.7, ..default() });
                     c.spawn((Mesh3d(meshes.add(Torus::new(size * 0.85, size))), MeshMaterial3d(stone), Transform::from_rotation(Quat::from_rotation_x(std::f32::consts::FRAC_PI_2))));
@@ -223,6 +339,7 @@ fn build_system(
 }
 
 #[derive(Component)]
+#[allow(dead_code)]
 pub struct AsteroidVis(pub u32);
 
 fn spawn_station(commands: &mut Commands, meshes: &mut Assets<Mesh>, mats: &mut Assets<StandardMaterial>, glows: &mut Assets<GlowMat>, pos: Vec3) {

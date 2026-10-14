@@ -86,7 +86,7 @@ fn showroom(s: &mut Session, args: &Args) {
     let layout = shared::galaxy::system_layout(sys);
     s.system = sys;
     s.system_epoch = 1;
-    let base = layout.station + Vec3::new(0.0, 60.0, 420.0);
+    let base = if args.hull.is_some() { layout.station + Vec3::new(0.0, 60.0, 420.0) } else { layout.station + Vec3::new(0.0, 170.0, 120.0) };
     let mut ents = std::collections::HashMap::new();
     let face = Quat::from_rotation_y(0.35);
     for (i, h) in HullClass::ALL.into_iter().enumerate() {
@@ -128,7 +128,7 @@ fn showroom(s: &mut Session, args: &Args) {
         200,
         EntityState { id: 200, kind: EntityKind::Npc(shared::missions::NpcArchetype::Raider), name: "Raider".into(), hull_class: None, rank: 1, livery: 7, pos: (base + Vec3::new(40.0, 40.0, -320.0)).to_array(), rot: Quat::from_rotation_y(2.5).to_array(), vel: [0.0; 3], hull: 0.7, shield: 0.5, radius: 9.0, fleet: None, wanted: false, boosting: true, mining: None, docked: false, owner: None },
     );
-    s.me = Some(if args.hull.is_some() { 100 + shared::ships::HullClass::ALL.iter().position(|h| Some(*h) == args.hull).unwrap() as u32 } else { 101 });
+    s.me = args.hull.map(|hc| 100 + shared::ships::HullClass::ALL.iter().position(|h| *h == hc).unwrap() as u32);
     s.profile = None;
     s.snaps.push_back(state::Snap { at: 0.0, ents });
 }
@@ -143,6 +143,7 @@ fn automation(
     mut done: Local<bool>,
     mut step: Local<usize>,
     mut step_t: Local<f64>,
+    mut fired: Local<Option<usize>>,
     net: Option<Res<net::Net>>,
     mut s: ResMut<Session>,
     screen: Res<State<Screen>>,
@@ -173,13 +174,41 @@ fn automation(
         }
         let cmd: Vec<&str> = args.script[*step].split_whitespace().collect();
         let dur = cmd.get(1).and_then(|v| v.parse::<f64>().ok()).unwrap_or(0.0);
-        let first = (t - *step_t) < 0.02;
+        let first = *fired != Some(*step);
+        *fired = Some(*step);
         match cmd.first().copied().unwrap_or("") {
             "undock" if first => net.send(ClientMsg::Undock),
             "warp" if first => net.send(ClientMsg::Warp { system: dur as u16 }),
             "thrust" => net.send(ClientMsg::Controls(Controls { thrust: 1.0, ..default() })),
             "boost" => net.send(ClientMsg::Controls(Controls { thrust: 1.0, boost: true, ..default() })),
             "fire" => net.send(ClientMsg::Controls(Controls { fire: true, thrust: 0.3, ..default() })),
+            // Hunt the nearest NPC: steer at it, close in, fire when aligned.
+            "attack" => {
+                if let (Some(me), Some(latest)) = (s.my_state().cloned(), s.latest()) {
+                    let mp = Vec3::from(me.pos);
+                    let tgt = latest.ents.values().filter(|e| matches!(e.kind, EntityKind::Npc(_))).min_by(|a, b| Vec3::from(a.pos).distance(mp).total_cmp(&Vec3::from(b.pos).distance(mp))).map(|e| (e.id, Vec3::from(e.pos)));
+                    if let Some((id, tp)) = tgt {
+                        if s.target != Some(id) {
+                            s.target = Some(id);
+                            net.send(ClientMsg::SetTarget(Some(id)));
+                        }
+                        let rot = Quat::from_array(me.rot);
+                        let local = rot.inverse() * (tp - mp).normalize_or_zero();
+                        let mut c = Controls { yaw: (local.x * 4.0).clamp(-1.0, 1.0), pitch: (local.y * 4.0).clamp(-1.0, 1.0), ..default() };
+                        if local.z > 0.0 {
+                            c.yaw = if local.x >= 0.0 { 1.0 } else { -1.0 };
+                        }
+                        let d = tp.distance(mp);
+                        c.thrust = if d > 350.0 { 1.0 } else { 0.1 };
+                        c.boost = d > 1500.0;
+                        c.fire = local.z < -0.97 && d < 600.0;
+                        net.send(ClientMsg::Controls(c));
+                        if c.fire && first {
+                            net.send(ClientMsg::FireMissile);
+                        }
+                    }
+                }
+            }
             "turn" => net.send(ClientMsg::Controls(Controls { yaw: 1.0, thrust: 0.5, ..default() })),
             "map" if first => s.ui.map = true,
             "station" if first => s.ui.station = true,
