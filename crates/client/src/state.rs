@@ -124,32 +124,54 @@ pub struct Args {
     pub script: Vec<String>,
 }
 
-pub fn token_path(name: &str) -> std::path::PathBuf {
-    let base = std::env::var("APPDATA").map(std::path::PathBuf::from).unwrap_or_else(|_| std::env::temp_dir());
-    base.join("StarfallDynasty").join(format!("token_{}.txt", name.to_lowercase()))
+/// Per-user config dir only (never a shared temp dir); `None` means the token is not persisted.
+pub fn token_path(name: &str) -> Option<std::path::PathBuf> {
+    let base = std::env::var_os("APPDATA")
+        .map(std::path::PathBuf::from)
+        .or_else(|| std::env::var_os("XDG_CONFIG_HOME").map(std::path::PathBuf::from))
+        .or_else(|| std::env::var_os("HOME").map(|h| std::path::PathBuf::from(h).join(".config")))?;
+    // The name is user input: keep it to letters/digits so it can't escape the directory.
+    let safe: String = name.to_lowercase().chars().filter(|c| c.is_alphanumeric()).collect();
+    if safe.is_empty() {
+        return None;
+    }
+    Some(base.join("StarfallDynasty").join(format!("token_{safe}.txt")))
 }
 
 pub fn load_token(name: &str) -> Option<String> {
-    std::fs::read_to_string(token_path(name)).ok().map(|s| s.trim().to_string())
+    std::fs::read_to_string(token_path(name)?).ok().map(|s| s.trim().to_string())
 }
 
 pub fn save_token(name: &str, token: &str) {
-    let p = token_path(name);
+    let Some(p) = token_path(name) else { return };
     if let Some(d) = p.parent() {
         let _ = std::fs::create_dir_all(d);
     }
-    // The token is a login credential: owner-only on Unix (on Windows %APPDATA% is already per-user).
+    // The token is a login credential: owner-only on Unix, never through a symlink.
+    // (On Windows the per-user %APPDATA% ACL already restricts access.)
     let mut opts = std::fs::OpenOptions::new();
     opts.write(true).create(true).truncate(true);
     #[cfg(unix)]
     {
         use std::os::unix::fs::OpenOptionsExt;
-        opts.mode(0o600);
+        opts.mode(0o600).custom_flags(libc_nofollow());
     }
-    if let Ok(mut f) = opts.open(p) {
+    if let Ok(mut f) = opts.open(&p) {
+        #[cfg(unix)]
+        {
+            // `mode` only applies on creation; tighten a pre-existing file too.
+            use std::os::unix::fs::PermissionsExt;
+            let _ = f.set_permissions(std::fs::Permissions::from_mode(0o600));
+        }
         use std::io::Write;
         let _ = f.write_all(token.as_bytes());
     }
+}
+
+#[cfg(unix)]
+fn libc_nofollow() -> i32 {
+    // O_NOFOLLOW: Linux 0o400000, macOS/BSD 0x100.
+    if cfg!(target_os = "linux") { 0o400000 } else { 0x100 }
 }
 
 pub fn pump_network(net: Option<Res<Net>>, mut s: ResMut<Session>, time: Res<Time<Real>>, mut next: ResMut<NextState<Screen>>, screen: Res<State<Screen>>) {

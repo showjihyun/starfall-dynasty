@@ -155,7 +155,7 @@ fn build_system(
 
     // Star with corona.
     let sr = lay.star_radius;
-    commands.spawn((SystemScene, NotShadowCaster, Spin(Vec3::Y * 0.01), Mesh3d(meshes.add(Sphere::new(sr).mesh().ico(6).unwrap())), MeshMaterial3d(stars.add(StarMat { p: StarParams { color: v4(star_col, 14.0), center: Vec4::new(0.0, 0.0, 0.0, sr) } }))));
+    commands.spawn((SystemScene, NotShadowCaster, Spin(Vec3::Y * 0.01), Mesh3d(meshes.add(Sphere::new(sr).mesh().ico(6).unwrap())), MeshMaterial3d(stars.add(StarMat { p: StarParams { color: v4(star_col, 7.0), center: Vec4::new(0.0, 0.0, 0.0, sr) } }))));
     commands.spawn((
         SystemScene,
         NotShadowCaster,

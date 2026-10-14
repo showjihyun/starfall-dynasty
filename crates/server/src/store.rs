@@ -126,7 +126,15 @@ impl Store {
     }
 }
 
-pub fn new_token(seed: u64) -> String {
-    let mut r = shared::rng::Rng::from_parts(&[seed, std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_nanos() as u64).unwrap_or(0)]);
-    format!("{:016x}{:016x}", r.next_u64(), r.next_u64())
+/// 256-bit login token from the OS CSPRNG.
+pub fn new_token() -> String {
+    let mut b = [0u8; 32];
+    getrandom::fill(&mut b).expect("OS random source unavailable");
+    b.iter().map(|x| format!("{x:02x}")).collect()
+}
+
+/// Constant-time comparison so token checks don't leak timing.
+pub fn token_eq(a: &str, b: &str) -> bool {
+    let (a, b) = (a.as_bytes(), b.as_bytes());
+    a.len() == b.len() && a.iter().zip(b).fold(0u8, |acc, (x, y)| acc | (x ^ y)) == 0
 }

@@ -343,13 +343,13 @@ impl Game {
         let pid = match self.store.find_by_name(&name) {
             Some(pid) => {
                 let acc = self.store.account(pid).unwrap();
-                if token.as_deref() != Some(acc.token.as_str()) {
+                if !token.as_deref().is_some_and(|t| crate::store::token_eq(t, &acc.token)) {
                     return self.error(conn, "이미 사용 중인 이름입니다 (토큰 불일치)");
                 }
                 pid
             }
             None => {
-                let t = crate::store::new_token(conn ^ self.unix);
+                let t = crate::store::new_token();
                 self.store.create_account(&name, t)
             }
         };
