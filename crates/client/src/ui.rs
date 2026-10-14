@@ -348,7 +348,10 @@ fn hud(ctx: &egui::Context, s: &mut Session, net: &Net, env: &Env, vis: &Visuals
     // Top-left: location and wallet.
     egui::Area::new("loc".into()).anchor(Align2::LEFT_TOP, EVec2::new(14.0, 12.0)).show(ctx, |ui| {
         egui::Frame::popup(ui.style()).show(ui, |ui| {
-            ui.label(RichText::new(def.name).size(22.0).strong());
+            ui.horizontal(|ui| {
+                ui.label(RichText::new(def.name).size(22.0).strong());
+                ui.label(RichText::new(format!("{:.0} fps · {:.0} ms", s.fps, s.ping_ms)).size(10.0).color(DIM));
+            });
             ui.label(RichText::new(def.tier.label()).color(tier_color(def.tier)));
             ui.label(RichText::new(def.lore).size(11.0).color(DIM));
             ui.separator();

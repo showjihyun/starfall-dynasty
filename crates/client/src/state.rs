@@ -74,6 +74,8 @@ pub struct Session {
     /// Last time shots involved our ship (drives battle music).
     pub last_combat: f64,
     pub snap_cache: SnapshotCache,
+    /// Smoothed frames per second for the HUD.
+    pub fps: f32,
 }
 
 impl Session {
@@ -186,6 +188,8 @@ fn libc_nofollow() -> i32 {
 }
 
 pub fn pump_network(net: Option<Res<Net>>, mut s: ResMut<Session>, time: Res<Time<Real>>, mut next: ResMut<NextState<Screen>>, screen: Res<State<Screen>>) {
+    let dt = time.delta_secs().max(1e-4);
+    s.fps += (1.0 / dt - s.fps) * 0.05;
     let Some(net) = net else { return };
     let now = time.elapsed_secs_f64();
     while let Ok(ev) = net.rx.try_recv() {
