@@ -29,13 +29,15 @@ impl Plugin for ControlPlugin {
 #[derive(Resource)]
 pub struct CamState {
     pub zoom: f32,
+    /// First person (bridge view) vs third person (chase).
+    pub first_person: bool,
     pub last_sent: Controls,
     pub last_send_t: f64,
 }
 
 impl Default for CamState {
     fn default() -> Self {
-        CamState { zoom: 1.0, last_sent: Controls::default(), last_send_t: 0.0 }
+        CamState { zoom: 1.0, first_person: false, last_sent: Controls::default(), last_send_t: 0.0 }
     }
 }
 
@@ -69,6 +71,7 @@ fn chase_camera(
     vis: Res<Visuals>,
     env: Res<Env>,
     ships: Query<(&ShipVis, &Transform), Without<Camera3d>>,
+    globals: Query<&GlobalTransform>,
     mut cam: Query<&mut Transform, With<Camera3d>>,
     mut cs: ResMut<CamState>,
     scroll: Res<AccumulatedMouseScroll>,
@@ -81,6 +84,15 @@ fn chase_camera(
     let dt = time.delta_secs();
     let me = s.me.and_then(|id| vis.map.get(&id)).and_then(|e| ships.get(*e).ok());
     let (target_pos, target_rot) = match me {
+        Some((sv, t)) if cs.first_person && !s.my_state().is_some_and(|m| m.docked) => {
+            // Bridge view: from the Bridge node if the model has one, else a cockpit estimate.
+            let pos = sv.bridge.and_then(|b| globals.get(b).ok()).map(|g| g.translation()).unwrap_or(t.translation + t.rotation * Vec3::new(0.0, sv.radius * 0.22, -sv.radius * 0.45));
+            let rot = t.rotation;
+            // Snap tightly: the bridge is rigidly attached to the hull.
+            ct.translation = pos;
+            ct.rotation = rot;
+            return;
+        }
         Some((sv, t)) if !s.my_state().is_some_and(|m| m.docked) => {
             let r = sv.radius.max(8.0) * cs.zoom;
             let offset = t.rotation * Vec3::new(0.0, r * 1.05, r * 3.8);
@@ -154,7 +166,7 @@ fn flight_input(
 
 /// Discrete actions: targeting, missiles, docking, mining, scanning, investigating, windows.
 #[allow(clippy::too_many_arguments)]
-fn action_keys(keys: Res<ButtonInput<KeyCode>>, wants: Option<Res<EguiWantsInput>>, net: Option<Res<Net>>, mut s: ResMut<Session>, env: Res<Env>, time: Res<Time<Real>>) {
+fn action_keys(keys: Res<ButtonInput<KeyCode>>, wants: Option<Res<EguiWantsInput>>, net: Option<Res<Net>>, mut s: ResMut<Session>, env: Res<Env>, time: Res<Time<Real>>, mut cs: ResMut<CamState>) {
     let Some(net) = net else { return };
     if wants.as_ref().is_some_and(|w| w.wants_any_keyboard_input()) {
         return;
@@ -182,6 +194,22 @@ fn action_keys(keys: Res<ButtonInput<KeyCode>>, wants: Option<Res<EguiWantsInput
     }
     if pressed(KeyCode::F1) {
         s.ui.help = !s.ui.help;
+    }
+    if pressed(KeyCode::KeyL) {
+        s.ui.alliance = !s.ui.alliance;
+        if s.ui.alliance {
+            net.send(ClientMsg::RequestAlliances);
+        }
+    }
+    if pressed(KeyCode::KeyC) {
+        cs.first_person = !cs.first_person;
+        s.toast(if cs.first_person { "시점: 1인칭 (함교)" } else { "시점: 3인칭 (추적)" }, now);
+    }
+    if pressed(KeyCode::KeyB) {
+        net.send(ClientMsg::EscortCommand { attack: true });
+    }
+    if pressed(KeyCode::KeyY) {
+        net.send(ClientMsg::EscortCommand { attack: false });
     }
     if s.dead.is_some() {
         if pressed(KeyCode::Enter) {
@@ -218,7 +246,7 @@ fn action_keys(keys: Res<ButtonInput<KeyCode>>, wants: Option<Res<EguiWantsInput
     if pressed(KeyCode::KeyG) {
         if me.docked {
             net.send(ClientMsg::Undock);
-        } else if my_pos.distance(layout.station) < DOCK_RANGE + 80.0 {
+        } else if my_pos.distance(layout.station) < DOCK_RANGE + 80.0 + me.radius {
             net.send(ClientMsg::Dock);
             s.ui.station = true;
         } else {
@@ -231,7 +259,7 @@ fn action_keys(keys: Res<ButtonInput<KeyCode>>, wants: Option<Res<EguiWantsInput
         } else {
             let a = layout.asteroids.iter().min_by(|a, b| a.pos.distance(my_pos).total_cmp(&b.pos.distance(my_pos)));
             match a {
-                Some(a) if a.pos.distance(my_pos) < MINE_RANGE + a.radius => net.send(ClientMsg::Mine { asteroid: Some(a.id) }),
+                Some(a) if a.pos.distance(my_pos) < MINE_RANGE + a.radius + me.radius => net.send(ClientMsg::Mine { asteroid: Some(a.id) }),
                 Some(a) => s.toast(format!("가장 가까운 소행성까지 {:.0}u — 채굴 사거리 {:.0}u", a.pos.distance(my_pos), MINE_RANGE), now),
                 None => s.toast("이 성계엔 소행성이 없습니다", now),
             }
@@ -242,7 +270,7 @@ fn action_keys(keys: Res<ButtonInput<KeyCode>>, wants: Option<Res<EguiWantsInput
         let poi = layout.pois.iter().min_by(|a, b| a.pos.distance(my_pos).total_cmp(&b.pos.distance(my_pos)));
         let wreck = latest.iter().filter(|e| e.kind == EntityKind::Wreck).min_by(|a, b| Vec3::from(a.pos).distance(my_pos).total_cmp(&Vec3::from(b.pos).distance(my_pos)));
         let wd = wreck.map(|w| Vec3::from(w.pos).distance(my_pos)).unwrap_or(f32::MAX);
-        if wd < 400.0 {
+        if wd < 400.0 + me.radius {
             net.send(ClientMsg::InvestigateWreck { wreck: wreck.unwrap().id });
         } else if let Some(p) = poi {
             net.send(ClientMsg::Scan { poi: p.id });

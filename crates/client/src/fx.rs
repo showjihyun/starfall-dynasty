@@ -8,7 +8,9 @@ use crate::ships::{ShipVis, Visuals};
 use crate::state::{Screen, Session};
 use bevy::light::NotShadowCaster;
 use bevy::prelude::*;
+use crate::audio::{Sfx, SfxQueue};
 use shared::protocol::{EntityKind, Fx};
+use shared::ships::WeaponKind;
 
 pub struct FxPlugin;
 
@@ -68,29 +70,77 @@ fn spawn_fx(
     mut booms: ResMut<Assets<ExplosionMat>>,
     mut glows: ResMut<Assets<GlowMat>>,
     mut muzzle_toggle: Local<usize>,
+    mut sfx: ResMut<SfxQueue>,
+    time: Res<Time<Real>>,
 ) {
+    let now = time.elapsed_secs_f64();
     let fx: Vec<Fx> = std::mem::take(&mut s.fx);
     for f in fx {
         match f {
-            Fx::Laser { from, to, hit } => {
+            Fx::Shot { from, to, weapon, mount, hit } => {
                 let Some(&fe) = vis.map.get(&from) else { continue };
                 let Ok((sv, stf)) = ships.get(fe) else { continue };
-                let hostile = matches!(sv.kind, EntityKind::Npc(_));
-                let start = if sv.muzzles.is_empty() {
-                    stf.translation + stf.rotation * Vec3::NEG_Z * sv.radius
-                } else {
-                    *muzzle_toggle += 1;
-                    gt.get(sv.muzzles[*muzzle_toggle % sv.muzzles.len()]).map(|g| g.translation()).unwrap_or(stf.translation)
+                // Colour by relation to me: friends blue/amber, enemies red.
+                let me = s.latest().and_then(|l| l.ents.get(&s.me.unwrap_or(0))).cloned();
+                let shooter = s.latest().and_then(|l| l.ents.get(&from)).cloned();
+                let friendly = match (&me, &shooter) {
+                    (Some(m), Some(sh)) => sh.owner.is_some() && (sh.owner == m.owner || (m.fleet.is_some() && sh.fleet == m.fleet) || (m.alliance.is_some() && sh.alliance == m.alliance)),
+                    _ => !matches!(sv.kind, EntityKind::Npc(_)),
                 };
-                let end = vis.map.get(&to).and_then(|e| ships.get(*e).ok()).map(|(_, t)| t.translation).unwrap_or(start + stf.rotation * Vec3::NEG_Z * 650.0);
-                let col = if hostile { [1.0, 0.25, 0.12] } else { [0.25, 0.75, 1.0] };
-                spawn_beam(&mut commands, &assets, &mut beams, start, end, col, if hostile { 2.2 } else { 1.8 }, 0.14);
-                if hit && to != 0 {
-                    spawn_boom(&mut commands, &assets, &mut booms, end + (start - end).normalize_or_zero() * 4.0, 0.15, 0.35);
+                let target_pos = vis.map.get(&to).and_then(|e| ships.get(*e).ok()).map(|(_, t)| t.translation);
+                let fwd = stf.rotation * Vec3::NEG_Z;
+                let pick = |list: &Vec<Entity>, k: usize| list.get(k % list.len().max(1)).and_then(|e| gt.get(*e).ok()).map(|g| g.translation());
+                match weapon {
+                    WeaponKind::Laser => {
+                        *muzzle_toggle += 1;
+                        let start = pick(&sv.muzzles, *muzzle_toggle).unwrap_or(stf.translation + fwd * sv.radius);
+                        let end = target_pos.unwrap_or(start + fwd * 650.0);
+                        let col = if friendly { [0.25, 0.75, 1.0] } else { [1.0, 0.25, 0.12] };
+                        spawn_beam(&mut commands, &assets, &mut beams, start, end, col, 1.8, 0.14);
+                        if hit && to != 0 {
+                            spawn_boom(&mut commands, &assets, &mut booms, end + (start - end).normalize_or_zero() * 4.0, 0.15, 0.35);
+                        }
+                        sfx.play(Sfx::Laser, Some(start));
+                    }
+                    WeaponKind::Pulse => {
+                        let k = mount as usize;
+                        let start = pick(&sv.turret_muzzles, k).or_else(|| pick(&sv.muzzles, k)).unwrap_or_else(|| {
+                            // No turret nodes: spread shots along the hull.
+                            let a = k as f32 * 2.399;
+                            stf.translation + stf.rotation * Vec3::new(a.cos() * sv.radius * 0.25, sv.radius * 0.12, (k as f32 / 8.0 - 0.5) * sv.radius * 1.4)
+                        });
+                        let Some(end) = target_pos else { continue };
+                        let col = if friendly { [1.0, 0.75, 0.3] } else { [1.0, 0.3, 0.15] };
+                        let w = (sv.radius * 0.012).clamp(2.0, 6.0);
+                        spawn_beam(&mut commands, &assets, &mut beams, start, end, col, w, 0.12);
+                        spawn_boom(&mut commands, &assets, &mut booms, end + (start - end).normalize_or_zero() * 6.0, 0.25, 0.4);
+                        sfx.play(Sfx::Pulse, Some(start));
+                        if let Ok((mut svm, _)) = ships.get_mut(fe) {
+                            svm.aim = Some((to, now));
+                        }
+                    }
+                    WeaponKind::MainBeam => {
+                        // Every bow port fires together: a thick neutron-beam volley.
+                        let ports: Vec<Vec3> = if sv.mains.is_empty() { vec![stf.translation + fwd * sv.radius * 1.05] } else { sv.mains.iter().filter_map(|e| gt.get(*e).ok()).map(|g| g.translation()).collect() };
+                        let reach = sv.radius * 2.2 * 1.8 + 1500.0;
+                        let w = (sv.radius * 0.05).clamp(5.0, 26.0);
+                        for (i, p) in ports.iter().enumerate() {
+                            let end = target_pos.map(|t| t + (*p - ports[0]) * 0.3).unwrap_or(*p + fwd * reach);
+                            let col = if friendly { [0.55, 0.8, 1.0] } else { [1.0, 0.45, 0.3] };
+                            spawn_beam(&mut commands, &assets, &mut beams, *p, end, col, w, 0.75);
+                            spawn_boom(&mut commands, &assets, &mut booms, *p + fwd * w, w * 0.04, 0.5);
+                            if hit && i == 0 {
+                                spawn_boom(&mut commands, &assets, &mut booms, end, (w * 0.12).max(1.0), 1.4);
+                            }
+                        }
+                        sfx.play(Sfx::MainBeam, Some(stf.translation));
+                    }
+                    WeaponKind::Missile => sfx.play(Sfx::Missile, Some(stf.translation)),
                 }
             }
             Fx::Explosion { pos, size } => {
                 let p = Vec3::from(pos);
+                sfx.play(if size >= 3.0 { Sfx::ExplosionBig } else { Sfx::ExplosionSmall }, Some(p));
                 spawn_boom(&mut commands, &assets, &mut booms, p, size, 1.6);
                 commands.spawn((Ttl { left: 0.9, total: 0.9 }, FlashLight(4.0e9 * size), PointLight { color: Color::srgb(1.0, 0.7, 0.4), intensity: 4.0e9 * size, range: 900.0 * size.sqrt(), ..default() }, Transform::from_translation(p)));
                 // Debris ring of smaller blasts.
@@ -106,16 +156,21 @@ fn spawn_fx(
                 {
                     sv.hit_dir = Vec3::from(dir);
                     sv.hit_age = 0.0;
+                    sfx.play(Sfx::ShieldHit, ships.get(*e).ok().map(|(_, t)| t.translation));
                 }
             }
             Fx::WarpOut { entity } | Fx::WarpIn { entity } => {
                 let Some(e) = vis.map.get(&entity) else { continue };
                 let Ok((sv, t)) = ships.get(*e) else { continue };
+                sfx.play(Sfx::WarpJump, Some(t.translation));
                 let r = sv.radius * 6.0;
                 let m = glows.add(GlowMat { p: GlowParams { color: Vec4::new(0.5, 0.75, 1.0, 8.0), center: t.translation.extend(sv.radius), shape: Vec4::new(2.5, 0.0, r, 0.0) } });
                 commands.spawn((Ttl { left: 0.9, total: 0.9 }, GlowFx(m.clone(), sv.radius), NotShadowCaster, Mesh3d(assets.sphere.clone()), MeshMaterial3d(m), Transform::from_translation(t.translation).with_scale(Vec3::splat(r))));
             }
-            Fx::MissileLaunch { .. } => {}
+            Fx::MissileLaunch { from, .. } => {
+                let at = vis.map.get(&from).and_then(|e| ships.get(*e).ok()).map(|(_, t)| t.translation);
+                sfx.play(Sfx::Missile, at);
+            }
         }
     }
     // Hull hits (no shield left) flash the hull.
@@ -241,7 +296,13 @@ fn warp_tunnel(
     mut warps: ResMut<Assets<WarpMat>>,
     mut after: Local<f32>,
     mut last_epoch: Local<u32>,
+    mut was_charging: Local<bool>,
+    mut sfx: ResMut<SfxQueue>,
 ) {
+    if s.warp.is_some() && !*was_charging {
+        sfx.play(Sfx::WarpCharge, None);
+    }
+    *was_charging = s.warp.is_some();
     let now = time.elapsed_secs_f64();
     let charge = s.warp.map(|(_, end, total)| (1.0 - ((end - now) as f32 / total)).clamp(0.0, 1.0));
     if *last_epoch != s.system_epoch {

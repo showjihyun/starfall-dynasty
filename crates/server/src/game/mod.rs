@@ -226,6 +226,8 @@ pub struct Game {
     next_fleet: FleetId,
     pub kicked: Vec<ConnId>,
     pub pending_fx: BTreeMap<SystemId, Vec<Fx>>,
+    /// QA cheats (`/grow N`, `/cash`) — only when the server runs with `--dev`.
+    pub dev_mode: bool,
 }
 
 impl Game {
@@ -245,6 +247,7 @@ impl Game {
             next_fleet: 1,
             kicked: Vec::new(),
             pending_fx: BTreeMap::new(),
+            dev_mode: false,
         };
         for def in galaxy::SYSTEMS {
             g.systems.insert(def.id, Sys { id: def.id, layout: galaxy::system_layout(def.id), ents: BTreeMap::new(), pirate_cd: 1.0, engagement: None, wrecks: HashMap::new() });

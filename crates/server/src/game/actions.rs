@@ -78,6 +78,9 @@ impl Game {
                 if text.trim().is_empty() {
                     return;
                 }
+                if self.dev_mode && text.starts_with('/') {
+                    return self.dev_command(pid, &text);
+                }
                 let from = self.store.profile(pid).unwrap().name.clone();
                 let conns: Vec<ConnId> = self.conn_of.values().copied().collect();
                 for c in conns {
@@ -711,6 +714,33 @@ impl Game {
             self.send_chronicle(conn, pid);
         } else {
             self.error(conn, "이 사건에 대한 증거가 아닙니다");
+        }
+    }
+
+    fn dev_command(&mut self, pid: PlayerId, text: &str) {
+        let mut it = text.split_whitespace();
+        match it.next() {
+            Some("/grow") => {
+                let lvl: u8 = it.next().and_then(|v| v.parse().ok()).unwrap_or(9).clamp(1, MAX_MODULE_LEVEL);
+                if let Some(p) = self.store.profile_mut(pid) {
+                    for m in Module::ALL {
+                        p.ship.modules.insert(m, lvl);
+                    }
+                    p.scenarios_completed = p.scenarios_completed.max(5);
+                }
+                if let Some((sys, _)) = self.player_entity(pid) {
+                    self.spawn_player(pid, sys, false);
+                }
+                self.push_profile(pid);
+                self.toast(pid, format!("[dev] 모든 모듈 Lv{lvl}"));
+            }
+            Some("/cash") => {
+                if let Some(p) = self.store.profile_mut(pid) {
+                    p.wallet.add(&shared::ships::Materials { credits: 1_000_000, alloy: 5000, crystal: 5000, datacore: 2000, relic: 200 });
+                }
+                self.push_profile(pid);
+            }
+            _ => self.toast(pid, "[dev] /grow N, /cash"),
         }
     }
 

@@ -11,7 +11,7 @@ use shared::chronicle::Importance;
 use shared::galaxy::{self, Ore, PoiKind, RiskTier, Species};
 use shared::missions::{Objective, scenarios};
 use shared::protocol::*;
-use shared::ships::{HullClass, MAX_MODULE_LEVEL, Module, Ship, tier_cap, upgrade_cost};
+use shared::ships::{HullClass, MAX_MODULE_LEVEL, Module, Ship, SizeClass, tier_cap, upgrade_cost};
 
 #[derive(Resource)]
 pub struct Form {
@@ -294,10 +294,12 @@ fn hud(ctx: &egui::Context, s: &mut Session, net: &Net, env: &Env, vis: &Visuals
                     continue;
                 }
                 let Some(sp) = project(vt) else { continue };
-                let hostile = matches!(e.kind, EntityKind::Npc(_)) || (e.kind == EntityKind::Player && def.tier.pvp_allowed() && (e.fleet.is_none() || e.fleet != prof_fleet(s)));
+                let friend = e.owner.is_some() && (e.owner == s.player_id || (e.fleet.is_some() && e.fleet == prof_fleet(s)) || (e.alliance.is_some() && e.alliance == s.my_alliance));
+                let war = e.alliance.is_some_and(|a| s.alliances.iter().any(|x| Some(x.id) == s.my_alliance && x.wars.contains(&a)));
+                let hostile = matches!(e.kind, EntityKind::Npc(_)) || (!friend && e.owner.is_some() && (def.tier.pvp_allowed() || (war && def.tier != RiskTier::Core)));
                 let col = match e.kind {
                     EntityKind::Wreck => GOLD,
-                    _ if e.fleet.is_some() && e.fleet == prof_fleet(s) => GREEN,
+                    _ if friend => GREEN,
                     _ if hostile => RED,
                     _ => ACCENT,
                 };
@@ -367,6 +369,13 @@ fn hud(ctx: &egui::Context, s: &mut Session, net: &Net, env: &Env, vis: &Visuals
                 ui.label(RichText::new(format!("「{}」", ship.name)).strong().size(16.0));
                 ui.label(RichText::new(format!("{} · {}급", ship.hull.name(), ship.designation())).color(ACCENT));
             });
+            let class = ship.size_class();
+            let next = match class {
+                SizeClass::Small => format!(" · Rank 3에서 순양함으로 재건조 (현재 Rank {})", ship.rank()),
+                SizeClass::Cruiser => format!(" · Rank 7에서 주력함으로 (현재 Rank {})", ship.rank()),
+                SizeClass::Capital => String::new(),
+            };
+            ui.label(RichText::new(format!("{} · 전장 {:.0}m · 포탑 {}문{}{}{}", class.name(), st.radius * 2.2, st.turrets, if st.main_damage > 0.0 { " · 함수 주포" } else { "" }, if st.escorts > 0 { format!(" · 호위함 {}척", st.escorts) } else { String::new() }, next)).size(11.0).color(GOLD));
             if let Some(m) = &me {
                 bar(ui, m.shield, Color32::from_rgb(60, 140, 255), format!("실드 {:.0}/{:.0}", m.shield * st.max_shield, st.max_shield), 360.0);
                 bar(ui, m.hull, if m.hull > 0.35 { Color32::from_rgb(70, 190, 110) } else { RED }, format!("선체 {:.0}/{:.0}", m.hull * st.max_hull, st.max_hull), 360.0);
@@ -452,7 +461,7 @@ fn hud(ctx: &egui::Context, s: &mut Session, net: &Net, env: &Env, vis: &Visuals
 
     // Key hints.
     egui::Area::new("keys".into()).anchor(Align2::CENTER_BOTTOM, EVec2::new(0.0, -6.0)).show(ctx, |ui| {
-        ui.label(RichText::new("W/S 추진 · A/D 선회 · R/F 상하 · Q/E 롤 · 우클릭 마우스조종 · Shift 부스트 · Space/좌클릭 사격 · T 목표 · X 미사일 · G 도킹 · N 채굴 · V 스캔/조사 · M 지도 · U 정거장 · J 미션 · H 연대기 · K 함대 · F1 도움말").size(11.0).color(DIM));
+        ui.label(RichText::new("W/S 추진 · A/D 선회 · R/F 상하 · Q/E 롤 · 우클릭 조종 · Shift 부스트 · Space 사격/주포 · T 목표 · X 미사일 · B 호위공격 · Y 호위복귀 · C 1/3인칭 · G 도킹 · N 채굴 · V 스캔 · M 지도 · U 정거장 · J 미션 · H 연대기 · K 함대 · L 동맹 · F1").size(11.0).color(DIM));
     });
 
     if let Some(killer) = s.dead.clone() {
@@ -512,6 +521,10 @@ fn windows(ctx: &egui::Context, s: &mut Session, net: &Net, env: &Env) {
     egui::Window::new("함대 (K)").open(&mut open).default_size([360.0, 320.0]).show(ctx, |ui| fleet(ui, s, net));
     s.ui.fleet = open;
 
+    let mut open = s.ui.alliance;
+    egui::Window::new("동맹 (L)").open(&mut open).default_size([520.0, 520.0]).show(ctx, |ui| alliance(ui, s, net));
+    s.ui.alliance = open;
+
     let mut open = s.ui.help;
     egui::Window::new("도움말 (F1)").open(&mut open).show(ctx, |ui| {
         ui.label("당신은 평생 단 한 척의 함선만 가집니다. 그 함선을 키우는 길:");
@@ -523,6 +536,8 @@ fn windows(ctx: &egui::Context, s: &mut Session, net: &Net, env: &Env) {
         ui.separator();
         ui.label("위험 등급: CORE(안전) → FRONTIER(해적) → WILD(PvP, 범죄 기록) → WAR ZONE(함대전) → DEEP(최고 위험).");
         ui.label("함대(K)를 꾸려 함께 싸우면 아군 사격이 없고 보상을 공유합니다.");
+        ui.label("성장: Rank 0–2 소형함 → Rank 3–6 순양함(포탑·함수포·호위함) → Rank 7–10 주력함(주포 일제사·포탑 포대·호위 함대).");
+        ui.label("동맹(L): 창설·초대·선전포고·강화. 전쟁 중인 동맹끼리는 CORE를 제외한 모든 성계에서 교전할 수 있습니다.");
         ui.label("격침된 함선의 잔해는 남습니다. 잔해를 조사(V)해 증거를 얻고, 연대기(H)에서 연구를 발표하거나 반박하세요.");
     });
     s.ui.help = open;
@@ -809,4 +824,73 @@ fn fleet(ui: &mut egui::Ui, s: &mut Session, net: &Net) {
         }
     });
     ui.label(RichText::new("함대원끼리는 서로 피해를 주지 않고, 격파 보상과 미션 진행을 공유합니다. War Zone에서 함대 대 함대 교전은 연대기에 전투로 기록됩니다.").size(11.0).color(DIM));
+}
+
+fn alliance(ui: &mut egui::Ui, s: &mut Session, net: &Net) {
+    if let Some((from, id, name)) = s.alliance_invite.clone() {
+        ui.horizontal(|ui| {
+            ui.label(RichText::new(format!("{from}의 초대: {name}")).color(GOLD));
+            if ui.button("가입").clicked() {
+                net.send(ClientMsg::AllianceAccept { alliance: id });
+                s.alliance_invite = None;
+            }
+            if ui.button("거절").clicked() {
+                s.alliance_invite = None;
+            }
+        });
+        ui.separator();
+    }
+    let mine = s.my_alliance.and_then(|m| s.alliances.iter().find(|a| a.id == m)).cloned();
+    match &mine {
+        Some(a) => {
+            ui.label(RichText::new(format!("[{}] {}", a.tag, a.name)).size(20.0).color(ACCENT).strong());
+            ui.label(format!("맹주 {} · 함장 {}명", a.leader, a.members.len()));
+            ui.label(RichText::new(a.members.join(", ")).size(12.0).color(DIM));
+            let leader = s.profile.as_ref().is_some_and(|p| p.name == a.leader);
+            if leader {
+                ui.horizontal(|ui| {
+                    ui.add(egui::TextEdit::singleline(&mut s.ui.invite_name).hint_text("초대할 함장").desired_width(160.0));
+                    if ui.button("초대").clicked() && !s.ui.invite_name.trim().is_empty() {
+                        net.send(ClientMsg::AllianceInvite { name: s.ui.invite_name.trim().to_string() });
+                    }
+                });
+            }
+            if ui.button("동맹 탈퇴").clicked() {
+                net.send(ClientMsg::AllianceLeave);
+            }
+            ui.separator();
+            ui.label(RichText::new("외교").strong());
+            let me_id = a.id;
+            for other in s.alliances.clone().iter().filter(|o| o.id != me_id) {
+                ui.horizontal(|ui| {
+                    let at_war = a.wars.contains(&other.id);
+                    ui.label(RichText::new(format!("[{}] {} ({}명)", other.tag, other.name, other.members.len())).color(if at_war { RED } else { Color32::WHITE }));
+                    if at_war {
+                        ui.label(RichText::new("⚔ 전쟁 중").color(RED));
+                        if leader && ui.button("강화 제의").clicked() {
+                            net.send(ClientMsg::AlliancePeace { target: other.id });
+                        }
+                    } else if leader && ui.button("선전포고").clicked() {
+                        net.send(ClientMsg::AllianceDeclareWar { target: other.id });
+                    }
+                });
+            }
+        }
+        None => {
+            ui.label("소속 동맹 없음. 동맹을 창설하거나 초대를 받으세요.");
+            ui.horizontal(|ui| {
+                ui.add(egui::TextEdit::singleline(&mut s.ui.alliance_name).hint_text("동맹 이름").desired_width(180.0));
+                ui.add(egui::TextEdit::singleline(&mut s.ui.alliance_tag).hint_text("태그 (예: FPA)").desired_width(90.0));
+                if ui.button("창설 (1000 CR)").clicked() {
+                    net.send(ClientMsg::AllianceCreate { name: s.ui.alliance_name.clone(), tag: s.ui.alliance_tag.clone() });
+                }
+            });
+            ui.separator();
+            for a in &s.alliances {
+                ui.label(format!("[{}] {} — 맹주 {}, {}명", a.tag, a.name, a.leader, a.members.len()));
+            }
+        }
+    }
+    ui.separator();
+    ui.label(RichText::new("동맹원끼리는 서로 공격할 수 없습니다. 전쟁 중인 동맹과는 CORE를 제외한 모든 성계에서 범죄 기록 없이 교전하며, 동맹 대 동맹 전투는 연대기에 기록됩니다.").size(11.0).color(DIM));
 }

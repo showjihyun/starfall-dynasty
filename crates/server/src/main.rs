@@ -37,6 +37,10 @@ async fn main() -> std::io::Result<()> {
     let history = history::HistoryEngine::open(&data.join("history.jsonl"))?;
     println!("[starfall] data dir {} — {} accounts, {} historical events", data.display(), store.data.accounts.len(), history.events.len());
     let mut game = Game::new(store, history, unix_now());
+    game.dev_mode = args.iter().any(|a| a == "--dev");
+    if game.dev_mode {
+        println!("[starfall] DEV MODE: /grow and /cash chat commands enabled");
+    }
 
     let listener = TcpListener::bind(("0.0.0.0", port)).await?;
     println!("[starfall] listening on ws://0.0.0.0:{port}");

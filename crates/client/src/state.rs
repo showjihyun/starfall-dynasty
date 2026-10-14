@@ -29,6 +29,9 @@ pub struct UiFlags {
     pub chronicle: bool,
     pub fleet: bool,
     pub help: bool,
+    pub alliance: bool,
+    pub alliance_name: String,
+    pub alliance_tag: String,
     pub chat_input: String,
     pub invite_name: String,
     pub research_thesis: String,
@@ -56,6 +59,9 @@ pub struct Session {
     pub biography: Option<(String, Vec<BioEntry>, Vec<BioEntry>)>,
     pub fleet: Option<FleetId>,
     pub fleet_members: Vec<FleetMember>,
+    pub alliances: Vec<AllianceInfo>,
+    pub my_alliance: Option<AllianceId>,
+    pub alliance_invite: Option<(String, AllianceId, String)>,
     pub invite: Option<(String, FleetId)>,
     pub engagement: Option<Vec<String>>,
     pub chat: VecDeque<(String, String)>,
@@ -256,5 +262,13 @@ fn apply(s: &mut Session, m: ServerMsg, now: f64, next: &mut NextState<Screen>) 
             }
         }
         ServerMsg::Pong { t } => s.ping_ms = ((now - t) * 1000.0) as f32,
+        ServerMsg::Alliances { mine, list } => {
+            s.my_alliance = mine;
+            s.alliances = list;
+        }
+        ServerMsg::AllianceInvite { from, alliance, name } => {
+            s.toast(format!("{from}이(가) 동맹 {name}에 초대했습니다 — 동맹 창(L)에서 수락"), now);
+            s.alliance_invite = Some((from, alliance, name));
+        }
     }
 }

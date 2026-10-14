@@ -10,14 +10,14 @@ use bevy::prelude::*;
 use bevy::world_serialization::WorldInstanceReady;
 use shared::missions::NpcArchetype;
 use shared::protocol::{EntityId, EntityKind, EntityState};
-use shared::ships::HullClass;
+use shared::ships::{HullClass, SizeClass};
 use std::collections::HashMap;
 
 pub struct ShipsPlugin;
 
 impl Plugin for ShipsPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<Visuals>().add_systems(Startup, load_models).add_systems(Update, (sync_visuals, update_ship_fx).chain().run_if(in_state(Screen::Playing)));
+        app.init_resource::<Visuals>().add_systems(Startup, load_models).add_systems(Update, (sync_visuals, update_ship_fx, aim_turrets).chain().run_if(in_state(Screen::Playing)));
     }
 }
 
@@ -29,7 +29,7 @@ pub struct Visuals {
 
 #[derive(Resource)]
 pub struct Models {
-    pub glb: HashMap<&'static str, Handle<WorldAsset>>,
+    pub glb: HashMap<String, Handle<WorldAsset>>,
     pub plume: Handle<Mesh>,
     pub shield: Handle<Mesh>,
 }
@@ -55,6 +55,16 @@ pub struct ShipVis {
     pub throttle: f32,
     pub last_pos: Vec3,
     pub seed: f32,
+    pub class: SizeClass,
+    /// Turret mesh nodes with their rest rotation, and the muzzle under each.
+    pub turrets: Vec<(Entity, Quat)>,
+    pub turret_muzzles: Vec<Entity>,
+    /// Bow main-gun ports.
+    pub mains: Vec<Entity>,
+    /// First-person camera anchor.
+    pub bridge: Option<Entity>,
+    /// What the turrets are tracking (from the latest turret shots) and when.
+    pub aim: Option<(EntityId, f64)>,
 }
 
 #[derive(Component)]
@@ -86,6 +96,34 @@ pub fn npc_model(kind: EntityKind) -> Option<(&'static str, f32)> {
     }
 }
 
+/// Nominal model lengths (m) of each hull family by growth stage; must match the Blender build scripts.
+fn hull_lengths(h: HullClass) -> (&'static str, [f32; 3]) {
+    match h {
+        HullClass::Wren => ("wren", [20.0, 130.0, 360.0]),
+        HullClass::Talon => ("talon", [24.0, 150.0, 420.0]),
+        HullClass::Bastion => ("bastion", [36.0, 180.0, 600.0]),
+        HullClass::Mule => ("mule", [30.0, 170.0, 520.0]),
+        HullClass::Seer => ("seer", [26.0, 150.0, 450.0]),
+    }
+}
+
+/// Model for a player/escort ship at its growth stage, falling back to a smaller stage if a model is missing.
+pub fn stage_model(models: &Models, hull: HullClass, class: SizeClass) -> (String, f32) {
+    let (base, lens) = hull_lengths(hull);
+    let stages = [(format!("{base}_capital"), lens[2]), (format!("{base}_cruiser"), lens[1]), (base.to_string(), lens[0])];
+    let start = match class {
+        SizeClass::Capital => 0,
+        SizeClass::Cruiser => 1,
+        SizeClass::Small => 2,
+    };
+    for (name, len) in stages[start..].iter() {
+        if models.glb.contains_key(name) {
+            return (name.clone(), *len);
+        }
+    }
+    (base.to_string(), lens[0])
+}
+
 pub fn model_for(hull: Option<HullClass>, kind: EntityKind) -> (&'static str, f32) {
     let h = match kind {
         EntityKind::Npc(NpcArchetype::Raider) => HullClass::Wren,
@@ -112,7 +150,12 @@ pub fn assets_dir() -> std::path::PathBuf {
 
 fn load_models(mut commands: Commands, server: Res<AssetServer>, mut meshes: ResMut<Assets<Mesh>>) {
     let mut glb = HashMap::new();
-    for name in ["wren", "talon", "bastion", "mule", "seer", "npc_raider", "npc_gunship", "npc_warden", "npc_warlord", "npc_sentinel", "wreck"] {
+    let mut names: Vec<String> = ["npc_raider", "npc_gunship", "npc_warden", "npc_warlord", "npc_sentinel", "wreck"].iter().map(|s| s.to_string()).collect();
+    for h in HullClass::ALL {
+        let base = hull_lengths(h).0;
+        names.extend([base.to_string(), format!("{base}_cruiser"), format!("{base}_capital")]);
+    }
+    for name in names {
         let file = format!("models/{name}.glb");
         if assets_dir().join(&file).exists() {
             glb.insert(name, server.load(GltfAssetLabel::Scene(0).from_asset(file)));
@@ -135,6 +178,7 @@ fn sync_visuals(
     mut shield_mats: ResMut<Assets<ShieldMat>>,
     mut engine_mats: ResMut<Assets<EngineMat>>,
     mut q: Query<(&mut ShipVis, &mut Transform, &mut Visibility)>,
+    cam: Res<crate::control::CamState>,
 ) {
     if vis.epoch != s.system_epoch {
         for (_, e) in vis.map.drain() {
@@ -154,6 +198,12 @@ fn sync_visuals(
     for (id, st) in &latest.ents {
         let Some((pos, rot, st2)) = s.sample(*id, t) else { continue };
         match vis.map.get(id).copied() {
+            Some(e) if q.get(e).is_ok_and(|(v, _, _)| matches!(st.kind, EntityKind::Player) && v.class != st.class.unwrap_or(SizeClass::Small)) => {
+                // Grew into a cruiser / capital ship: swap the model.
+                commands.entity(e).despawn();
+                let ne = spawn_visual(&mut commands, st, pos, rot, &models, &mut meshes, &mut std_mats, &mut shield_mats, &mut engine_mats);
+                vis.map.insert(*id, ne);
+            }
             Some(e) => {
                 if let Ok((mut v, mut tf, mut visibility)) = q.get_mut(e) {
                     let dt = time.delta_secs().max(1e-3);
@@ -161,7 +211,9 @@ fn sync_visuals(
                     v.last_pos = pos;
                     tf.translation = pos;
                     tf.rotation = rot;
-                    *visibility = if st2.docked { Visibility::Hidden } else { Visibility::Inherited };
+                    // Docked ships vanish into the station; in a fighter's cockpit view our own hull is hidden.
+                    let cockpit = Some(*id) == s.me && cam.first_person && v.class == SizeClass::Small;
+                    *visibility = if st2.docked || cockpit { Visibility::Hidden } else { Visibility::Inherited };
                     let max_speed = 140.0;
                     v.throttle = v.throttle + ((speed / max_speed).clamp(0.05, 1.0) - v.throttle) * 0.1;
                     v.boost = if st2.boosting { (v.boost + dt * 3.0).min(1.0) } else { (v.boost - dt * 2.0).max(0.0) };
@@ -211,6 +263,12 @@ fn spawn_visual(
         throttle: 0.0,
         last_pos: pos,
         seed,
+        class: st.class.unwrap_or(SizeClass::Small),
+        turrets: vec![],
+        turret_muzzles: vec![],
+        mains: vec![],
+        bridge: None,
+        aim: None,
     };
     match st.kind {
         EntityKind::Missile => {
@@ -249,7 +307,13 @@ fn spawn_visual(
             root
         }
         _ => {
-            let (name, len) = npc_model(st.kind).filter(|(n, _)| models.glb.contains_key(n)).unwrap_or_else(|| model_for(st.hull_class, st.kind));
+            let (name, len) = match (st.kind, st.hull_class) {
+                (EntityKind::Player | EntityKind::Escort, Some(h)) => stage_model(models, h, st.class.unwrap_or(SizeClass::Small)),
+                _ => npc_model(st.kind).filter(|(n, _)| models.glb.contains_key(*n)).map(|(n, l)| (n.to_string(), l)).unwrap_or_else(|| {
+                    let (n, l) = model_for(st.hull_class, st.kind);
+                    (n.to_string(), l)
+                }),
+            };
             let scale = st.radius * 2.2 / len;
             let shield = shield_mats.add(ShieldMat { p: ShieldParams { color: if hostile { Vec4::new(1.0, 0.35, 0.2, 1.0) } else { Vec4::new(0.35, 0.7, 1.0, 1.0) }, hit: Vec4::new(0.0, 0.0, 1.0, 10.0), center: pos.extend(st.radius) } });
             v.shield = Some(shield.clone());
@@ -257,7 +321,7 @@ fn spawn_visual(
             commands.entity(root).with_children(|c| {
                 c.spawn((NotShadowCaster, Mesh3d(models.shield.clone()), MeshMaterial3d(shield), Transform::from_scale(Vec3::new(1.15, 0.7, 1.35) * st.radius)));
             });
-            if let Some(h) = models.glb.get(name) {
+            if let Some(h) = models.glb.get(&name) {
                 let model = commands.spawn((WorldAssetRoot(h.clone()), ModelRoot(root), Transform::from_scale(Vec3::splat(scale)))).observe(on_model_ready).id();
                 commands.entity(root).add_child(model);
             } else {
@@ -295,11 +359,14 @@ fn on_model_ready(
     mut engine_mats: ResMut<Assets<EngineMat>>,
     models: Res<Models>,
     mut ships: Query<&mut ShipVis>,
+    transforms: Query<&Transform>,
 ) {
     let Ok(ModelRoot(root)) = roots.get(ev.entity) else { return };
     let Ok(mut ship) = ships.get_mut(*root) else { return };
     let hostile = matches!(ship.kind, EntityKind::Npc(_));
     let mut cache: HashMap<AssetId<StandardMaterial>, Handle<HullMat>> = HashMap::new();
+    let mut turrets: Vec<(usize, Entity)> = vec![];
+    let mut muzzles: Vec<(usize, Entity)> = vec![];
     for d in children.iter_descendants(ev.entity) {
         if let Ok(name) = names.get(d) {
             let n = name.as_str();
@@ -312,6 +379,15 @@ fn on_model_ready(
                 });
             } else if n.starts_with("Gun_") {
                 ship.muzzles.push(d);
+            } else if n.starts_with("Main_") {
+                ship.mains.push(d);
+            } else if n == "Bridge" {
+                ship.bridge = Some(d);
+            } else if let Some(k) = n.strip_prefix("Turret_").and_then(|k| k.parse::<usize>().ok()) {
+                turrets.push((k, d));
+                commands.entity(d).insert(TurretTag);
+            } else if let Some(k) = n.strip_prefix("Muzzle_").and_then(|k| k.parse::<usize>().ok()) {
+                muzzles.push((k, d));
             } else if let Some(rank) = n.strip_prefix("Rank").and_then(|r| r.split('_').next()).and_then(|r| r.parse::<u8>().ok()) {
                 commands.entity(d).insert(RankPart(rank));
             }
@@ -336,6 +412,10 @@ fn on_model_ready(
         }
     }
     ship.hull_mats.dedup();
+    turrets.sort_by_key(|t| t.0);
+    muzzles.sort_by_key(|m| m.0);
+    ship.turrets = turrets.iter().map(|(_, e)| (*e, transforms.get(*e).map(|t| t.rotation).unwrap_or_default())).collect();
+    ship.turret_muzzles = muzzles.into_iter().map(|(_, e)| e).collect();
     info!("model ready for {}: {} plumes, {} hull mats, {} muzzles", ship.id, ship.plumes.len(), ship.hull_mats.len(), ship.muzzles.len());
 }
 
@@ -398,3 +478,42 @@ fn update_ship_fx(
         }
     }
 }
+
+/// Turrets swing around their local up axis to track whatever the ship is shooting at.
+fn aim_turrets(
+    vis: Res<Visuals>,
+    time: Res<Time<Real>>,
+    ships: Query<&ShipVis>,
+    targets: Query<&Transform, Without<TurretTag>>,
+    globals: Query<&GlobalTransform>,
+    parents: Query<&ChildOf>,
+    mut turret_tf: Query<&mut Transform, With<TurretTag>>,
+) {
+    let now = time.elapsed_secs_f64();
+    let dt = time.delta_secs();
+    for v in &ships {
+        if v.turrets.is_empty() {
+            continue;
+        }
+        let aim = v.aim.filter(|(_, t)| now - t < 3.0).and_then(|(id, _)| vis.map.get(&id)).and_then(|e| targets.get(*e).ok()).map(|t| t.translation);
+        for (turret, rest) in &v.turrets {
+            let Ok(mut tf) = turret_tf.get_mut(*turret) else { continue };
+            let desired = match (aim, parents.get(*turret).ok().and_then(|p| globals.get(p.parent()).ok())) {
+                (Some(target), Some(pg)) => {
+                    let (_, prot, ppos) = pg.to_scale_rotation_translation();
+                    let world_pivot = ppos + prot * tf.translation;
+                    let d_parent = prot.inverse() * (target - world_pivot);
+                    let d = rest.inverse() * d_parent;
+                    // Barrels point along local -Z at rest; swing around local +Y.
+                    let yaw = (-d.x).atan2(-d.z);
+                    *rest * Quat::from_rotation_y(yaw)
+                }
+                _ => *rest,
+            };
+            tf.rotation = tf.rotation.slerp(desired, (dt * 3.0).min(1.0));
+        }
+    }
+}
+
+#[derive(Component)]
+pub struct TurretTag;

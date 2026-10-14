@@ -3,6 +3,7 @@
 //! `client [--server ws://127.0.0.1:7777] [--name NAME] [--auto] [--hull talon]`
 //! `       [--shot out.png --shot-at 8] [--showroom [system]] [--script "undock;thrust 3;fire 2"]`
 
+mod audio;
 mod control;
 mod fx;
 mod materials;
@@ -48,7 +49,7 @@ fn main() {
             .set(AssetPlugin { file_path: ships::assets_dir().to_string_lossy().into_owned(), ..default() }),
     )
     .add_plugins(EguiPlugin::default())
-    .add_plugins((materials::MaterialsPlugin, scene::ScenePlugin, ships::ShipsPlugin, fx::FxPlugin, control::ControlPlugin))
+    .add_plugins((materials::MaterialsPlugin, scene::ScenePlugin, ships::ShipsPlugin, fx::FxPlugin, control::ControlPlugin, audio::AudioFxPlugin))
     .init_state::<Screen>()
     .insert_resource(Session { server_url: args.server.clone(), ..default() })
     .init_resource::<ui::Form>()
@@ -120,13 +121,15 @@ fn showroom(s: &mut Session, args: &Args) {
                 mining: None,
                 docked: false,
                 owner: None,
+                alliance: None,
+                class: Some(ship.size_class()),
             },
         );
     }
     // A pirate for scale and hostile livery.
     ents.insert(
         200,
-        EntityState { id: 200, kind: EntityKind::Npc(shared::missions::NpcArchetype::Raider), name: "Raider".into(), hull_class: None, rank: 1, livery: 7, pos: (base + Vec3::new(40.0, 40.0, -320.0)).to_array(), rot: Quat::from_rotation_y(2.5).to_array(), vel: [0.0; 3], hull: 0.7, shield: 0.5, radius: 9.0, fleet: None, wanted: false, boosting: true, mining: None, docked: false, owner: None },
+        EntityState { id: 200, kind: EntityKind::Npc(shared::missions::NpcArchetype::Raider), name: "Raider".into(), hull_class: None, rank: 1, livery: 7, pos: (base + Vec3::new(40.0, 40.0, -320.0)).to_array(), rot: Quat::from_rotation_y(2.5).to_array(), vel: [0.0; 3], hull: 0.7, shield: 0.5, radius: 9.0, fleet: None, wanted: false, boosting: true, mining: None, docked: false, owner: None, alliance: None, class: None },
     );
     s.me = args.hull.map(|hc| 100 + shared::ships::HullClass::ALL.iter().position(|h| *h == hc).unwrap() as u32);
     s.profile = None;
@@ -147,6 +150,7 @@ fn automation(
     net: Option<Res<net::Net>>,
     mut s: ResMut<Session>,
     screen: Res<State<Screen>>,
+    mut cam: ResMut<control::CamState>,
 ) {
     let t = time.elapsed_secs_f64();
     if args.showroom
@@ -155,9 +159,13 @@ fn automation(
         // Keep the showroom alive: refresh timestamps and fire demo effects.
         snap.at = t;
         if (t * 2.0) as u64 % 3 == 0 && ((t - 0.016) * 2.0) as u64 % 3 != 0 {
-            s.fx.push(Fx::Laser { from: 200, to: 101, hit: true });
+            use shared::ships::WeaponKind;
+            s.fx.push(Fx::Shot { from: 200, to: 101, weapon: WeaponKind::Laser, mount: 0, hit: true });
             s.fx.push(Fx::ShieldHit { entity: 101, dir: [0.3, 0.2, -1.0] });
-            s.fx.push(Fx::Laser { from: 102, to: 200, hit: true });
+            for m in 0..6 {
+                s.fx.push(Fx::Shot { from: 103, to: 200, weapon: WeaponKind::Pulse, mount: m, hit: true });
+            }
+            s.fx.push(Fx::Shot { from: 101, to: 200, weapon: WeaponKind::MainBeam, mount: 255, hit: true });
         }
         if (t as u64) % 5 == 2 && ((t - 0.016) as u64) % 5 != 2 {
             let p = Vec3::from(s.snaps.back().unwrap().ents[&200].pos) + Vec3::new(-60.0, -10.0, -80.0);
@@ -218,10 +226,18 @@ fn automation(
                 net.send(ClientMsg::RequestChronicle);
             }
             "close" if first => s.ui = Default::default(),
+            "say" if first => net.send(ClientMsg::Chat { text: args.script[*step].trim_start_matches("say").trim().to_string() }),
+            "fp" if first => cam.first_person = true,
+            "tp" if first => cam.first_person = false,
+            "zoom" if first => cam.zoom = dur as f32,
             "scenario" if first => net.send(ClientMsg::StartScenario { id: dur as u32 }),
             _ => {}
         }
-        let wait = if matches!(cmd.first().copied(), Some("warp")) { 6.0 } else { dur.max(0.1) };
+        let wait = match cmd.first().copied() {
+            Some("warp") => 6.0,
+            Some("say") | Some("fp") | Some("tp") | Some("zoom") => 1.0,
+            _ => dur.max(0.1),
+        };
         if t - *step_t >= wait {
             *step += 1;
             *step_t = t;
