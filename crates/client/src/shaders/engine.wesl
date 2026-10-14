@@ -38,5 +38,5 @@ fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
     let core = (pow(facing, 6.0) + 0.25) * pow(1.0 - along, 5.0);
     let sheath = body * fade;
     let c = p.core.rgb * core * 4.0 + p.color.rgb * sheath * diamonds * 1.6;
-    return vec4<f32>(c * flicker * (0.45 + throttle * 0.9 + boost * 1.2), 0.0);
+    return vec4<f32>(c * flicker * (0.45 + throttle * 0.9 + boost * 1.2) * p.seed.y, 0.0);
 }

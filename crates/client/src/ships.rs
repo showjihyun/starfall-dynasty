@@ -273,7 +273,7 @@ fn spawn_visual(
     match st.kind {
         EntityKind::Missile => {
             let body = std_mats.add(StandardMaterial { base_color: Color::srgb(0.6, 0.6, 0.62), metallic: 0.9, perceptual_roughness: 0.3, ..default() });
-            let plume = engine_mats.add(EngineMat { p: EngineParams { color: Vec4::new(1.0, 0.45, 0.1, 1.0), core: Vec4::new(1.0, 0.9, 0.7, 0.6), seed: Vec4::splat(seed) } });
+            let plume = engine_mats.add(EngineMat { p: EngineParams { color: Vec4::new(1.0, 0.45, 0.1, 1.0), core: Vec4::new(1.0, 0.9, 0.7, 0.6), seed: Vec4::new(seed, 1.0, 0.0, 0.0) } });
             v.plumes.push(plume.clone());
             let root = commands.spawn((v, tf, Visibility::default())).id();
             commands.entity(root).with_children(|c| {
@@ -338,7 +338,7 @@ use bevy::world_serialization::WorldAssetRoot;
 fn fallback_model(commands: &mut Commands, root: Entity, r: f32, livery: [f32; 3], meshes: &mut Assets<Mesh>, mats: &mut Assets<StandardMaterial>, engine_mats: &mut Assets<EngineMat>) {
     let hull = mats.add(StandardMaterial { base_color: Color::srgb(0.6, 0.62, 0.66), metallic: 0.8, perceptual_roughness: 0.35, ..default() });
     let accent = mats.add(StandardMaterial { base_color: Color::srgb(livery[0], livery[1], livery[2]), metallic: 0.4, perceptual_roughness: 0.4, ..default() });
-    let plume = engine_mats.add(EngineMat { p: EngineParams { color: Vec4::new(0.3, 0.6, 1.0, 0.5), core: Vec4::new(0.9, 0.95, 1.0, 0.0), seed: Vec4::ZERO } });
+    let plume = engine_mats.add(EngineMat { p: EngineParams { color: Vec4::new(0.3, 0.6, 1.0, 0.5), core: Vec4::new(0.9, 0.95, 1.0, 0.0), seed: Vec4::new(0.0, 1.0, 0.0, 0.0) } });
     commands.entity(root).with_children(|c| {
         c.spawn((Mesh3d(meshes.add(Cone { radius: r * 0.35, height: r * 2.0 })), MeshMaterial3d(hull.clone()), Transform::from_rotation(Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2))));
         c.spawn((Mesh3d(meshes.add(Cuboid::new(r * 2.0, r * 0.08, r * 0.7))), MeshMaterial3d(accent), Transform::from_xyz(0.0, 0.0, r * 0.4)));
@@ -372,10 +372,16 @@ fn on_model_ready(
             let n = name.as_str();
             if n.starts_with("Engine_") {
                 let (col, core) = if hostile { ([1.0, 0.3, 0.1], [1.0, 0.8, 0.5]) } else { ([0.3, 0.6, 1.0], [0.85, 0.95, 1.0]) };
-                let m = engine_mats.add(EngineMat { p: EngineParams { color: v4(col, 0.4), core: v4(core, 0.0), seed: Vec4::splat(ship.seed + ship.plumes.len() as f32) } });
+                // Capital-ship drives read as broad glowing banks, not kilometre-long torches.
+                let (len, gain) = match ship.class {
+                    SizeClass::Small => (13.0, 1.0),
+                    SizeClass::Cruiser => (7.0, 0.55),
+                    SizeClass::Capital => (4.5, 0.35),
+                };
+                let m = engine_mats.add(EngineMat { p: EngineParams { color: v4(col, 0.4), core: v4(core, 0.0), seed: Vec4::new(ship.seed + ship.plumes.len() as f32, gain, 0.0, 0.0) } });
                 ship.plumes.push(m.clone());
                 commands.entity(d).with_children(|c| {
-                    c.spawn((NotShadowCaster, Mesh3d(models.plume.clone()), MeshMaterial3d(m), Transform::from_scale(Vec3::new(0.9, 0.9, 13.0))));
+                    c.spawn((NotShadowCaster, Mesh3d(models.plume.clone()), MeshMaterial3d(m), Transform::from_scale(Vec3::new(0.9, 0.9, len))));
                 });
             } else if n.starts_with("Gun_") {
                 ship.muzzles.push(d);
