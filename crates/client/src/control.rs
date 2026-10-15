@@ -8,7 +8,8 @@ use crate::state::{Screen, Session};
 use bevy::core_pipeline::tonemapping::Tonemapping;
 use bevy::input::mouse::AccumulatedMouseScroll;
 use bevy::light::GeneratedEnvironmentMapLight;
-use bevy::post_process::bloom::Bloom;
+use bevy::pbr::{DistanceFog, FogFalloff};
+use bevy::post_process::bloom::{Bloom, BloomCompositeMode, BloomPrefilter};
 use bevy::prelude::*;
 use bevy::camera::Hdr;
 use bevy_egui::input::EguiWantsInput;
@@ -55,7 +56,11 @@ fn spawn_camera(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
         Hdr,
         Camera { clear_color: ClearColorConfig::Custom(Color::BLACK), ..default() },
         Tonemapping::TonyMcMapface,
-        Bloom { intensity: 0.15, ..Bloom::NATURAL },
+        // Thresholded bloom: only genuinely bright things (stars, plumes, beams, blasts) glow;
+        // lit hulls and nebulae stay crisp instead of sitting in a haze.
+        Bloom { intensity: 0.2, low_frequency_boost: 0.55, prefilter: BloomPrefilter { threshold: 0.9, threshold_softness: 0.45 }, composite_mode: BloomCompositeMode::Additive, ..Bloom::NATURAL },
+        // Space haze, tuned per system in scene::build_system (none until then).
+        DistanceFog { color: Color::BLACK, falloff: FogFalloff::Exponential { density: 0.0 }, ..default() },
         Projection::Perspective(PerspectiveProjection { fov: 62f32.to_radians(), near: 0.5, far: 1_000_000.0, ..default() }),
         GeneratedEnvironmentMapLight { environment_map: cube, intensity: 700.0, ..default() },
         Transform::from_xyz(0.0, 40.0, 3700.0).looking_at(Vec3::new(0.0, 0.0, 3400.0), Vec3::Y),

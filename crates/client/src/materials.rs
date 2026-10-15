@@ -23,6 +23,7 @@ impl Plugin for MaterialsPlugin {
         bevy::asset::embedded_asset!(app, "shaders/beam.wesl");
         bevy::asset::embedded_asset!(app, "shaders/explosion.wesl");
         bevy::asset::embedded_asset!(app, "shaders/warp.wesl");
+        bevy::asset::embedded_asset!(app, "shaders/flare.wesl");
         app.add_plugins((
             MaterialPlugin::<SpaceMat>::default(),
             MaterialPlugin::<StarMat>::default(),
@@ -35,6 +36,7 @@ impl Plugin for MaterialsPlugin {
             MaterialPlugin::<BeamMat>::default(),
             MaterialPlugin::<ExplosionMat>::default(),
             MaterialPlugin::<WarpMat>::default(),
+            MaterialPlugin::<FlareMat>::default(),
         ));
     }
 }
@@ -99,6 +101,7 @@ simple_material!(ShieldMat, ShieldParams { color, hit, center }, "shield.wesl", 
 simple_material!(BeamMat, BeamParams { color, flow, life }, "beam.wesl", AlphaMode::Add, cull: false, zwrite: false);
 simple_material!(ExplosionMat, ExplosionParams { life, state }, "explosion.wesl", AlphaMode::Add, cull: true, zwrite: false);
 simple_material!(WarpMat, WarpParams { color, accent }, "warp.wesl", AlphaMode::Add, cull: false, zwrite: false);
+simple_material!(FlareMat, FlareParams { color, shape }, "flare.wesl", AlphaMode::Add, cull: false, zwrite: false);
 
 /// Hull extension over the Blender-baked StandardMaterial.
 #[derive(Asset, AsBindGroup, Reflect, Debug, Clone, Default)]

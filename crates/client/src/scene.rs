@@ -13,7 +13,7 @@ pub struct ScenePlugin;
 
 impl Plugin for ScenePlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<Env>().add_systems(Startup, load_props).add_systems(Update, (build_system, follow_sky, spin_things).run_if(in_state(Screen::Playing)));
+        app.init_resource::<Env>().add_systems(Startup, load_props).add_systems(Update, (build_system, follow_sky, spin_things, aim_flare).run_if(in_state(Screen::Playing)));
     }
 }
 
@@ -115,7 +115,8 @@ fn build_system(
     mut glows: ResMut<Assets<GlowMat>>,
     mut planets: ResMut<Assets<PlanetMat>>,
     mut rings: ResMut<Assets<RingMat>>,
-    mut cams: Query<&mut GeneratedEnvironmentMapLight, With<crate::control::MainCamera>>,
+    mut cams: Query<(&mut GeneratedEnvironmentMapLight, &mut bevy::pbr::DistanceFog), With<crate::control::MainCamera>>,
+    mut flares: ResMut<Assets<FlareMat>>,
     props: Props,
 ) {
     if s.system_epoch == env.epoch || s.system_epoch == 0 || !props.ready() {
@@ -149,18 +150,44 @@ fn build_system(
     // Image-based lighting from a matching cubemap.
     let cube = images.add(meshes::sky_cubemap(lay.nebula[0], lay.nebula[1], star_dir, star_col, s.system as u32 * 7 + 1));
     env.env_map = Some(cube.clone());
-    for mut l in &mut cams {
+    // Space haze in the nebula's colours: distant hulls and rocks sink into the backdrop instead of
+    // reading as black cut-outs, and haze toward the star picks up its light.
+    let neb = (Vec3::from(lay.nebula[0]) + Vec3::from(lay.nebula[1])) * 0.5;
+    let haze = neb * (0.05 + 0.06 * lay.nebula_density.clamp(0.0, 1.5));
+    for (mut l, mut fog) in &mut cams {
         l.environment_map = cube.clone();
+        fog.color = Color::linear_rgb(haze.x, haze.y, haze.z);
+        fog.directional_light_color = Color::linear_rgb(star_col[0] * 0.3, star_col[1] * 0.3, star_col[2] * 0.3);
+        fog.directional_light_exponent = 20.0;
+        fog.falloff = bevy::pbr::FogFalloff::Exponential { density: 1.0 / 16_000.0 };
     }
 
     // Star with corona.
     let sr = lay.star_radius;
-    commands.spawn((SystemScene, NotShadowCaster, Spin(Vec3::Y * 0.01), Mesh3d(meshes.add(Sphere::new(sr).mesh().ico(6).unwrap())), MeshMaterial3d(stars.add(StarMat { p: StarParams { color: v4(star_col, 7.0), center: Vec4::new(0.0, 0.0, 0.0, sr) } }))));
+    commands.spawn((SystemScene, NotShadowCaster, Spin(Vec3::Y * 0.01), Mesh3d(meshes.add(Sphere::new(sr).mesh().ico(6).unwrap())), MeshMaterial3d(stars.add(StarMat { p: StarParams { color: v4(star_col, 2.4), center: Vec4::new(0.0, 0.0, 0.0, sr) } }))));
     commands.spawn((
         SystemScene,
         NotShadowCaster,
-        Mesh3d(meshes.add(Sphere::new(sr * 4.0).mesh().ico(4).unwrap())),
-        MeshMaterial3d(glows.add(GlowMat { p: GlowParams { color: v4(star_col, 2.2), center: Vec4::new(0.0, 0.0, 0.0, sr * 0.98), shape: Vec4::new(7.0, 0.5, sr * 4.0, 0.0) } })),
+        Mesh3d(meshes.add(Sphere::new(sr * 2.6).mesh().ico(4).unwrap())),
+        MeshMaterial3d(glows.add(GlowMat { p: GlowParams { color: v4(star_col, 1.6), center: Vec4::new(0.0, 0.0, 0.0, sr * 0.98), shape: Vec4::new(4.5, 0.5, sr * 2.6, 1.0) } })),
+    ));
+    // Fill light from the nebula side (no shadows): the shadowed side of hulls and props gets shape
+    // from a coloured bounce instead of a flat, uniform ambient that turns silhouettes into cut-outs.
+    let fill_dir = (-star_dir + Vec3::new(0.3, 0.55, 0.2)).normalize();
+    commands.spawn((
+        SystemScene,
+        DirectionalLight { color: Color::linear_rgb(0.35 + neb.x * 0.6, 0.35 + neb.y * 0.6, 0.4 + neb.z * 0.6), illuminance: 380.0, shadow_maps_enabled: false, ..default() },
+        Transform::from_translation(Vec3::ZERO).looking_to(-fill_dir, Vec3::Y),
+    ));
+    // Lens glare billboard (kept facing the camera by `aim_flare`).
+    commands.spawn((
+        SystemScene,
+        StarFlare(sr),
+        NotShadowCaster,
+        bevy::light::NotShadowReceiver,
+        Mesh3d(meshes.add(Rectangle::new(1.0, 1.0))),
+        MeshMaterial3d(flares.add(FlareMat { p: FlareParams { color: v4(star_col, 1.0), shape: Vec4::new(0.3, 1.0, 0.0, 0.0) } })),
+        Transform::default(),
     ));
     commands.spawn((
         SystemScene,
@@ -384,7 +411,7 @@ fn spawn_jump_point(commands: &mut Commands, meshes: &mut Assets<Mesh>, mats: &m
     commands.spawn((SystemScene, Transform::from_translation(pos), Visibility::default())).with_children(|c| {
         c.spawn((Mesh3d(meshes.add(Torus::new(105.0, 120.0))), MeshMaterial3d(ring), Transform::from_rotation(Quat::from_rotation_x(std::f32::consts::FRAC_PI_2))));
         c.spawn((Spin(Vec3::Z * 0.6), Mesh3d(meshes.add(Torus::new(99.0, 101.0))), MeshMaterial3d(glow), Transform::from_rotation(Quat::from_rotation_x(std::f32::consts::FRAC_PI_2))));
-        c.spawn((NotShadowCaster, Mesh3d(meshes.add(Sphere::new(300.0).mesh().ico(3).unwrap())), MeshMaterial3d(glows.add(GlowMat { p: GlowParams { color: Vec4::new(0.3, 0.6, 1.0, 0.6), center: pos.extend(40.0), shape: Vec4::new(3.0, 1.0, 300.0, 0.0) } }))));
+        c.spawn((NotShadowCaster, Mesh3d(meshes.add(Sphere::new(300.0).mesh().ico(3).unwrap())), MeshMaterial3d(glows.add(GlowMat { p: GlowParams { color: Vec4::new(0.3, 0.6, 1.0, 0.6), center: pos.extend(40.0), shape: Vec4::new(3.0, 1.0, 300.0, -1.0) } }))));
     });
 }
 
@@ -392,6 +419,25 @@ fn follow_sky(cam: Query<&GlobalTransform, With<crate::control::MainCamera>>, mu
     let Ok(c) = cam.single() else { return };
     for mut t in &mut sky {
         t.translation = c.translation();
+    }
+}
+
+/// Star glare billboard: radius of its star.
+#[derive(Component)]
+pub struct StarFlare(f32);
+
+/// Keeps the glare just in front of the star, facing the camera, with a roughly constant screen
+/// size; it dims when the star fills much of the view (the disc itself is bright enough then).
+fn aim_flare(cam: Query<&GlobalTransform, With<crate::control::MainCamera>>, mut q: Query<(&StarFlare, &mut Transform)>) {
+    let Ok(c) = cam.single() else { return };
+    let cp = c.translation();
+    for (f, mut t) in &mut q {
+        let to_cam = cp - galaxy::STAR_POS;
+        let d = to_cam.length().max(1.0);
+        t.translation = galaxy::STAR_POS + to_cam / d * (f.0 * 1.04);
+        t.rotation = c.rotation();
+        let size = (d * 0.55).max(f.0 * 2.5);
+        t.scale = Vec3::new(size * 1.8, size, 1.0);
     }
 }
 

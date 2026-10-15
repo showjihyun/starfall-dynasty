@@ -6,6 +6,7 @@
 mod audio;
 mod bench;
 mod control;
+mod dust;
 mod fx;
 mod interior;
 mod materials;
@@ -68,7 +69,7 @@ fn main() {
     )
     .add_plugins(EguiPlugin::default())
     .insert_resource(bevy_egui::EguiGlobalSettings { auto_create_primary_context: false, ..default() })
-    .add_plugins((materials::MaterialsPlugin, scene::ScenePlugin, ships::ShipsPlugin, fx::FxPlugin, control::ControlPlugin, audio::AudioFxPlugin, music::MusicPlugin, interior::InteriorPlugin))
+    .add_plugins((materials::MaterialsPlugin, scene::ScenePlugin, ships::ShipsPlugin, fx::FxPlugin, control::ControlPlugin, audio::AudioFxPlugin, music::MusicPlugin, interior::InteriorPlugin, dust::DustPlugin))
     .init_state::<Screen>()
     .insert_resource(Session { server_url: args.server.clone(), last_combat: -1e9, ..default() })
     .init_resource::<ui::Form>()

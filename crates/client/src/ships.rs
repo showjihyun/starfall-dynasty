@@ -17,7 +17,7 @@ pub struct ShipsPlugin;
 
 impl Plugin for ShipsPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<Visuals>().add_systems(Startup, load_models).add_systems(Update, (sync_visuals, update_ship_fx, aim_turrets).chain().run_if(in_state(Screen::Playing)));
+        app.init_resource::<Visuals>().add_systems(Startup, load_models).add_systems(Update, (sync_visuals, update_ship_fx, aim_turrets, face_nozzle_glows).chain().run_if(in_state(Screen::Playing)));
     }
 }
 
@@ -36,6 +36,7 @@ pub struct Models {
     server: AssetServer,
     pub plume: Handle<Mesh>,
     pub shield: Handle<Mesh>,
+    pub quad: Handle<Mesh>,
 }
 
 pub type WorldAsset = bevy::world_serialization::WorldAsset;
@@ -49,6 +50,8 @@ pub struct ShipVis {
     pub glow: [f32; 3],
     pub hull_mats: Vec<Handle<HullMat>>,
     pub plumes: Vec<Handle<EngineMat>>,
+    /// Camera-facing glow at every nozzle exit (one material per ship).
+    pub nozzle_glow: Option<(Handle<FlareMat>, f32)>,
     pub shield: Option<Handle<ShieldMat>>,
     pub hit_flash: f32,
     pub hit_age: f32,
@@ -185,7 +188,7 @@ fn load_models(mut commands: Commands, server: Res<AssetServer>, mut meshes: Res
     }
     // STARFALL_PRELOAD_ALL=1 restores eager loading (for comparing memory/load time).
     let preload = std::env::var("STARFALL_PRELOAD_ALL").is_ok();
-    let m = Models { available, cache: Default::default(), server: server.clone(), plume: meshes.add(meshes::plume(0.25)), shield: meshes.add(Sphere::new(1.0).mesh().ico(4).unwrap()) };
+    let m = Models { available, cache: Default::default(), server: server.clone(), plume: meshes.add(meshes::plume(0.25)), shield: meshes.add(Sphere::new(1.0).mesh().ico(4).unwrap()), quad: meshes.add(Rectangle::new(1.0, 1.0)) };
     if preload {
         for n in m.available.clone() {
             m.handle(&n);
@@ -284,6 +287,7 @@ fn spawn_visual(
         glow,
         hull_mats: vec![],
         plumes: vec![],
+        nozzle_glow: None,
         shield: None,
         hit_flash: 0.0,
         hit_age: 10.0,
@@ -389,6 +393,7 @@ fn on_model_ready(
     std_mats: Res<Assets<StandardMaterial>>,
     mut hull_mats: ResMut<Assets<HullMat>>,
     mut engine_mats: ResMut<Assets<EngineMat>>,
+    mut flare_mats: ResMut<Assets<FlareMat>>,
     models: Res<Models>,
     mut ships: Query<&mut ShipVis>,
     transforms: Query<&Transform>,
@@ -412,8 +417,16 @@ fn on_model_ready(
                 };
                 let m = engine_mats.add(EngineMat { p: EngineParams { color: v4(col, 0.4), core: v4(core, 0.0), seed: Vec4::new(ship.seed + ship.plumes.len() as f32, gain, 0.0, 0.0) } });
                 ship.plumes.push(m.clone());
+                let glow_gain = match ship.class {
+                    SizeClass::Small => 1.0,
+                    SizeClass::Cruiser => 0.85,
+                    SizeClass::Capital => 0.75,
+                };
+                let seed = ship.seed;
+                let glow = ship.nozzle_glow.get_or_insert_with(|| (flare_mats.add(FlareMat { p: FlareParams { color: v4(col, glow_gain * 1.0), shape: Vec4::new(0.0, 0.0, 1.0, seed) } }), glow_gain * 1.0)).0.clone();
                 commands.entity(d).with_children(|c| {
                     c.spawn((NotShadowCaster, Mesh3d(models.plume.clone()), MeshMaterial3d(m), Transform::from_scale(Vec3::new(0.9, 0.9, len))));
+                    c.spawn((NozzleGlow, NotShadowCaster, Mesh3d(models.quad.clone()), MeshMaterial3d(glow), Transform::from_xyz(0.0, 0.0, 0.15).with_scale(Vec3::splat(3.2))));
                 });
             } else if n.starts_with("Gun_") {
                 ship.muzzles.push(d);
@@ -464,6 +477,7 @@ fn update_ship_fx(
     mut ships: Query<&mut ShipVis>,
     mut hull_mats: ResMut<Assets<HullMat>>,
     mut engine_mats: ResMut<Assets<EngineMat>>,
+    mut flare_mats: ResMut<Assets<FlareMat>>,
     mut shield_mats: ResMut<Assets<ShieldMat>>,
     mut parts: Query<(&RankPart, &mut Visibility, &ChildOf)>,
     parents: Query<&ChildOf>,
@@ -490,6 +504,11 @@ fn update_ship_fx(
         let engine = Vec2::new(q(v.throttle, 0.05), q(v.boost, 0.05));
         if engine != v.sent.1 {
             v.sent.1 = engine;
+            if let Some((h, gain)) = &v.nozzle_glow
+                && let Some(mut m) = flare_mats.get_mut(h)
+            {
+                m.p.color.w = gain * (0.8 + engine.x * 1.2 + engine.y * 1.5);
+            }
             for h in &v.plumes {
                 if let Some(mut m) = engine_mats.get_mut(h) {
                     m.p.color.w = engine.x;
@@ -526,6 +545,21 @@ fn update_ship_fx(
             if *vis != want {
                 *vis = want;
             }
+        }
+    }
+}
+
+/// Engine nozzle glow sprite (child of an `Engine_N` node).
+#[derive(Component)]
+pub struct NozzleGlow;
+
+/// Keep nozzle glow sprites facing the camera.
+fn face_nozzle_glows(cam: Query<&GlobalTransform, With<crate::control::MainCamera>>, mut q: Query<(&mut Transform, &ChildOf), With<NozzleGlow>>, globals: Query<&GlobalTransform, Without<NozzleGlow>>) {
+    let Ok(c) = cam.single() else { return };
+    let cam_rot = c.rotation();
+    for (mut t, parent) in &mut q {
+        if let Ok(pg) = globals.get(parent.parent()) {
+            t.rotation = pg.rotation().inverse() * cam_rot;
         }
     }
 }

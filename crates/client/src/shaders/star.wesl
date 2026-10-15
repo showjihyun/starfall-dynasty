@@ -45,13 +45,22 @@ fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
     let v = normalize(view.world_position - in.world_position.xyz);
     let t = globals.time * 0.05;
     let warp = fbm(n * 3.0 + vec3<f32>(t, -t, t * 0.5));
-    let gran = fbm(n * 14.0 + warp * 2.0 + vec3<f32>(0.0, t * 2.0, 0.0));
-    let spots = smoothstep(0.62, 0.72, fbm(n * 2.2 + 11.0 + t * 0.3));
+    // Convection cells: fine granulation riding on larger supergranules.
+    let gran = fbm(n * 16.0 + warp * 2.0 + vec3<f32>(0.0, t * 2.0, 0.0));
+    let super_g = fbm(n * 5.0 + warp + vec3<f32>(t * 0.7, 0.0, 0.0));
+    let spots = smoothstep(0.64, 0.74, fbm(n * 2.2 + 11.0 + t * 0.3));
+    let penumbra = smoothstep(0.58, 0.66, fbm(n * 2.2 + 11.0 + t * 0.3)) - spots;
     let mu = max(dot(n, v), 0.0);
-    let limb = 0.35 + 0.65 * pow(mu, 0.45);
-    var c = p.color.rgb * (0.65 + 0.7 * gran) * limb;
-    c = mix(c, c * 0.25, spots);
-    // Hot, whiter core facing the viewer.
-    c += vec3<f32>(1.0, 0.95, 0.85) * pow(mu, 3.0) * 0.4;
+    // Limb darkening with the cooler, redder light of the upper photosphere at the edge.
+    let limb = 0.22 + 0.78 * pow(mu, 0.55);
+    let edge_tint = mix(vec3<f32>(1.0, 0.5, 0.28), vec3<f32>(1.0, 1.0, 1.0), pow(mu, 0.35));
+    var c = p.color.rgb * edge_tint * (0.5 + 0.75 * gran + 0.35 * super_g) * limb;
+    c = mix(c, c * 0.12, spots);
+    c = mix(c, c * 0.55, penumbra);
+    // Faculae: bright magnetic filaments that show up near the limb.
+    let fac = smoothstep(0.58, 0.78, fbm(n * 22.0 + warp * 3.0)) * pow(1.0 - mu, 1.5);
+    c += p.color.rgb * vec3<f32>(1.0, 0.95, 0.85) * fac * 0.9;
+    // A thin bright chromosphere rim.
+    c += p.color.rgb * vec3<f32>(1.0, 0.6, 0.45) * smoothstep(0.18, 0.0, mu) * 0.8;
     return vec4<f32>(c * p.color.w, 1.0);
 }

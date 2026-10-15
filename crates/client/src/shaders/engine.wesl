@@ -33,10 +33,17 @@ fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
     let fade = 1.0 - smoothstep(0.0, reach, along);
     let flicker = 0.85 + 0.15 * sin(t * 40.0 + p.seed.x * 10.0) * hash1(floor(t * 30.0) + p.seed.x);
     let diamonds = 0.75 + 0.25 * cos(along * 48.0 - t * 30.0) * (1.0 - along);
-    // View-independent body so the plume reads from straight behind (chase camera) as well as from the side.
-    let body = pow(1.0 - along, 2.2) * (0.35 + 0.65 * facing);
-    let core = (pow(facing, 6.0) + 0.25) * pow(1.0 - along, 5.0);
+    // Soft body: from the side the silhouette fades to a dim coloured edge (no hard white cone);
+    // looking down the axis (chase camera) every normal is grazing, so a coloured floor keeps it visible.
+    let edge = 0.25 + 0.75 * smoothstep(0.05, 0.75, facing);
+    let body = pow(1.0 - along, 2.4) * edge;
+    // White-hot core only toward the plume axis, near the nozzle.
+    let core = pow(facing, 18.0) * pow(1.0 - along, 6.0);
     let sheath = body * fade;
-    let c = p.core.rgb * core * 4.0 + p.color.rgb * sheath * diamonds * 1.6;
-    return vec4<f32>(c * flicker * (0.45 + throttle * 0.9 + boost * 1.2) * p.seed.y, 0.0);
+    // Temperature gradient: core colour at the nozzle cooling to the sheath colour, then to a dimmer, redder tail.
+    let tail = mix(p.color.rgb, p.color.rgb * vec3<f32>(1.1, 0.75, 0.9), smoothstep(0.2, 0.9, along));
+    // Exit-plane glow, independent of view, so a nozzle seen from straight behind is lit too.
+    let exit_glow = pow(1.0 - along, 14.0);
+    let c = p.core.rgb * (core * 2.2 + exit_glow * 1.2) + tail * sheath * diamonds * 1.7;
+    return vec4<f32>(c * flicker * (0.4 + throttle * 0.8 + boost * 1.1) * p.seed.y, 0.0);
 }
