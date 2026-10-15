@@ -22,12 +22,15 @@ pub struct Bot {
     pub log: Vec<ServerMsg>,
     pub dead: bool,
     pub cache: SnapshotCache,
+    /// Bytes and snapshot frames received (load tests).
+    pub rx_bytes: u64,
+    pub snapshots: u64,
 }
 
 impl Bot {
     pub async fn connect(url: &str, name: &str) -> Result<Bot, String> {
         let (ws, _) = tokio_tungstenite::connect_async(url).await.map_err(|e| e.to_string())?;
-        Ok(Bot { ws, name: name.into(), token: None, profile: None, me: None, system: 0, ents: HashMap::new(), log: vec![], dead: false, cache: SnapshotCache::default() })
+        Ok(Bot { ws, name: name.into(), token: None, profile: None, me: None, system: 0, ents: HashMap::new(), log: vec![], dead: false, cache: SnapshotCache::default(), rx_bytes: 0, snapshots: 0 })
     }
 
     pub async fn send(&mut self, m: ClientMsg) {
@@ -47,9 +50,8 @@ impl Bot {
                 self.ents.clear();
                 self.dead = false;
             }
-            ServerMsg::Snapshot { full, infos, dynamic, .. } => {
-                let entities = self.cache.apply(*full, infos.clone(), dynamic);
-                self.ents = entities.into_iter().map(|e| (e.id, e)).collect();
+            ServerMsg::Snapshot { tick, full, infos, gone, dynamic, .. } => {
+                self.cache.apply_into(*tick, *full, infos.clone(), gone, dynamic, &mut self.ents);
             }
             ServerMsg::Died { .. } => {
                 self.dead = true;
@@ -68,11 +70,20 @@ impl Bot {
                 return None;
             }
             match tokio::time::timeout(left, self.ws.next()).await {
-                Ok(Some(Ok(Message::Text(t)))) => {
-                    if let Ok(m) = decode::<ServerMsg>(&t) {
+                Ok(Some(Ok(frame @ (Message::Text(_) | Message::Binary(_))))) => {
+                    self.rx_bytes += frame.len() as u64;
+                    let m = match &frame {
+                        Message::Binary(b) => {
+                            self.snapshots += 1;
+                            decode_snapshot(b)
+                        }
+                        Message::Text(t) => decode::<ServerMsg>(t).ok(),
+                        _ => None,
+                    };
+                    if let Some(m) = m {
                         self.absorb(&m);
                         let hit = pred(&m);
-                        if !matches!(m, ServerMsg::Snapshot { .. } | ServerMsg::Fx(_)) {
+                        if !matches!(m, ServerMsg::Snapshot { .. }) {
                             self.log.push(m.clone());
                         }
                         if hit {

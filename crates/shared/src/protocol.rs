@@ -1,5 +1,6 @@
-//! Wire protocol (JSON text frames over WebSocket). The server is authoritative:
-//! clients only send intents and control axes; every state change comes back from the server.
+//! Wire protocol over WebSocket: JSON text frames, except snapshots, which travel as compact
+//! binary frames ([`encode_snapshot`]). The server is authoritative: clients only send intents
+//! and control axes; every state change comes back from the server.
 
 use crate::chronicle::{BioEntry, Evidence, EventId, Headline, HistoricalEvent};
 use crate::galaxy::{Ore, Species, SystemId};
@@ -8,7 +9,7 @@ use crate::ships::{HullClass, Materials, Module, Ship, SizeClass, WeaponKind};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
-pub const PROTOCOL_VERSION: u32 = 1;
+pub const PROTOCOL_VERSION: u32 = 2;
 pub const DEFAULT_PORT: u16 = 7777;
 pub const TICK_HZ: f32 = 20.0;
 
@@ -219,8 +220,10 @@ pub enum ServerMsg {
     /// Compact world state. `infos` carries static descriptions only when an entity is new or
     /// changed (`full` = complete set, e.g. after entering a system); `dynamic` carries every
     /// live entity's quantized motion each tick. Rebuild with [`SnapshotCache`].
-    Snapshot { tick: u64, full: bool, infos: Vec<EntityInfo>, dynamic: Vec<DynState> },
-    Fx(Vec<Fx>),
+    /// Per-viewer partial update. Entities absent from `dynamic` keep their last state (the
+    /// receiver extrapolates them); only `gone` removes. Busy battles send the most relevant
+    /// ships every tick and the rest less often. Rebuild with [`SnapshotCache`].
+    Snapshot { tick: u64, full: bool, infos: Vec<EntityInfo>, gone: Vec<EntityId>, dynamic: Vec<DynState>, fx: Vec<Fx> },
     WarpCharging { system: SystemId, seconds: f32 },
     ScanProgress { poi: u32, frac: f32 },
     /// Pois already scanned by this player in the current system.
@@ -313,23 +316,259 @@ pub fn unpack(i: &EntityInfo, d: &DynState) -> EntityState {
     }
 }
 
-/// Receiver side: remembers entity infos and turns compact snapshots back into full states.
+/// Receiver side: remembers entity infos and last motion, turns partial snapshots back into
+/// full states. Entities not refreshed this tick are dead-reckoned from their velocity.
 #[derive(Default)]
 pub struct SnapshotCache {
     pub infos: std::collections::HashMap<EntityId, EntityInfo>,
+    dyns: std::collections::HashMap<EntityId, (DynState, u64)>,
 }
 
 impl SnapshotCache {
-    pub fn apply(&mut self, full: bool, infos: Vec<EntityInfo>, dynamic: &[DynState]) -> Vec<EntityState> {
+    fn ingest(&mut self, tick: u64, full: bool, infos: Vec<EntityInfo>, gone: &[EntityId], dynamic: &[DynState]) -> Vec<EntityId> {
         if full {
             self.infos.clear();
+            self.dyns.clear();
         }
+        let changed = infos.iter().map(|i| i.id).collect();
         for i in infos {
             self.infos.insert(i.id, i);
         }
-        let live: std::collections::HashSet<EntityId> = dynamic.iter().map(|d| d[0] as EntityId).collect();
-        self.infos.retain(|id, _| live.contains(id));
-        dynamic.iter().filter_map(|d| self.infos.get(&(d[0] as EntityId)).map(|i| unpack(i, d))).collect()
+        for id in gone {
+            self.infos.remove(id);
+            self.dyns.remove(id);
+        }
+        for d in dynamic {
+            self.dyns.insert(d[0] as EntityId, (*d, tick));
+        }
+        changed
+    }
+
+    /// Cheap incremental form for headless clients: updates `out` in place, touching only what
+    /// this snapshot carried (no dead reckoning of the rest).
+    pub fn apply_into(&mut self, tick: u64, full: bool, infos: Vec<EntityInfo>, gone: &[EntityId], dynamic: &[DynState], out: &mut std::collections::HashMap<EntityId, EntityState>) {
+        let changed = self.ingest(tick, full, infos, gone, dynamic);
+        if full {
+            out.clear();
+        }
+        for id in gone {
+            out.remove(id);
+        }
+        let ids = dynamic.iter().map(|d| d[0] as EntityId).chain(changed);
+        for id in ids {
+            if let (Some(i), Some((d, _))) = (self.infos.get(&id), self.dyns.get(&id)) {
+                out.insert(id, unpack(i, d));
+            }
+        }
+    }
+
+    pub fn apply(&mut self, tick: u64, full: bool, infos: Vec<EntityInfo>, gone: &[EntityId], dynamic: &[DynState]) -> Vec<EntityState> {
+        self.ingest(tick, full, infos, gone, dynamic);
+        let dt = 1.0 / TICK_HZ;
+        self.dyns
+            .iter()
+            .filter_map(|(id, (d, at))| {
+                let mut st = unpack(self.infos.get(id)?, d);
+                let age = tick.saturating_sub(*at).min(40) as f32 * dt;
+                if age > 0.0 {
+                    for k in 0..3 {
+                        st.pos[k] += st.vel[k] * age;
+                    }
+                }
+                Some(st)
+            })
+            .collect()
+    }
+}
+
+/// Binary snapshot frame: `[0xA5, tick u32, flags u8, infos (u32 len + JSON), gone (u16 n + u32 ids),
+/// dynamic (u16 n + 39-byte records), fx (u16 n + tagged records)]`, little-endian.
+pub const SNAPSHOT_MAGIC: u8 = 0xA5;
+/// Bytes per entity motion record on the wire.
+pub const DYN_WIRE_BYTES: usize = 39;
+
+pub fn encode_snapshot(m: &ServerMsg) -> Option<Vec<u8>> {
+    let ServerMsg::Snapshot { tick, full, infos, gone, dynamic, fx } = m else { return None };
+    let cap = |n: usize| n.min(u16::MAX as usize);
+    let mut b = Vec::with_capacity(16 + gone.len() * 4 + dynamic.len() * DYN_WIRE_BYTES + fx.len() * 14);
+    b.push(SNAPSHOT_MAGIC);
+    b.extend_from_slice(&(*tick as u32).to_le_bytes());
+    b.push(*full as u8);
+    let js = if infos.is_empty() { vec![] } else { serde_json::to_vec(infos).expect("infos") };
+    b.extend_from_slice(&(js.len() as u32).to_le_bytes());
+    b.extend_from_slice(&js);
+    b.extend_from_slice(&(cap(gone.len()) as u16).to_le_bytes());
+    for id in &gone[..cap(gone.len())] {
+        b.extend_from_slice(&id.to_le_bytes());
+    }
+    b.extend_from_slice(&(cap(dynamic.len()) as u16).to_le_bytes());
+    for d in &dynamic[..cap(dynamic.len())] {
+        put_dyn(&mut b, d);
+    }
+    b.extend_from_slice(&(cap(fx.len()) as u16).to_le_bytes());
+    for f in &fx[..cap(fx.len())] {
+        put_fx(&mut b, f);
+    }
+    Some(b)
+}
+
+pub fn decode_snapshot(b: &[u8]) -> Option<ServerMsg> {
+    let mut r = Reader { b, at: 0 };
+    if r.u8()? != SNAPSHOT_MAGIC {
+        return None;
+    }
+    let tick = r.u32()? as u64;
+    let full = r.u8()? != 0;
+    let jl = r.u32()? as usize;
+    let js = r.take(jl)?;
+    let infos = if jl == 0 { vec![] } else { serde_json::from_slice(js).ok()? };
+    let gone = (0..r.u16()?).map(|_| r.u32()).collect::<Option<Vec<_>>>()?;
+    let dynamic = (0..r.u16()?).map(|_| get_dyn(&mut r)).collect::<Option<Vec<_>>>()?;
+    let fx = (0..r.u16()?).map(|_| get_fx(&mut r)).collect::<Option<Vec<_>>>()?;
+    Some(ServerMsg::Snapshot { tick, full, infos, gone, dynamic, fx })
+}
+
+fn i16c(v: i32) -> i16 {
+    v.clamp(i16::MIN as i32, i16::MAX as i32) as i16
+}
+
+fn put_dyn(b: &mut Vec<u8>, d: &DynState) {
+    b.extend_from_slice(&(d[0] as u32).to_le_bytes());
+    for v in &d[1..4] {
+        b.extend_from_slice(&v.to_le_bytes());
+    }
+    for v in &d[4..8] {
+        b.extend_from_slice(&i16c(*v).to_le_bytes());
+    }
+    // Velocity at 0.5 u/s resolution (d is ×10).
+    for v in &d[8..11] {
+        b.extend_from_slice(&i16c((*v as f32 / 5.0).round() as i32).to_le_bytes());
+    }
+    b.extend_from_slice(&(d[11].clamp(0, u16::MAX as i32) as u16).to_le_bytes());
+    b.extend_from_slice(&(d[12].clamp(0, u16::MAX as i32) as u16).to_le_bytes());
+    b.push(d[13] as u8);
+    b.extend_from_slice(&d[14].to_le_bytes());
+}
+
+fn get_dyn(r: &mut Reader) -> Option<DynState> {
+    let mut d = [0i32; 15];
+    d[0] = r.u32()? as i32;
+    for v in &mut d[1..4] {
+        *v = r.i32()?;
+    }
+    for v in &mut d[4..8] {
+        *v = r.i16()? as i32;
+    }
+    for v in &mut d[8..11] {
+        *v = r.i16()? as i32 * 5;
+    }
+    d[11] = r.u16()? as i32;
+    d[12] = r.u16()? as i32;
+    d[13] = r.u8()? as i32;
+    d[14] = r.i32()?;
+    Some(d)
+}
+
+fn weapon_byte(w: WeaponKind) -> u8 {
+    match w {
+        WeaponKind::Laser => 0,
+        WeaponKind::Pulse => 1,
+        WeaponKind::MainBeam => 2,
+        WeaponKind::Missile => 3,
+    }
+}
+
+fn put_fx(b: &mut Vec<u8>, f: &Fx) {
+    let f32s = |b: &mut Vec<u8>, v: &[f32]| v.iter().for_each(|x| b.extend_from_slice(&x.to_le_bytes()));
+    match f {
+        Fx::Shot { from, to, weapon, mount, hit } => {
+            b.push(0);
+            b.extend_from_slice(&from.to_le_bytes());
+            b.extend_from_slice(&to.to_le_bytes());
+            b.extend_from_slice(&[weapon_byte(*weapon), *mount, *hit as u8]);
+        }
+        Fx::MissileLaunch { from, missile } => {
+            b.push(1);
+            b.extend_from_slice(&from.to_le_bytes());
+            b.extend_from_slice(&missile.to_le_bytes());
+        }
+        Fx::Explosion { pos, size } => {
+            b.push(2);
+            f32s(b, pos);
+            f32s(b, &[*size]);
+        }
+        Fx::ShieldHit { entity, dir } => {
+            b.push(3);
+            b.extend_from_slice(&entity.to_le_bytes());
+            b.extend(dir.iter().map(|v| (v.clamp(-1.0, 1.0) * 127.0).round() as i8 as u8));
+        }
+        Fx::WarpOut { entity } => {
+            b.push(4);
+            b.extend_from_slice(&entity.to_le_bytes());
+        }
+        Fx::WarpIn { entity } => {
+            b.push(5);
+            b.extend_from_slice(&entity.to_le_bytes());
+        }
+    }
+}
+
+fn get_fx(r: &mut Reader) -> Option<Fx> {
+    Some(match r.u8()? {
+        0 => {
+            let (from, to) = (r.u32()?, r.u32()?);
+            let weapon = match r.u8()? {
+                0 => WeaponKind::Laser,
+                1 => WeaponKind::Pulse,
+                2 => WeaponKind::MainBeam,
+                _ => WeaponKind::Missile,
+            };
+            Fx::Shot { from, to, weapon, mount: r.u8()?, hit: r.u8()? != 0 }
+        }
+        1 => Fx::MissileLaunch { from: r.u32()?, missile: r.u32()? },
+        2 => Fx::Explosion { pos: [r.f32()?, r.f32()?, r.f32()?], size: r.f32()? },
+        3 => {
+            let entity = r.u32()?;
+            let mut dir = [0.0; 3];
+            for v in &mut dir {
+                *v = r.u8()? as i8 as f32 / 127.0;
+            }
+            Fx::ShieldHit { entity, dir }
+        }
+        4 => Fx::WarpOut { entity: r.u32()? },
+        5 => Fx::WarpIn { entity: r.u32()? },
+        _ => return None,
+    })
+}
+
+struct Reader<'a> {
+    b: &'a [u8],
+    at: usize,
+}
+
+impl<'a> Reader<'a> {
+    fn take(&mut self, n: usize) -> Option<&'a [u8]> {
+        let s = self.b.get(self.at..self.at.checked_add(n)?)?;
+        self.at += n;
+        Some(s)
+    }
+    fn u8(&mut self) -> Option<u8> {
+        Some(self.take(1)?[0])
+    }
+    fn u16(&mut self) -> Option<u16> {
+        Some(u16::from_le_bytes(self.take(2)?.try_into().ok()?))
+    }
+    fn i16(&mut self) -> Option<i16> {
+        Some(i16::from_le_bytes(self.take(2)?.try_into().ok()?))
+    }
+    fn u32(&mut self) -> Option<u32> {
+        Some(u32::from_le_bytes(self.take(4)?.try_into().ok()?))
+    }
+    fn i32(&mut self) -> Option<i32> {
+        Some(i32::from_le_bytes(self.take(4)?.try_into().ok()?))
+    }
+    fn f32(&mut self) -> Option<f32> {
+        Some(f32::from_le_bytes(self.take(4)?.try_into().ok()?))
     }
 }
 
@@ -352,11 +591,28 @@ mod tests {
         let back = unpack(&info, &d);
         assert!((back.pos[0] - e.pos[0]).abs() < 0.06 && back.wanted && back.boosting && back.mining == Some(3) && !back.docked);
         let mut c = SnapshotCache::default();
-        assert_eq!(c.apply(true, vec![info], &[d]).len(), 1);
-        // Later ticks carry no info: the cache supplies it. Missing from dynamic = gone.
-        assert_eq!(c.apply(false, vec![], &[d]).len(), 1);
-        assert!(c.apply(false, vec![], &[]).is_empty());
+        assert_eq!(c.apply(1, true, vec![info.clone()], &[], &[d]).len(), 1);
+        // Later ticks carry no info: the cache supplies it. Not refreshed = dead-reckoned, not dropped.
+        let later = c.apply(3, false, vec![], &[], &[]);
+        assert_eq!(later.len(), 1);
+        assert!((later[0].pos[0] - (e.pos[0] + e.vel[0] * 0.1)).abs() < 0.1);
+        assert!(c.apply(4, false, vec![], &[7], &[]).is_empty());
         assert!(c.infos.is_empty());
+
+        // Binary wire round trip.
+        let fx = vec![
+            Fx::Shot { from: 7, to: 9, weapon: WeaponKind::MainBeam, mount: 255, hit: true },
+            Fx::Explosion { pos: [1.0, 2.0, 3.0], size: 2.5 },
+            Fx::ShieldHit { entity: 7, dir: [0.0, -1.0, 0.0] },
+            Fx::WarpIn { entity: 3 },
+        ];
+        let m = ServerMsg::Snapshot { tick: 42, full: true, infos: vec![info], gone: vec![5, 6], dynamic: vec![d], fx: fx.clone() };
+        let bin = encode_snapshot(&m).unwrap();
+        let Some(ServerMsg::Snapshot { tick, full, infos, gone, dynamic, fx: fx2 }) = decode_snapshot(&bin) else { panic!("decode") };
+        assert!(tick == 42 && full && infos.len() == 1 && gone == vec![5, 6] && fx2 == fx);
+        let back = unpack(&infos[0], &dynamic[0]);
+        assert!((back.pos[2] - e.pos[2]).abs() < 0.06 && (back.vel[0] - e.vel[0]).abs() < 0.3 && back.mining == Some(3));
+        assert!(decode_snapshot(&bin[..bin.len() - 3]).is_none());
     }
 
     #[test]

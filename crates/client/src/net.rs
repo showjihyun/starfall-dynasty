@@ -3,7 +3,7 @@
 use bevy::prelude::*;
 use crossbeam_channel::{Receiver, Sender, unbounded};
 use futures_util::{SinkExt, StreamExt};
-use shared::protocol::{ClientMsg, ServerMsg, decode, encode};
+use shared::protocol::{ClientMsg, ServerMsg, decode, decode_snapshot, encode};
 use tokio_tungstenite::tungstenite::Message;
 
 pub enum NetEvent {
@@ -66,6 +66,14 @@ pub fn connect(url: String) -> Net {
                                 }
                             }
                             Err(e) => eprintln!("bad server frame: {e}"),
+                        },
+                        Some(Ok(Message::Binary(b))) => match decode_snapshot(&b) {
+                            Some(m) => {
+                                if in_tx.send(NetEvent::Msg(Box::new(m))).is_err() {
+                                    break "client closed".to_string();
+                                }
+                            }
+                            None => eprintln!("bad snapshot frame ({} bytes)", b.len()),
                         },
                         Some(Ok(Message::Close(_))) | None => break "서버가 연결을 종료했습니다".to_string(),
                         Some(Err(e)) => break e.to_string(),

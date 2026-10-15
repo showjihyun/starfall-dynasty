@@ -3,6 +3,7 @@
 
 mod actions;
 mod diplomacy;
+mod interest;
 mod weapons;
 mod sim;
 
@@ -22,6 +23,8 @@ pub const WARP_CHARGE: f32 = 4.0;
 pub const COMBAT_LOCK: f64 = 5.0;
 pub const ENGAGEMENT_TIMEOUT: f64 = 20.0;
 pub const WRECK_TTL_SECS: u64 = 7 * 86_400;
+pub const MAX_WRECKS_PER_SYSTEM: usize = 48;
+pub const PROF_PHASES: [&str; 8] = ["sessions", "ai+flight", "weapons", "missiles+dmg", "mining", "deaths", "engage+misc", "snapshots"];
 
 #[derive(Clone, Debug)]
 pub struct Ai {
@@ -81,6 +84,9 @@ pub struct Ent {
     /// Per-turret cooldowns (cruisers, capitals, big NPCs).
     pub turret_cds: Vec<f32>,
     pub main_cd: f32,
+    /// Turret battery target, re-acquired on a staggered timer rather than every tick.
+    pub turret_target: Option<EntityId>,
+    pub retarget_cd: f32,
 }
 
 impl Ent {
@@ -118,6 +124,8 @@ impl Ent {
             class: None,
             turret_cds: (0..stats.turrets).map(|i| 0.2 + i as f32 * 0.137 % 0.9).collect(),
             main_cd: 1.0,
+            turret_target: None,
+            retarget_cd: (id % 10) as f32 * 0.05,
         }
     }
 
@@ -172,6 +180,8 @@ pub struct Engagement {
     pub last_fire: f64,
     /// side key → (display name, members, losses)
     pub sides: BTreeMap<String, (String, HashSet<String>, u32)>,
+    /// Membership changed since the last broadcast (sent at most once a second).
+    pub dirty: bool,
 }
 
 pub struct Sys {
@@ -183,6 +193,8 @@ pub struct Sys {
     pub wrecks: HashMap<EntityId, usize>,
     /// Last static info broadcast per entity (delta snapshots).
     pub sent_infos: HashMap<EntityId, EntityInfo>,
+    pub grid: interest::Grid,
+    pub slots: interest::Slots,
 }
 
 #[derive(Default)]
@@ -201,6 +213,7 @@ pub struct Session {
     /// Next snapshot must carry every entity's info (just entered a system / reconnected).
     pub needs_full: bool,
     pub alliance_invite: Option<AllianceId>,
+    pub view: interest::View,
 }
 
 /// Formation offsets (in flagship radii) for escort slots, behind and to the sides.
@@ -230,8 +243,10 @@ pub struct Game {
     next_fleet: FleetId,
     pub kicked: Vec<ConnId>,
     pub pending_fx: BTreeMap<SystemId, Vec<Fx>>,
-    /// Broadcasts: one message for many connections, encoded once by the network layer.
-    pub out_shared: Vec<(Vec<ConnId>, ServerMsg)>,
+    /// (hitter side, victim side) → last time: self-defence checks without scanning the system.
+    pub hostility: HashMap<(PlayerId, PlayerId), f64>,
+    /// Nanoseconds spent per tick phase since the last report ([`PROF_PHASES`]).
+    pub prof: [u128; 8],
     /// QA cheats (`/grow N`, `/cash`) — only when the server runs with `--dev`.
     pub dev_mode: bool,
 }
@@ -253,11 +268,12 @@ impl Game {
             next_fleet: 1,
             kicked: Vec::new(),
             pending_fx: BTreeMap::new(),
-            out_shared: Vec::new(),
+            hostility: HashMap::new(),
+            prof: [0; 8],
             dev_mode: false,
         };
         for def in galaxy::SYSTEMS {
-            g.systems.insert(def.id, Sys { id: def.id, layout: galaxy::system_layout(def.id), ents: BTreeMap::new(), pirate_cd: 1.0, engagement: None, wrecks: HashMap::new(), sent_infos: HashMap::new() });
+            g.systems.insert(def.id, Sys { id: def.id, layout: galaxy::system_layout(def.id), ents: BTreeMap::new(), pirate_cd: 1.0, engagement: None, wrecks: HashMap::new(), sent_infos: HashMap::new(), grid: Default::default(), slots: Default::default() });
         }
         // Restore persisted wrecks (expired ones are dropped).
         let wrecks: Vec<(usize, SystemId, Vec3, String)> = g
@@ -633,6 +649,12 @@ impl Game {
         let sysm = self.systems.get_mut(&sys).unwrap();
         sysm.ents.insert(id, ent);
         sysm.wrecks.insert(id, stored);
+        // Mass battles leave thousands of hulks: keep the newest in space (records stay in the store).
+        if sysm.wrecks.len() > MAX_WRECKS_PER_SYSTEM {
+            let oldest = *sysm.wrecks.keys().min().unwrap();
+            sysm.wrecks.remove(&oldest);
+            sysm.ents.remove(&oldest);
+        }
         id
     }
 

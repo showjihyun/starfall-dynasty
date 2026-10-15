@@ -4,6 +4,7 @@
 //!   plus a bow main gun that fires a heavy beam volley along the nose.
 
 use super::*;
+use super::interest::Probe;
 use shared::ships::{SizeClass, WeaponKind};
 
 pub(super) struct Shot {
@@ -16,6 +17,8 @@ const LASER_CONE: f32 = 0.11; // ~6.3°
 const LOCK_CONE: f32 = 0.22;
 const NPC_CONE: f32 = 0.35;
 const MAIN_CONE: f32 = 0.12;
+/// Grid queries pad the weapon range by this so huge hulls at the edge are still found.
+const MAX_TARGET_RADIUS: f32 = 400.0;
 
 impl Game {
     fn combat_pilot_bonus(&self, e: &Ent) -> f32 {
@@ -25,25 +28,47 @@ impl Game {
         }
     }
 
+    /// `can_damage` for a grid probe: same rules, no entity lookups.
+    fn hostile(&self, sys: SystemId, e: &Ent, t: &Probe) -> bool {
+        if t.id == e.id || t.docked || e.docked {
+            return false;
+        }
+        match (e.side(), t.side) {
+            (None, None) => false,
+            (None, Some(_)) | (Some(_), None) => true,
+            (Some(pa), Some(pt)) => pa != pt && !(e.fleet.is_some() && e.fleet == t.fleet) && !(e.alliance.is_some() && e.alliance == t.alliance) && self.pvp_allowed(sys, e.alliance, t.alliance),
+        }
+    }
+
     /// Best target inside a cone around the nose (angular size of targets widens it a little).
+    /// AI pilots only shoot what they are hunting; players take the best-aligned hostile.
     fn cone_target(&self, sys: SystemId, e: &Ent, range: f32, cone: f32, preferred: Option<EntityId>) -> Option<EntityId> {
         let fwd = e.forward();
-        let mut best: Option<(EntityId, f32)> = None;
-        for (&tid, t) in &self.systems[&sys].ents {
-            if tid == e.id || !t.is_ship() || t.dead {
-                continue;
-            }
-            let to = t.pos - e.pos;
+        let aim = |pos: Vec3, radius: f32| {
+            let to = pos - e.pos;
             let dist = to.length();
-            if dist > range + t.stats.radius {
-                continue;
-            }
-            let ang = fwd.angle_between(to.normalize_or_zero()) - (t.stats.radius / dist.max(1.0)).atan();
-            let limit = if Some(tid) == preferred { LOCK_CONE.max(cone) } else { cone };
-            if ang < limit && self.can_damage(sys, e.id, tid) && best.is_none_or(|(_, a)| ang < a) {
-                best = Some((tid, ang));
-            }
+            (dist <= range + radius).then(|| fwd.angle_between(to / dist.max(1e-3)) - (radius / dist.max(1.0)).atan())
+        };
+        if let Some(p) = preferred
+            && let Some(t) = self.ent(sys, p).filter(|t| !t.dead)
+            && aim(t.pos, t.stats.radius).is_some_and(|a| a < LOCK_CONE.max(cone))
+            && self.can_damage(sys, e.id, p)
+        {
+            return Some(p);
         }
+        if e.kind != EntityKind::Player {
+            return None;
+        }
+        let mut best: Option<(EntityId, f32)> = None;
+        self.systems[&sys].grid.visit(e.pos, range + MAX_TARGET_RADIUS, |t| {
+            if let Some(ang) = aim(t.pos, t.radius)
+                && ang < cone
+                && best.is_none_or(|(_, a)| ang < a)
+                && self.hostile(sys, e, t)
+            {
+                best = Some((t.id, ang));
+            }
+        });
         best.map(|b| b.0)
     }
 
@@ -82,39 +107,46 @@ impl Game {
 
     /// Who a turret battery engages: the locked/AI target if in reach, otherwise the closest
     /// hostile that is actively in the fight (or anything hostile while the trigger is held).
-    fn turret_target(&self, sys: SystemId, e: &Ent) -> Option<EntityId> {
+    /// The search runs on a staggered ~0.5 s timer; between searches the last pick is kept while it stays valid.
+    fn turret_target(&self, sys: SystemId, e: &Ent) -> (Option<EntityId>, bool) {
         let range = e.stats.turret_range;
         let preferred = if e.kind == EntityKind::Player { e.target } else { e.ai.as_ref().and_then(|a| a.target) };
         let in_reach = |t: &Ent| t.pos.distance(e.pos) <= range + t.stats.radius;
+        let valid = |id: EntityId| self.ent(sys, id).is_some_and(|t| !t.dead && in_reach(t)) && self.can_damage(sys, e.id, id);
         if let Some(p) = preferred
-            && let Some(t) = self.ent(sys, p)
-            && in_reach(t)
-            && self.can_damage(sys, e.id, p)
+            && valid(p)
         {
-            return Some(p);
+            return (Some(p), false);
+        }
+        // Keep the last pick (or the last "nothing in reach") until the timer runs out; a target
+        // that died or left reach triggers a fresh search at once.
+        if e.retarget_cd > 0.0 {
+            match e.turret_target {
+                Some(t) if valid(t) => return (Some(t), false),
+                None => return (None, false),
+                _ => {}
+            }
         }
         let now = self.now;
         let side = e.side();
+        let recent: HashSet<EntityId> = e.attackers.iter().filter(|(_, _, at)| now - at < 15.0).map(|(a, _, _)| *a).collect();
         let mut best: Option<(EntityId, f32)> = None;
-        for (&tid, t) in &self.systems[&sys].ents {
-            if !t.is_ship() || t.dead || !in_reach(t) || !self.can_damage(sys, e.id, tid) {
-                continue;
+        self.systems[&sys].grid.visit(e.pos, range + MAX_TARGET_RADIUS, |t| {
+            let d = t.pos.distance(e.pos);
+            if d > range + t.radius || best.is_some_and(|(_, bd)| d >= bd) {
+                return;
             }
             let engaged = match side {
                 // Player side: shoot pirates that are hunting us, anyone who hit us, or anything if trigger held.
-                Some(_) => e.controls.fire || e.attackers.iter().any(|(a, _, at)| *a == tid && now - at < 15.0) || t.ai.as_ref().is_some_and(|a| a.target.is_some()),
+                Some(_) => e.controls.fire || t.hunting || recent.contains(&t.id),
                 // NPC capital ships shoot any player-side ship in reach.
                 None => true,
             };
-            if !engaged {
-                continue;
+            if engaged && self.hostile(sys, e, t) {
+                best = Some((t.id, d));
             }
-            let d = t.pos.distance(e.pos);
-            if best.is_none_or(|(_, bd)| d < bd) {
-                best = Some((tid, d));
-            }
-        }
-        best.map(|b| b.0)
+        });
+        (best.map(|b| b.0), true)
     }
 
     pub(super) fn fire_turrets(&mut self, sys: SystemId, id: EntityId, dt: f32, shots: &mut Vec<Shot>) {
@@ -122,13 +154,15 @@ impl Game {
         if e.turret_cds.is_empty() || e.dead || e.docked {
             return;
         }
-        let target = self.turret_target(sys, e);
+        let (target, searched) = self.turret_target(sys, e);
         let dmg = e.stats.turret_damage * self.combat_pilot_bonus(e);
         let interval = e.stats.turret_interval;
         let n = e.turret_cds.len();
         let mut fired = vec![];
         {
             let e = self.ent_mut(sys, id).unwrap();
+            e.turret_target = target;
+            e.retarget_cd = if searched { 0.5 } else { e.retarget_cd - dt };
             for (i, cd) in e.turret_cds.iter_mut().enumerate() {
                 *cd -= dt;
                 if *cd <= 0.0 && target.is_some() {

@@ -19,8 +19,9 @@ impl Drop for Server {
 }
 
 async fn start_server(port: u16) -> Server {
-    let exe = env!("CARGO_MANIFEST_DIR").to_string() + "/../../target/debug/server.exe";
-    let exe = if std::path::Path::new(&exe).exists() { exe } else { env!("CARGO_MANIFEST_DIR").to_string() + "/../../target/debug/server" };
+    // The server binary from the same profile as this test (target/<profile>/deps/e2e-*.exe → target/<profile>/server).
+    let dir = std::env::current_exe().unwrap().parent().unwrap().parent().unwrap().to_path_buf();
+    let exe = dir.join(if cfg!(windows) { "server.exe" } else { "server" });
     let data = std::env::temp_dir().join(format!("sfd-e2e-{port}-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&data);
     let child = Command::new(exe).args(["--port", &port.to_string(), "--data", data.to_str().unwrap()]).spawn().expect("server binary (cargo build -p server first)");

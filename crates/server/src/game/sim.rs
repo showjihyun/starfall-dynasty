@@ -50,11 +50,14 @@ impl Game {
         self.unix = unix;
         self.tick += 1;
 
+        let mut lap = std::time::Instant::now();
         self.tick_sessions(dt);
+        self.lap(0, &mut lap);
         let sys_ids: Vec<SystemId> = self.systems.keys().copied().collect();
         for sys in sys_ids {
             self.tick_system(sys, dt);
         }
+        lap = std::time::Instant::now();
         self.tick_engagements();
 
         if self.tick % 20 == 0 {
@@ -72,7 +75,14 @@ impl Game {
                 }
             }
         }
+        self.lap(6, &mut lap);
         self.send_snapshots();
+        self.lap(7, &mut lap);
+    }
+
+    fn lap(&mut self, phase: usize, t: &mut std::time::Instant) {
+        self.prof[phase] += t.elapsed().as_nanos();
+        *t = std::time::Instant::now();
     }
 
     fn tick_sessions(&mut self, dt: f32) {
@@ -168,6 +178,7 @@ impl Game {
         let mut shots: Vec<Shot> = Vec::new();
         let star_r = self.systems[&sys].layout.star_radius;
 
+        let mut lap = std::time::Instant::now();
         // AI decisions first (needs a read-only view).
         if has_players {
             for &id in &ids {
@@ -219,13 +230,17 @@ impl Game {
             }
         }
 
+        self.lap(1, &mut lap);
         // Weapons: forward guns, turret batteries, bow main gun.
+        let sm = self.systems.get_mut(&sys).unwrap();
+        sm.grid.rebuild(sm.ents.values());
         for &id in &ids {
             self.fire_forward_guns(sys, id, &mut shots);
             self.fire_turrets(sys, id, dt, &mut shots);
             self.fire_main_gun(sys, id, dt, &mut shots);
         }
 
+        self.lap(2, &mut lap);
         // Missiles.
         for &id in &ids {
             let Some(e) = self.ent(sys, id) else { continue };
@@ -262,16 +277,19 @@ impl Game {
             self.apply_damage(sys, s.from, s.to, s.dmg);
         }
 
+        self.lap(3, &mut lap);
         // Mining.
         for &id in &ids {
             self.tick_mining(sys, id, dt);
         }
 
+        self.lap(4, &mut lap);
         // Deaths.
         let dead: Vec<EntityId> = self.systems[&sys].ents.values().filter(|e| (e.is_ship() && e.hull <= 0.0) || e.dead).map(|e| e.id).collect();
         for id in dead {
             self.kill(sys, id);
         }
+        self.lap(5, &mut lap);
     }
 
     fn spawn_pirate_group(&mut self, sys: SystemId, tier: RiskTier) {
@@ -415,7 +433,8 @@ impl Game {
             t.shield -= absorbed;
             t.hull -= dmg - absorbed;
             t.last_hit = now;
-            t.attackers.retain(|(_, _, time)| now - time < 30.0);
+            // One entry per attacker (latest hit last), so a ship under fire from hundreds stays cheap.
+            t.attackers.retain(|(a, _, time)| *a != from && now - time < 30.0);
             t.attackers.push((from, attacker_pid, now));
             if absorbed > 0.0 {
                 self.pending_fx.entry(sys).or_default().push(Fx::ShieldHit { entity: to, dir: dir.to_array() });
@@ -436,12 +455,8 @@ impl Game {
         let victim_wanted = self.player_entity(victim_pid).and_then(|(s, e)| self.ent(s, e)).is_some_and(|v| v.wanted);
         let at_war = self.at_war(attacker_alliance, victim_alliance);
         // Self-defence: the victim's side hit the attacker's side recently.
-        let self_defence = self
-            .systems[&sys]
-            .ents
-            .values()
-            .filter(|e| e.side() == Some(attacker_pid))
-            .any(|e| e.attackers.iter().any(|(_, p, t)| *p == Some(victim_pid) && now - t < 30.0));
+        let self_defence = self.hostility.get(&(victim_pid, attacker_pid)).is_some_and(|t| now - t < 30.0);
+        self.hostility.insert((attacker_pid, victim_pid), now);
         // Crime in Wild space: attacking an innocent makes you Wanted (wars are not crimes).
         if tier.crime_tracked() && !victim_wanted && !self_defence && !at_war {
             let flagship = self.player_entity(attacker_pid);
@@ -470,17 +485,14 @@ impl Game {
         let aname = self.store.profile(attacker_pid).unwrap().name.clone();
         let vname = self.store.profile(victim_pid).unwrap().name.clone();
         let s = self.systems.get_mut(&sys).unwrap();
-        let eng = s.engagement.get_or_insert_with(|| Engagement { started: now, last_fire: now, sides: BTreeMap::new() });
+        let eng = s.engagement.get_or_insert_with(|| Engagement { started: now, last_fire: now, sides: BTreeMap::new(), dirty: false });
+        let fresh = eng.sides.is_empty();
         eng.last_fire = now;
-        let before = eng.sides.len() + eng.sides.values().map(|v| v.1.len()).sum::<usize>();
-        eng.sides.entry(ak).or_insert_with(|| (an, HashSet::new(), 0)).1.insert(aname);
-        eng.sides.entry(vk).or_insert_with(|| (vn, HashSet::new(), 0)).1.insert(vname);
-        let after = eng.sides.len() + eng.sides.values().map(|v| v.1.len()).sum::<usize>();
-        if after != before {
-            let names: Vec<String> = eng.sides.values().map(|v| format!("{} ({})", v.0, v.1.len())).collect();
-            for (c, _) in self.players_in(sys) {
-                self.send(c, ServerMsg::Engagement { active: true, sides: names.clone() });
-            }
+        let new_a = eng.sides.entry(ak).or_insert_with(|| (an, HashSet::new(), 0)).1.insert(aname);
+        let new_v = eng.sides.entry(vk).or_insert_with(|| (vn, HashSet::new(), 0)).1.insert(vname);
+        eng.dirty |= new_a || new_v;
+        if fresh {
+            self.broadcast_engagement(sys);
         }
     }
 
@@ -572,6 +584,7 @@ impl Game {
                     .values()
                     .filter(|w| w.kind == EntityKind::Player && w.pos.distance(e.pos) < 4000.0 && w.owner != Some(vpid) && w.owner != killer.map(|k| k.1))
                     .filter_map(|w| w.owner.and_then(|p| self.store.profile(p)).map(|p| p.name.clone()))
+                    .take(12)
                     .collect();
                 let cargo_lost = vprof.cargo_used();
                 let ev = self
@@ -652,8 +665,31 @@ impl Game {
         }
     }
 
+    /// Engagement banner: the biggest sides by name, the rest summarised (1000-captain brawls).
+    fn broadcast_engagement(&mut self, sys: SystemId) {
+        let Some(eng) = self.systems.get_mut(&sys).and_then(|s| s.engagement.as_mut()) else { return };
+        eng.dirty = false;
+        let mut sides: Vec<(&String, usize)> = eng.sides.values().map(|v| (&v.0, v.1.len())).collect();
+        sides.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(b.0)));
+        let mut names: Vec<String> = sides.iter().take(6).map(|(n, c)| format!("{n} ({c})")).collect();
+        if sides.len() > 6 {
+            let rest: usize = sides[6..].iter().map(|s| s.1).sum();
+            names.push(format!("외 {}개 세력 ({rest}명)", sides.len() - 6));
+        }
+        for (c, _) in self.players_in(sys) {
+            self.send(c, ServerMsg::Engagement { active: true, sides: names.clone() });
+        }
+    }
+
     fn tick_engagements(&mut self) {
         let now = self.now;
+        if self.tick % 20 == 0 {
+            let dirty: Vec<SystemId> = self.systems.values().filter(|s| s.engagement.as_ref().is_some_and(|e| e.dirty)).map(|s| s.id).collect();
+            for sys in dirty {
+                self.broadcast_engagement(sys);
+            }
+            self.hostility.retain(|_, t| now - *t < 30.0);
+        }
         let ended: Vec<SystemId> = self.systems.values().filter(|s| s.engagement.as_ref().is_some_and(|e| now - e.last_fire > ENGAGEMENT_TIMEOUT)).map(|s| s.id).collect();
         for sys in ended {
             let eng = self.systems.get_mut(&sys).unwrap().engagement.take().unwrap();
@@ -684,52 +720,6 @@ impl Game {
                         self.progress(pid, Progress::WonEngagement);
                     }
                 }
-            }
-        }
-    }
-
-    /// One compact snapshot per system, encoded once and shared by every viewer there.
-    /// Static infos travel only when new/changed (or in full to viewers who just arrived).
-    fn send_snapshots(&mut self) {
-        let mut by_sys: BTreeMap<SystemId, (Vec<ConnId>, Vec<ConnId>)> = BTreeMap::new();
-        for (c, s) in self.sessions.iter_mut() {
-            if s.player.is_some() && s.entity.is_some() || s.dead {
-                let e = by_sys.entry(s.system).or_default();
-                if std::mem::take(&mut s.needs_full) {
-                    e.1.push(*c);
-                } else {
-                    e.0.push(*c);
-                }
-            }
-        }
-        let fx = std::mem::take(&mut self.pending_fx);
-        for (sys, (delta_conns, full_conns)) in by_sys {
-            let sysm = self.systems.get_mut(&sys).unwrap();
-            let mut dynamic = Vec::with_capacity(sysm.ents.len());
-            let mut all_infos = Vec::with_capacity(sysm.ents.len());
-            let mut changed = vec![];
-            for e in sysm.ents.values().filter(|e| !e.dead) {
-                let (info, d) = pack(&e.state());
-                if sysm.sent_infos.get(&e.id) != Some(&info) {
-                    sysm.sent_infos.insert(e.id, info.clone());
-                    changed.push(info.clone());
-                }
-                dynamic.push(d);
-                all_infos.push(info);
-            }
-            let live: HashSet<EntityId> = dynamic.iter().map(|d| d[0] as EntityId).collect();
-            sysm.sent_infos.retain(|id, _| live.contains(id));
-            let tick = self.tick;
-            if !delta_conns.is_empty() {
-                self.out_shared.push((delta_conns.clone(), ServerMsg::Snapshot { tick, full: false, infos: changed, dynamic: dynamic.clone() }));
-            }
-            if !full_conns.is_empty() {
-                self.out_shared.push((full_conns.clone(), ServerMsg::Snapshot { tick, full: true, infos: all_infos, dynamic }));
-            }
-            if let Some(f) = fx.get(&sys).filter(|f| !f.is_empty()) {
-                let mut conns = delta_conns;
-                conns.extend(full_conns);
-                self.out_shared.push((conns, ServerMsg::Fx(f.clone())));
             }
         }
     }

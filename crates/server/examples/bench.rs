@@ -7,6 +7,7 @@ use server::store::Store;
 use shared::galaxy::Species;
 use shared::protocol::*;
 use shared::ships::{HullClass, Module};
+use rayon::prelude::*;
 use std::time::Instant;
 
 fn main() {
@@ -41,15 +42,21 @@ fn main() {
         g.tick(0.05, t0);
         tick_ns.push(t.elapsed().as_nanos());
         let te = Instant::now();
-        for (_, m) in g.out.drain(..) {
-            let s = encode(&m);
-            bytes += s.len();
-            *by_kind.entry(kind_of(&s)).or_default() += s.len();
-        }
-        for (conns, m) in g.out_shared.drain(..) {
-            let s = encode(&m);
-            bytes += s.len() * conns.len();
-            *by_kind.entry(kind_of(&s)).or_default() += s.len() * conns.len();
+        // Same wire format as the server: binary snapshots (encoded in parallel), JSON for the rest.
+        let sizes: Vec<(String, usize)> = g
+            .out
+            .par_drain(..)
+            .map(|(_, m)| match encode_snapshot(&m) {
+                Some(b) => ("Snapshot".to_string(), b.len()),
+                None => {
+                    let s = encode(&m);
+                    (kind_of(&s), s.len())
+                }
+            })
+            .collect();
+        for (k, n) in sizes {
+            bytes += n;
+            *by_kind.entry(k).or_default() += n;
         }
         encode_ns += te.elapsed().as_nanos();
     }

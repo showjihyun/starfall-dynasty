@@ -76,6 +76,11 @@ pub struct Session {
     pub snap_cache: SnapshotCache,
     /// Smoothed frames per second for the HUD.
     pub fps: f32,
+    /// HUD gauges: shield/hull fractions trailing behind the real ones (shows what was just lost).
+    pub gauge_lag: [f32; 2],
+    /// Red edge flash after hull damage (1 → fades to 0).
+    pub hull_flash: f32,
+    pub gauge_last: (f32, f64),
 }
 
 impl Session {
@@ -235,14 +240,14 @@ fn apply(s: &mut Session, m: ServerMsg, now: f64, next: &mut NextState<Screen>) 
             s.scan = None;
             next.set(Screen::Playing);
         }
-        ServerMsg::Snapshot { full, infos, dynamic, .. } => {
-            let entities = s.snap_cache.apply(full, infos, &dynamic);
+        ServerMsg::Snapshot { tick, full, infos, gone, dynamic, fx } => {
+            let entities = s.snap_cache.apply(tick, full, infos, &gone, &dynamic);
+            s.fx.extend(fx);
             s.snaps.push_back(Snap { at: now, ents: entities.into_iter().map(|e| (e.id, e)).collect() });
             while s.snaps.len() > 12 {
                 s.snaps.pop_front();
             }
         }
-        ServerMsg::Fx(f) => s.fx.extend(f),
         ServerMsg::WarpCharging { system, seconds } => {
             s.warp = if seconds > 0.0 { Some((system, now + seconds as f64, seconds)) } else { None };
         }

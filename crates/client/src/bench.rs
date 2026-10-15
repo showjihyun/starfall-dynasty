@@ -1,6 +1,7 @@
 //! `client --bench [seconds]`: offline stress scene for rendering performance.
 //! Two fleets (capitals, cruisers, fighters, pirates) circle each other while turrets,
 //! main guns, lasers and explosions fire continuously. Prints frame-time stats and exits.
+//! `STARFALL_BENCH_SCALE=N` multiplies the fleets (N=15 → ~1000 ships) for mass-battle tests.
 
 use crate::state::{Screen, Session, Snap};
 use bevy::prelude::*;
@@ -53,20 +54,26 @@ fn setup(mut s: ResMut<Session>, mut cfg: ResMut<BenchCfg>, mut next: ResMut<Nex
         cfg.start.push((id, pos, phase));
         ents.insert(id, EntityState { id, kind, name: format!("B{id}"), hull_class: hull, rank, livery, pos: pos.to_array(), rot: [0.0, 0.0, 0.0, 1.0], vel: [0.0, 0.0, -60.0], hull: 0.6 + (phase.sin() * 0.4).abs(), shield: 0.7, radius, fleet: None, wanted: false, boosting: id % 3 == 0, mining: None, docked: false, owner: Some(id as u64), alliance: None, class });
     };
-    for side in [-1.0f32, 1.0] {
-        for i in 0..4 {
-            add(&mut ents, EntityKind::Player, Some(HullClass::ALL[i % 5]), 9, center + Vec3::new(side * 1400.0, (i as f32 - 1.5) * 220.0, i as f32 * 500.0 - 800.0), if side < 0.0 { 1 } else { 4 }, &mut cfg);
+    let scale: usize = std::env::var("STARFALL_BENCH_SCALE").ok().and_then(|v| v.parse().ok()).unwrap_or(1).max(1);
+    for layer in 0..scale {
+        // Extra layers stack further out and deeper, like a battle line seen end-on.
+        let off = Vec3::new(0.0, (layer as f32 * 0.7).sin() * 900.0 * layer.min(1) as f32, -(layer as f32) * 2600.0);
+        let spread = 1.0 + layer as f32 * 0.25;
+        for side in [-1.0f32, 1.0] {
+            for i in 0..4 {
+                add(&mut ents, EntityKind::Player, Some(HullClass::ALL[i % 5]), 9, center + off + Vec3::new(side * 1400.0 * spread, (i as f32 - 1.5) * 220.0, i as f32 * 500.0 - 800.0), if side < 0.0 { 1 } else { 4 }, &mut cfg);
+            }
+            for i in 0..8 {
+                add(&mut ents, EntityKind::Player, Some(HullClass::ALL[(i + 2) % 5]), 5, center + off + Vec3::new(side * 900.0 * spread, (i as f32 - 4.0) * 90.0, i as f32 * 220.0 - 900.0), if side < 0.0 { 1 } else { 4 }, &mut cfg);
+            }
+            for i in 0..12 {
+                add(&mut ents, EntityKind::Escort, Some(HullClass::ALL[i % 5]), 1, center + off + Vec3::new(side * 500.0 * spread + (i as f32 * 1.7).sin() * 120.0, (i as f32 - 6.0) * 40.0, i as f32 * 120.0 - 700.0), if side < 0.0 { 1 } else { 4 }, &mut cfg);
+            }
         }
-        for i in 0..8 {
-            add(&mut ents, EntityKind::Player, Some(HullClass::ALL[(i + 2) % 5]), 5, center + Vec3::new(side * 900.0, (i as f32 - 4.0) * 90.0, i as f32 * 220.0 - 900.0), if side < 0.0 { 1 } else { 4 }, &mut cfg);
+        for i in 0..20 {
+            let arch = [NpcArchetype::Raider, NpcArchetype::Gunship, NpcArchetype::Warden][i % 3];
+            add(&mut ents, EntityKind::Npc(arch), None, 1, center + off + Vec3::new((i as f32 * 2.3).cos() * 300.0, 400.0 + (i as f32) * 15.0, (i as f32 * 2.3).sin() * 300.0), 7, &mut cfg);
         }
-        for i in 0..12 {
-            add(&mut ents, EntityKind::Escort, Some(HullClass::ALL[i % 5]), 1, center + Vec3::new(side * 500.0 + (i as f32 * 1.7).sin() * 120.0, (i as f32 - 6.0) * 40.0, i as f32 * 120.0 - 700.0), if side < 0.0 { 1 } else { 4 }, &mut cfg);
-        }
-    }
-    for i in 0..20 {
-        let arch = [NpcArchetype::Raider, NpcArchetype::Gunship, NpcArchetype::Warden][i % 3];
-        add(&mut ents, EntityKind::Npc(arch), None, 1, center + Vec3::new((i as f32 * 2.3).cos() * 300.0, 400.0 + (i as f32) * 15.0, (i as f32 * 2.3).sin() * 300.0), 7, &mut cfg);
     }
     s.me = Some(1001);
     s.snaps.push_back(Snap { at: 0.0, ents });

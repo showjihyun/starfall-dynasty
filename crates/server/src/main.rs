@@ -8,7 +8,8 @@
 use futures_util::{SinkExt, StreamExt};
 use server::game::{ConnId, Game};
 use server::store::Store;
-use shared::protocol::{ClientMsg, DEFAULT_PORT, ServerMsg, TICK_HZ, decode, encode};
+use rayon::prelude::*;
+use shared::protocol::{ClientMsg, DEFAULT_PORT, ServerMsg, TICK_HZ, decode, encode, encode_snapshot};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -70,6 +71,8 @@ async fn main() -> std::io::Result<()> {
     let mut interval = tokio::time::interval(Duration::from_secs_f32(dt));
     interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
     let mut last_save = std::time::Instant::now();
+    // Load report every 10 s while anyone is connected: tick cost and outbound bandwidth.
+    let (mut stat_at, mut stat_ticks, mut stat_ns, mut stat_max, mut stat_bytes) = (std::time::Instant::now(), 0u32, 0u128, 0u128, 0usize);
     let shutdown = tokio::signal::ctrl_c();
     tokio::pin!(shutdown);
     loop {
@@ -82,19 +85,31 @@ async fn main() -> std::io::Result<()> {
                         Inbound::Close(id) => { outs.remove(&id); game.disconnect(id); }
                     }
                 }
+                let t0 = std::time::Instant::now();
                 game.tick(dt, unix_now());
-                for (conn, msg) in game.out.drain(..) {
+                // Per-viewer snapshots are binary; encode the batch in parallel.
+                let frames: Vec<(ConnId, Message)> = game.out.par_drain(..).map(|(c, m)| (c, wire(&m))).collect();
+                for (conn, frame) in frames {
                     if let Some(o) = outs.get(&conn) {
-                        let _ = o.send(Message::text(encode(&msg)));
+                        stat_bytes += frame.len();
+                        let _ = o.send(frame);
                     }
                 }
-                for (conns, msg) in game.out_shared.drain(..) {
-                    let frame = Message::text(encode(&msg));
-                    for c in conns {
-                        if let Some(o) = outs.get(&c) {
-                            let _ = o.send(frame.clone());
-                        }
+                let ns = t0.elapsed().as_nanos();
+                (stat_ticks, stat_ns, stat_max) = (stat_ticks + 1, stat_ns + ns, stat_max.max(ns));
+                let secs = stat_at.elapsed().as_secs_f64();
+                if secs >= 10.0 {
+                    if !outs.is_empty() {
+                        let phases: Vec<String> = game.prof.iter().zip(server::game::PROF_PHASES).filter(|(ns, _)| **ns as f64 / stat_ticks as f64 > 5e4).map(|(ns, name)| format!("{name} {:.2}", *ns as f64 / stat_ticks as f64 / 1e6)).collect();
+                        println!("[stats] phases ms/tick: {}", phases.join(", "));
+                        let ents: usize = game.systems.values().map(|s| s.ents.len()).sum();
+                        println!(
+                            "[stats] {} conns, {} entities | tick+encode avg {:.2} ms, max {:.2} ms (budget {:.0} ms) | out {:.1} KB/s per conn",
+                            outs.len(), ents, stat_ns as f64 / stat_ticks as f64 / 1e6, stat_max as f64 / 1e6, dt * 1000.0, stat_bytes as f64 / secs / 1e3 / outs.len() as f64
+                        );
                     }
+                    (stat_at, stat_ticks, stat_ns, stat_max, stat_bytes) = (std::time::Instant::now(), 0, 0, 0, 0);
+                    game.prof = [0; 8];
                 }
                 for k in game.kicked.drain(..) {
                     if let Some(o) = outs.remove(&k) {
@@ -113,6 +128,13 @@ async fn main() -> std::io::Result<()> {
                 return Ok(());
             }
         }
+    }
+}
+
+fn wire(m: &ServerMsg) -> Message {
+    match encode_snapshot(m) {
+        Some(b) => Message::binary(b),
+        None => Message::text(encode(m)),
     }
 }
 
