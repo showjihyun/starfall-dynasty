@@ -14,6 +14,7 @@ mod music;
 mod net;
 mod scene;
 mod ships;
+mod starmap;
 mod state;
 mod ui;
 
@@ -243,6 +244,7 @@ fn automation(
             }
             "turn" => net.send(ClientMsg::Controls(Controls { yaw: 1.0, thrust: 0.5, ..default() })),
             "map" if first => s.ui.map = true,
+            "galaxy" if first => s.map.level = starmap::Level::Galaxy,
             "station" if first => s.ui.station = true,
             "missions" if first => s.ui.missions = true,
             "chronicle" if first => {

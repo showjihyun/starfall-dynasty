@@ -103,6 +103,7 @@ pub fn ui_system(
         Screen::Playing => {
             hud(ctx, &mut s, &net, &env, &vis, &ships, &cam, now);
             windows(ctx, &mut s, &net, &env);
+            crate::starmap::draw(ctx, &mut s, &net, &env, now);
         }
     }
     Ok(())
@@ -583,10 +584,6 @@ fn poi_icon(k: PoiKind) -> &'static str {
 
 fn windows(ctx: &egui::Context, s: &mut Session, net: &Net, env: &Env) {
     let Some(prof) = s.profile.clone() else { return };
-    let mut open = s.ui.map;
-    egui::Window::new("은하 지도 (M)").open(&mut open).default_size([620.0, 560.0]).show(ctx, |ui| galaxy_map(ui, s, net, &prof));
-    s.ui.map = open;
-
     let mut open = s.ui.station;
     egui::Window::new("정거장 · 조선소 (U)").open(&mut open).default_size([560.0, 600.0]).show(ctx, |ui| station(ui, s, net, &prof, env));
     s.ui.station = open;
@@ -623,61 +620,6 @@ fn windows(ctx: &egui::Context, s: &mut Session, net: &Net, env: &Env) {
         ui.label("격침된 함선의 잔해는 남습니다. 잔해를 조사(V)해 증거를 얻고, 연대기(H)에서 연구를 발표하거나 반박하세요.");
     });
     s.ui.help = open;
-}
-
-fn galaxy_map(ui: &mut egui::Ui, s: &Session, net: &Net, prof: &Profile) {
-    let range = prof.ship.stats().warp_range;
-    let (rect, _) = ui.allocate_exact_size(EVec2::new(ui.available_width(), 340.0), egui::Sense::hover());
-    let p = ui.painter_at(rect);
-    p.rect_filled(rect, 6.0, Color32::from_rgb(6, 9, 16));
-    let to_screen = |mp: [f32; 3]| Pos2::new(rect.center().x + mp[0] * 75.0, rect.bottom() - 26.0 - mp[2] * 46.0);
-    let cur = galaxy::system(s.system);
-    let cp = to_screen(cur.map_pos);
-    for a in galaxy::SYSTEMS {
-        for b in galaxy::SYSTEMS {
-            if a.id < b.id && galaxy::distance_ly(a.id, b.id) <= 1.8 {
-                p.line_segment([to_screen(a.map_pos), to_screen(b.map_pos)], Stroke::new(1.0, Color32::from_rgb(30, 45, 70)));
-            }
-        }
-    }
-    for sys in galaxy::SYSTEMS {
-        let sp = to_screen(sys.map_pos);
-        let d = galaxy::distance_ly(s.system, sys.id);
-        let reach = d <= range && sys.id != s.system;
-        let col = tier_color(sys.tier);
-        let star = sys.star.color();
-        p.circle_filled(sp, 7.0, Color32::from_rgb((star[0] * 255.0) as u8, (star[1] * 255.0) as u8, (star[2] * 255.0) as u8));
-        if sys.id == s.system {
-            p.circle_stroke(sp, 12.0, Stroke::new(2.0, Color32::WHITE));
-        } else if reach {
-            p.circle_stroke(sp, 11.0, Stroke::new(1.0, ACCENT));
-            p.line_segment([cp, sp], Stroke::new(1.0, Color32::from_rgba_unmultiplied(110, 190, 255, 90)));
-        }
-        p.text(sp + EVec2::new(12.0, -7.0), Align2::LEFT_TOP, sys.name, FontId::proportional(12.0), col);
-        let others: Vec<String> = s.fleet_members.iter().filter(|m| m.system == sys.id).map(|m| m.name.clone()).collect();
-        if !others.is_empty() {
-            p.text(sp + EVec2::new(12.0, 7.0), Align2::LEFT_TOP, format!("⚑ {}", others.join(", ")), FontId::proportional(10.0), GREEN);
-        }
-    }
-    ui.label(RichText::new(format!("현재 워프 거리 {:.2} ly (워프 코어 업그레이드로 증가)", range)).color(DIM));
-    egui::ScrollArea::vertical().max_height(200.0).show(ui, |ui| {
-        egui::Grid::new("warp").striped(true).show(ui, |ui| {
-            for sys in galaxy::SYSTEMS {
-                if sys.id == s.system {
-                    continue;
-                }
-                let d = galaxy::distance_ly(s.system, sys.id);
-                ui.label(RichText::new(sys.name).color(tier_color(sys.tier)));
-                ui.label(RichText::new(sys.tier.label()).size(11.0));
-                ui.label(format!("{d:.2} ly"));
-                if ui.add_enabled(d <= range && s.warp.is_none(), egui::Button::new("워프")).clicked() {
-                    net.send(ClientMsg::Undock);
-                    net.send(ClientMsg::Warp { system: sys.id });
-                }
-                ui.end_row();
-            }
-        });
-    });
 }
 
 fn station(ui: &mut egui::Ui, s: &Session, net: &Net, prof: &Profile, env: &Env) {

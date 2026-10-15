@@ -330,6 +330,46 @@ fn greek(i: u32) -> &'static str {
     ["Alpha", "Beta", "Gamma", "Delta", "Epsilon"][i as usize % 5]
 }
 
+/// Starfall coordinates.
+/// - Galactic: light-years on the galaxy chart (x east, y up, z rimward), origin at Sol Haven.
+/// - Sector: the chart is cut into 1 ly squares named column letter (x, A at -3 ly) + row number
+///   (z, 1 at 0 ly), e.g. Sol Haven sits in `D1`.
+/// - Local: inside a system, world units are meters from the star; shown in km.
+pub mod coords {
+    use super::*;
+
+    pub const SECTOR_ORIGIN_X: f32 = -3.0;
+
+    pub fn sector_of(map_pos: [f32; 3]) -> String {
+        let col = ((map_pos[0] - SECTOR_ORIGIN_X).floor() as i32).clamp(0, 25) as u8;
+        let row = map_pos[2].floor() as i32 + 1;
+        format!("{}{}", (b'A' + col) as char, row)
+    }
+
+    /// Sector square bounds on the chart (x0, z0, x1, z1) in ly.
+    pub fn sector_bounds(name: &str) -> Option<[f32; 4]> {
+        let mut c = name.chars();
+        let col = c.next()? as i32 - 'A' as i32;
+        let row: i32 = c.as_str().parse().ok()?;
+        let x0 = SECTOR_ORIGIN_X + col as f32;
+        let z0 = (row - 1) as f32;
+        Some([x0, z0, x0 + 1.0, z0 + 1.0])
+    }
+
+    /// Bearing (0° = chart north, i.e. world -Z, clockwise) and elevation of a direction, degrees.
+    pub fn bearing(dir: Vec3) -> (f32, f32) {
+        let d = dir.normalize_or(Vec3::NEG_Z);
+        let b = d.x.atan2(-d.z).to_degrees().rem_euclid(360.0);
+        (b, d.y.clamp(-1.0, 1.0).asin().to_degrees())
+    }
+
+    /// One-line position readout: `D1 · Sol Haven · L(+1.23, -0.40, +3.40) km`.
+    pub fn describe(sys: SystemId, local: Vec3) -> String {
+        let def = system(sys);
+        format!("{} · {} · L({:+.2}, {:+.2}, {:+.2}) km", sector_of(def.map_pos), def.name, local.x / 1000.0, local.y / 1000.0, local.z / 1000.0)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -365,5 +405,23 @@ mod tests {
             assert!(system_layout(s).pois.iter().any(|p| p.kind == PoiKind::Signal));
         }
         assert!(system_layout(4).pois.iter().any(|p| p.kind == PoiKind::Derelict));
+    }
+
+    #[test]
+    fn coordinates() {
+        assert_eq!(coords::sector_of(system(0).map_pos), "D1");
+        assert_eq!(coords::sector_of(system(9).map_pos), "C7");
+        let b = coords::sector_bounds("D1").unwrap();
+        assert!(b[0] <= 0.0 && 0.0 < b[2] && b[1] <= 0.0 && 0.0 < b[3]);
+        // Every system lies inside its own sector square.
+        for s in SYSTEMS {
+            let b = coords::sector_bounds(&coords::sector_of(s.map_pos)).unwrap();
+            assert!(b[0] <= s.map_pos[0] && s.map_pos[0] < b[2] && b[1] <= s.map_pos[2] && s.map_pos[2] < b[3], "{}", s.name);
+        }
+        let (n, _) = coords::bearing(Vec3::NEG_Z);
+        let (e, _) = coords::bearing(Vec3::X);
+        let (_, up) = coords::bearing(Vec3::Y);
+        assert!(n.abs() < 1e-3 && (e - 90.0).abs() < 1e-3 && (up - 90.0).abs() < 1e-3);
+        assert!(coords::describe(0, Vec3::new(1230.0, -400.0, 3400.0)).contains("L(+1.23, -0.40, +3.40) km"));
     }
 }

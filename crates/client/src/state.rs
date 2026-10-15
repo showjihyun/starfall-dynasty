@@ -81,6 +81,8 @@ pub struct Session {
     /// Red edge flash after hull damage (1 → fades to 0).
     pub hull_flash: f32,
     pub gauge_last: (f32, f64),
+    /// Star map (M) view state.
+    pub map: crate::starmap::MapView,
 }
 
 impl Session {
