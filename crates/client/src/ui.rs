@@ -80,7 +80,7 @@ pub fn ui_system(
     env: Res<Env>,
     vis: Res<Visuals>,
     ships: Query<(&ShipVis, &Transform)>,
-    cam: Query<(&Camera, &GlobalTransform)>,
+    cam: Query<(&Camera, &GlobalTransform), With<crate::control::MainCamera>>,
     time: Res<Time<Real>>,
 ) -> Result {
     let ctx = contexts.ctx_mut()?;
@@ -328,7 +328,7 @@ fn crosshair_gauges(p: &egui::Painter, c: Pos2, shield: f32, hull: f32, lag: [f3
 }
 
 #[allow(clippy::too_many_arguments)]
-fn hud(ctx: &egui::Context, s: &mut Session, net: &Net, env: &Env, vis: &Visuals, ships: &Query<(&ShipVis, &Transform)>, cam: &Query<(&Camera, &GlobalTransform)>, now: f64) {
+fn hud(ctx: &egui::Context, s: &mut Session, net: &Net, env: &Env, vis: &Visuals, ships: &Query<(&ShipVis, &Transform)>, cam: &Query<(&Camera, &GlobalTransform), With<crate::control::MainCamera>>, now: f64) {
     let Some(prof) = s.profile.clone() else { return };
     let def = galaxy::system(s.system);
     let me = s.my_state().cloned();
@@ -543,7 +543,7 @@ fn hud(ctx: &egui::Context, s: &mut Session, net: &Net, env: &Env, vis: &Visuals
 
     // Key hints.
     egui::Area::new("keys".into()).anchor(Align2::CENTER_BOTTOM, EVec2::new(0.0, -6.0)).show(ctx, |ui| {
-        ui.label(RichText::new("W/S 추진 · A/D 선회 · R/F 상하 · Q/E 롤 · 우클릭 조종 · Shift 부스트 · Space 사격/주포 · T 목표 · X 미사일 · B 호위공격 · Y 호위복귀 · C 1/3인칭 · G 도킹 · N 채굴 · V 스캔 · M 지도 · U 정거장 · J 미션 · H 연대기 · K 함대 · L 동맹 · F1").size(11.0).color(DIM));
+        ui.label(RichText::new("W/S 추진 · A/D 선회 · R/F 상하 · Q/E 롤 · 우클릭 조종 · Shift 부스트 · Space 사격/주포 · T 목표 · X 미사일 · B 호위공격 · Y 호위복귀 · C 1/3인칭 · I 함교 화면 · G 도킹 · N 채굴 · V 스캔 · M 지도 · U 정거장 · J 미션 · H 연대기 · K 함대 · L 동맹 · F1").size(11.0).color(DIM));
     });
 
     if let Some(killer) = s.dead.clone() {

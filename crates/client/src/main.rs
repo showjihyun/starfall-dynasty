@@ -7,6 +7,7 @@ mod audio;
 mod bench;
 mod control;
 mod fx;
+mod interior;
 mod materials;
 mod meshes;
 mod music;
@@ -57,7 +58,7 @@ fn main() {
                     title: "STARFALL DYNASTY".into(),
                     resolution: std::env::var("STARFALL_RES").ok().and_then(|r| r.split_once('x').and_then(|(w, h)| Some((w.parse::<u32>().ok()?, h.parse::<u32>().ok()?)))).unwrap_or((1600, 900)).into(),
                     // Benchmarks measure uncapped frame times.
-                    present_mode: if bench_secs.is_some() { bevy::window::PresentMode::AutoNoVsync } else { bevy::window::PresentMode::AutoVsync },
+                    present_mode: if bench_secs.is_some() || std::env::var("STARFALL_NOVSYNC").is_ok() { bevy::window::PresentMode::AutoNoVsync } else { bevy::window::PresentMode::AutoVsync },
                     ..default()
                 }),
                 ..default()
@@ -65,7 +66,8 @@ fn main() {
             .set(AssetPlugin { file_path: ships::assets_dir().to_string_lossy().into_owned(), ..default() }),
     )
     .add_plugins(EguiPlugin::default())
-    .add_plugins((materials::MaterialsPlugin, scene::ScenePlugin, ships::ShipsPlugin, fx::FxPlugin, control::ControlPlugin, audio::AudioFxPlugin, music::MusicPlugin))
+    .insert_resource(bevy_egui::EguiGlobalSettings { auto_create_primary_context: false, ..default() })
+    .add_plugins((materials::MaterialsPlugin, scene::ScenePlugin, ships::ShipsPlugin, fx::FxPlugin, control::ControlPlugin, audio::AudioFxPlugin, music::MusicPlugin, interior::InteriorPlugin))
     .init_state::<Screen>()
     .insert_resource(Session { server_url: args.server.clone(), last_combat: -1e9, ..default() })
     .init_resource::<ui::Form>()
@@ -249,6 +251,7 @@ fn automation(
             }
             "close" if first => s.ui = Default::default(),
             "say" if first => net.send(ClientMsg::Chat { text: args.script[*step].trim_start_matches("say").trim().to_string() }),
+            "fps" => info!("FPS {:.1}", s.fps),
             "fp" if first => cam.first_person = true,
             "tp" if first => cam.first_person = false,
             "zoom" if first => cam.zoom = dur as f32,

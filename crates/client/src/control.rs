@@ -26,6 +26,10 @@ impl Plugin for ControlPlugin {
     }
 }
 
+/// The player's view camera (the interior panel and the bridge feed add more cameras).
+#[derive(Component)]
+pub struct MainCamera;
+
 #[derive(Resource)]
 pub struct CamState {
     pub zoom: f32,
@@ -45,6 +49,9 @@ fn spawn_camera(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
     let cube = images.add(meshes::sky_cubemap([0.2, 0.3, 0.6], [0.5, 0.2, 0.4], Vec3::Z, [1.0, 0.9, 0.7], 1));
     commands.spawn((
         Camera3d::default(),
+        MainCamera,
+        // The HUD belongs to this camera, not the off-screen interior/feed cameras.
+        bevy_egui::PrimaryEguiContext,
         Hdr,
         Camera { clear_color: ClearColorConfig::Custom(Color::BLACK), ..default() },
         Tonemapping::TonyMcMapface,
@@ -56,7 +63,7 @@ fn spawn_camera(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
     commands.insert_resource(GlobalAmbientLight { color: Color::srgb(0.5, 0.55, 0.7), brightness: 12.0, ..default() });
 }
 
-fn idle_camera(time: Res<Time>, mut cam: Query<&mut Transform, With<Camera3d>>) {
+fn idle_camera(time: Res<Time>, mut cam: Query<&mut Transform, With<MainCamera>>) {
     let Ok(mut t) = cam.single_mut() else { return };
     let a = time.elapsed_secs() * 0.03;
     let center = Vec3::new(0.0, 0.0, 3400.0);
@@ -70,9 +77,9 @@ fn chase_camera(
     s: Res<Session>,
     vis: Res<Visuals>,
     env: Res<Env>,
-    ships: Query<(&ShipVis, &Transform), Without<Camera3d>>,
+    ships: Query<(&ShipVis, &Transform), Without<MainCamera>>,
     globals: Query<&GlobalTransform>,
-    mut cam: Query<&mut Transform, With<Camera3d>>,
+    mut cam: Query<&mut Transform, With<MainCamera>>,
     mut cs: ResMut<CamState>,
     scroll: Res<AccumulatedMouseScroll>,
     wants: Option<Res<EguiWantsInput>>,

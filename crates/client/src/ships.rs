@@ -170,7 +170,7 @@ impl Models {
 
 fn load_models(mut commands: Commands, server: Res<AssetServer>, mut meshes: ResMut<Assets<Mesh>>) {
     let mut available = std::collections::HashSet::new();
-    let mut names: Vec<String> = ["npc_raider", "npc_gunship", "npc_warden", "npc_warlord", "npc_sentinel", "wreck"].iter().map(|s| s.to_string()).collect();
+    let mut names: Vec<String> = ["npc_raider", "npc_gunship", "npc_warden", "npc_warlord", "npc_sentinel", "wreck", "bridge_interior", "cockpit_interior"].iter().map(|s| s.to_string()).collect();
     for h in HullClass::ALL {
         let base = hull_lengths(h).0;
         names.extend([base.to_string(), format!("{base}_cruiser"), format!("{base}_capital")]);

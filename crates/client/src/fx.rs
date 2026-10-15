@@ -316,7 +316,7 @@ fn warp_tunnel(
     s: Res<Session>,
     time: Res<Time<Real>>,
     assets: Res<FxAssets>,
-    cam: Query<Entity, With<Camera3d>>,
+    cam: Query<Entity, With<crate::control::MainCamera>>,
     mut tunnel: Query<(Entity, &Tunnel)>,
     mut warps: ResMut<Assets<WarpMat>>,
     mut after: Local<f32>,

@@ -209,7 +209,7 @@ fn build_bank(mut commands: Commands, mut sources: ResMut<Assets<AudioSource>>) 
     commands.insert_resource(SfxBank(bank));
 }
 
-fn play_queue(mut commands: Commands, mut q: ResMut<SfxQueue>, bank: Option<Res<SfxBank>>, cam: Query<&GlobalTransform, With<Camera3d>>, mut counter: Local<u32>) {
+fn play_queue(mut commands: Commands, mut q: ResMut<SfxQueue>, bank: Option<Res<SfxBank>>, cam: Query<&GlobalTransform, With<crate::control::MainCamera>>, mut counter: Local<u32>) {
     let Some(bank) = bank else { return };
     let listener = cam.single().map(|c| c.translation()).unwrap_or_default();
     let mut per_kind: HashMap<Sfx, u32> = HashMap::new();

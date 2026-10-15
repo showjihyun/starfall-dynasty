@@ -115,7 +115,7 @@ fn build_system(
     mut glows: ResMut<Assets<GlowMat>>,
     mut planets: ResMut<Assets<PlanetMat>>,
     mut rings: ResMut<Assets<RingMat>>,
-    mut cams: Query<&mut GeneratedEnvironmentMapLight, With<Camera3d>>,
+    mut cams: Query<&mut GeneratedEnvironmentMapLight, With<crate::control::MainCamera>>,
     props: Props,
 ) {
     if s.system_epoch == env.epoch || s.system_epoch == 0 || !props.ready() {
@@ -388,7 +388,7 @@ fn spawn_jump_point(commands: &mut Commands, meshes: &mut Assets<Mesh>, mats: &m
     });
 }
 
-fn follow_sky(cam: Query<&GlobalTransform, With<Camera3d>>, mut sky: Query<&mut Transform, With<Skybox>>) {
+fn follow_sky(cam: Query<&GlobalTransform, With<crate::control::MainCamera>>, mut sky: Query<&mut Transform, With<Skybox>>) {
     let Ok(c) = cam.single() else { return };
     for mut t in &mut sky {
         t.translation = c.translation();
