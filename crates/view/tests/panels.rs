@@ -152,3 +152,29 @@ fn posting_needs_a_target_and_the_reward_in_hand() {
     assert_eq!(post(with_target, 1000), None, "cannot escrow what you lack");
     assert_eq!(post(ContractForm { reward: 500, ..Default::default() }, 5000), None, "a hunt needs a target");
 }
+
+// ---- influence
+
+#[test]
+fn influence_table_lists_contested_systems_only() {
+    use shared::protocol::SystemStanding;
+    let systems = vec![
+        SystemStanding { system: 0, controller: None, standings: vec![] },
+        SystemStanding { system: 3, controller: Some((1, "FPA".into())), standings: vec![(1, "FPA".into(), 72.4), (2, "EMP".into(), 40.0)] },
+        SystemStanding { system: 4, controller: None, standings: vec![(2, "EMP".into(), 12.0)] },
+    ];
+    let (t, _) = frame(|ui| -> Option<()> {
+        panels::influence(ui, &systems, Some("FPA"), 60.0);
+        None
+    }, None);
+    assert!(t.iter().any(|s| s == "Orion Drift") && t.iter().any(|s| s == "Vesta Corridor"), "{t:?}");
+    assert!(!t.iter().any(|s| s == "Sol Haven"), "no influence, not listed");
+    assert!(t.iter().any(|s| s == "지배 [FPA]"));
+    assert!(t.iter().any(|s| s == "[FPA] 72 · [EMP] 40"));
+    assert!(t.iter().any(|s| s == "무주지"));
+    let (t, _) = frame(|ui| -> Option<()> {
+        panels::influence(ui, &[], None, 60.0);
+        None
+    }, None);
+    assert!(t.iter().any(|s| s.starts_with("아직 어느 성계에도")));
+}

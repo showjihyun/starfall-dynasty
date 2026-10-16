@@ -179,3 +179,31 @@ pub fn contracts(ui: &mut egui::Ui, list: &[Contract], me: u64, credits: u64, fo
     });
     out
 }
+
+// ---- Political influence ----------------------------------------------------------------------
+
+use shared::protocol::SystemStanding;
+
+/// Influence standings per system: who holds it and the top contenders, with `mine` (my alliance
+/// tag) highlighted. Systems nobody has any influence in are left out.
+pub fn influence(ui: &mut egui::Ui, systems: &[SystemStanding], mine: Option<&str>, threshold: f32) {
+    ui.label(RichText::new("성계 영향력").strong());
+    ui.label(RichText::new(format!("동맹원이 성계에서 해적 소탕·광석 판매·계약 완수·박물관 기증을 하면 영향력이 쌓입니다. {threshold:.0} 이상이고 지배 세력보다 20% 앞서면 지배권을 가져옵니다(지배 동맹원은 그 성계에서 현상금·판매가 +10%). 영향력은 매시간 줄어듭니다. Core 성계는 지배할 수 없습니다.")).size(11.0).color(DIM));
+    let active: Vec<&SystemStanding> = systems.iter().filter(|s| s.controller.is_some() || !s.standings.is_empty()).collect();
+    if active.is_empty() {
+        ui.label(RichText::new("아직 어느 성계에도 영향력을 가진 동맹이 없습니다.").color(DIM));
+        return;
+    }
+    egui::Grid::new("influence").striped(true).num_columns(3).show(ui, |ui| {
+        for s in active {
+            ui.label(RichText::new(shared::galaxy::system(s.system).name).strong());
+            match &s.controller {
+                Some((_, tag)) => ui.label(RichText::new(format!("지배 [{tag}]")).color(if Some(tag.as_str()) == mine { crate::palette::GREEN } else { GOLD })),
+                None => ui.label(RichText::new("무주지").color(DIM)),
+            };
+            let top: Vec<String> = s.standings.iter().take(3).map(|(_, tag, v)| format!("[{tag}] {v:.0}")).collect();
+            ui.label(RichText::new(top.join(" · ")).size(11.0));
+            ui.end_row();
+        }
+    });
+}

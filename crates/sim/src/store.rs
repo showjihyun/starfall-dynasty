@@ -59,6 +59,12 @@ pub struct StoreData {
     pub contracts: BTreeMap<u64, shared::contracts::Contract>,
     #[serde(default, skip_serializing_if = "is_zero")]
     pub next_contract: u64,
+    /// Political influence: system → alliance → points.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub influence: BTreeMap<SystemId, BTreeMap<u32, f32>>,
+    /// System → controlling alliance.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub controllers: BTreeMap<SystemId, u32>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

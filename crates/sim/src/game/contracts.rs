@@ -188,6 +188,7 @@ impl Game {
         let Some((cp, cname)) = c.contractor.clone() else { return };
         self.history.record(self.unix, DomainEvent::ContractFulfilled { contract_id: id, employer: c.employer_name.clone(), contractor: cname, terms: c.kind.describe(), reward: c.reward, system: sys });
         self.settle(id, ContractState::Fulfilled, cp);
+        self.gain_influence(cp, sys, self.tuning.social.influence_contract);
         if let Some(p) = self.store.profile_mut(cp) {
             p.reputation += self.tuning.social.fulfil_reputation;
         }

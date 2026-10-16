@@ -49,7 +49,10 @@ impl Game {
             ClientMsg::AllianceLeave => self.alliance_leave(pid),
             ClientMsg::AllianceDeclareWar { target } => self.alliance_war(pid, target, true),
             ClientMsg::AlliancePeace { target } => self.alliance_war(pid, target, false),
-            ClientMsg::RequestAlliances => self.send_alliances(pid),
+            ClientMsg::RequestAlliances => {
+                self.send_alliances(pid);
+                self.send_influence(pid);
+            }
             ClientMsg::AppraiseArtifact { id } => self.artifact_service(conn, pid, sys, eid, id, super::artifacts::ArtifactAction::Appraise),
             ClientMsg::SellArtifact { id } => self.artifact_service(conn, pid, sys, eid, id, super::artifacts::ArtifactAction::Sell),
             ClientMsg::DonateArtifact { id } => self.artifact_service(conn, pid, sys, eid, id, super::artifacts::ArtifactAction::Donate),
@@ -489,7 +492,7 @@ impl Game {
             total += self.price(sys, ore, trader);
             self.store.add_supply(sys, ore, 1.0);
         }
-        let total = total.round() as u64;
+        let total = (total * self.home_turf(pid, sys)).round() as u64;
         if let Some(pm) = self.store.profile_mut(pid) {
             let c = pm.cargo.get_mut(ore.name()).unwrap();
             *c -= n;
@@ -500,6 +503,7 @@ impl Game {
         }
         self.toast(pid, format!("{} {}단위 판매: +{} CR (현재 시세 {:.1})", ore.name(), n, total, self.price(sys, ore, trader)));
         self.progress(pid, Progress::Sold(n));
+        self.gain_influence(pid, sys, n as f32 * self.tuning.social.influence_sale_unit);
     }
 
     fn refine(&mut self, pid: PlayerId, sys: SystemId, eid: Option<EntityId>, ore: Ore, units: u32) {
@@ -889,7 +893,15 @@ impl Game {
                 }
                 self.push_profile(pid);
             }
-            _ => self.toast(pid, "[dev] /grow N, /cash"),
+            // QA: give your alliance N influence in the system you are in (control rules apply).
+            Some("/influence") => {
+                let n: f32 = it.next().and_then(|v| v.parse().ok()).unwrap_or(80.0);
+                if let Some((sys, _)) = self.player_entity(pid) {
+                    self.gain_influence(pid, sys, n);
+                    self.send_influence(pid);
+                }
+            }
+            _ => self.toast(pid, "[dev] /grow N, /cash, /influence N"),
         }
     }
 

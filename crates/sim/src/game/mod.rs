@@ -4,6 +4,7 @@
 mod actions;
 mod artifacts;
 mod contracts;
+mod influence;
 mod diplomacy;
 pub mod interest;
 mod weapons;
@@ -491,6 +492,7 @@ impl Game {
             self.send_alliances(pid);
             self.push_artifacts(pid);
             self.send_contracts(pid);
+            self.send_influence(pid);
         }
     }
 

@@ -1,0 +1,23 @@
+{
+  "name": "alliance_takes_control",
+  "description": "동맹을 창설한 함장이 Orion Drift(Frontier)의 해적을 소탕하면 동맹 영향력이 쌓여 성계 지배권을 얻는다",
+  "captains": [
+    { "name": "Lord", "hull": "Bastion", "level": 9, "system": 3, "pos": [0, 0, 6000], "credits": 2000 }
+  ],
+  "npcs": [
+    { "archetype": "Raider", "level": 1, "system": 3, "pos": [0, 0, 5300], "count": 7, "spacing": 70 },
+    { "archetype": "Raider", "level": 1, "system": 3, "pos": [0, 120, 5150], "count": 7, "spacing": 70 }
+  ],
+  "script": [
+    { "at": 0.2, "captain": "Lord", "msg": { "AllianceCreate": { "name": "Iron Pact", "tag": "IRN" } } },
+    { "at": 0.5, "captain": "Lord", "target_nearest": "npc", "aim": true, "msg": { "Controls": { "fire": true } }, "repeat_every": 0.1 }
+  ],
+  "run_secs": 90,
+  "expect": [
+    { "at": 0.3, "check": "controller", "system": 3 },
+    { "check": "count", "system": 3, "kind": "npc", "max": 0 },
+    { "check": "influence", "system": 3, "tag": "IRN", "min": 60 },
+    { "check": "controller", "system": 3, "tag": "IRN" },
+    { "check": "history", "kind": "SYSTEM_CONTROL", "min": 1 }
+  ]
+}

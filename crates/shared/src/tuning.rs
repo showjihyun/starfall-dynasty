@@ -194,6 +194,14 @@ pub struct SocialTuning {
     pub max_open: u32,
     pub fulfil_reputation: i32,
     pub betrayal_reputation: i32,
+    pub influence_pirate: f32,
+    pub influence_sale_unit: f32,
+    pub influence_contract: f32,
+    pub influence_donation: f32,
+    pub control_threshold: f32,
+    pub control_margin: f32,
+    pub influence_decay_hourly: f32,
+    pub control_bonus: f32,
 }
 
 /// Forged evidence and authenticity checks (`history.ron`).

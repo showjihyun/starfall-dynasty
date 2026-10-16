@@ -58,6 +58,8 @@ pub enum DomainEvent {
     ContractFulfilled { contract_id: u64, employer: String, contractor: String, terms: String, reward: u64, system: SystemId },
     /// `betrayer` turned on `betrayed` while their contract stood.
     ContractBetrayed { contract_id: u64, betrayer: String, betrayed: String, terms: String, system: SystemId },
+    /// Control of a system passed to `alliance` (none: nobody holds it any more).
+    SystemControlChanged { system: SystemId, alliance: Option<String>, previous: Option<String> },
 }
 
 #[derive(Serialize, Deserialize)]
@@ -193,6 +195,21 @@ impl HistoryEngine {
                 self.attach(id, vec![e]);
                 self.bio(&betrayer, unix, format!("{betrayed}과(와)의 계약을 깨고 그에게 총을 겨눴다."), Some(id));
                 self.bio(&betrayed, unix, format!("계약 상대 {betrayer}에게 배신당했다."), Some(id));
+                Some(id)
+            }
+            DomainEvent::SystemControlChanged { system, alliance, previous } => {
+                let sys = galaxy::system(system).name;
+                let causes: Vec<EventId> = self.events.iter().rev().find(|e| e.kind == "SYSTEM_CONTROL" && e.system == system).map(|e| e.id).into_iter().collect();
+                let (title, summary, imp) = match (&alliance, &previous) {
+                    (Some(a), Some(p)) => (format!("{sys} 패권 교체"), format!("{a}이(가) {p}을(를) 밀어내고 {sys} 성계의 패권을 쥐었다."), Importance::Historic),
+                    (Some(a), None) => (format!("{a}, {sys} 장악"), format!("{a}이(가) {sys} 성계에서 누구도 무시할 수 없는 세력이 되었다."), Importance::Major),
+                    (None, Some(p)) => (format!("{p}, {sys}에서 물러나다"), format!("{p}의 영향력이 사그라들어 {sys}에는 주인이 없게 되었다."), Importance::Notable),
+                    (None, None) => return None,
+                };
+                let actors: Vec<String> = alliance.iter().chain(previous.iter()).cloned().collect();
+                let id = self.push_event(unix, system, "SYSTEM_CONTROL", title, summary, actors, vec![], imp, causes);
+                let e = self.add_evidence(id, EvidenceKind::ArchiveRecord, &format!("{sys} 정거장 행정 기록"), format!("관할 세력 변경: {} → {}", previous.as_deref().unwrap_or("없음"), alliance.as_deref().unwrap_or("없음")), 0.95);
+                self.attach(id, vec![e]);
                 Some(id)
             }
             DomainEvent::StoryFiled { reporter, event, headline, body, cited } => {
@@ -649,6 +666,7 @@ impl HistoryEngine {
                 "ARTIFACT_UNEARTHED" => format!("땅속의 역사: {}", e.title),
                 "FORGERY_EXPOSED" => format!("위조 스캔들: {}", e.title),
                 "BETRAYAL" => format!("배신 — {}", e.title),
+                "SYSTEM_CONTROL" => format!("세력 판도: {}", e.title),
                 "CONTRACT_FULFILLED" => format!("약속은 지켜졌다: {}", e.title),
                 "ARTIFACT_LOST" => format!("사라진 유물 — {}", e.title),
                 "ARTIFACT_RECOVERED" => format!("돌아온 유물: {}", e.title),

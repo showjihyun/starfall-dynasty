@@ -89,9 +89,17 @@ pub struct Session {
     pub artifacts: Vec<shared::artifacts::Artifact>,
     /// The contract board (server-sent).
     pub contracts: Vec<shared::contracts::Contract>,
+    /// Alliance influence and control per system (server-sent), and the control threshold.
+    pub influence: Vec<SystemStanding>,
+    pub influence_threshold: f32,
 }
 
 impl Session {
+    /// Tag of the alliance controlling `sys`, if any.
+    pub fn controller_tag(&self, sys: SystemId) -> Option<&str> {
+        self.influence.iter().find(|s| s.system == sys).and_then(|s| s.controller.as_ref()).map(|c| c.1.as_str())
+    }
+
     pub fn latest(&self) -> Option<&Snap> {
         self.snaps.back()
     }
@@ -216,6 +224,10 @@ fn apply(s: &mut Session, m: ServerMsg, now: f64, next: &mut NextState<Screen>) 
         }
         ServerMsg::Artifacts { held } => s.artifacts = held,
         ServerMsg::Contracts { list } => s.contracts = list,
+        ServerMsg::Influence { systems, threshold } => {
+            s.influence = systems;
+            s.influence_threshold = threshold;
+        }
         ServerMsg::Error { msg } => {
             s.last_error = Some((msg.clone(), now));
             s.toast(format!("⚠ {msg}"), now);

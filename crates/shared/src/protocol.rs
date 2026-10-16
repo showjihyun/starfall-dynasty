@@ -228,6 +228,15 @@ pub struct AllianceInfo {
     pub wars: Vec<AllianceId>,
 }
 
+/// One system's political standing: who controls it and every alliance's influence there.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct SystemStanding {
+    pub system: SystemId,
+    pub controller: Option<(AllianceId, String)>,
+    /// (alliance, tag, influence), strongest first.
+    pub standings: Vec<(AllianceId, String, f32)>,
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct FleetMember {
     pub name: String,
@@ -238,6 +247,8 @@ pub struct FleetMember {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum ServerMsg {
+    /// Alliance influence and control per system (`threshold`: influence needed to take control).
+    Influence { systems: Vec<SystemStanding>, threshold: f32 },
     /// The contract board: every open contract plus the ones this captain is party to.
     Contracts { list: Vec<crate::contracts::Contract> },
     /// The artifacts this captain holds (sent on login and whenever they change).

@@ -353,7 +353,13 @@ fn hud(ctx: &egui::Context, s: &mut Session, net: &Net, env: &Env, vis: &Visuals
                 ui.label(RichText::new(def.name).size(22.0).strong());
                 ui.label(RichText::new(format!("{:.0} fps · {:.0} ms", s.fps, s.ping_ms)).size(10.0).color(DIM));
             });
-            ui.label(RichText::new(def.tier.label()).color(tier_color(def.tier)));
+            ui.horizontal(|ui| {
+                ui.label(RichText::new(def.tier.label()).color(tier_color(def.tier)));
+                if let Some(tag) = s.controller_tag(s.system) {
+                    let mine = s.alliances.iter().any(|a| Some(a.id) == s.my_alliance && a.tag == tag);
+                    ui.label(RichText::new(format!("· 지배 [{tag}]{}", if mine { " (우리 동맹 +10%)" } else { "" })).color(if mine { GREEN } else { GOLD }));
+                }
+            });
             ui.label(RichText::new(def.lore).size(11.0).color(DIM));
             ui.separator();
             ui.label(RichText::new(format!("{}  ·  {}", prof.name, prof.species.name())).color(GOLD));
@@ -837,6 +843,11 @@ fn fleet(ui: &mut egui::Ui, s: &mut Session, net: &Net) {
 }
 
 fn alliance(ui: &mut egui::Ui, s: &mut Session, net: &Net) {
+    {
+        let mine = s.alliances.iter().find(|a| Some(a.id) == s.my_alliance).map(|a| a.tag.clone());
+        view::panels::influence(ui, &s.influence, mine.as_deref(), s.influence_threshold);
+        ui.separator();
+    }
     if let Some((from, id, name)) = s.alliance_invite.clone() {
         ui.horizontal(|ui| {
             ui.label(RichText::new(format!("{from}의 초대: {name}")).color(GOLD));

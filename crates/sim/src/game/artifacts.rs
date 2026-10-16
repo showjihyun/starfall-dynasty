@@ -141,6 +141,7 @@ impl Game {
                 let label = art.label();
                 self.history.record(unix, DomainEvent::ArtifactDonated { artifact_id: id, artifact: label.clone(), player: prof.name.clone(), system: sys });
                 self.toast(pid, format!("{label}을(를) 박물관에 기증했습니다 — 평판 +{}, 사례금 {fee} CR", t.donation_reputation));
+                self.gain_influence(pid, sys, self.tuning.social.influence_donation);
             }
         }
         self.store.dirty = true;

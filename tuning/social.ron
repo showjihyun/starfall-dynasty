@@ -5,4 +5,14 @@
     max_open: 5,                // open or running contracts one employer may have
     fulfil_reputation: 5,       // contractor, on completion
     betrayal_reputation: -30,   // whoever turns on the other party while a contract stands
+
+    // Political influence: what alliance members do in a (non-Core) system earns their alliance influence there.
+    influence_pirate: 5.0,      // per pirate destroyed
+    influence_sale_unit: 0.2,   // per unit of ore sold at the station
+    influence_contract: 15.0,   // per contract fulfilled there
+    influence_donation: 30.0,   // per artifact donated to its museum
+    control_threshold: 60.0,    // influence needed to take control…
+    control_margin: 0.2,        // …and how far ahead of the current holder (20%)
+    influence_decay_hourly: 0.97,
+    control_bonus: 0.1,         // controlling alliance's members: +10% bounties and ore prices there
 )

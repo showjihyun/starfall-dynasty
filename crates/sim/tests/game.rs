@@ -854,3 +854,72 @@ fn contracts_escrow_delivery_expiry_and_employer_betrayal() {
     g.apply_damage(7, ec, eb, 5.0);
     assert_eq!(g.history.events.iter().filter(|e| e.kind == "BETRAYAL").count(), 1);
 }
+
+#[test]
+fn influence_takes_control_with_a_margin_and_fades() {
+    let mut g = game();
+    let a = join(&mut g, 1, "Yang", Species::Human, HullClass::Mule, Profession::Miner);
+    let b = join(&mut g, 2, "Reinhard", Species::Kharz, HullClass::Mule, Profession::Miner);
+    let loner = join(&mut g, 3, "Loner", Species::Veyr, HullClass::Mule, Profession::Miner);
+    for c in [1, 2, 3] {
+        g.store.profile_mut(g.sessions[&c].player.unwrap()).unwrap().wallet.credits = 5000;
+    }
+    g.handle(1, ClientMsg::AllianceCreate { name: "Free Planets".into(), tag: "FPA".into() });
+    g.handle(2, ClientMsg::AllianceCreate { name: "Galactic Empire".into(), tag: "EMP".into() });
+    let fpa = g.alliance_of(a).unwrap();
+    let emp = g.alliance_of(b).unwrap();
+    // Selling ore at a Frontier station earns influence (0.2 per unit); nobody without an alliance gains any.
+    let sell = |g: &mut Game, conn: ConnId, pid: PlayerId, sys: u16, units: u32| {
+        g.spawn_player(pid, sys, true);
+        g.store.profile_mut(pid).unwrap().cargo.insert("Ferrite".into(), units);
+        g.handle(conn, ClientMsg::Sell { ore: Ore::Ferrite, units });
+    };
+    sell(&mut g, 3, loner, 3, 100);
+    assert!(g.store.data.influence.is_empty());
+    // Core space belongs to no one.
+    sell(&mut g, 1, a, 0, 400);
+    assert_eq!(g.influence(0, fpa), 0.0);
+    // FPA passes the threshold (60) and takes Orion Drift.
+    sell(&mut g, 1, a, 3, 350);
+    assert!((g.influence(3, fpa) - 70.0).abs() < 0.01);
+    assert_eq!(g.controller(3), Some(fpa));
+    assert!(g.history.events.iter().any(|e| e.kind == "SYSTEM_CONTROL"));
+    // Home turf: FPA members get 10% more for the same sale than an outsider.
+    let price = |g: &mut Game, conn: ConnId, pid: PlayerId| {
+        let before = g.store.profile(pid).unwrap().wallet.credits;
+        g.store.data.supply.clear();
+        sell(g, conn, pid, 3, 10);
+        g.store.profile(pid).unwrap().wallet.credits - before
+    };
+    let member = price(&mut g, 1, a);
+    let outsider = price(&mut g, 3, loner);
+    assert!(member > outsider && (member as f32 / outsider as f32 - 1.1).abs() < 0.03, "{member} vs {outsider}");
+    // EMP edges ahead but not by the 20% margin: control stays.
+    sell(&mut g, 2, b, 3, 400);
+    let (f, e) = (g.influence(3, fpa), g.influence(3, emp));
+    assert!(e > f && e <= f * 1.2, "{e} vs {f}");
+    assert_eq!(g.controller(3), Some(fpa), "no flicker on a narrow lead");
+    // A clear lead flips it — a Historic change of hands.
+    sell(&mut g, 2, b, 3, 100);
+    assert_eq!(g.controller(3), Some(emp));
+    let flip = g.history.events.iter().rev().find(|e| e.kind == "SYSTEM_CONTROL").unwrap();
+    assert_eq!(flip.importance, shared::chronicle::Importance::Historic);
+    assert!(!flip.causes.is_empty(), "linked to the previous change of control");
+    // Neglected, influence fades hour by hour until nobody holds the system.
+    let hour = 3600 * 20;
+    let mut lost = false;
+    for _ in 0..80 {
+        for _ in 0..hour / 400 {
+            g.tick(DT, T0);
+        }
+        // fast-forward: run whole hours by jumping the tick counter to the next boundary
+        g.tick = (g.tick / hour + 1) * hour - 1;
+        g.tick(DT, T0);
+        if g.controller(3).is_none() {
+            lost = true;
+            break;
+        }
+    }
+    assert!(lost, "influence decays: {}", g.influence(3, emp));
+    assert!(g.influence(3, emp) < 30.0);
+}

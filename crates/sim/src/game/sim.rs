@@ -72,6 +72,9 @@ impl Game {
         if self.tick % 1200 == 0 && !self.store.data.contracts.is_empty() {
             self.expire_contracts();
         }
+        if self.tick % (3600 * TICK_HZ as u64) == 0 && !self.store.data.influence.is_empty() {
+            self.decay_influence();
+        }
         if self.tick % 1200 == 0 {
             let day = missions::day_index(self.unix);
             let online: Vec<PlayerId> = self.conn_of.keys().copied().collect();
@@ -575,7 +578,7 @@ impl Game {
                 if let Some((_, kpid)) = killer {
                     let mut reward = arch.bounty(level);
                     let mult = tier.reward_mult().max(1.0) * if self.store.profile(kpid).is_some_and(|p| p.profession == Profession::CombatPilot) { 1.3 } else { 1.0 };
-                    reward.credits = (reward.credits as f32 * mult) as u64;
+                    reward.credits = (reward.credits as f32 * mult * self.home_turf(kpid, sys)) as u64;
                     let group = self.credit_group(kpid, sys);
                     for (i, pid) in group.iter().enumerate() {
                         let mut r = reward.clone();
@@ -593,6 +596,9 @@ impl Game {
                         }
                         if let Some(m) = self.metrics.as_mut() {
                             m.push(crate::metrics::Metric::Reward { t: now, player: *pid, credits: r.credits });
+                        }
+                        if i == 0 {
+                            self.gain_influence(*pid, sys, self.tuning.social.influence_pirate);
                         }
                         self.toast(*pid, format!("{} 격파: {}", e.name, r.describe()));
                         self.progress(*pid, Progress::KilledPirate);

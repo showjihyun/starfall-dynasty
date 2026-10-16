@@ -154,7 +154,8 @@ fn galaxy_chart(_ui: &mut egui::Ui, p: &egui::Painter, map: Rect, resp: &egui::R
             p.circle_stroke(sp, r + 7.0, Stroke::new(1.5, GOLD));
         }
         p.text(sp + EVec2::new(r + 6.0, -8.0), Align2::LEFT_TOP, sys.name, FontId::proportional(13.0), tier_color(sys.tier));
-        p.text(sp + EVec2::new(r + 6.0, 8.0), Align2::LEFT_TOP, format!("{} · {}", coords::sector_of(sys.map_pos), sys.tier.label()), FontId::proportional(10.0), DIM);
+        let held = s.controller_tag(sys.id).map(|t| format!(" · [{t}] 지배")).unwrap_or_default();
+        p.text(sp + EVec2::new(r + 6.0, 8.0), Align2::LEFT_TOP, format!("{} · {}{held}", coords::sector_of(sys.map_pos), sys.tier.label()), FontId::proportional(10.0), DIM);
         let others: Vec<String> = s.fleet_members.iter().filter(|m| m.system == sys.id && Some(&m.name) != s.profile.as_ref().map(|p| &p.name)).map(|m| m.name.clone()).collect();
         if !others.is_empty() {
             p.text(sp + EVec2::new(r + 6.0, 21.0), Align2::LEFT_TOP, format!("⚑ {}", others.join(", ")), FontId::proportional(10.0), GREEN);
