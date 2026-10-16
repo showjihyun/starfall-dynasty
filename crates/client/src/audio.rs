@@ -1,8 +1,15 @@
-//! Procedurally synthesized sound effects (no audio files needed). Every weapon has its own voice:
-//! fighter lasers zap, turret batteries thump, the main gun whines up and lands like thunder.
+//! Sound effects. Recorded CC0 samples (assets/sfx, see its CREDITS.md) with variants, layers and
+//! per-kind pitch ranges; the original procedural synth stays as a fallback for any missing file
+//! (and for `--dump-sfx`). Also the continuous sounds: the flagship's engine and boost loops sized
+//! to its hull class, station ambience while docked, and event cues (hull impacts, target lock,
+//! docking, scanning, mining, low-hull alarm, errors and notices).
 
-use bevy::audio::{AudioPlayer, AudioSource, PlaybackSettings, Volume};
+use crate::control::MainCamera;
+use crate::state::{Screen, Session};
+use bevy::audio::{AudioPlayer, AudioSink, AudioSinkPlayback, AudioSource, PlaybackSettings, Volume};
 use bevy::prelude::*;
+use shared::protocol::{EntityId, EntityKind};
+use shared::ships::SizeClass;
 use std::collections::HashMap;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -16,21 +23,96 @@ pub enum Sfx {
     ShieldHit,
     WarpCharge,
     WarpJump,
+    HullHit,
+    HullHitHeavy,
+    MiningHit,
+    Scan,
+    Dock,
+    Undock,
+    Lock,
+    Confirm,
+    Error,
+    Alarm,
+}
+
+/// One layer of a sound: variants (rotated so repeats differ), volume and a pitch/speed range.
+struct LayerDef {
+    files: &'static [&'static str],
+    gain: f32,
+    speed: (f32, f32),
+}
+
+const fn layer(files: &'static [&'static str], gain: f32, speed: (f32, f32)) -> LayerDef {
+    LayerDef { files, gain, speed }
 }
 
 impl Sfx {
     /// (base volume, audible distance in world units)
     fn reach(self) -> (f32, f32) {
         match self {
-            Sfx::Laser => (0.35, 3500.0),
-            Sfx::Pulse => (0.45, 6000.0),
-            Sfx::MainBeam => (0.9, 18000.0),
-            Sfx::Missile => (0.4, 4000.0),
-            Sfx::ExplosionSmall => (0.6, 7000.0),
+            Sfx::Laser => (0.32, 3500.0),
+            Sfx::Pulse => (0.42, 6500.0),
+            Sfx::MainBeam => (0.95, 18000.0),
+            Sfx::Missile => (0.5, 4500.0),
+            Sfx::ExplosionSmall => (0.65, 7000.0),
             Sfx::ExplosionBig => (1.0, 20000.0),
-            Sfx::ShieldHit => (0.35, 3000.0),
-            Sfx::WarpCharge => (0.7, 1e9),
+            Sfx::ShieldHit => (0.38, 3500.0),
+            Sfx::HullHit => (0.5, 3500.0),
+            Sfx::HullHitHeavy => (0.65, 6000.0),
+            Sfx::MiningHit => (0.25, 1500.0),
+            Sfx::WarpCharge => (0.6, 1e9),
             Sfx::WarpJump => (0.8, 1e9),
+            Sfx::Scan | Sfx::Dock | Sfx::Undock => (0.45, 1e9),
+            Sfx::Lock => (0.35, 1e9),
+            Sfx::Confirm => (0.3, 1e9),
+            Sfx::Error => (0.4, 1e9),
+            Sfx::Alarm => (0.4, 1e9),
+        }
+    }
+
+    /// Recorded layers, played together.
+    fn layers(self) -> &'static [LayerDef] {
+        const LASER: &[LayerDef] = &[layer(&["laser_small_0", "laser_small_1", "laser_small_2", "laser_small_3", "laser_small_4"], 1.0, (0.95, 1.1))];
+        // Turret batteries: the large laser pitched down reads as a heavy cannon.
+        const PULSE: &[LayerDef] = &[layer(&["turret_0", "turret_1", "turret_2"], 1.0, (0.68, 0.8))];
+        // Main gun: a deep charged discharge over a low thunderclap.
+        const MAIN: &[LayerDef] = &[layer(&["main_gun_charge"], 0.8, (0.5, 0.56)), layer(&["boom_low_0", "boom_low_1"], 1.0, (0.85, 0.95))];
+        const MISSILE: &[LayerDef] = &[layer(&["missile_launch"], 1.0, (0.95, 1.08))];
+        const EXP_S: &[LayerDef] = &[layer(&["explosion_small_0", "explosion_small_1", "explosion_small_2"], 1.0, (0.9, 1.1))];
+        const EXP_B: &[LayerDef] = &[layer(&["boom_low_0"], 1.0, (0.8, 0.9)), layer(&["explosion_small_1", "explosion_small_2"], 0.8, (0.62, 0.72))];
+        const SHIELD: &[LayerDef] = &[layer(&["shield_hit_0", "shield_hit_1", "shield_hit_2"], 1.0, (1.0, 1.25))];
+        const HULL: &[LayerDef] = &[layer(&["hull_hit_medium_0", "hull_hit_medium_1", "hull_hit_medium_2"], 1.0, (0.9, 1.1))];
+        const HULL_H: &[LayerDef] = &[layer(&["hull_hit_heavy_0", "hull_hit_heavy_1", "hull_hit_heavy_2"], 1.0, (0.75, 0.9))];
+        const MINING: &[LayerDef] = &[layer(&["mining_hit"], 1.0, (0.9, 1.15))];
+        const WARP_C: &[LayerDef] = &[layer(&["warp_charge"], 1.0, (1.25, 1.25))];
+        const WARP_J: &[LayerDef] = &[layer(&["warp_jump"], 1.0, (1.0, 1.0)), layer(&["boom_low_1"], 0.6, (0.75, 0.75))];
+        const SCAN: &[LayerDef] = &[layer(&["scan"], 1.0, (1.0, 1.0))];
+        const DOCK: &[LayerDef] = &[layer(&["dock"], 1.0, (0.8, 0.8))];
+        const UNDOCK: &[LayerDef] = &[layer(&["undock"], 1.0, (0.8, 0.8))];
+        const LOCK: &[LayerDef] = &[layer(&["ui_lock"], 1.0, (1.0, 1.0))];
+        const CONFIRM: &[LayerDef] = &[layer(&["ui_confirm"], 1.0, (1.0, 1.0))];
+        const ERROR: &[LayerDef] = &[layer(&["ui_error"], 1.0, (1.0, 1.0))];
+        const ALARM: &[LayerDef] = &[layer(&["alarm"], 1.0, (0.9, 0.9))];
+        match self {
+            Sfx::Laser => LASER,
+            Sfx::Pulse => PULSE,
+            Sfx::MainBeam => MAIN,
+            Sfx::Missile => MISSILE,
+            Sfx::ExplosionSmall => EXP_S,
+            Sfx::ExplosionBig => EXP_B,
+            Sfx::ShieldHit => SHIELD,
+            Sfx::HullHit => HULL,
+            Sfx::HullHitHeavy => HULL_H,
+            Sfx::MiningHit => MINING,
+            Sfx::WarpCharge => WARP_C,
+            Sfx::WarpJump => WARP_J,
+            Sfx::Scan => SCAN,
+            Sfx::Dock => DOCK,
+            Sfx::Undock => UNDOCK,
+            Sfx::Lock => LOCK,
+            Sfx::Confirm => CONFIRM,
+            Sfx::Error => ERROR,
+            Sfx::Alarm => ALARM,
         }
     }
 }
@@ -44,14 +126,25 @@ impl SfxQueue {
     }
 }
 
+struct Layer {
+    variants: Vec<Handle<AudioSource>>,
+    gain: f32,
+    speed: (f32, f32),
+}
+
 #[derive(Resource)]
-struct SfxBank(HashMap<Sfx, Handle<AudioSource>>);
+struct SfxBank {
+    recorded: HashMap<Sfx, Vec<Layer>>,
+    synth: HashMap<Sfx, Handle<AudioSource>>,
+}
 
 pub struct AudioFxPlugin;
 
 impl Plugin for AudioFxPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<SfxQueue>().add_systems(Startup, build_bank).add_systems(Update, play_queue);
+        app.init_resource::<SfxQueue>()
+            .add_systems(Startup, build_bank)
+            .add_systems(Update, (play_queue, (event_sounds, ship_loops).run_if(in_state(Screen::Playing))));
     }
 }
 
@@ -190,6 +283,8 @@ fn synth(kind: Sfx) -> Vec<f32> {
             lowpass(&mut x, 1200.0);
             x
         }
+        // Recorded-only cues have no procedural fallback.
+        _ => vec![0.0; 64],
     }
 }
 
@@ -204,13 +299,67 @@ pub fn dump(dir: &std::path::Path) -> std::io::Result<()> {
 
 const ALL: [Sfx; 9] = [Sfx::Laser, Sfx::Pulse, Sfx::MainBeam, Sfx::Missile, Sfx::ExplosionSmall, Sfx::ExplosionBig, Sfx::ShieldHit, Sfx::WarpCharge, Sfx::WarpJump];
 
-fn build_bank(mut commands: Commands, mut sources: ResMut<Assets<AudioSource>>) {
-    let bank = ALL.iter().map(|k| (*k, sources.add(AudioSource { bytes: wav(&synth(*k)).into() }))).collect();
-    commands.insert_resource(SfxBank(bank));
+const ALL_KINDS: [Sfx; 19] = [
+    Sfx::Laser,
+    Sfx::Pulse,
+    Sfx::MainBeam,
+    Sfx::Missile,
+    Sfx::ExplosionSmall,
+    Sfx::ExplosionBig,
+    Sfx::ShieldHit,
+    Sfx::WarpCharge,
+    Sfx::WarpJump,
+    Sfx::HullHit,
+    Sfx::HullHitHeavy,
+    Sfx::MiningHit,
+    Sfx::Scan,
+    Sfx::Dock,
+    Sfx::Undock,
+    Sfx::Lock,
+    Sfx::Confirm,
+    Sfx::Error,
+    Sfx::Alarm,
+];
+
+fn sfx_path(name: &str) -> String {
+    format!("sfx/{name}.ogg")
 }
 
-fn play_queue(mut commands: Commands, mut q: ResMut<SfxQueue>, bank: Option<Res<SfxBank>>, cam: Query<&GlobalTransform, With<crate::control::MainCamera>>, mut counter: Local<u32>) {
+fn build_bank(mut commands: Commands, mut sources: ResMut<Assets<AudioSource>>, server: Res<AssetServer>) {
+    let dir = crate::ships::assets_dir();
+    let mut recorded = HashMap::new();
+    let mut missing = 0;
+    for k in ALL_KINDS {
+        let mut layers = vec![];
+        for l in k.layers() {
+            let variants: Vec<Handle<AudioSource>> = l.files.iter().filter(|f| dir.join(sfx_path(f)).exists()).map(|f| server.load(sfx_path(f))).collect();
+            missing += l.files.len() - variants.len();
+            if !variants.is_empty() {
+                layers.push(Layer { variants, gain: l.gain, speed: l.speed });
+            }
+        }
+        if !layers.is_empty() {
+            recorded.insert(k, layers);
+        }
+    }
+    if missing > 0 {
+        warn!("{missing} sound files missing under assets/sfx — using synthesized fallbacks");
+    }
+    let synth = ALL.iter().map(|k| (*k, sources.add(AudioSource { bytes: wav(&synth(*k)).into() }))).collect();
+    commands.insert_resource(SfxBank { recorded, synth });
+}
+
+#[allow(clippy::too_many_arguments)]
+fn play_queue(mut commands: Commands, mut q: ResMut<SfxQueue>, bank: Option<Res<SfxBank>>, cam: Query<&GlobalTransform, With<MainCamera>>, mut counter: Local<u32>, time: Res<Time<Real>>, mut log: Local<(f64, HashMap<Sfx, u32>)>) {
     let Some(bank) = bank else { return };
+    // Harness: STARFALL_SFX_LOG=1 prints how often each cue actually played, every 10 s (text, not ears).
+    let logging = std::env::var_os("STARFALL_SFX_LOG").is_some();
+    if logging && time.elapsed_secs_f64() - log.0 > 10.0 {
+        let mut v: Vec<_> = log.1.drain().collect();
+        v.sort_by_key(|(k, _)| format!("{k:?}"));
+        info!("sfx played (10 s): {}", v.iter().map(|(k, n)| format!("{k:?}={n}")).collect::<Vec<_>>().join(" "));
+        log.0 = time.elapsed_secs_f64();
+    }
     let listener = cam.single().map(|c| c.translation()).unwrap_or_default();
     let mut per_kind: HashMap<Sfx, u32> = HashMap::new();
     for (kind, at) in q.0.drain(..) {
@@ -222,17 +371,198 @@ fn play_queue(mut commands: Commands, mut q: ResMut<SfxQueue>, bank: Option<Res<
         }
         let (base, reach) = kind.reach();
         let gain = match at {
-            Some(p) => {
-                let d = p.distance(listener);
-                (1.0 - d / reach).clamp(0.0, 1.0).powf(1.6)
-            }
+            Some(p) => (1.0 - p.distance(listener) / reach).clamp(0.0, 1.0).powf(1.6),
             None => 1.0,
         };
         if gain < 0.02 {
             continue;
         }
         *counter = counter.wrapping_add(1);
-        let pitch = 0.92 + (*counter % 7) as f32 * 0.025;
-        commands.spawn((AudioPlayer(bank.0[&kind].clone()), PlaybackSettings::DESPAWN.with_volume(Volume::Linear(base * gain)).with_speed(pitch)));
+        let c = *counter;
+        if logging {
+            *log.1.entry(kind).or_default() += 1;
+        }
+        match bank.recorded.get(&kind) {
+            Some(layers) => {
+                for (li, l) in layers.iter().enumerate() {
+                    let h = l.variants[(c as usize + li) % l.variants.len()].clone();
+                    // Deterministic spread over the pitch range (no RNG needed).
+                    let k = ((c.wrapping_mul(2654435761) >> 16) % 1000) as f32 / 999.0;
+                    let speed = l.speed.0 + (l.speed.1 - l.speed.0) * k;
+                    commands.spawn((AudioPlayer(h), PlaybackSettings::DESPAWN.with_volume(Volume::Linear(base * gain * l.gain)).with_speed(speed)));
+                }
+            }
+            None => {
+                if let Some(h) = bank.synth.get(&kind) {
+                    let pitch = 0.92 + (c % 7) as f32 * 0.025;
+                    commands.spawn((AudioPlayer(h.clone()), PlaybackSettings::DESPAWN.with_volume(Volume::Linear(base * gain)).with_speed(pitch)));
+                }
+            }
+        }
+    }
+}
+
+#[derive(Default)]
+struct Watch {
+    hull: HashMap<EntityId, f32>,
+    docked: Option<bool>,
+    target: Option<EntityId>,
+    scanning: bool,
+    alarm_at: f64,
+    mining_at: f64,
+    confirm_at: f64,
+    last_error: f64,
+    last_toast: f64,
+    epoch: u32,
+    impact_at: f64,
+    own_impact_at: f64,
+}
+
+/// Cues derived from state changes: hull impacts (any ship near the camera whose hull dropped),
+/// dock/undock, target lock, scan start, mining, low-hull alarm, errors and notices.
+fn event_sounds(s: Res<Session>, time: Res<Time<Real>>, cam: Query<&GlobalTransform, With<MainCamera>>, mut q: ResMut<SfxQueue>, mut w: Local<Watch>) {
+    let now = time.elapsed_secs_f64();
+    let listener = cam.single().map(|c| c.translation()).unwrap_or_default();
+    if let Some(latest) = s.latest() {
+        let mut seen = HashMap::with_capacity(w.hull.len());
+        for e in latest.ents.values() {
+            if !matches!(e.kind, EntityKind::Player | EntityKind::Npc(_) | EntityKind::Escort) {
+                continue;
+            }
+            let p = Vec3::from(e.pos);
+            // Every hit now bleeds into the hull, so impacts are throttled to keep a brawl readable:
+            // other ships share one cue per 0.15 s, our own ship has its own budget (one per 0.2 s).
+            let mine = Some(e.id) == s.me;
+            let free = if mine { now - w.own_impact_at > 0.2 } else { now - w.impact_at > 0.15 };
+            if let Some(prev) = w.hull.get(&e.id)
+                && e.hull < prev - 1e-4
+                && p.distance(listener) < 6000.0
+                && free
+            {
+                let heavy = prev - e.hull > 0.02 || e.class == Some(SizeClass::Capital);
+                q.play(if heavy { Sfx::HullHitHeavy } else { Sfx::HullHit }, Some(p));
+                if mine {
+                    w.own_impact_at = now;
+                } else {
+                    w.impact_at = now;
+                }
+            }
+            seen.insert(e.id, e.hull);
+        }
+        w.hull = seen;
+    }
+    // Arriving in a new system: our own jump (the warp effect needs the ship to be visible already).
+    if s.system_epoch != w.epoch {
+        if w.epoch != 0 && s.warp.is_none() {
+            q.play(Sfx::WarpJump, None);
+        }
+        w.epoch = s.system_epoch;
+        w.hull.clear();
+    }
+    let me = s.my_state();
+    let docked = me.map(|m| m.docked);
+    if let (Some(prev), Some(d)) = (w.docked, docked)
+        && prev != d
+    {
+        q.play(if d { Sfx::Dock } else { Sfx::Undock }, None);
+    }
+    w.docked = docked;
+    if s.target != w.target && s.target.is_some() {
+        q.play(Sfx::Lock, None);
+    }
+    w.target = s.target;
+    let scanning = s.scan.is_some();
+    if scanning && !w.scanning {
+        q.play(Sfx::Scan, None);
+    }
+    w.scanning = scanning;
+    if let Some(m) = me {
+        if m.hull < 0.3 && !m.docked && now - w.alarm_at > 1.6 {
+            q.play(Sfx::Alarm, None);
+            w.alarm_at = now;
+        }
+        if m.mining.is_some() && now - w.mining_at > 0.7 {
+            q.play(Sfx::MiningHit, None);
+            w.mining_at = now;
+        }
+    }
+    if let Some((_, t)) = &s.last_error
+        && *t > w.last_error
+    {
+        q.play(Sfx::Error, None);
+        w.last_error = *t;
+    }
+    if let Some((_, t)) = s.toasts.back()
+        && *t > w.last_toast
+    {
+        w.last_toast = *t;
+        // Notices come in bursts (rewards, missions): one chime at most every 1.2 s.
+        if now - w.confirm_at > 1.2 && s.last_error.as_ref().is_none_or(|(_, e)| (e - t).abs() > 1e-6) {
+            q.play(Sfx::Confirm, None);
+            w.confirm_at = now;
+        }
+    }
+}
+
+#[derive(Component, Clone, Copy, PartialEq, Eq)]
+enum LoopKind {
+    Engine,
+    Boost,
+    Station,
+}
+
+/// Flagship loops: an engine hum sized to the hull class (fighter whine, cruiser drive, capital
+/// rumble) whose volume and pitch follow the throttle, a thruster roar while boosting, and the
+/// station's machinery while docked. Restarted with the right sample when the ship changes class.
+fn ship_loops(mut commands: Commands, s: Res<Session>, server: Res<AssetServer>, time: Res<Time<Real>>, mut sinks: Query<(Entity, &LoopKind, Option<&mut AudioSink>)>, mut class: Local<Option<SizeClass>>) {
+    let dir = crate::ships::assets_dir();
+    let want = s.profile.as_ref().map(|p| p.ship.size_class());
+    if want != *class {
+        for (e, ..) in &sinks {
+            commands.entity(e).despawn();
+        }
+        *class = want;
+        if let Some(c) = want {
+            let engine = match c {
+                SizeClass::Small => "engine_small",
+                SizeClass::Cruiser => "engine_medium",
+                SizeClass::Capital => "engine_large",
+            };
+            for (kind, file) in [(LoopKind::Engine, engine), (LoopKind::Boost, "boost_loop"), (LoopKind::Station, "station_ambience")] {
+                if dir.join(sfx_path(file)).exists() {
+                    commands.spawn((kind, AudioPlayer::<AudioSource>(server.load(sfx_path(file))), PlaybackSettings::LOOP.with_volume(Volume::Linear(0.0))));
+                }
+            }
+        }
+        return;
+    }
+    let me = s.my_state();
+    let max_speed = s.profile.as_ref().map(|p| p.ship.stats().speed).unwrap_or(120.0).max(1.0);
+    let flying = me.is_some_and(|m| !m.docked);
+    let throttle = me.map(|m| (Vec3::from(m.vel).length() / max_speed).clamp(0.0, 1.0)).unwrap_or(0.0);
+    let boosting = me.is_some_and(|m| m.boosting);
+    let docked = me.is_some_and(|m| m.docked);
+    let (base_speed, span) = match *class {
+        Some(SizeClass::Capital) => (0.8, 0.25),
+        Some(SizeClass::Cruiser) => (0.85, 0.3),
+        _ => (0.85, 0.4),
+    };
+    let k = (time.delta_secs() * 3.0).min(1.0);
+    for (_, kind, sink) in &mut sinks {
+        let Some(mut sink) = sink else { continue };
+        let (target, speed) = match kind {
+            LoopKind::Engine if flying => (0.06 + 0.2 * throttle, base_speed + span * throttle),
+            LoopKind::Boost if flying && boosting => (0.22, 1.0),
+            LoopKind::Station if docked => (0.16, 1.0),
+            _ => (0.0, 1.0),
+        };
+        let cur = sink.volume().to_linear();
+        let next = cur + (target - cur) * k;
+        if (next - cur).abs() > 1e-4 {
+            sink.set_volume(Volume::Linear(next.max(0.0)));
+        }
+        if (sink.speed() - speed).abs() > 0.01 {
+            sink.set_speed(speed);
+        }
     }
 }

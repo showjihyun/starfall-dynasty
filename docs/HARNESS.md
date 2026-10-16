@@ -38,6 +38,7 @@ STARFALL은 이미 서버·클라이언트·역사 엔진·1000명 교전까지 
 | **모든 객체를 Thing 하나로** (팻 스트럭트 + 종류 enum) | 함선·NPC·호위함·미사일·잔해가 모두 `Ent` 하나이고 `kind: EntityKind`로 구분한다. 직렬화 경로도 하나(`EntityState` / `pack`)다. | ✅ | `game/mod.rs`의 `Ent` |
 | **숫자로 하는 시각 검증** (스크린샷 두 장 대신 '85% 유사' 같은 수치) | `tools/imgdiff.py`가 유사도·변화 영역·밝기/채도 통계를 텍스트로 낸다. 고정 프레임 시간(`STARFALL_FIXED_FPS`)으로 같은 장면을 100% 재현한다. | 🟢 | `tools/imgdiff.py`, `client/src/main.rs` |
 | **레이어 끄기** (UI를 걷어내고 고치려는 레이어만 보기) | `STARFALL_HIDE_UI=1`로 HUD를 걷어내고 3D 장면만 찍는다. | 🟢 | `client/src/ui.rs` |
+| **소리도 텍스트로** | 효과음 원본은 길이·피크·RMS·스펙트럼 중심으로 골랐다. 게임 안에서는 `STARFALL_SFX_LOG=1`이 10초마다 종류별 재생 횟수를 로그로 남긴다. 음악은 LUFS를 맞췄다. | 🟢 | `client/src/audio.rs`, `assets/sfx/CREDITS.md` |
 | **성능은 텍스트로** (샘플리처럼 콘솔로 내는 측정) | `server/examples/bench`, `client --bench`, 서버 `[stats]` 단계별 비용 로그, `bot/examples/swarm`이 모두 텍스트로 출력한다. | ✅ | README 「성능」 |
 | **데이터를 코드 밖에** (컴파일 없이 수치 조정) | 함선 기본 능력치·모듈 성장·NPC 수치가 아직 `shared/src/ships.rs`, `missions.rs`에 코드로 박혀 있다. | ☐ | 로드맵 1 |
 | **실행 중인 게임을 텍스트 커맨드로 조종** | 개발 서버(`--dev`)의 `/grow`, `/cash`, 클라이언트 `--script`, 봇 라이브러리가 있다. 기록 파일을 손으로 쓰거나 고쳐서 재생할 수 있다. | ◐ | `client/src/main.rs`의 `automation`, `crates/bot` |
