@@ -111,5 +111,22 @@ fn recorded_session_replays_exactly() {
     assert_eq!(a.final_digest, live, "replay ends in the live state");
     let b = session.replay(|_| {}).unwrap();
     assert_eq!(a.final_digest, b.final_digest, "replays are deterministic");
+
+    // Stepped replay (what `client --replay` drives): same end state, and each step leaves what the
+    // simulation sent to a captain in `out`, so a viewer can follow one connection.
+    let mut r = session.clone().replayer().unwrap();
+    let (mut welcomes, mut snapshots) = (0, 0);
+    while r.step() {
+        for (c, m) in &r.game.out {
+            if *c == 1 {
+                welcomes += matches!(m, ServerMsg::Welcome { .. }) as u32;
+                snapshots += matches!(m, ServerMsg::Snapshot { .. }) as u32;
+            }
+        }
+    }
+    let c = r.finish();
+    assert_eq!((c.final_digest, c.divergence), (live.clone(), None));
+    assert_eq!(welcomes, 1);
+    assert!(snapshots > 800, "a snapshot nearly every tick once in space: {snapshots}");
     let _ = std::fs::remove_dir_all(&root);
 }

@@ -47,14 +47,8 @@ fn main() {
         report.digests_checked,
         report.final_digest
     );
-    let mut ok = true;
-    match &report.divergence {
-        None => println!("REPLAY OK: every recorded digest matched"),
-        Some((tick, want, got)) => {
-            println!("REPLAY DIVERGED at tick {tick}: recorded {want}, replayed {got}");
-            ok = false;
-        }
-    }
+    println!("{}", report.verdict());
+    let mut ok = report.divergence.is_none();
     if args.iter().any(|a| a == "--twice") {
         let again = session.replay(|_| {}).expect("replay");
         if again.final_digest == report.final_digest {

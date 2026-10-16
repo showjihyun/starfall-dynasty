@@ -2,6 +2,7 @@
 //!
 //! `client [--server ws://127.0.0.1:7777] [--name NAME] [--auto] [--hull talon]`
 //! `       [--shot out.png --shot-at 8] [--showroom [system]] [--script "undock;thrust 3;fire 2"]`
+//! `client --replay DIR [--as NAME] [--from SECS] [--speed X]` — 3D replay of a recorded session
 
 mod audio;
 mod bench;
@@ -13,6 +14,7 @@ mod materials;
 mod meshes;
 mod music;
 mod net;
+mod replay;
 mod scene;
 mod ships;
 mod starmap;
@@ -39,6 +41,7 @@ fn parse_args() -> Args {
         shot_at: get("--shot-at").and_then(|v| v.parse().ok()).unwrap_or(8.0),
         showroom: has("--showroom"),
         look: get("--look"),
+        replay: get("--replay"),
         script: get("--script").map(|s| s.split(';').map(|x| x.trim().to_string()).filter(|x| !x.is_empty()).collect()).unwrap_or_default(),
     }
 }
@@ -75,7 +78,7 @@ fn main() {
     .init_resource::<ui::Form>()
     .insert_resource(args.clone())
     .add_systems(Startup, startup)
-    .add_systems(PreUpdate, state::pump_network)
+    .add_systems(PreUpdate, (replay::drive.run_if(resource_exists::<replay::Replay>), state::pump_network).chain())
     .add_systems(EguiPrimaryContextPass, ui::ui_system)
     .add_systems(Update, (automation, ping));
     // Harness (docs/HARNESS.md): STARFALL_FIXED_FPS=60 advances time by exactly 1/60 s per frame, so
@@ -96,6 +99,12 @@ fn startup(mut commands: Commands, args: Res<Args>, mut s: ResMut<Session>, mut 
     if args.showroom {
         showroom(&mut s, &args);
         next.set(Screen::Playing);
+        return;
+    }
+    if let Some(dir) = &args.replay {
+        let (rp, net) = replay::open(dir);
+        commands.insert_resource(rp);
+        commands.insert_resource(net);
         return;
     }
     commands.insert_resource(net::connect(args.server.clone()));

@@ -191,7 +191,7 @@ impl Recorder {
 }
 
 /// Outcome of a replay.
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct ReplayReport {
     pub ticks: u64,
     pub events: usize,
@@ -202,6 +202,7 @@ pub struct ReplayReport {
 }
 
 /// A loaded session: header plus tick records in order.
+#[derive(Clone)]
 pub struct Session {
     pub header: Header,
     pub records: Vec<TickRecord>,
@@ -253,44 +254,92 @@ impl Session {
 
     /// Runs the whole session; `on_tick` sees the game after each tick (for dumps or custom checks).
     pub fn replay(&self, mut on_tick: impl FnMut(&Game)) -> std::io::Result<ReplayReport> {
-        let mut g = self.initial_game()?;
-        let mut rep = ReplayReport::default();
+        let mut r = self.clone().replayer()?;
+        while r.step() {
+            on_tick(&r.game);
+        }
+        Ok(r.finish())
+    }
+
+    /// A replay driven one tick at a time (the 3D client advances it with its clock).
+    pub fn replayer(self) -> std::io::Result<Replayer> {
+        let game = self.initial_game()?;
+        let unix = self.header.unix;
         let last = self.records.last().map(|r| r.tick).unwrap_or(0);
-        let mut unix = self.header.unix;
-        let mut next = self.records.iter().peekable();
-        let dt = 1.0 / TICK_HZ;
-        while g.tick < last {
-            let t = g.tick + 1;
-            let rec = next.next_if(|r| r.tick == t);
-            if let Some(r) = rec {
-                g.token_queue.extend(r.tokens.iter().cloned());
-                if let Some(u) = r.unix {
-                    unix = u;
-                }
-                for e in &r.events {
-                    rep.events += 1;
-                    match e {
-                        Event::Msg(c, m) => g.handle(*c, m.clone()),
-                        Event::Close(c) => g.disconnect(*c),
-                    }
-                }
+        Ok(Replayer { game, records: self.records, next: 0, last, unix, report: ReplayReport::default() })
+    }
+}
+
+/// Steps a recorded session tick by tick, checking each recorded digest as it passes.
+pub struct Replayer {
+    pub game: Game,
+    records: Vec<TickRecord>,
+    next: usize,
+    /// Last recorded tick: the replay is over once the game reaches it.
+    pub last: u64,
+    unix: u64,
+    pub report: ReplayReport,
+}
+
+impl Replayer {
+    pub fn done(&self) -> bool {
+        self.game.tick >= self.last
+    }
+
+    /// Feeds the recorded commands for the next tick and runs it; false once the recording is over.
+    /// What the simulation sent (`game.out`: welcomes, snapshots, toasts…) stays there until the next
+    /// step, so a viewer can pick out one connection's messages.
+    pub fn step(&mut self) -> bool {
+        if self.done() {
+            return false;
+        }
+        let g = &mut self.game;
+        g.out.clear();
+        g.kicked.clear();
+        g.issued_tokens.clear();
+        let t = g.tick + 1;
+        let rec = self.records.get(self.next).filter(|r| r.tick == t);
+        if let Some(r) = rec {
+            self.next += 1;
+            g.token_queue.extend(r.tokens.iter().cloned());
+            if let Some(u) = r.unix {
+                self.unix = u;
             }
-            g.tick(dt, unix);
-            g.out.clear();
-            g.kicked.clear();
-            g.issued_tokens.clear();
-            on_tick(&g);
-            if let Some(want) = rec.and_then(|r| r.digest.as_ref()) {
-                rep.digests_checked += 1;
-                let got = digest(&g);
-                if rep.divergence.is_none() && &got != want {
-                    rep.divergence = Some((g.tick, want.clone(), got));
+            for e in &r.events {
+                self.report.events += 1;
+                match e {
+                    Event::Msg(c, m) => g.handle(*c, m.clone()),
+                    Event::Close(c) => g.disconnect(*c),
                 }
             }
         }
-        rep.ticks = g.tick;
-        rep.final_digest = digest(&g);
-        Ok(rep)
+        g.tick(1.0 / TICK_HZ, self.unix);
+        if let Some(want) = rec.and_then(|r| r.digest.as_ref()) {
+            self.report.digests_checked += 1;
+            let got = digest(g);
+            if self.report.divergence.is_none() && &got != want {
+                self.report.divergence = Some((g.tick, want.clone(), got));
+            }
+        }
+        true
+    }
+
+    /// The report so far, with the current tick and state digest.
+    pub fn finish(&self) -> ReplayReport {
+        let mut rep = self.report.clone();
+        rep.ticks = self.game.tick;
+        rep.final_digest = digest(&self.game);
+        rep
+    }
+}
+
+impl ReplayReport {
+    /// One-line verdict: `REPLAY OK: …` or `REPLAY DIVERGED at tick T: …`.
+    pub fn verdict(&self) -> String {
+        match &self.divergence {
+            None => format!("REPLAY OK: every recorded digest matched ({} checked)", self.digests_checked),
+            Some((tick, want, got)) => format!("REPLAY DIVERGED at tick {tick}: recorded {want}, replayed {got}"),
+        }
     }
 }
 

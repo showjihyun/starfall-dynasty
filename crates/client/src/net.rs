@@ -24,6 +24,15 @@ impl Net {
     }
 }
 
+impl Net {
+    /// A link with no socket: the caller feeds `NetEvent`s in and reads (or drops) what the client sends.
+    pub fn local() -> (Net, Sender<NetEvent>, Receiver<ClientMsg>) {
+        let (tx, out) = unbounded::<ClientMsg>();
+        let (feed, rx) = unbounded::<NetEvent>();
+        (Net { tx, rx }, feed, out)
+    }
+}
+
 pub fn connect(url: String) -> Net {
     let (out_tx, out_rx) = unbounded::<ClientMsg>();
     let (in_tx, in_rx) = unbounded::<NetEvent>();

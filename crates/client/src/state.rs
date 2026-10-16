@@ -113,6 +113,8 @@ pub struct Args {
     pub script: Vec<String>,
     /// Showroom: orbit a point of interest (`gate`, `ruin`, `station`).
     pub look: Option<String>,
+    /// `--replay DIR`: play a recorded session instead of connecting.
+    pub replay: Option<String>,
 }
 
 /// Per-user config dir only (never a shared temp dir); `None` means the token is not persisted.
@@ -190,7 +192,10 @@ fn apply(s: &mut Session, m: ServerMsg, now: f64, next: &mut NextState<Screen>) 
                 shared::tuning::install(*t);
             }
             s.player_id = Some(player_id);
-            save_token(&s.name, &token);
+            // Replays hand over an empty token: nothing to remember.
+            if !token.is_empty() {
+                save_token(&s.name, &token);
+            }
             s.token = Some(token);
             let has = profile.is_some();
             s.profile = profile;
