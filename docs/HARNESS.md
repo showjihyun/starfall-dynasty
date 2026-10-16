@@ -94,6 +94,85 @@ python tools/imgdiff.py --stats after.png --crop 380,90,220,200    # 영역의 �
 3. **바깥 루프 (화면에 영향이 있을 때만)**: 고정 프레임 스크린샷과 `imgdiff` 수치로 목표에 가까워졌는지 판단한다. 이미지는 마지막에 사람이 확인한다.
 4. **성능**: `server/examples/bench N`, `client --bench`, `bot/examples/swarm`의 텍스트 수치를 이전 값과 비교한다.
 
+## 2단계: 게임을 실행하지 않는 결정론 개발 구조
+
+목표는 **게임을 띄우지 않고도 개발과 검증이 끝나는 영역을 최대한 넓히는 것**이다. LLM에게 맡기면 효율적인 일, 즉 규칙·수치·상태 전이·네트워크 동작·좌표 계산은 이 영역으로 끌어온다. 게임을 실행해야만 판단할 수 있는 일(셰이더·모델의 느낌, 소리, 조작감)만 바깥 루프에 남긴다.
+
+### 영역별 지도
+
+| 영역 | 게임 없이 결정적으로 검증 | 검증 수단 | LLM 위임 적합도 |
+|---|---|---|---|
+| 전투·피해·사거리·포탑/주포·호위 AI | ✅ | 시나리오 사양, `tests/game.rs`, 밸런스 시트 | 높음 |
+| 경제(보상·수리비·시장·업그레이드 비용) | ✅ | 시나리오 `credits` 검사, 단위 테스트 | 높음 |
+| PvP 규칙·범죄·현상금·동맹 전쟁 | ✅ | 시나리오(`core_safe_zone`, `wild_crime_bounty`) | 높음 |
+| 워프·성계 이동·채굴·스캔 | ✅ | 시나리오(`warp_chain`), `tests/game.rs` | 높음 |
+| 역사 엔진(연대기·증거·연구·현상금 인과) | ✅ | `history` 단위 테스트, 시나리오 `history` 검사 | 높음 |
+| 일일 미션·시나리오 진행·성장(함급 전환) | ✅ | `tests/game.rs`, 시나리오 | 높음 |
+| 네트워크: 관심 영역·예산·신규 소개·제거 | ✅ | `tests/interest.rs`(400척, 소켓 없음) | 높음 |
+| 프로토콜·바이너리 스냅샷·클라이언트 캐시 | ✅ | `shared` 단위 테스트(왕복·추측항법) | 높음 |
+| 은하·성계 생성, 우주 좌표 | ✅ | `shared::galaxy` 테스트(결정성·좌표) | 높음 |
+| 실제 접속·부하 | ✅(실행은 하지만 화면 없음) | `bot` E2E, `swarm` | 중간 |
+| 화면 결과(셰이더·이펙트·HUD 배치) | ◐ 고정 프레임으로 재현은 가능, 판단은 수치 | `STARFALL_FIXED_FPS` + `imgdiff` | 중간(수치 목표가 있을 때) |
+| 미감·조작감·소리 | ☐ | 사람 | 낮음 |
+
+### 원칙: 시뮬레이션 우선(sim-first)
+
+새 게임플레이 기능이나 규칙 변경은 이 순서로 진행한다.
+
+1. **기대 동작을 시나리오 사양(JSON)으로 먼저 쓴다.** 누가 어디에 있고, 무엇을 하면, 언제 무엇이 참이어야 하는지 적는다. 처음에는 실패하는 사양이 된다.
+2. `shared`/`server`에서 규칙을 구현하고, `cargo run -p server --release --example scenario -- FILE --trace 5`로 측정값을 텍스트로 보며 고친다. 수백 초를 시뮬레이션해도 수 밀리초면 끝난다.
+3. 수치가 바뀌는 변경이면 `examples/balance`로 밸런스 시트를 다시 뽑아 `docs/BALANCE.md`의 diff로 영향을 확인한다.
+4. 클라이언트는 받은 상태를 그리기만 한다. 화면은 마지막에 고정 프레임 스크린샷과 `imgdiff`로 확인한다.
+
+### 시나리오 사양 (`crates/server/scenarios/*.json`)
+
+파일 하나가 테스트 하나다. `cargo test -p server --test scenarios`가 전부 돌리고, 각 사양을 두 번 실행해 같은 상태로 끝나는지(결정성)도 검사한다. Rust 코드를 고치지 않고 파일만 추가하면 된다.
+
+```json
+{
+  "name": "capital_vs_raiders",
+  "description": "주력함(모듈 Lv9)의 포탑만으로 해적 습격대 4척을 격퇴한다",
+  "captains": [ { "name": "Ares", "hull": "Bastion", "level": 9, "system": 7, "pos": [0, 0, 6000] } ],
+  "npcs":     [ { "archetype": "Raider", "level": 3, "system": 7, "pos": [0, 0, 5200], "count": 4 } ],
+  "script":   [ { "at": 0.5, "captain": "Ares", "target_nearest": "npc", "aim": true,
+                  "msg": { "Controls": { "fire": true } }, "repeat_every": 0.1 } ],
+  "run_secs": 60,
+  "expect": [
+    { "check": "alive", "captain": "Ares" },
+    { "check": "count", "system": 7, "kind": "npc", "max": 0 },
+    { "check": "kills", "captain": "Ares", "min": 4 },
+    { "at": 30, "check": "hull", "captain": "Ares", "min": 0.8 }
+  ]
+}
+```
+
+- **captains**: `hull`, `level`(모든 모듈), `system`, `pos`, `heading`(도), `species`, `profession`, `undocked`, `credits`를 정한다.
+- **npcs**: `archetype`, `level`, `system`, `pos`, `count`, `spacing`을 정한다. `ambient_pirates: true`면 배경 해적 생성을 켠다(기본은 꺼져 있다).
+- **script**: `at`초에 `captain`이 `msg`(임의의 `ClientMsg` JSON)를 보낸다.
+  - `repeat_every`와 `until`로 반복 입력을 보낸다.
+  - `target_nearest`(`npc`/`player`)로 가장 가까운 대상을 지정하고, `aim`으로 그 대상을 향해 조종한다.
+- **expect**: `at`초에 검사한다(생략하면 끝에서). 검사 종류: `alive`, `hull`, `credits`, `kills`, `deaths`, `count`(`npc`/`player`/`escort`/`wreck`), `in_system`, `history`(연대기 종류, 대소문자 무시), `engagement`.
+- **digest**(선택): 최종 상태 지문을 고정한다. 결과가 조금이라도 바뀌면 실패하므로, 회귀를 엄격히 잡을 때만 쓴다(`--print-digest`로 값을 얻는다).
+
+실패하면 측정값이 함께 나오므로(`FAIL t=45.0s system 7 npc count 1 (want <= 0)`), 무엇을 고쳐야 할지 텍스트만으로 판단할 수 있다.
+
+### 밸런스 시트 (`docs/BALANCE.md`)
+
+`cargo run -p server --release --example balance -- --write docs/BALANCE.md`는 함선 5종 × 모듈 Lv 1/5/9가 NPC 조우 5종과 싸우는 75판을 약 1초에 시뮬레이션해 표로 남긴다. 결정적이므로 수치 변경의 영향이 표의 diff로 드러난다.
+
+첫 시트에서 보인 관찰은 다음과 같다. 의도된 설계인지 판단이 필요하며, 아직 수치는 바꾸지 않았다.
+
+- 모듈 Lv5(순양함)는 Warlord를 뺀 모든 조우를 **선체 피해 0%**로 이긴다. Lv9(주력함)는 Warlord까지 선체 100%로 이긴다. 실드가 모든 피해를 흡수해, 중반 이후 PvE 긴장감이 거의 없다.
+- 갓 만든 전투기(Lv1)는 Raider 4척 무리, Warden, Warlord에게 모두 진다. 초반 난이도의 계단은 의도에 가깝다.
+
+### 이번 단계에서 추가한 것
+
+- `server::scenario`(사양 형식·실행기), `examples/scenario`(CLI, `--trace`, `--print-digest`), `tests/scenarios.rs`(전 사양 통과 + 결정성)
+- 시나리오 5종: 주력함 대 해적 무리, 전투기 결투, Core 안전 지대, Wild 범죄·현상금, 연속 워프
+- `examples/balance` → `docs/BALANCE.md`
+- `tests/interest.rs`: 400척 성계의 관심 영역 관리를 소켓 없이 검증한다(스냅샷 예산, 4틱 안에 전체 파악, 이탈 엔티티 제거, 바이너리 왕복).
+- `Controls`의 빠진 축을 0으로 기본값 처리해, 사양과 스크립트에 `{"fire": true}`처럼 필요한 것만 쓰게 했다.
+
 ## 지켜야 할 불변식
 
 - **시뮬레이션은 결정적이어야 한다.**
@@ -105,8 +184,9 @@ python tools/imgdiff.py --stats after.png --crop 380,90,220,200    # 영역의 �
 
 ## 로드맵 (다음 단계, 중요도 순)
 
-1. **데이터를 코드 밖으로**: 함선·모듈·NPC 수치를 `data/*.ron`으로 옮기고, 개발 서버가 파일 변경을 감지해 다시 읽게 한다. 컴파일 없이 밸런스를 반복하게 된다.
-2. **재생 시각화**: `client --replay DIR`로 기록을 3D로 재생한다. 서버 다이제스트와 화면 디프를 한 루프로 묶는다.
-3. **게임플레이 관측성**: 교전별 DPS·피해·격침 시간·보상 같은 지표를 시간축 CSV/JSONL로 내보내 밸런스 곡선을 수치로 점검한다.
-4. **텍스트 프로파일러**: `samply`(콘솔 출력)를 서버·클라이언트 벤치에 연결한다.
-5. **시뮬레이션 크레이트 이름 정리**: `server` 라이브러리의 `game` 모듈을 `sim` 크레이트로 떼어 내, 네트워크 바이너리와의 경계를 이름으로도 드러낸다. 구조상 분리는 이미 되어 있으므로 우선순위는 낮다.
+1. **데이터를 코드 밖으로**: 함선·모듈·NPC 수치를 `data/*.ron`으로 옮긴다. 시나리오 실행기와 밸런스 시트가 그 파일을 직접 읽게 하면, LLM이 수치 파일만 고치고 시트 diff로 검증하는, 컴파일 없는 밸런스 루프가 완성된다.
+2. **클라이언트 순수 로직 분리**: 보간·추측항법, 우주 지도 투영·좌표, HUD 게이지 잔상, 먼지장 감싸기 같은 계산을 Bevy와 무관한 함수로 떼어 단위 테스트한다. egui HUD도 헤드리스 컨텍스트로 텍스트·배치를 검사한다.
+3. **재생 시각화**: `client --replay DIR`로 기록을 3D로 재생한다. 서버 다이제스트와 화면 디프를 한 루프로 묶는다.
+4. **게임플레이 관측성**: 시나리오와 실서버에서 DPS·받은 피해·격침 시간·보상을 시간축 JSONL로 내보내 밸런스 곡선을 수치로 점검한다.
+5. **텍스트 프로파일러**: `samply`(콘솔 출력)를 서버·클라이언트 벤치에 연결한다.
+6. **시뮬레이션 크레이트 이름 정리**: `server` 라이브러리의 `game` 모듈을 `sim` 크레이트로 떼어 낸다. 구조상 분리는 이미 되어 있다.

@@ -1,0 +1,16 @@
+{
+  "name": "wild_crime_bounty",
+  "description": "Wild 성계에서 무고한 함장을 공격하면 현상금이 걸린다",
+  "captains": [
+    { "name": "Rogue", "hull": "Talon", "level": 3, "system": 5, "pos": [0, 0, 6000] },
+    { "name": "Trader", "hull": "Mule", "level": 1, "system": 5, "pos": [0, 0, 5650] }
+  ],
+  "script": [
+    { "at": 0.5, "captain": "Rogue", "target_nearest": "player", "msg": { "Controls": { "fire": true } }, "repeat_every": 0.5, "until": 15 }
+  ],
+  "run_secs": 15,
+  "expect": [
+    { "check": "hull", "captain": "Trader", "max": 0.99 },
+    { "check": "history", "kind": "Bounty", "min": 1 }
+  ]
+}

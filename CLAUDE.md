@@ -11,6 +11,14 @@ The game is designed to be its own harness — read `docs/HARNESS.md` before cha
 - Visuals, by numbers: `STARFALL_FIXED_FPS=60 STARFALL_HIDE_UI=1 client --showroom 7 --shot X.png --shot-at 8` (same command → identical image), then `python tools/imgdiff.py before.png after.png [--crop X,Y,W,H]` or `--stats`.
 - Performance, as text: `cargo run -p server --release --example bench 1000`, `client --bench 15` (`STARFALL_BENCH_SCALE=15` ≈ 1000 ships), `cargo run -p bot --release --example swarm -- ws://127.0.0.1:PORT 1000 60`.
 
+## Sim-first for gameplay
+
+New rules or balance changes start as a scenario spec: write the expected behaviour as JSON in
+`crates/server/scenarios/` (format in docs/HARNESS.md), run it with
+`cargo run -p server --release --example scenario -- FILE --trace 5` until it passes, then refresh
+`cargo run -p server --release --example balance -- --write docs/BALANCE.md` and read the diff.
+`cargo test -p server --test scenarios` runs every spec and checks determinism.
+
 ## Invariants
 
 - The simulation is deterministic: ordered maps (`BTreeMap`/`BTreeSet`) wherever iteration order can affect state; no wall clock or OS randomness in game logic (time arrives via `tick(dt, unix)`, gameplay randomness via `shared::rng`).

@@ -1,0 +1,18 @@
+{
+  "name": "fighter_duel_gunship",
+  "description": "갓 만든 전투기가 Lv1 포함(Gunship)을 쫓아 조준 사격하면 이긴다",
+  "captains": [
+    { "name": "Wing", "hull": "Talon", "level": 1, "system": 7, "pos": [0, 0, 6000] }
+  ],
+  "npcs": [
+    { "archetype": "Gunship", "level": 1, "system": 7, "pos": [0, 0, 5600] }
+  ],
+  "script": [
+    { "at": 0.5, "captain": "Wing", "target_nearest": "npc", "aim": true, "msg": { "Controls": { "thrust": 0.0, "fire": true } }, "repeat_every": 0.1 }
+  ],
+  "run_secs": 45,
+  "expect": [
+    { "check": "count", "system": 7, "kind": "npc", "max": 0 },
+    { "check": "alive", "captain": "Wing" }
+  ]
+}

@@ -123,6 +123,12 @@ async fn thirty_concurrent_captains() {
                     snaps += 1;
                 }
             }
+            // Under load the last captains can still be logging in when a fast bot finishes its
+            // loop: give the home system up to 10 s to fill before counting who we see.
+            let deadline = tokio::time::Instant::now() + Duration::from_secs(10);
+            while bot.ents.len() < 5 && tokio::time::Instant::now() < deadline {
+                bot.pump(0.2).await;
+            }
             (snaps, bot.ents.len())
         }));
     }

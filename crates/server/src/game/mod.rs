@@ -3,7 +3,7 @@
 
 mod actions;
 mod diplomacy;
-mod interest;
+pub mod interest;
 mod weapons;
 mod sim;
 

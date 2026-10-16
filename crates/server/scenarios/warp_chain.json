@@ -1,0 +1,16 @@
+{
+  "name": "warp_chain",
+  "description": "Sol Haven → Kharz Forge → Vesta Corridor 연속 워프가 목적지에 도착한다",
+  "captains": [
+    { "name": "Nomad", "hull": "Wren", "level": 1, "system": 0 }
+  ],
+  "script": [
+    { "at": 0.5, "captain": "Nomad", "msg": { "Warp": { "system": 2 } } },
+    { "at": 8.0, "captain": "Nomad", "msg": { "Warp": { "system": 4 } } }
+  ],
+  "run_secs": 16,
+  "expect": [
+    { "at": 7.5, "check": "in_system", "captain": "Nomad", "system": 2 },
+    { "check": "in_system", "captain": "Nomad", "system": 4 }
+  ]
+}

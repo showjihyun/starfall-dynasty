@@ -50,6 +50,8 @@ impl Profession {
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
+// Missing axes default to zero, so scripts and scenario specs can write just `{"fire": true}`.
+#[serde(default)]
 pub struct Controls {
     /// -1..1 forward/back.
     pub thrust: f32,

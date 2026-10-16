@@ -1,0 +1,17 @@
+{
+  "name": "core_safe_zone",
+  "description": "Core 성계에서는 다른 함장을 쏴도 피해가 없다(PvP 금지)",
+  "captains": [
+    { "name": "Hawk", "hull": "Talon", "level": 3, "system": 0, "pos": [0, 0, 6000] },
+    { "name": "Dove", "hull": "Mule", "level": 1, "system": 0, "pos": [0, 0, 5650] }
+  ],
+  "script": [
+    { "at": 0.5, "captain": "Hawk", "target_nearest": "player", "msg": { "Controls": { "fire": true } }, "repeat_every": 0.5, "until": 20 }
+  ],
+  "run_secs": 20,
+  "expect": [
+    { "check": "hull", "captain": "Dove", "min": 1.0 },
+    { "check": "alive", "captain": "Dove" },
+    { "check": "history", "kind": "Bounty", "max": 0 }
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "name": "capital_vs_raiders",
+  "description": "주력함(모듈 Lv9)의 포탑만으로 해적 습격대 4척을 격퇴한다",
+  "captains": [
+    { "name": "Ares", "hull": "Bastion", "level": 9, "system": 7, "pos": [0, 0, 6000] }
+  ],
+  "npcs": [
+    { "archetype": "Raider", "level": 3, "system": 7, "pos": [0, 0, 5200], "count": 4, "spacing": 80 }
+  ],
+  "run_secs": 60,
+  "expect": [
+    { "check": "alive", "captain": "Ares" },
+    { "check": "count", "system": 7, "kind": "npc", "max": 0 },
+    { "check": "kills", "captain": "Ares", "min": 4 },
+    { "check": "hull", "captain": "Ares", "min": 0.8 }
+  ]
+}
