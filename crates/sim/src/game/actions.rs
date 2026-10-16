@@ -99,6 +99,7 @@ impl Game {
             ClientMsg::PublishResearch { event, thesis, cite } => self.publish_research(conn, pid, event, thesis, cite),
             ClientMsg::ForgeEvidence { evidence, text } => self.forge_evidence(conn, pid, evidence, text),
             ClientMsg::AuthenticateEvidence { evidence } => self.authenticate_evidence(conn, pid, evidence),
+            ClientMsg::FileStory { event, headline, body, cite } => self.file_story(conn, pid, sys, event, headline, body, cite),
             ClientMsg::DisputeResearch { event, author } => {
                 let me = self.store.profile(pid).unwrap();
                 let name = me.name.clone();
@@ -126,7 +127,63 @@ impl Game {
         let archive = self.store.profile(pid).map(|p| p.archive.clone()).unwrap_or_default();
         let evidence = self.history.visible_evidence(&events, &archive);
         let herald = self.history.herald(8);
+        self.pay_for_readers(pid, &herald);
         self.send(conn, ServerMsg::Chronicle { events, evidence, herald });
+    }
+
+    /// A captain read these Herald pages: each article's reporter earns once per distinct reader.
+    fn pay_for_readers(&mut self, reader: PlayerId, herald: &[shared::chronicle::Headline]) {
+        let t = self.tuning.history;
+        let me = self.store.profile(reader).map(|p| p.name.clone()).unwrap_or_default();
+        for h in herald {
+            let (Some(story), Some(by)) = (h.story, h.by.as_ref()) else { continue };
+            if *by == me || self.history.stories.iter().any(|s| s.id == story && s.retracted) {
+                continue;
+            }
+            let readers = self.store.data.story_readers.entry(story).or_default();
+            if readers.contains(&reader) || readers.len() >= t.story_reader_cap as usize {
+                continue;
+            }
+            readers.push(reader);
+            if let Some(rp) = self.store.find_by_name(by)
+                && let Some(p) = self.store.profile_mut(rp)
+            {
+                p.wallet.credits += t.story_per_reader;
+            }
+        }
+    }
+
+    /// Journalists file a Herald article about an event: from the scene (in its system) or holding
+    /// its evidence. One article per event per journalist.
+    #[allow(clippy::too_many_arguments)]
+    fn file_story(&mut self, conn: ConnId, pid: PlayerId, sys: SystemId, event: shared::chronicle::EventId, headline: String, body: String, cite: Vec<u64>) {
+        let prof = self.store.profile(pid).unwrap().clone();
+        if prof.profession != Profession::Journalist {
+            return self.error(conn, "기사는 기자(Journalist)만 송고할 수 있습니다");
+        }
+        let Some(ev) = self.history.event(event).cloned() else { return self.error(conn, "없는 사건입니다") };
+        if self.history.stories.iter().any(|s| s.event == event && s.reporter == prof.name) {
+            return self.error(conn, "이 사건에 대해서는 이미 기사를 송고했습니다");
+        }
+        let holds = prof.archive.iter().any(|id| self.history.evidence.iter().any(|e| e.id == *id && e.event == event));
+        let on_scene = self.sessions.get(&conn).is_some_and(|s| s.entity.is_some()) && sys == ev.system;
+        if !holds && !on_scene {
+            return self.error(conn, format!("취재가 필요합니다: {} 성계 현장에 있거나 사건의 증거를 확보하세요", galaxy::system(ev.system).name));
+        }
+        let headline: String = headline.trim().chars().take(60).collect();
+        let body: String = body.trim().chars().take(400).collect();
+        if headline.chars().count() < 4 || body.chars().count() < 10 {
+            return self.error(conn, "제목(4자 이상)과 본문(10자 이상)을 쓰세요");
+        }
+        let cite: Vec<u64> = cite.into_iter().filter(|c| prof.archive.contains(c)).collect();
+        self.history.record(self.unix, DomainEvent::StoryFiled { reporter: prof.name.clone(), event, headline: headline.clone(), body, cited: cite });
+        let fee = self.tuning.history.story_fee;
+        if let Some(p) = self.store.profile_mut(pid) {
+            p.wallet.credits += fee;
+        }
+        self.toast(pid, format!("기사 「{headline}」이(가) Herald에 실렸습니다 (+{fee} CR, 독자 한 명당 +{} CR)", self.tuning.history.story_per_reader));
+        self.push_profile(pid);
+        self.send_chronicle(conn, pid);
     }
 
     fn fire_missile(&mut self, pid: PlayerId, sys: SystemId, eid: Option<EntityId>) {
@@ -786,6 +843,17 @@ impl Game {
                     self.push_profile(fp);
                 }
                 self.toast(pid, format!("위조 판명! 증거 #{evidence}은(는) {forger}의 위조품입니다 (+{} CR, 평판 +{})", t.examiner_reward, t.examiner_reputation));
+                // Reporters whose articles rested on it answer for the correction.
+                let reporters: Vec<String> = self.history.stories.iter().filter(|s| s.retracted && s.cited.contains(&evidence)).map(|s| s.reporter.clone()).collect();
+                for r in reporters {
+                    if let Some(rp) = self.store.find_by_name(&r) {
+                        if let Some(p) = self.store.profile_mut(rp) {
+                            p.reputation += t.retraction_reputation;
+                        }
+                        self.toast(rp, format!("⚠ 당신의 기사가 위조 증거에 근거한 것으로 드러나 정정되었습니다 (평판 {})", t.retraction_reputation));
+                        self.push_profile(rp);
+                    }
+                }
             }
             _ => self.toast(pid, format!("감정 결과: 증거 #{evidence}은(는) 진품입니다{}", if cost > 0 { format!(" (비용 {cost} CR)") } else { String::new() })),
         }

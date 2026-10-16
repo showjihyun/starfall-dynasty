@@ -671,8 +671,14 @@ fn chronicle(ui: &mut egui::Ui, s: &mut Session, net: &Net, prof: &Profile) {
         return;
     };
     egui::CollapsingHeader::new(RichText::new("📰 GALACTIC HERALD").color(ACCENT).strong()).default_open(true).show(ui, |ui| {
-        for h in herald.iter().take(4) {
-            ui.label(RichText::new(&h.headline).strong());
+        for h in herald.iter().take(5) {
+            let correction = h.headline.starts_with("[정정]");
+            ui.horizontal_wrapped(|ui| {
+                ui.label(RichText::new(&h.headline).strong().color(if correction { RED } else { Color32::WHITE }));
+                if let Some(by) = &h.by {
+                    ui.label(RichText::new(format!("— {by} 기자")).size(11.0).color(GOLD));
+                }
+            });
             ui.label(RichText::new(format!("[{}] {}", h.date, h.body)).size(11.0).color(DIM));
         }
     });
@@ -749,6 +755,22 @@ fn chronicle(ui: &mut egui::Ui, s: &mut Session, net: &Net, prof: &Profile) {
                     });
                 } else if e.kind == "SHIP_DESTROYED" {
                     ui.label(RichText::new("현장의 잔해를 조사(V)하면 증거를 확보해 연구를 발표할 수 있습니다.").size(11.0).color(DIM));
+                }
+                if prof.profession == Profession::Journalist {
+                    // Report it: from the scene (this system) or holding its evidence; the server checks.
+                    let filed = s.ui.stories_filed.contains(&e.id);
+                    if filed {
+                        ui.label(RichText::new("이 사건의 기사를 송고했습니다.").size(11.0).color(DIM));
+                    } else {
+                        let (head, body) = s.ui.story_drafts.entry(e.id).or_default();
+                        ui.add(egui::TextEdit::singleline(head).hint_text("기사 제목").desired_width(420.0));
+                        ui.add(egui::TextEdit::multiline(body).hint_text("기사 본문 — 현장에서 보고 들은 것").desired_rows(2).desired_width(420.0));
+                        let t = shared::tuning::get();
+                        if ui.button(format!("Herald에 송고 (+{} CR, 독자당 +{} CR)", t.history.story_fee, t.history.story_per_reader)).clicked() {
+                            net.send(ClientMsg::FileStory { event: e.id, headline: head.clone(), body: body.clone(), cite: held.clone() });
+                            s.ui.stories_filed.insert(e.id);
+                        }
+                    }
                 }
             });
         }

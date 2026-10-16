@@ -51,6 +51,9 @@ pub struct StoreData {
     /// (system, poi, day) sites already excavated: one artifact per site per UTC day.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub excavated: Vec<(SystemId, u32, u32)>,
+    /// Herald article id → the distinct readers its reporter has been paid for.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub story_readers: BTreeMap<u64, Vec<PlayerId>>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

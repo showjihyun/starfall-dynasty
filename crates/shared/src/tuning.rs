@@ -194,6 +194,11 @@ pub struct HistoryTuning {
     pub examiner_reputation: i32,
     pub examiner_reward: u64,
     pub discredit: f32,
+    /// Journalists: paid on filing, then per distinct reader up to the cap; a correction costs reputation.
+    pub story_fee: u64,
+    pub story_per_reader: u64,
+    pub story_reader_cap: u32,
+    pub retraction_reputation: i32,
 }
 
 /// Artifact names, values and station services (`artifacts.ron`).

@@ -51,6 +51,8 @@ pub enum DomainEvent {
     EvidenceForged { forger: String, original: u64, text: String },
     /// `examiner` had `evidence` examined; research citing a forgery keeps `discredit` of its confidence.
     EvidenceAuthenticated { examiner: String, evidence: u64, discredit: f32 },
+    /// A journalist's Herald article about `event`.
+    StoryFiled { reporter: String, event: EventId, headline: String, body: String, cited: Vec<u64> },
 }
 
 #[derive(Serialize, Deserialize)]
@@ -63,6 +65,8 @@ struct LogLine {
 pub struct HistoryEngine {
     pub events: Vec<HistoricalEvent>,
     pub evidence: Vec<Evidence>,
+    /// Journalists' articles, in filing order.
+    pub stories: Vec<Story>,
     bios: HashMap<String, Vec<BioEntry>>,
     ship_bios: HashMap<String, Vec<BioEntry>>,
     discovered_sites: HashSet<(SystemId, String)>,
@@ -158,6 +162,15 @@ impl HistoryEngine {
         match ev {
             ev @ (DomainEvent::AllianceFounded { .. } | DomainEvent::WarDeclared { .. } | DomainEvent::PeaceMade { .. }) => self.apply_diplomacy(unix, ev),
             ev @ (DomainEvent::EvidenceForged { .. } | DomainEvent::EvidenceAuthenticated { .. }) => self.apply_forgery(unix, ev),
+            DomainEvent::StoryFiled { reporter, event, headline, body, cited } => {
+                let title = self.events.iter().find(|e| e.id == event)?.title.clone();
+                let rel: Vec<f32> = cited.iter().filter_map(|c| self.evidence.iter().find(|e| e.id == *c && e.event == event)).map(|e| e.reliability).collect();
+                let reliability = if rel.is_empty() { 0.5 } else { rel.iter().sum::<f32>() / rel.len() as f32 };
+                let id = self.stories.len() as u64 + 1;
+                self.stories.push(Story { id, date: galactic_date(unix), unix, event, reporter: reporter.clone(), headline: headline.clone(), body, cited, reliability, retracted: false });
+                self.bio(&reporter, unix, format!("「{title}」에 관한 기사 「{headline}」을(를) Herald에 송고했다."), Some(event));
+                None
+            }
             ev @ (DomainEvent::ArtifactUnearthed { .. }
             | DomainEvent::ArtifactAppraised { .. }
             | DomainEvent::ArtifactLost { .. }
@@ -421,6 +434,15 @@ impl HistoryEngine {
                 for a in fooled.iter().filter(|a| **a != forger) {
                     self.bio(a, unix, format!("「{title}」 연구가 위조 증거를 인용한 것으로 드러났다."), Some(id));
                 }
+                // Articles built on it run as corrections.
+                let mut retracted = vec![];
+                for st in self.stories.iter_mut().filter(|s| s.cited.contains(&evidence) && !s.retracted) {
+                    st.retracted = true;
+                    retracted.push((st.reporter.clone(), st.headline.clone()));
+                }
+                for (reporter, headline) in retracted {
+                    self.bio(&reporter, unix, format!("기사 「{headline}」이(가) 위조 증거에 근거한 것으로 드러나 정정되었다."), Some(id));
+                }
                 Some(id)
             }
             _ => None,
@@ -556,9 +578,28 @@ impl HistoryEngine {
     }
 
     /// Galactic Herald: template-generated news from simulation facts (never invents events).
+    /// The Galactic Herald: journalists' articles (corrections included) and, for events nobody has
+    /// written up, the automatic headline — newest first.
     pub fn herald(&self, limit: usize) -> Vec<Headline> {
+        let covered: HashSet<EventId> = self.stories.iter().filter(|s| !s.retracted).map(|s| s.event).collect();
+        let mut dated: Vec<(u64, usize, Headline)> = self.auto_headlines(limit, &covered).into_iter().enumerate().map(|(i, (u, h))| (u, i, h)).collect();
+        for s in self.stories.iter().rev().take(limit) {
+            let headline = if s.retracted { format!("[정정] {}", s.headline) } else { s.headline.clone() };
+            let body = if s.retracted {
+                format!("이 기사가 근거로 삼은 증거는 위조로 판명되었다. 원문: {}", s.body)
+            } else {
+                format!("{} (근거 신뢰도 {:.0}%)", s.body, s.reliability * 100.0)
+            };
+            // Articles sort ahead of automatic headlines from the same moment.
+            dated.push((s.unix, usize::MAX - s.id as usize, Headline { date: s.date.clone(), headline, body, by: Some(s.reporter.clone()), story: Some(s.id) }));
+        }
+        dated.sort_by(|a, b| b.0.cmp(&a.0).then(b.1.cmp(&a.1)));
+        dated.into_iter().take(limit).map(|d| d.2).collect()
+    }
+
+    fn auto_headlines(&self, limit: usize, covered: &HashSet<EventId>) -> Vec<(u64, Headline)> {
         let mut out = Vec::new();
-        for e in self.events.iter().rev().filter(|e| e.importance >= Importance::Notable).take(limit) {
+        for e in self.events.iter().rev().filter(|e| e.importance >= Importance::Notable && !covered.contains(&e.id)).take(limit) {
             let sys = galaxy::system(e.system).name.to_uppercase();
             let headline = match e.kind.as_str() {
                 "BATTLE" => format!("{} — 포연이 걷히다", e.title.to_uppercase()),
@@ -584,7 +625,7 @@ impl HistoryEngine {
             if let Some(r) = e.research.iter().filter(|r| !r.discredited).max_by(|a, b| a.confidence.total_cmp(&b.confidence)) {
                 body.push_str(&format!(" 역사가 {}는 \"{}\"라고 주장한다(신뢰도 {:.0}%).", r.author, r.thesis, r.confidence * 100.0));
             }
-            out.push(Headline { date: e.date.clone(), headline, body });
+            out.push((e.unix, Headline { date: e.date.clone(), headline, body, by: None, story: None }));
         }
         out
     }
@@ -726,6 +767,37 @@ mod tests {
         assert!(h.herald(5).iter().all(|n| !n.body.contains("A의 도발")), "news no longer quotes discredited research");
         assert!(h.record(140, DomainEvent::EvidenceAuthenticated { examiner: "C".into(), evidence: log, discredit: 0.3 }).is_none(), "the original is simply authentic");
         assert_eq!(h.evidence.iter().find(|e| e.id == log).unwrap().authenticity, Authenticity::Authentic);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Journalists' articles replace the automatic headline, survive a restart, and run as a
+    /// correction once their evidence is exposed as forged.
+    #[test]
+    fn stories_lead_the_herald_and_replay() {
+        let dir = std::env::temp_dir().join(format!("sfd-story-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("history.jsonl");
+        let mut h = HistoryEngine::open(&path).unwrap();
+        let ev = h.record(100, destroyed("A", "B", true)).unwrap();
+        let log = h.evidence.iter().find(|e| e.event == ev).unwrap().id;
+        assert!(h.herald(5).iter().any(|n| n.by.is_none()), "automatic headline before anyone writes it up");
+        h.record(110, DomainEvent::StoryFiled { reporter: "Lois".into(), event: ev, headline: "현장 르포".into(), body: "A가 B를 격침했다.".into(), cited: vec![log] });
+        drop(h);
+        let mut h = HistoryEngine::open(&path).unwrap();
+        let herald = h.herald(5);
+        assert_eq!(herald[0].headline, "현장 르포");
+        assert_eq!(herald[0].by.as_deref(), Some("Lois"));
+        assert!(herald.iter().all(|n| n.by.is_some() || !n.headline.contains("또 하나의 함선")), "{herald:?}");
+        assert!(h.stories[0].reliability > 0.9, "rests on the black box");
+        h.record(120, DomainEvent::EvidenceForged { forger: "M".into(), original: log, text: "B가 먼저".into() });
+        let fake = h.evidence.last().unwrap().id;
+        h.record(130, DomainEvent::StoryFiled { reporter: "Clark".into(), event: ev, headline: "B 선제 발포".into(), body: "입수한 사본에 따르면…".into(), cited: vec![fake] });
+        h.record(140, DomainEvent::EvidenceAuthenticated { examiner: "C".into(), evidence: fake, discredit: 0.3 });
+        assert!(h.stories.iter().find(|s| s.reporter == "Clark").unwrap().retracted);
+        assert!(!h.stories.iter().find(|s| s.reporter == "Lois").unwrap().retracted);
+        assert!(h.herald(8).iter().any(|n| n.headline == "[정정] B 선제 발포"));
+        assert!(h.biography("Clark").iter().any(|b| b.text.contains("정정")));
         let _ = std::fs::remove_dir_all(&dir);
     }
 

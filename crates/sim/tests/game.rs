@@ -687,3 +687,87 @@ fn forged_evidence_fools_research_until_authenticated() {
     g.handle(1, ClientMsg::AuthenticateEvidence { evidence: other });
     assert!(g.store.profile(a).unwrap().wallet.credits < before);
 }
+
+#[test]
+fn journalists_file_stories_that_readers_pay_for() {
+    let mut g = game();
+    let _a = join(&mut g, 1, "Alpha", Species::Human, HullClass::Talon, Profession::CombatPilot);
+    let _b = join(&mut g, 2, "Bravo", Species::Kharz, HullClass::Bastion, Profession::CombatPilot);
+    let rep = join(&mut g, 3, "Lois", Species::Human, HullClass::Wren, Profession::Journalist);
+    let reader = join(&mut g, 4, "Reader", Species::Veyr, HullClass::Seer, Profession::Explorer);
+    let _forger = join(&mut g, 5, "Mallory", Species::Human, HullClass::Wren, Profession::Trader);
+    let _hist = join(&mut g, 6, "Clio", Species::Veyr, HullClass::Seer, Profession::Historian);
+    for conn in [1, 2] {
+        move_to_system(&mut g, conn, 7);
+    }
+    clear_npcs(&mut g, 7);
+    let (_, ea) = ent_of(&g, 1);
+    let (_, eb) = ent_of(&g, 2);
+    for _ in 0..200 {
+        g.apply_damage(7, ea, eb, 50.0);
+        g.tick(DT, T0);
+        if g.ent(7, eb).is_none() {
+            break;
+        }
+    }
+    let destroyed = g.history.events.iter().find(|e| e.kind == "SHIP_DESTROYED").unwrap().id;
+    let story = |headline: &str| ClientMsg::FileStory { event: destroyed, headline: headline.into(), body: "Vesta Front에서 Alpha의 Talon이 Bravo의 Bastion을 격침했다. 현장 목격담에 따르면…".into(), cite: vec![] };
+
+    // Only journalists file, and only from the scene (in the system) or holding its evidence.
+    g.out.clear();
+    g.handle(4, story("독자 투고"));
+    assert!(errors(&g, 4).iter().any(|e| e.contains("기자")));
+    g.handle(3, story("Vesta Front의 격침"));
+    assert!(errors(&g, 3).iter().any(|e| e.contains("취재")), "Lois is not on the scene");
+    move_to_system(&mut g, 3, 7);
+    clear_npcs(&mut g, 7);
+    let before = g.store.profile(rep).unwrap().wallet.credits;
+    g.out.clear();
+    g.handle(3, story("Vesta Front의 격침 — 현장 르포"));
+    assert!(errors(&g, 3).is_empty(), "{:?}", errors(&g, 3));
+    assert!(g.store.profile(rep).unwrap().wallet.credits > before, "a filing fee");
+    // The article replaces the automatic headline for that event and carries a byline.
+    let herald = g.history.herald(8);
+    let top = herald.iter().find(|h| h.headline.contains("현장 르포")).expect("story in the Herald");
+    assert_eq!(top.by.as_deref(), Some("Lois"));
+    assert!(!herald.iter().any(|h| h.by.is_none() && h.headline.contains("또 하나의 함선")), "auto headline replaced: {herald:?}");
+    g.handle(3, story("두 번째 기사"));
+    assert!(errors(&g, 3).iter().any(|e| e.contains("이미")), "one story per event per journalist");
+
+    // Readers pay: each other captain reading the Herald once.
+    let paid = g.store.profile(rep).unwrap().wallet.credits;
+    g.handle(4, ClientMsg::RequestChronicle);
+    let after_one = g.store.profile(rep).unwrap().wallet.credits;
+    assert!(after_one > paid);
+    g.handle(4, ClientMsg::RequestChronicle);
+    assert_eq!(g.store.profile(rep).unwrap().wallet.credits, after_one, "same reader counts once");
+    g.handle(3, ClientMsg::RequestChronicle);
+    assert_eq!(g.store.profile(rep).unwrap().wallet.credits, after_one, "the reporter reading their own story earns nothing");
+    let _ = reader;
+
+    // A story built on forged evidence is retracted when the forgery is exposed.
+    move_to_system(&mut g, 5, 7);
+    clear_npcs(&mut g, 7);
+    let (wreck_id, wreck_pos) = g.systems[&7].ents.values().find(|e| e.kind == EntityKind::Wreck).map(|e| (e.id, e.pos)).unwrap();
+    place(&mut g, 5, wreck_pos + Vec3::X * 100.0, wreck_pos);
+    g.handle(5, ClientMsg::InvestigateWreck { wreck: wreck_id });
+    let log = g.store.profile(g.sessions[&5].player.unwrap()).unwrap().archive[0];
+    g.handle(5, ClientMsg::ForgeEvidence { evidence: log, text: "Bravo가 먼저 쐈다".into() });
+    let fake = g.history.evidence.last().unwrap().id;
+    // Lois got the forged copy from Mallory and reports it.
+    g.store.profile_mut(rep).unwrap().archive.push(fake);
+    let event2 = g.history.events.iter().find(|e| e.kind == "BATTLE" || e.kind == "SHIP_DESTROYED").unwrap().id;
+    assert_eq!(event2, destroyed);
+    let rep_before = g.store.profile(rep).unwrap().reputation;
+    // (one story per event: file on the same event through a second journalist)
+    let rep2 = join(&mut g, 7, "Clark", Species::Human, HullClass::Wren, Profession::Journalist);
+    g.store.profile_mut(rep2).unwrap().archive.push(fake);
+    g.handle(7, ClientMsg::FileStory { event: destroyed, headline: "충격 — Bravo 선제 발포".into(), body: "입수한 블랙박스 사본에 따르면 Bravo가 먼저 발포했다.".into(), cite: vec![fake] });
+    assert!(g.history.stories.iter().any(|s| s.reporter == "Clark" && !s.retracted));
+    g.handle(6, ClientMsg::AuthenticateEvidence { evidence: fake });
+    let s = g.history.stories.iter().find(|s| s.reporter == "Clark").unwrap();
+    assert!(s.retracted, "story retracted");
+    assert!(g.store.profile(rep2).unwrap().reputation < 0, "the reporter answers for it");
+    assert_eq!(g.store.profile(rep).unwrap().reputation, rep_before, "Lois cited nothing forged");
+    assert!(g.history.herald(10).iter().any(|h| h.headline.starts_with("[정정]") && h.by.as_deref() == Some("Clark")));
+}

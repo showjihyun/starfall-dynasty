@@ -7,4 +7,10 @@
     examiner_reputation: 5,
     examiner_reward: 600,       // credits for exposing a forgery
     discredit: 0.3,             // research citing exposed forgeries keeps this share of its confidence
+
+    // Journalists (Herald articles).
+    story_fee: 200,             // credits on filing
+    story_per_reader: 60,       // credits per distinct reader of the article…
+    story_reader_cap: 20,       // …up to this many readers
+    retraction_reputation: -10, // when an article's evidence is exposed as forged
 )

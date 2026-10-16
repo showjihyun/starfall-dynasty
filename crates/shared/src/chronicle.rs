@@ -132,6 +132,28 @@ pub struct Headline {
     pub date: String,
     pub headline: String,
     pub body: String,
+    /// Byline of a journalist's article (none for the Herald's automatic headlines).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub by: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub story: Option<u64>,
+}
+
+/// A journalist's Herald article about an event.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct Story {
+    pub id: u64,
+    pub date: String,
+    pub unix: u64,
+    pub event: EventId,
+    pub reporter: String,
+    pub headline: String,
+    pub body: String,
+    pub cited: Vec<u64>,
+    /// Mean reliability of the cited evidence (0.5 when it rests on the reporter's own account).
+    pub reliability: f32,
+    /// It cited evidence later exposed as forged; the Herald runs it as a correction.
+    pub retracted: bool,
 }
 
 /// Game calendar: 1 real day = 1 galactic year starting at 3827; day-of-year from seconds.

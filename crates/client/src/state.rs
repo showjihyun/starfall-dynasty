@@ -35,6 +35,9 @@ pub struct UiFlags {
     pub research_drafts: HashMap<u64, String>,
     /// Draft forged text per evidence id (only while the forge field is open).
     pub forge_drafts: HashMap<u64, String>,
+    /// Journalists: draft (headline, body) per event, and events already filed this session.
+    pub story_drafts: HashMap<u64, (String, String)>,
+    pub stories_filed: HashSet<u64>,
     pub bio_query: String,
 }
 

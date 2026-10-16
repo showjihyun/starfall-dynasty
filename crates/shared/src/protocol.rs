@@ -27,10 +27,11 @@ pub enum Profession {
     CombatPilot,
     Historian,
     Archaeologist,
+    Journalist,
 }
 
 impl Profession {
-    pub const ALL: [Profession; 6] = [Profession::Explorer, Profession::Miner, Profession::Trader, Profession::CombatPilot, Profession::Historian, Profession::Archaeologist];
+    pub const ALL: [Profession; 7] = [Profession::Explorer, Profession::Miner, Profession::Trader, Profession::CombatPilot, Profession::Historian, Profession::Archaeologist, Profession::Journalist];
     pub fn name(self) -> &'static str {
         match self {
             Profession::Explorer => "Explorer · 탐험가",
@@ -39,6 +40,7 @@ impl Profession {
             Profession::CombatPilot => "Combat Pilot · 전투 조종사",
             Profession::Historian => "Historian · 역사학자",
             Profession::Archaeologist => "Archaeologist · 고고학자",
+            Profession::Journalist => "Journalist · 기자",
         }
     }
     pub fn perk(self) -> &'static str {
@@ -49,6 +51,7 @@ impl Profession {
             Profession::CombatPilot => "격파 보상 +30%, 피해 +8%",
             Profession::Historian => "잔해 조사 시 증거 2배, 연구 신뢰도 +",
             Profession::Archaeologist => "유적·고대 게이트에서 이름 있는 유물 발굴, 유물 감정 무료",
+            Profession::Journalist => "현장을 취재해 Herald에 기사 송고, 읽은 독자 수만큼 원고료",
         }
     }
 }
@@ -115,6 +118,8 @@ pub enum ClientMsg {
     ForgeEvidence { evidence: u64, text: String },
     /// Have evidence examined: forgeries are exposed, genuine evidence is marked authentic.
     AuthenticateEvidence { evidence: u64 },
+    /// Journalists: file a Herald article about an event, from the scene or holding its evidence.
+    FileStory { event: EventId, headline: String, body: String, cite: Vec<u64> },
     Ping { t: f64 },
 }
 
