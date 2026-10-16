@@ -1,6 +1,7 @@
 //! Server load benchmark: `cargo run -p server --release --example bench [players]`
 //! N captains (a mix of fighters, cruisers and capitals with escorts) brawl in a war zone.
-//! Reports simulation tick time and the bytes the network layer would have to send.
+//! Reports simulation tick time, the bytes the network layer would have to send, and a text
+//! profile of where the tick goes (`shared::prof`). `--no-prof` measures without spans.
 
 use server::game::Game;
 use server::store::Store;
@@ -33,6 +34,8 @@ fn main() {
     }
     let ents = g.systems[&7].ents.len();
     let ticks = 400;
+    let profiled = !std::env::args().any(|a| a == "--no-prof");
+    shared::prof::enable(profiled);
     let mut tick_ns = vec![];
     let mut bytes = 0usize;
     let mut encode_ns = 0u128;
@@ -42,6 +45,7 @@ fn main() {
         g.tick(0.05, t0);
         tick_ns.push(t.elapsed().as_nanos());
         let te = Instant::now();
+        let _enc = shared::prof::span("encode");
         // Same wire format as the server: binary snapshots (encoded in parallel), JSON for the rest.
         let sizes: Vec<(String, usize)> = g
             .out
@@ -74,6 +78,10 @@ fn main() {
         println!("  {k:<16} {:.1} KB/s per client", *b as f64 / secs / 1e3 / n as f64);
     }
     println!("battle state: {} players alive", g.sessions.values().filter(|s| s.entity.is_some()).count());
+    if profiled {
+        println!("\nprofile ({ticks} ticks):");
+        print!("{}", shared::prof::take().report(ticks as u64, "tick"));
+    }
 }
 
 /// Message variant name from its JSON encoding (`{"Snapshot":{...}}` or `"Variant"`).

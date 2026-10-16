@@ -54,6 +54,7 @@ fn main() {
         return;
     }
     let args = parse_args();
+    shared::prof::enable_from_env();
     let bench_secs: Option<f32> = std::env::args().position(|a| a == "--bench").map(|i| std::env::args().nth(i + 1).and_then(|v| v.parse().ok()).unwrap_or(20.0));
     let mut app = App::new();
     app.add_plugins(
@@ -192,6 +193,7 @@ fn automation(
     screen: Res<State<Screen>>,
     mut cam: ResMut<control::CamState>,
 ) {
+    let _prof = shared::prof::span("main::automation");
     let t = time.elapsed_secs_f64();
     if args.showroom
         && let Some(snap) = s.snaps.back_mut()

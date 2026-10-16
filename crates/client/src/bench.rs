@@ -2,6 +2,8 @@
 //! Two fleets (capitals, cruisers, fighters, pirates) circle each other while turrets,
 //! main guns, lasers and explosions fire continuously. Prints frame-time stats and exits.
 //! `STARFALL_BENCH_SCALE=N` multiplies the fleets (N=15 → ~1000 ships) for mass-battle tests.
+//! After the frame stats it prints a text profile of the client's own systems (`shared::prof`);
+//! `STARFALL_PROF=0` measures without spans.
 
 use crate::state::{Screen, Session, Snap};
 use bevy::prelude::*;
@@ -24,6 +26,7 @@ struct BenchCfg {
 
 impl Plugin for BenchPlugin {
     fn build(&self, app: &mut App) {
+        shared::prof::enable(std::env::var("STARFALL_PROF").map_or(true, |v| v != "0"));
         app.insert_resource(BenchCfg { seconds: self.seconds, warmup: 6.0, frames: vec![], start: vec![] })
             .add_systems(Startup, setup)
             .add_systems(Update, (animate, measure));
@@ -82,6 +85,7 @@ fn setup(mut s: ResMut<Session>, mut cfg: ResMut<BenchCfg>, mut next: ResMut<Nex
 }
 
 fn animate(time: Res<Time<Real>>, mut s: ResMut<Session>, cfg: Res<BenchCfg>, mut acc: Local<f32>, mut k: Local<u32>) {
+    let _prof = shared::prof::span("bench::animate");
     let t = time.elapsed_secs();
     let ids: Vec<u32> = cfg.start.iter().map(|x| x.0).collect();
     if let Some(snap) = s.snaps.back_mut() {
@@ -133,6 +137,10 @@ fn measure(time: Res<Time<Real>>, mut cfg: ResMut<BenchCfg>, mut exit: MessageWr
     if t < cfg.warmup || *done {
         return;
     }
+    if cfg.frames.is_empty() {
+        // Measure from the end of the warm-up, like the frame times.
+        let _ = shared::prof::take();
+    }
     cfg.frames.push(time.delta_secs() * 1000.0);
     if t > cfg.warmup + cfg.seconds {
         *done = true;
@@ -142,6 +150,14 @@ fn measure(time: Res<Time<Real>>, mut cfg: ResMut<BenchCfg>, mut exit: MessageWr
         let p99 = f[(f.len() * 99 / 100).min(f.len() - 1)];
         let worst = *f.last().unwrap();
         println!("BENCH frames {} | avg {:.2} ms ({:.0} fps) | 1% low {:.2} ms ({:.0} fps) | worst {:.2} ms | meshes {}", f.len(), avg, 1000.0 / avg, p99, 1000.0 / p99, worst, ents.iter().count());
+        let prof = shared::prof::take();
+        if !prof.is_empty() {
+            // Our systems only; the rest of the frame is Bevy (render extraction, GPU submit, schedule).
+            // Systems run in parallel, so their sum can exceed the frame time.
+            let ours: u128 = prof.stats.iter().filter(|(p, _)| p.len() == 1).map(|(_, s)| s.ns).sum();
+            println!("BENCH client systems {:.2} ms/frame of {avg:.2} ms (the rest is the engine)", ours as f64 / 1e6 / f.len() as f64);
+            print!("{}", prof.report(f.len() as u64, "frame"));
+        }
         exit.write(AppExit::Success);
     }
 }

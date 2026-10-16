@@ -1,6 +1,7 @@
 //! Fixed-step simulation: flight, weapons, NPC AI, deaths, engagements, snapshots.
 
 use super::*;
+use shared::prof;
 use history::{DomainEvent, Side};
 use shared::galaxy::RiskTier;
 
@@ -49,15 +50,20 @@ impl Game {
         self.now += dt as f64;
         self.unix = unix;
         self.tick += 1;
+        let _tick = prof::span("tick");
 
         let mut lap = std::time::Instant::now();
+        let p = prof::span("sessions");
         self.tick_sessions(dt);
+        drop(p);
         self.lap(0, &mut lap);
         let sys_ids: Vec<SystemId> = self.systems.keys().copied().collect();
         for sys in sys_ids {
+            let _p = prof::span("system");
             self.tick_system(sys, dt);
         }
         lap = std::time::Instant::now();
+        let p = prof::span("engagements+dailies");
         self.tick_engagements();
 
         if self.tick % 20 == 0 {
@@ -75,8 +81,11 @@ impl Game {
                 }
             }
         }
+        drop(p);
         self.lap(6, &mut lap);
+        let p = prof::span("snapshots");
         self.send_snapshots();
+        drop(p);
         self.lap(7, &mut lap);
     }
 
@@ -179,6 +188,7 @@ impl Game {
         let star_r = self.systems[&sys].layout.star_radius;
 
         let mut lap = std::time::Instant::now();
+        let p = prof::span("ai");
         // AI decisions first (needs a read-only view).
         if has_players {
             for &id in &ids {
@@ -186,6 +196,8 @@ impl Game {
             }
         }
 
+        drop(p);
+        let p = prof::span("flight");
         for &id in &ids {
             let now = self.now;
             let Some(e) = self.systems.get_mut(&sys).unwrap().ents.get_mut(&id) else { continue };
@@ -230,18 +242,24 @@ impl Game {
             }
         }
 
+        drop(p);
         self.lap(1, &mut lap);
         // Weapons: forward guns, turret batteries, bow main gun.
+        let p = prof::span("grid");
         let sm = self.systems.get_mut(&sys).unwrap();
         sm.grid.rebuild(sm.ents.values());
+        drop(p);
+        let p = prof::span("weapons");
         for &id in &ids {
             self.fire_forward_guns(sys, id, &mut shots);
             self.fire_turrets(sys, id, dt, &mut shots);
             self.fire_main_gun(sys, id, dt, &mut shots);
         }
 
+        drop(p);
         self.lap(2, &mut lap);
         // Missiles.
+        let p = prof::span("missiles");
         for &id in &ids {
             let Some(e) = self.ent(sys, id) else { continue };
             let Some(m) = e.missile.clone() else { continue };
@@ -273,18 +291,24 @@ impl Game {
             }
         }
 
+        drop(p);
+        let p = prof::span("damage");
         for s in shots {
             self.apply_damage(sys, s.from, s.to, s.dmg);
         }
+        drop(p);
 
         self.lap(3, &mut lap);
         // Mining.
+        let p = prof::span("mining");
         for &id in &ids {
             self.tick_mining(sys, id, dt);
         }
+        drop(p);
 
         self.lap(4, &mut lap);
         // Deaths.
+        let _p = prof::span("deaths");
         let dead: Vec<EntityId> = self.systems[&sys].ents.values().filter(|e| (e.is_ship() && e.hull <= 0.0) || e.dead).map(|e| e.id).collect();
         for id in dead {
             self.kill(sys, id);

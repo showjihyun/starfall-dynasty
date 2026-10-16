@@ -47,6 +47,7 @@ pub fn open(dir: &str) -> (Replay, Net) {
 
 /// Before the network pump: run the recording up to the clock and forward the viewed captain's messages.
 pub fn drive(mut rp: ResMut<Replay>, time: Res<Time<Real>>) {
+    let _prof = shared::prof::span("replay::drive");
     let now = time.elapsed_secs_f64();
     let t0 = *rp.t0.get_or_insert(now);
     let target = rp.from_tick + ((now - t0) * TICK_HZ as f64 * rp.speed) as u64;

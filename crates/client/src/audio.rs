@@ -351,6 +351,7 @@ fn build_bank(mut commands: Commands, mut sources: ResMut<Assets<AudioSource>>, 
 
 #[allow(clippy::too_many_arguments)]
 fn play_queue(mut commands: Commands, mut q: ResMut<SfxQueue>, bank: Option<Res<SfxBank>>, cam: Query<&GlobalTransform, With<MainCamera>>, mut counter: Local<u32>, time: Res<Time<Real>>, mut log: Local<(f64, HashMap<Sfx, u32>)>) {
+    let _prof = shared::prof::span("audio::play_queue");
     let Some(bank) = bank else { return };
     // Harness: STARFALL_SFX_LOG=1 prints how often each cue actually played, every 10 s (text, not ears).
     let logging = std::env::var_os("STARFALL_SFX_LOG").is_some();
@@ -421,6 +422,7 @@ struct Watch {
 /// Cues derived from state changes: hull impacts (any ship near the camera whose hull dropped),
 /// dock/undock, target lock, scan start, mining, low-hull alarm, errors and notices.
 fn event_sounds(s: Res<Session>, time: Res<Time<Real>>, cam: Query<&GlobalTransform, With<MainCamera>>, mut q: ResMut<SfxQueue>, mut w: Local<Watch>) {
+    let _prof = shared::prof::span("audio::event_sounds");
     let now = time.elapsed_secs_f64();
     let listener = cam.single().map(|c| c.translation()).unwrap_or_default();
     if let Some(latest) = s.latest() {
@@ -515,6 +517,7 @@ enum LoopKind {
 /// rumble) whose volume and pitch follow the throttle, a thruster roar while boosting, and the
 /// station's machinery while docked. Restarted with the right sample when the ship changes class.
 fn ship_loops(mut commands: Commands, s: Res<Session>, server: Res<AssetServer>, time: Res<Time<Real>>, mut sinks: Query<(Entity, &LoopKind, Option<&mut AudioSink>)>, mut class: Local<Option<SizeClass>>) {
+    let _prof = shared::prof::span("audio::ship_loops");
     let dir = crate::ships::assets_dir();
     let want = s.profile.as_ref().map(|p| p.ship.size_class());
     if want != *class {

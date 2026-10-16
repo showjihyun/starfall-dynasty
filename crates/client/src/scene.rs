@@ -119,6 +119,7 @@ fn build_system(
     mut flares: ResMut<Assets<FlareMat>>,
     props: Props,
 ) {
+    let _prof = shared::prof::span("scene::build_system");
     if s.system_epoch == env.epoch || s.system_epoch == 0 || !props.ready() {
         return;
     }
@@ -416,6 +417,7 @@ fn spawn_jump_point(commands: &mut Commands, meshes: &mut Assets<Mesh>, mats: &m
 }
 
 fn follow_sky(cam: Query<&GlobalTransform, With<crate::control::MainCamera>>, mut sky: Query<&mut Transform, With<Skybox>>) {
+    let _prof = shared::prof::span("scene::follow_sky");
     let Ok(c) = cam.single() else { return };
     for mut t in &mut sky {
         t.translation = c.translation();
@@ -429,6 +431,7 @@ pub struct StarFlare(f32);
 /// Keeps the glare just in front of the star, facing the camera, with a roughly constant screen
 /// size; it dims when the star fills much of the view (the disc itself is bright enough then).
 fn aim_flare(cam: Query<&GlobalTransform, With<crate::control::MainCamera>>, mut q: Query<(&StarFlare, &mut Transform)>) {
+    let _prof = shared::prof::span("scene::aim_flare");
     let Ok(c) = cam.single() else { return };
     let cp = c.translation();
     for (f, mut t) in &mut q {
@@ -448,6 +451,7 @@ struct SpinBase(Quat);
 /// Spin is a function of the clock, not accumulated per frame: the same moment always shows the
 /// same orientation however late an asset finished loading (reproducible screenshots, HARNESS.md).
 fn spin_things(mut commands: Commands, time: Res<Time>, mut q: Query<(Entity, &Spin, &mut Transform, Option<&SpinBase>)>) {
+    let _prof = shared::prof::span("scene::spin_things");
     let t = time.elapsed_secs_wrapped();
     for (e, s, mut tf, base) in &mut q {
         let base = match base {

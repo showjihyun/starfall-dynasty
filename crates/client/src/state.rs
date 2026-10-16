@@ -168,6 +168,7 @@ fn libc_nofollow() -> i32 {
 }
 
 pub fn pump_network(net: Option<Res<Net>>, mut s: ResMut<Session>, time: Res<Time<Real>>, mut next: ResMut<NextState<Screen>>, screen: Res<State<Screen>>) {
+    let _prof = shared::prof::span("state::pump_network");
     let dt = time.delta_secs().max(1e-4);
     s.fps += (1.0 / dt - s.fps) * 0.05;
     let Some(net) = net else { return };

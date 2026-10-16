@@ -76,6 +76,7 @@ fn toggle_mute(keys: Res<ButtonInput<KeyCode>>, mut m: ResMut<MusicSettings>, wa
 
 #[allow(clippy::too_many_arguments)]
 fn crossfade(time: Res<Time<Real>>, s: Res<Session>, screen: Res<State<Screen>>, m: Res<MusicSettings>, mut sinks: Query<(&MusicTrack, &mut AudioSink)>, mut last: Local<Option<Track>>, mut logged: Local<usize>, mut battles: Local<(bool, u32)>) {
+    let _prof = shared::prof::span("music::crossfade");
     use shared::galaxy::{self, RiskTier};
     let now = time.elapsed_secs_f64();
     let playing = *screen.get() == Screen::Playing;

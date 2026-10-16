@@ -81,6 +81,7 @@ pub fn ui_system(
     cam: Query<(&Camera, &GlobalTransform), With<crate::control::MainCamera>>,
     time: Res<Time<Real>>,
 ) -> Result {
+    let _prof = shared::prof::span("ui::ui_system");
     let ctx = contexts.ctx_mut()?;
     if !form.fonts_ready {
         setup_fonts(ctx);

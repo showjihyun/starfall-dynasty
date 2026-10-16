@@ -84,6 +84,7 @@ fn spawn_fx(
     shader_time: Res<Time>,
     mut pool: ResMut<FxPool>,
 ) {
+    let _prof = shared::prof::span("fx::spawn_fx");
     let now = time.elapsed_secs_f64();
     // The clock the shaders see as `globals.time`.
     let t = shader_time.elapsed_secs_wrapped();
@@ -242,6 +243,7 @@ fn tick_fx(
     mut glows: ResMut<Assets<GlowMat>>,
     mut pool: ResMut<FxPool>,
 ) {
+    let _prof = shared::prof::span("fx::tick_fx");
     let dt = time.delta_secs();
     for (e, mut ttl, beam, boom, flash, glow, mut tf, light) in &mut q {
         ttl.left -= dt;
@@ -284,6 +286,7 @@ fn mining_beams(
     mut existing: Query<(Entity, &MiningBeam, &mut Transform)>,
     mut beams: ResMut<Assets<BeamMat>>,
 ) {
+    let _prof = shared::prof::span("fx::mining_beams");
     let Some(latest) = s.latest() else { return };
     let Some(layout) = &env.layout else { return };
     let mut alive = vec![];
@@ -324,6 +327,7 @@ fn warp_tunnel(
     mut was_charging: Local<bool>,
     mut sfx: ResMut<SfxQueue>,
 ) {
+    let _prof = shared::prof::span("fx::warp_tunnel");
     if s.warp.is_some() && !*was_charging {
         sfx.play(Sfx::WarpCharge, None);
     }

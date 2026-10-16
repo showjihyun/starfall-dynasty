@@ -90,6 +90,7 @@ fn chase_camera(
     wants: Option<Res<EguiWantsInput>>,
     args: Res<crate::state::Args>,
 ) {
+    let _prof = shared::prof::span("control::chase_camera");
     let Ok(mut ct) = cam.single_mut() else { return };
     if !wants.as_ref().is_some_and(|w| w.is_pointer_over_area()) {
         cs.zoom = (cs.zoom * (1.0 - scroll.delta.y * 0.1)).clamp(0.45, 5.0);
@@ -154,6 +155,7 @@ fn flight_input(
     mut cs: ResMut<CamState>,
     s: Res<Session>,
 ) {
+    let _prof = shared::prof::span("control::flight_input");
     let Some(net) = net else { return };
     let typing = wants.as_ref().is_some_and(|w| w.wants_any_keyboard_input());
     let over_ui = wants.as_ref().is_some_and(|w| w.is_pointer_over_area());
@@ -190,6 +192,7 @@ fn flight_input(
 /// Discrete actions: targeting, missiles, docking, mining, scanning, investigating, windows.
 #[allow(clippy::too_many_arguments)]
 fn action_keys(keys: Res<ButtonInput<KeyCode>>, wants: Option<Res<EguiWantsInput>>, net: Option<Res<Net>>, mut s: ResMut<Session>, env: Res<Env>, time: Res<Time<Real>>, mut cs: ResMut<CamState>) {
+    let _prof = shared::prof::span("control::action_keys");
     let Some(net) = net else { return };
     if wants.as_ref().is_some_and(|w| w.wants_any_keyboard_input()) {
         return;

@@ -1,6 +1,6 @@
 //! STARFALL DYNASTY authoritative server.
 //!
-//! `server [--port 7777] [--data ./data] [--dev] [--record DIR] [--metrics FILE.jsonl]`
+//! `server [--port 7777] [--data ./data] [--dev] [--record DIR] [--metrics FILE.jsonl] [--prof]`
 //!
 //! WebSocket transport, JSON frames. One game loop task owns all state at 20 Hz;
 //! connection tasks only shuttle frames.
@@ -44,6 +44,11 @@ async fn main() -> std::io::Result<()> {
     let start_unix = unix_now();
     let mut game = Game::new(store, history, start_unix);
     game.dev_mode = args.iter().any(|a| a == "--dev");
+    // `--prof` (or STARFALL_PROF=1): a text profile of the tick with every [stats] report.
+    shared::prof::enable_from_env();
+    if args.iter().any(|a| a == "--prof") {
+        shared::prof::enable(true);
+    }
     // `--record DIR`: keep a replayable copy of this session (docs/HARNESS.md).
     let mut recorder = match arg("--record") {
         Some(dir) => {
@@ -145,7 +150,9 @@ async fn main() -> std::io::Result<()> {
                     }
                 }
                 // Per-viewer snapshots are binary; encode the batch in parallel.
+                let enc = shared::prof::span("encode");
                 let frames: Vec<(ConnId, Message)> = game.out.par_drain(..).map(|(c, m)| (c, wire(&m))).collect();
+                drop(enc);
                 for (conn, frame) in frames {
                     if let Some(o) = outs.get(&conn) {
                         stat_bytes += frame.len();
@@ -156,6 +163,8 @@ async fn main() -> std::io::Result<()> {
                 (stat_ticks, stat_ns, stat_max) = (stat_ticks + 1, stat_ns + ns, stat_max.max(ns));
                 let secs = stat_at.elapsed().as_secs_f64();
                 if secs >= 10.0 {
+                    // The span profile covers the same window as the stats (idle windows are dropped).
+                    let window_prof = shared::prof::take();
                     if !outs.is_empty() {
                         let phases: Vec<String> = game.prof.iter().zip(server::game::PROF_PHASES).filter(|(ns, _)| **ns as f64 / stat_ticks as f64 > 5e4).map(|(ns, name)| format!("{name} {:.2}", *ns as f64 / stat_ticks as f64 / 1e6)).collect();
                         println!("[stats] phases ms/tick: {}", phases.join(", "));
@@ -164,6 +173,9 @@ async fn main() -> std::io::Result<()> {
                             "[stats] {} conns, {} entities | tick+encode avg {:.2} ms, max {:.2} ms (budget {:.0} ms) | out {:.1} KB/s per conn",
                             outs.len(), ents, stat_ns as f64 / stat_ticks as f64 / 1e6, stat_max as f64 / 1e6, dt * 1000.0, stat_bytes as f64 / secs / 1e3 / outs.len() as f64
                         );
+                        if !window_prof.is_empty() {
+                            print!("[prof] last {stat_ticks} ticks:\n{}", window_prof.report(stat_ticks as u64, "tick"));
+                        }
                     }
                     (stat_at, stat_ticks, stat_ns, stat_max, stat_bytes) = (std::time::Instant::now(), 0, 0, 0, 0);
                     game.prof = [0; 8];

@@ -213,6 +213,7 @@ fn sync_visuals(
     mut q: Query<(&mut ShipVis, &mut Transform, &mut Visibility)>,
     cam: Res<crate::control::CamState>,
 ) {
+    let _prof = shared::prof::span("ships::sync_visuals");
     if vis.epoch != s.system_epoch {
         for (_, e) in vis.map.drain() {
             commands.entity(e).despawn();
@@ -490,6 +491,7 @@ fn update_ship_fx(
     mut parts: Query<(&RankPart, &mut Visibility, &ChildOf)>,
     parents: Query<&ChildOf>,
 ) {
+    let _prof = shared::prof::span("ships::update_ship_fx");
     // Touching a material asset re-uploads its bind group, so only write values that changed.
     let dt = time.delta_secs();
     let Some(latest) = s.latest() else { return };
@@ -563,6 +565,7 @@ pub struct NozzleGlow;
 
 /// Keep nozzle glow sprites facing the camera.
 fn face_nozzle_glows(cam: Query<&GlobalTransform, With<crate::control::MainCamera>>, mut q: Query<(&mut Transform, &ChildOf), With<NozzleGlow>>, globals: Query<&GlobalTransform, Without<NozzleGlow>>) {
+    let _prof = shared::prof::span("ships::face_nozzle_glows");
     let Ok(c) = cam.single() else { return };
     let cam_rot = c.rotation();
     for (mut t, parent) in &mut q {
@@ -582,6 +585,7 @@ fn aim_turrets(
     parents: Query<&ChildOf>,
     mut turret_tf: Query<&mut Transform, With<TurretTag>>,
 ) {
+    let _prof = shared::prof::span("ships::aim_turrets");
     let now = time.elapsed_secs_f64();
     let dt = time.delta_secs();
     for v in &ships {

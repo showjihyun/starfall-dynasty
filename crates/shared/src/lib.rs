@@ -3,6 +3,7 @@
 pub mod chronicle;
 pub mod galaxy;
 pub mod missions;
+pub mod prof;
 pub mod protocol;
 pub mod rng;
 pub mod ships;

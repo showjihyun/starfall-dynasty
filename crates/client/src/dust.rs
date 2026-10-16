@@ -38,6 +38,7 @@ fn setup(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>, mut mats: Res
 }
 
 fn drift(s: Res<Session>, cam: Query<&GlobalTransform, With<MainCamera>>, mut motes: Query<(&mut Transform, &mut Visibility), With<Mote>>, mut last_box: Local<f32>) {
+    let _prof = shared::prof::span("dust::drift");
     // `last_box` is 0 until the field has been laid out around the camera (first visible frame).
     let Ok(c) = cam.single() else { return };
     let me = s.my_state();

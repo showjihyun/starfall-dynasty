@@ -120,6 +120,7 @@ fn toggle(keys: Res<ButtonInput<KeyCode>>, mut it: ResMut<Interior>, wants: Opti
 
 /// Keeps the right interior loaded for the current ship size and decides whether it is shown.
 fn manage(mut commands: Commands, s: Res<Session>, cam: Res<CamState>, models: Res<Models>, mut it: ResMut<Interior>) {
+    let _prof = shared::prof::span("interior::manage");
     let kind = s.profile.as_ref().map(|p| if p.ship.size_class() == SizeClass::Small { Kind::Cockpit } else { Kind::Bridge });
     if kind != it.kind {
         if let Some(r) = it.root.take() {
@@ -201,6 +202,7 @@ fn drive_cameras(
     mut feed: Query<(&mut Camera, &mut Transform), (With<FeedCam>, Without<PanelCam>)>,
     mut frame: Local<u32>,
 ) {
+    let _prof = shared::prof::span("interior::drive_cameras");
     *frame += 1;
     let t = time.elapsed_secs();
     if let Ok((mut cam, mut tf)) = panel.single_mut() {
@@ -228,6 +230,7 @@ fn drive_cameras(
 }
 
 fn animate(time: Res<Time<Real>>, s: Res<Session>, it: Res<Interior>, mut tfs: Query<&mut Transform>, mut mats: ResMut<Assets<StandardMaterial>>, mut lights: Query<(&InteriorLight, &mut PointLight)>, mut last_alert: Local<Option<bool>>) {
+    let _prof = shared::prof::span("interior::animate");
     if !it.visible {
         return;
     }
@@ -256,6 +259,7 @@ fn animate(time: Res<Time<Real>>, s: Res<Session>, it: Res<Interior>, mut tfs: Q
 }
 
 fn panel_ui(mut contexts: EguiContexts, mut it: ResMut<Interior>, s: Res<Session>, main: Query<&Camera, With<MainCamera>>) -> Result {
+    let _prof = shared::prof::span("interior::panel_ui");
     if it.tex.is_none() {
         it.tex = Some(contexts.add_image(EguiTextureHandle::Strong(it.panel.clone())));
     }

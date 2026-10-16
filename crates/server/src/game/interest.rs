@@ -137,6 +137,7 @@ impl Game {
         let fx = std::mem::take(&mut self.pending_fx);
         let tick = self.tick;
         for (sys, conns) in by_sys {
+            let p = shared::prof::span("records");
             let sysm = self.systems.get_mut(&sys).unwrap();
             // Free slots of departed entities first, then seat newcomers (a reused slot reads as gone + new).
             for slot in 0..sysm.slots.ids.len() {
@@ -201,7 +202,11 @@ impl Game {
                     Viewer { conn: *c, view: std::mem::take(&mut s.view), full: std::mem::take(&mut s.needs_full), me, me_slot, pid: s.player, target: me.and_then(|m| sysm.ents.get(&m)).and_then(|e| e.target) }
                 })
                 .collect();
+            drop(p);
+            // Per-viewer snapshots on the rayon pool (one span for the whole parallel batch).
+            let p = shared::prof::span("per-viewer");
             let msgs: Vec<ServerMsg> = viewers.par_iter_mut().map(|v| build_snapshot(v, tick, &recs, &fx_at)).collect();
+            drop(p);
             for (v, m) in viewers.into_iter().zip(msgs) {
                 self.sessions.get_mut(&v.conn).unwrap().view = v.view;
                 self.out.push((v.conn, m));

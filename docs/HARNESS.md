@@ -39,7 +39,7 @@ STARFALL은 이미 서버·클라이언트·역사 엔진·1000명 교전까지 
 | **숫자로 하는 시각 검증** (스크린샷 두 장 대신 '85% 유사' 같은 수치) | `tools/imgdiff.py`가 유사도·변화 영역·밝기/채도 통계를 텍스트로 낸다. 고정 프레임 시간(`STARFALL_FIXED_FPS`)으로 같은 장면을 100% 재현한다. | 🟢 | `tools/imgdiff.py`, `client/src/main.rs` |
 | **레이어 끄기** (UI를 걷어내고 고치려는 레이어만 보기) | `STARFALL_HIDE_UI=1`로 HUD를 걷어내고 3D 장면만 찍는다. | 🟢 | `client/src/ui.rs` |
 | **소리도 텍스트로** | 효과음 원본은 길이·피크·RMS·스펙트럼 중심으로 골랐다. 게임 안에서는 `STARFALL_SFX_LOG=1`이 10초마다 종류별 재생 횟수를 로그로 남긴다. 음악은 LUFS를 맞췄다. | 🟢 | `client/src/audio.rs`, `assets/sfx/CREDITS.md` |
-| **성능은 텍스트로** (샘플리처럼 콘솔로 내는 측정) | `server/examples/bench`, `client --bench`, 서버 `[stats]` 단계별 비용 로그, `bot/examples/swarm`이 모두 텍스트로 출력한다. | ✅ | README 「성능」 |
+| **성능은 텍스트로** (샘플리처럼 콘솔로 내는 측정) | `server/examples/bench`, `client --bench`, 서버 `[stats]` 단계별 비용 로그, `bot/examples/swarm`이 모두 텍스트로 출력한다. `shared::prof`의 구간 프로파일러가 서버 틱과 클라이언트 시스템을 호출 트리 표로 낸다. | ✅ | README 「성능」, `shared/src/prof.rs` |
 | **데이터를 코드 밖에** (컴파일 없이 수치 조정) | 함선 기본 능력치·모듈 성장·함급 배율·업그레이드 비용·호위함·NPC·전투 규칙 수치가 `tuning/*.ron`에 있고 실행 시 읽힌다. 수치 파일을 고친 뒤 시나리오나 밸런스 시트를 다시 돌리면 재컴파일 없이 반영된다. | ✅ | `tuning/`, `shared/src/tuning.rs` |
 | **실행 중인 게임을 텍스트 커맨드로 조종** | 개발 서버(`--dev`)의 `/grow`, `/cash`, 클라이언트 `--script`, 봇 라이브러리가 있다. 기록 파일을 손으로 쓰거나 고쳐서 재생할 수 있다. | ◐ | `client/src/main.rs`의 `automation`, `crates/bot` |
 | **게임 지표 관측성** (DPS·체력 등을 시간축 지표로) | 시뮬레이션이 명중·격침·보상을 내보내고, 함장별 초당 가한/받은 피해·실드/선체·격파 시간을 JSONL로 남긴다. 시나리오 검사(`dps`, `ttk`, `dealt`, `taken`), 밸런스 시트의 「교전 수치」 표, `server --metrics FILE`에서 쓴다. | ✅ | `crates/server/src/metrics.rs` |
@@ -263,6 +263,26 @@ STARFALL_FIXED_FPS=60 client --replay rec/bug42 --from 25 --shot a.png --shot-at
 
 첫 「교전 수치」 표에서 보이는 것: Lv1 함선은 Raider L3 x4에게 초당 93~107 피해를 받는다(Lv5는 48~68). Lv9끼리는 같은 적이라도 가한 DPS가 365(Talon, Raider L1)에서 1558(Bastion, Gunship L2)까지 벌어진다. 적이 너무 빨리 죽어 짧은 교전 시간으로 나뉘는 탓도 있으므로, 비교는 같은 열 안에서 한다.
 
+## 7단계: 텍스트 프로파일러 (`shared::prof`)
+
+**`samply` 대신 내장 구간 프로파일러로 정했다.** `samply`는 이 PC에 설치되어 있지 않았다. Windows에서는 ETW로 기록하므로 관리자 권한이 필요한데, 이 작업 세션은 관리자 권한이 아니었다. 결과도 Firefox Profiler용 JSON이라 텍스트로 읽으려면 변환기가 따로 필요하다. 그래서 의존성 없는 구간(span) 프로파일러를 `shared`에 넣었다. 권한 없이 어디서나 돌고, 결과가 바로 텍스트 표다.
+
+- **쓰는 법**: `let _s = shared::prof::span("weapons");` — 범위가 끝날 때까지의 시간을, 그 스레드에서 열려 있는 구간 아래에 중첩해 기록한다. `prof::take().report(N, "tick")`이 호출 트리(호출 수, 총·자기 시간, 단위당 ms, 비율)와 자기 시간이 큰 구간 목록을 낸다.
+- **비용**: 끄면 구간마다 원자적 읽기 한 번이다. 켜도 1000명 벤치 틱 시간이 측정 오차 안이었다(10.1–10.8 ms, 켜고 끈 두 번씩). 시간 값은 게임 상태로 돌아가지 않으므로 결정론과 무관하다(시나리오 다이제스트·밸런스 시트 동일).
+
+| 어디서 | 명령 | 단위 |
+|---|---|---|
+| 서버 벤치 | `cargo run -p server --release --example bench 1000` (항상 켜짐, `--no-prof`로 끔) | ms/tick |
+| 실서버 | `server --prof` 또는 `STARFALL_PROF=1` — `[stats]`와 함께 10초마다 | ms/tick |
+| 클라이언트 벤치 | `client --bench 15` (항상 켜짐, `STARFALL_PROF=0`으로 끔) — 워밍업 뒤부터 | ms/frame |
+
+서버 틱 트리는 `tick` 아래에 `sessions`, `system`(`ai`, `flight`, `grid`, `weapons`, `missiles`, `damage`, `mining`, `deaths`), `engagements+dailies`, `snapshots`(`records`, `per-viewer`)로 나뉘고, 별도 루트로 `encode`가 있다. 클라이언트는 우리 시스템마다 `모듈::시스템` 구간이 있다.
+
+첫 측정에서 보인 것:
+
+- **서버 1000명**(틱 9.98 ms): 시청자별 스냅샷 구성 37.6%, 전송 인코딩 18.3%, 무장 16.3%, 스냅샷 레코드 10.0%. 네트워크 쪽이 시뮬레이션보다 크다.
+- **클라이언트 약 1000척**(프레임 16.49 ms): 우리 시스템은 합쳐 1.33 ms다. 나머지는 엔진(렌더 추출, GPU 제출)이다. 그 안에서는 `ships::update_ship_fx` 0.36 ms, `ships::face_nozzle_glows` 0.23 ms, `ships::aim_turrets` 0.22 ms 순이다. 클라이언트 성능을 더 끌어올리려면 이 시스템들이 아니라 렌더 쪽(메시 수 31,020)을 봐야 한다.
+
 ## 지켜야 할 불변식
 
 - **시뮬레이션은 결정적이어야 한다.**
@@ -280,5 +300,5 @@ STARFALL_FIXED_FPS=60 client --replay rec/bug42 --from 25 --shot a.png --shot-at
 2. ~~**클라이언트 순수 로직 분리**~~: 완료(4단계). 남은 후보는 HUD의 나머지 패널(위치·지갑, 목표, 미션 추적, 정거장·연대기 창)과 추격 카메라·조종 입력 계산이다.
 3. ~~**재생 시각화**~~: 완료(5단계). 남은 후보는 재생 중 일시정지·되감기와, 시점을 함장이 아닌 자유 카메라로 두는 관전 모드다.
 4. ~~**게임플레이 관측성**~~: 완료(6단계). 남은 후보는 채굴·거래 수익률(시간당 CR)과 PvP 교전 단위 요약, 그리고 지표 JSONL을 그래프로 그리는 도구다.
-5. **텍스트 프로파일러**: `samply`(콘솔 출력)를 서버·클라이언트 벤치에 연결한다.
+5. ~~**텍스트 프로파일러**~~: 완료(7단계, `samply` 대신 내장 구간 프로파일러). 함수 단위 샘플링이 필요하면 관리자 권한에서 `samply record --save-only`로 기록하고 변환기를 붙이는 것이 남은 후보다.
 6. **시뮬레이션 크레이트 이름 정리**: `server` 라이브러리의 `game` 모듈을 `sim` 크레이트로 떼어 낸다. 구조상 분리는 이미 되어 있다.

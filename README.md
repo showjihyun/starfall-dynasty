@@ -130,6 +130,8 @@ client --dump-sfx DIR                                                    합성 
 
 서버는 접속자가 있으면 10초마다 `[stats]` 줄로 단계별 틱 비용과 접속자당 송신량을 출력한다.
 
+텍스트 프로파일러(`shared::prof`): 서버 벤치와 `client --bench`는 끝에 호출 트리 표(호출 수, 총·자기 시간, ms/tick 또는 ms/frame, 비율)와 가장 비싼 구간 목록을 출력한다. 실서버는 `server --prof`(또는 `STARFALL_PROF=1`)로 `[stats]`와 함께 낸다.
+
 ### 1000명 동시 교전
 
 한 성계에 1000명이 모여 싸우는 상황을 실제 WebSocket 1000개로 검증했다(`swarm`, 서버와 같은 PC 12코어).
