@@ -65,6 +65,8 @@ pub struct Ent {
     pub hull: f32,
     pub shield: f32,
     pub last_hit: f64,
+    /// When the current fight began for this ship (first hit after 30 s unhit), for time-to-kill.
+    pub fight_start: f64,
     pub fire_cd: f32,
     pub missile_cd: f32,
     pub controls: Controls,
@@ -107,6 +109,7 @@ impl Ent {
             hull: stats.max_hull,
             shield: stats.max_shield,
             last_hit: -100.0,
+            fight_start: -100.0,
             fire_cd: 0.0,
             missile_cd: 0.0,
             controls: Controls::default(),
@@ -257,6 +260,9 @@ pub struct Game {
     pub dev_mode: bool,
     /// Gameplay numbers in force when the game was built (`tuning/*.ron`).
     pub tuning: std::sync::Arc<shared::tuning::Tuning>,
+    /// Hits, kills and rewards for observability (`crate::metrics`); `None` = not collected.
+    /// Never read by the simulation, so it cannot change the outcome.
+    pub metrics: Option<Vec<crate::metrics::Metric>>,
 }
 
 impl Game {
@@ -282,6 +288,7 @@ impl Game {
             issued_tokens: Vec::new(),
             dev_mode: false,
             tuning: shared::tuning::get(),
+            metrics: None,
         };
         for def in galaxy::SYSTEMS {
             g.systems.insert(def.id, Sys { id: def.id, layout: galaxy::system_layout(def.id), ents: BTreeMap::new(), pirate_cd: 1.0, engagement: None, wrecks: HashMap::new(), sent_infos: HashMap::new(), grid: Default::default(), slots: Default::default() });

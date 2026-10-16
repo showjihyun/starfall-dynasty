@@ -73,6 +73,7 @@ tuning          밸런스 수치(ships/npcs/combat.ron) — 실행 시 읽음, �
 게임 자체를 에이전트가 재현·조종·수치 검증할 수 있게 설계하는 원칙(「게임 개발용 AI 하네스를 설계하는 법」)을 근거로 도입했다. 원칙별 현황, 이번에 적용한 핵심, 로드맵은 [docs/HARNESS.md](docs/HARNESS.md)에 있다.
 
 - **기록·재생**: `server --record DIR`로 기록하고 `cargo run -p server --release --example replay -- DIR --twice`로 재생한다. 재생 결과를 기록된 상태 다이제스트와 대조하고, 결정론까지 검사한다.
+- **게임플레이 지표**: 시나리오는 함장별 DPS·받은 피해·격파 시간을 요약하고(`--metrics DIR`이면 JSONL), `server --metrics FILE.jsonl`은 실서버 교전을 초 단위로 남긴다. 밸런스 시트에는 「교전 수치」 표가 있다.
 - **3D 재생**: `client --replay DIR [--as 함장] [--from 초] [--speed 배속]`으로 같은 기록을 그 함장 시점으로 본다. 다이제스트 판정을 출력하고, `STARFALL_FIXED_FPS`와 `--shot`으로 같은 장면을 매번 같은 이미지로 찍는다.
 - **수치는 코드 밖에**: `tuning/*.ron`을 고치고 `cargo run -p server --release --example balance -- --write docs/BALANCE.md`로 diff를 본다(재컴파일 없음, `STARFALL_TUNING=DIR`로 다른 수치 비교).
 - **숫자로 하는 화면 검증**: `STARFALL_FIXED_FPS=60`(같은 명령이면 같은 이미지), `STARFALL_HIDE_UI=1`(HUD 제거), `python tools/imgdiff.py A.png B.png`(유사도·변화 영역·밝기/채도).

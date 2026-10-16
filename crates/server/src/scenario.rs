@@ -9,6 +9,7 @@
 //! `cargo run -p server --release --example scenario -- crates/server/scenarios [--trace 5]`
 
 use crate::game::{ConnId, Game};
+use crate::metrics::{MetricsLog, Totals};
 use crate::store::Store;
 use serde::{Deserialize, Serialize};
 use shared::galaxy::{Species, SystemId};
@@ -154,6 +155,14 @@ pub enum Check {
     History { kind: String, #[serde(default)] min: Option<u32>, #[serde(default)] max: Option<u32> },
     /// An engagement is (not) running in the system.
     Engagement { system: SystemId, #[serde(default = "yes")] active: bool },
+    /// Damage points (shield + hull) the captain's side (flagship and escorts) has dealt so far.
+    Dealt { captain: String, #[serde(default)] min: Option<f32>, #[serde(default)] max: Option<f32> },
+    /// Damage points the captain's ships have taken so far.
+    Taken { captain: String, #[serde(default)] min: Option<f32>, #[serde(default)] max: Option<f32> },
+    /// Average damage per second dealt, from the captain's first hit to the last.
+    Dps { captain: String, #[serde(default)] min: Option<f32>, #[serde(default)] max: Option<f32> },
+    /// Mean time-to-kill (s) of the captain's kills: first hit on the victim in the fight to its death.
+    Ttk { captain: String, #[serde(default)] min: Option<f32>, #[serde(default)] max: Option<f32> },
 }
 
 /// Outcome of one scenario.
@@ -172,6 +181,10 @@ pub struct Report {
     pub final_hull: Vec<(String, f32)>,
     /// Hull points each captain's flagship lost by the end (its whole hull when destroyed).
     pub final_hull_lost: Vec<(String, f32)>,
+    /// Gameplay metrics as JSONL lines (`crate::metrics`): a sample per captain per second, kills, rewards.
+    pub metrics: Vec<String>,
+    /// Each captain's damage, kill and reward totals at the end.
+    pub totals: Vec<(String, Totals)>,
 }
 
 impl Report {
@@ -183,6 +196,7 @@ impl Report {
 struct Run {
     g: Game,
     conns: Vec<(String, ConnId)>,
+    log: MetricsLog,
 }
 
 impl Run {
@@ -191,6 +205,9 @@ impl Run {
     }
     fn pid(&self, name: &str) -> Option<PlayerId> {
         self.g.store.find_by_name(name)
+    }
+    fn totals(&self, name: &str) -> Totals {
+        self.pid(name).and_then(|p| self.log.totals.get(&p)).cloned().unwrap_or_default()
     }
     fn flagship(&self, name: &str) -> Option<&crate::game::Ent> {
         let (sys, eid) = self.g.player_entity(self.pid(name)?)?;
@@ -271,6 +288,25 @@ fn evaluate(run: &Run, c: &Check) -> (bool, String) {
             let is = g.systems.get(system).is_some_and(|s| s.engagement.is_some());
             (is == *active, format!("system {system} engagement={is} (want {active})"))
         }
+        Check::Dealt { captain, min, max } => {
+            let (ok, s) = range((run.totals(captain).dealt * 10.0).round() / 10.0, *min, *max);
+            (ok, format!("{captain} damage dealt {s}"))
+        }
+        Check::Taken { captain, min, max } => {
+            let (ok, s) = range((run.totals(captain).taken * 10.0).round() / 10.0, *min, *max);
+            (ok, format!("{captain} damage taken {s}"))
+        }
+        Check::Dps { captain, min, max } => {
+            let (ok, s) = range((run.totals(captain).dps() * 10.0).round() / 10.0, *min, *max);
+            (ok, format!("{captain} dps {s}"))
+        }
+        Check::Ttk { captain, min, max } => match run.totals(captain).mean_ttk() {
+            Some(v) => {
+                let (ok, s) = range((v * 100.0).round() / 100.0, *min, *max);
+                (ok, format!("{captain} mean time-to-kill {s} s"))
+            }
+            None => (false, format!("{captain} mean time-to-kill: no kills")),
+        },
     }
 }
 
@@ -290,10 +326,15 @@ fn trace_line(run: &Run, t: f32) -> String {
 
 /// Plays a scenario. `trace_every` (seconds) adds a captain status line at that interval.
 pub fn run(sc: &Scenario, trace_every: Option<f32>) -> Report {
+    run_opts(sc, trace_every, true)
+}
+
+/// `run` with gameplay metrics optional (they never change the outcome; `tests/metrics.rs` checks that).
+pub fn run_opts(sc: &Scenario, trace_every: Option<f32>, metrics: bool) -> Report {
     let mut g = Game::new(Store::memory(), history::HistoryEngine::new(), sc.unix);
     g.dev_mode = sc.dev;
     let mut rep = Report { name: sc.name.clone(), ..Default::default() };
-    let mut run = Run { g, conns: vec![] };
+    let mut run = Run { g, conns: vec![], log: MetricsLog::new(1.0, true) };
 
     for (i, c) in sc.captains.iter().enumerate() {
         let conn = 100 + i as ConnId;
@@ -335,6 +376,9 @@ pub fn run(sc: &Scenario, trace_every: Option<f32>) -> Report {
         }
     }
     run.g.out.clear();
+    if metrics {
+        MetricsLog::attach(&mut run.g);
+    }
 
     let dt = 1.0 / TICK_HZ;
     let total = (sc.run_secs * TICK_HZ).round() as u64;
@@ -408,10 +452,13 @@ pub fn run(sc: &Scenario, trace_every: Option<f32>) -> Report {
             run.g.tick(dt, sc.unix + tick / TICK_HZ as u64);
             run.g.out.clear();
             run.g.kicked.clear();
+            let lines = run.log.observe(&mut run.g);
+            rep.metrics.extend(lines);
         }
     }
     rep.digest = crate::harness::digest(&run.g);
     rep.final_hull = run.conns.iter().map(|(n, _)| (n.clone(), run.flagship(n).map(|e| e.hull / e.stats.max_hull.max(1.0)).unwrap_or(0.0))).collect();
+    rep.totals = run.conns.iter().map(|(n, _)| (n.clone(), run.totals(n))).collect();
     rep.final_hull_lost = run.conns.iter().map(|(n, _)| (n.clone(), run.flagship(n).map(|e| e.stats.max_hull - e.hull).unwrap_or(f32::INFINITY))).collect();
     if let Some(want) = &sc.digest {
         let ok = *want == rep.digest;

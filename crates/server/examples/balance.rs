@@ -5,6 +5,8 @@
 //!
 //! Cell: `W 12s 84%` = won after 12 s with 84% hull left · `L 31s` = flagship lost after 31 s ·
 //! `- 70%` = nobody won within the time limit (hull left).
+//! A second table gives the fight in numbers (`crate::metrics`): damage per second dealt and taken
+//! over the fight, and the mean time-to-kill of the captain's kills.
 
 use server::scenario::{Captain, NpcGroup, Scenario, Step, run};
 use shared::galaxy::Species;
@@ -24,7 +26,8 @@ fn encounters() -> Vec<(&'static str, NpcArchetype, u8, u32)> {
     ]
 }
 
-fn cell(hull: HullClass, level: u8, arch: NpcArchetype, npc_level: u8, count: u32) -> String {
+/// (outcome cell, fight-numbers cell)
+fn cell(hull: HullClass, level: u8, arch: NpcArchetype, npc_level: u8, count: u32) -> (String, String) {
     let sc = Scenario {
         name: format!("{hull:?} L{level} vs {arch:?}"),
         description: String::new(),
@@ -41,11 +44,16 @@ fn cell(hull: HullClass, level: u8, arch: NpcArchetype, npc_level: u8, count: u3
     let r = run(&sc, None);
     let hull_left = r.final_hull.first().map(|h| h.1).unwrap_or(0.0);
     let lost = r.final_hull_lost.first().map(|h| h.1).unwrap_or(0.0);
-    match (r.down_at.first(), r.npcs_cleared_at) {
-        (Some((_, t)), cleared) if cleared.is_none_or(|c| c > *t) => format!("L {t:.0}s"),
-        (_, Some(t)) => format!("W {t:.0}s {:.1}% −{lost:.0}", hull_left * 100.0),
-        _ => format!("- {:.1}% −{lost:.0}", hull_left * 100.0),
-    }
+    let (outcome, end) = match (r.down_at.first(), r.npcs_cleared_at) {
+        (Some((_, t)), cleared) if cleared.is_none_or(|c| c > *t) => (format!("L {t:.0}s"), *t),
+        (_, Some(t)) => (format!("W {t:.0}s {:.1}% −{lost:.0}", hull_left * 100.0), t),
+        _ => (format!("- {:.1}% −{lost:.0}", hull_left * 100.0), LIMIT),
+    };
+    // Rates over the whole fight (start to its end), so they compare across cells.
+    let tot = r.totals.first().map(|t| t.1.clone()).unwrap_or_default();
+    let secs = end.max(1.0 / shared::protocol::TICK_HZ);
+    let ttk = tot.mean_ttk().map(|v| format!(" · {v:.1}s")).unwrap_or_default();
+    (outcome, format!("{:.0}/{:.0}{ttk}", tot.dealt / secs, tot.taken / secs))
 }
 
 fn main() {
@@ -66,17 +74,34 @@ fn main() {
         out += "---|";
     }
     out += "\n";
+    let mut numbers = String::new();
     let t0 = std::time::Instant::now();
     eprintln!("tuning {}", shared::tuning::Tuning::locate().map(|d| d.display().to_string()).unwrap_or_default());
     for hull in HullClass::ALL {
         for level in [1u8, 5, 9] {
             out += &format!("| {hull:?} | {level} |");
+            numbers += &format!("| {hull:?} | {level} |");
             for (_, arch, nl, n) in &enc {
-                out += &format!(" {} |", cell(hull, level, *arch, *nl, *n));
+                let (o, m) = cell(hull, level, *arch, *nl, *n);
+                out += &format!(" {o} |");
+                numbers += &format!(" {m} |");
             }
             out += "\n";
+            numbers += "\n";
         }
     }
+    out += "\n## 교전 수치\n\n";
+    out += "같은 교전을 수치로 본 표다(`server::metrics`). `85/18 · 7.5s` = 교전 내내 초당 85 피해를 주고 18 피해를 받았으며, 함장이 격파한 적은 첫 피격부터 격침까지 평균 7.5초 걸렸다. 피해는 실드와 선체를 합친 값이고, 교전 시간은 승패가 난 시점(없으면 제한 시간)까지다.\n\n";
+    out += "| 함선 | Lv |";
+    for (name, ..) in &enc {
+        out += &format!(" {name} |");
+    }
+    out += "\n|---|---|";
+    for _ in &enc {
+        out += "---|";
+    }
+    out += "\n";
+    out += &numbers;
     print!("{out}");
     eprintln!("{} duels simulated in {:.2} s", HullClass::ALL.len() * 3 * enc.len(), t0.elapsed().as_secs_f64());
     if let Some(path) = write {

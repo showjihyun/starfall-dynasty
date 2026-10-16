@@ -21,7 +21,8 @@ New rules or balance changes start as a scenario spec: write the expected behavi
 `crates/server/scenarios/` (format in docs/HARNESS.md), run it with
 `cargo run -p server --release --example scenario -- FILE --trace 5` until it passes, then refresh
 `cargo run -p server --release --example balance -- --write docs/BALANCE.md` and read the diff.
-`cargo test -p server --test scenarios` runs every spec and checks determinism.
+`cargo test -p server --test scenarios` runs every spec and checks determinism. Specs can check fight numbers
+(`dps`, `ttk`, `dealt`, `taken`); `--metrics DIR` writes per-second JSONL (`server::metrics`; live: `server --metrics FILE`).
 Balance numbers (hulls, module growth, size classes, upgrade costs, NPCs, escorts, combat rules) live in
 `tuning/*.ron`, read at run time — edit them, rerun balance/scenarios, no recompile (`STARFALL_TUNING=DIR` for an alternative set).
 Never add a new gameplay number as a code constant; put it in `tuning/` (`shared::tuning`).

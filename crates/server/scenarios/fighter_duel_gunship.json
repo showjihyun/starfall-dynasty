@@ -13,6 +13,9 @@
   "run_secs": 45,
   "expect": [
     { "check": "count", "system": 7, "kind": "npc", "max": 0 },
-    { "check": "alive", "captain": "Wing" }
+    { "check": "alive", "captain": "Wing" },
+    { "check": "dps", "captain": "Wing", "min": 60 },
+    { "check": "ttk", "captain": "Wing", "max": 12 },
+    { "check": "taken", "captain": "Wing", "max": 300 }
   ]
 }

@@ -1,6 +1,6 @@
 //! STARFALL DYNASTY authoritative server.
 //!
-//! `server [--port 7777] [--data ./data]`
+//! `server [--port 7777] [--data ./data] [--dev] [--record DIR] [--metrics FILE.jsonl]`
 //!
 //! WebSocket transport, JSON frames. One game loop task owns all state at 20 Hz;
 //! connection tasks only shuttle frames.
@@ -56,6 +56,19 @@ async fn main() -> std::io::Result<()> {
     if game.dev_mode {
         println!("[starfall] DEV MODE: /grow and /cash chat commands enabled");
     }
+    // `--metrics FILE`: gameplay time series (server::metrics) — a line per captain per second in combat, kills, rewards.
+    let mut metrics = match arg("--metrics") {
+        Some(path) => {
+            use std::io::Write as _;
+            let file = std::fs::OpenOptions::new().create(true).append(true).open(&path)?;
+            server::metrics::MetricsLog::attach(&mut game);
+            println!("[starfall] gameplay metrics to {path}");
+            let mut w = std::io::BufWriter::new(file);
+            writeln!(w, "{}", serde_json::json!({ "ev": "start", "unix": start_unix }))?;
+            Some((server::metrics::MetricsLog::new(1.0, false), w))
+        }
+        None => None,
+    };
 
     let listener = TcpListener::bind(("0.0.0.0", port)).await?;
     println!("[starfall] listening on ws://0.0.0.0:{port}");
@@ -121,6 +134,15 @@ async fn main() -> std::io::Result<()> {
                 }
                 if recorder.is_none() {
                     game.issued_tokens.clear();
+                }
+                if let Some((log, w)) = metrics.as_mut() {
+                    use std::io::Write as _;
+                    for line in log.observe(&mut game) {
+                        let _ = writeln!(w, "{line}");
+                    }
+                    if game.tick % TICK_HZ as u64 == 0 {
+                        let _ = w.flush();
+                    }
                 }
                 // Per-viewer snapshots are binary; encode the batch in parallel.
                 let frames: Vec<(ConnId, Message)> = game.out.par_drain(..).map(|(c, m)| (c, wire(&m))).collect();

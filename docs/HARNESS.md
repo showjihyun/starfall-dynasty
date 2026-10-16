@@ -42,7 +42,7 @@ STARFALL은 이미 서버·클라이언트·역사 엔진·1000명 교전까지 
 | **성능은 텍스트로** (샘플리처럼 콘솔로 내는 측정) | `server/examples/bench`, `client --bench`, 서버 `[stats]` 단계별 비용 로그, `bot/examples/swarm`이 모두 텍스트로 출력한다. | ✅ | README 「성능」 |
 | **데이터를 코드 밖에** (컴파일 없이 수치 조정) | 함선 기본 능력치·모듈 성장·함급 배율·업그레이드 비용·호위함·NPC·전투 규칙 수치가 `tuning/*.ron`에 있고 실행 시 읽힌다. 수치 파일을 고친 뒤 시나리오나 밸런스 시트를 다시 돌리면 재컴파일 없이 반영된다. | ✅ | `tuning/`, `shared/src/tuning.rs` |
 | **실행 중인 게임을 텍스트 커맨드로 조종** | 개발 서버(`--dev`)의 `/grow`, `/cash`, 클라이언트 `--script`, 봇 라이브러리가 있다. 기록 파일을 손으로 쓰거나 고쳐서 재생할 수 있다. | ◐ | `client/src/main.rs`의 `automation`, `crates/bot` |
-| **게임 지표 관측성** (DPS·체력 등을 시간축 지표로) | 단계별 틱 비용과 대역폭만 있고, 게임플레이 지표는 아직 없다. | ☐ | 로드맵 3 |
+| **게임 지표 관측성** (DPS·체력 등을 시간축 지표로) | 시뮬레이션이 명중·격침·보상을 내보내고, 함장별 초당 가한/받은 피해·실드/선체·격파 시간을 JSONL로 남긴다. 시나리오 검사(`dps`, `ttk`, `dealt`, `taken`), 밸런스 시트의 「교전 수치」 표, `server --metrics FILE`에서 쓴다. | ✅ | `crates/server/src/metrics.rs` |
 
 ## 이번에 적용한 핵심 (1단계)
 
@@ -154,7 +154,7 @@ python tools/imgdiff.py --stats after.png --crop 380,90,220,200    # 영역의 �
 - **script**: `at`초에 `captain`이 `msg`(임의의 `ClientMsg` JSON)를 보낸다.
   - `repeat_every`와 `until`로 반복 입력을 보낸다.
   - `target_nearest`(`npc`/`player`)로 가장 가까운 대상을 지정하고, `aim`으로 그 대상을 향해 조종한다.
-- **expect**: `at`초에 검사한다(생략하면 끝에서). 검사 종류: `alive`, `hull`, `credits`, `kills`, `deaths`, `count`(`npc`/`player`/`escort`/`wreck`), `in_system`, `history`(연대기 종류, 대소문자 무시), `engagement`.
+- **expect**: `at`초에 검사한다(생략하면 끝에서). 검사 종류: `alive`, `hull`, `credits`, `kills`, `deaths`, `count`(`npc`/`player`/`escort`/`wreck`), `in_system`, `history`(연대기 종류, 대소문자 무시), `engagement`, `dealt`·`taken`(가한·받은 피해), `dps`, `ttk`(평균 격파 시간).
 - **digest**(선택): 최종 상태 지문을 고정한다. 결과가 조금이라도 바뀌면 실패하므로, 회귀를 엄격히 잡을 때만 쓴다(`--print-digest`로 값을 얻는다).
 
 실패하면 측정값이 함께 나오므로(`FAIL t=45.0s system 7 npc count 1 (want <= 0)`), 무엇을 고쳐야 할지 텍스트만으로 판단할 수 있다.
@@ -241,6 +241,28 @@ STARFALL_FIXED_FPS=60 client --replay rec/bug42 --from 25 --shot a.png --shot-at
 - **기반**: `harness::Replayer`가 기록을 한 틱씩 진행한다(`Session::replay`도 이것을 쓴다). 각 틱이 보낸 메시지를 다음 틱까지 `game.out`에 남겨 두어, 보는 쪽이 한 연결의 메시지만 골라 갈 수 있다. `tests/harness.rs`는 단계 재생이 실시간 상태와 같게 끝나고, 함장 연결에 환영 메시지 1개와 스냅샷이 전달되는지 검사한다.
 - **주의**: 서버를 강제 종료(`taskkill /F`)하면 기록 파일의 마지막 다이제스트 이후 부분은 디스크에 남지 않는다. Ctrl+C로 끄면 끝까지 남는다.
 
+## 6단계: 게임플레이 관측성 (`server::metrics`)
+
+전투가 어떻게 흘러갔는지를 시간축 수치로 남긴다. 화면을 보지 않고도 "이 함선은 이 적을 초당 얼마로 때리고, 얼마나 맞고, 몇 초 만에 격침하는가"를 텍스트로 비교한다.
+
+- **수집**: `Game::metrics`가 `Some`이면 시뮬레이션이 명중마다(실드 흡수량·선체 피해, 쏜 쪽·맞은 쪽 함장), 격침마다(격파한 함장, 격파 시간), 현상금 지급마다 이벤트를 쌓는다. 시뮬레이션은 이 값을 읽지 않으므로 결과가 바뀌지 않는다(`tests/metrics.rs`가 수집 여부와 상관없이 다이제스트가 같은지 검사한다). 끄면 비용은 명중마다 `Option` 검사 하나다.
+- **격파 시간(ttk)**: 그 함선이 30초 넘게 맞지 않다가 처음 맞은 때부터 격침까지의 시간이다.
+- **집계**(`MetricsLog`): 함장별 누계와 JSONL 줄로 바꾼다. 함장의 쪽은 기함과 호위함을 합친다.
+
+```text
+{"t":2.0,"ev":"sample","player":"Wing","dealt":82.08,"taken":17.55,"dps_out":82.08,"dps_in":17.55,"hull":1.0,"shield":0.93,"kills":0,"credits":1500}
+{"t":8.05,"ev":"kill","sys":7,"victim":"Gunship Lv1","killer":"Wing","ttk":7.5}
+{"t":8.05,"ev":"reward","player":"Wing","credits":935}
+```
+
+| 어디서 | 어떻게 |
+|---|---|
+| 시나리오 | 항상 켜져 있다. 실행 결과에 함장별 요약 줄(`metrics Wing: dealt 636 (31 hits, 84.3 dps) · taken 193 · kills 1 · mean ttk 7.5 s · bounty 935 CR`)이 나오고, `--metrics DIR`이면 `DIR/<이름>.jsonl`을 쓴다. 검사 종류 `dealt`, `taken`, `dps`(첫 명중부터 마지막 명중까지의 평균), `ttk`(격파한 적의 평균 격파 시간)가 추가됐다. `fighter_duel_gunship`이 이 검사를 쓴다. |
+| 밸런스 시트 | `docs/BALANCE.md`에 「교전 수치」 표가 추가됐다. 칸은 `가한 DPS/받은 DPS · 평균 격파 시간`이다. 수치를 고치면 승패 표와 함께 이 곡선이 diff로 바뀐다. |
+| 실서버 | `server --metrics FILE.jsonl`. 교전 중인 함장만 초마다 한 줄을 남긴다(1000명 서버에서도 조용한 함장은 쓰지 않는다). 격침·보상 줄은 그대로 남는다. 20명 군집 전투(`bot` swarm)로 확인했다. |
+
+첫 「교전 수치」 표에서 보이는 것: Lv1 함선은 Raider L3 x4에게 초당 93~107 피해를 받는다(Lv5는 48~68). Lv9끼리는 같은 적이라도 가한 DPS가 365(Talon, Raider L1)에서 1558(Bastion, Gunship L2)까지 벌어진다. 적이 너무 빨리 죽어 짧은 교전 시간으로 나뉘는 탓도 있으므로, 비교는 같은 열 안에서 한다.
+
 ## 지켜야 할 불변식
 
 - **시뮬레이션은 결정적이어야 한다.**
@@ -257,6 +279,6 @@ STARFALL_FIXED_FPS=60 client --replay rec/bug42 --from 25 --shot a.png --shot-at
 1. ~~**데이터를 코드 밖으로**~~: 완료(3단계). 서버 저장 데이터가 이미 `data/`를 쓰므로 위치는 `tuning/`으로 정했다. 남은 후보는 워프 충전 시간·전투 잠금·부활 비용·일일 미션 보상 같은 규칙 상수와 시나리오 캠페인 정의다.
 2. ~~**클라이언트 순수 로직 분리**~~: 완료(4단계). 남은 후보는 HUD의 나머지 패널(위치·지갑, 목표, 미션 추적, 정거장·연대기 창)과 추격 카메라·조종 입력 계산이다.
 3. ~~**재생 시각화**~~: 완료(5단계). 남은 후보는 재생 중 일시정지·되감기와, 시점을 함장이 아닌 자유 카메라로 두는 관전 모드다.
-4. **게임플레이 관측성**: 시나리오와 실서버에서 DPS·받은 피해·격침 시간·보상을 시간축 JSONL로 내보내 밸런스 곡선을 수치로 점검한다.
+4. ~~**게임플레이 관측성**~~: 완료(6단계). 남은 후보는 채굴·거래 수익률(시간당 CR)과 PvP 교전 단위 요약, 그리고 지표 JSONL을 그래프로 그리는 도구다.
 5. **텍스트 프로파일러**: `samply`(콘솔 출력)를 서버·클라이언트 벤치에 연결한다.
 6. **시뮬레이션 크레이트 이름 정리**: `server` 라이브러리의 `game` 모듈을 `sim` 크레이트로 떼어 낸다. 구조상 분리는 이미 되어 있다.

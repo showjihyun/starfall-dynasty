@@ -432,12 +432,20 @@ impl Game {
             dir = (a_pos - t.pos).normalize_or_zero();
             // No ship is invulnerable: part of every hit bleeds through shields, and every hit costs some hull.
             let absorbed = (dmg * (1.0 - combat.shield_bleed)).min(t.shield);
+            let hull_dmg = if dmg > 0.0 { (dmg - absorbed).max(combat.min_hull_damage) } else { 0.0 };
             t.shield -= absorbed;
-            t.hull -= if dmg > 0.0 { (dmg - absorbed).max(combat.min_hull_damage) } else { 0.0 };
+            t.hull -= hull_dmg;
+            if now - t.last_hit > 30.0 {
+                t.fight_start = now;
+            }
             t.last_hit = now;
             // One entry per attacker (latest hit last), so a ship under fire from hundreds stays cheap.
             t.attackers.retain(|(a, _, time)| *a != from && now - time < 30.0);
             t.attackers.push((from, attacker_pid, now));
+            let to_side = t.side();
+            if let Some(m) = self.metrics.as_mut() {
+                m.push(crate::metrics::Metric::Hit { t: now, sys, from, from_side: attacker_pid, to, to_side, shield: absorbed, hull: hull_dmg });
+            }
             if absorbed > 0.0 {
                 self.pending_fx.entry(sys).or_default().push(Fx::ShieldHit { entity: to, dir: dir.to_array() });
             }
@@ -527,6 +535,9 @@ impl Game {
         let killer = e.attackers.iter().rev().find(|(_, p, t)| p.is_some() && now - t < 30.0).map(|(a, p, _)| (*a, p.unwrap()));
         let killer_ent_name = e.attackers.last().and_then(|(a, _, _)| self.ent(sys, *a)).map(|k| k.name.clone());
         let tier = galaxy::system(sys).tier;
+        if let Some(m) = self.metrics.as_mut() {
+            m.push(crate::metrics::Metric::Kill { t: now, sys, victim: id, victim_name: e.name.clone(), victim_side: e.side(), killer: killer.map(|k| k.1), ttk: (now - e.fight_start) as f32 });
+        }
         match e.kind {
             EntityKind::Npc(arch) => {
                 let level = e.ai.as_ref().map(|a| a.level).unwrap_or(0);
@@ -548,6 +559,9 @@ impl Game {
                             if i == 0 {
                                 pm.kills += 1;
                             }
+                        }
+                        if let Some(m) = self.metrics.as_mut() {
+                            m.push(crate::metrics::Metric::Reward { t: now, player: *pid, credits: r.credits });
                         }
                         self.toast(*pid, format!("{} 격파: {}", e.name, r.describe()));
                         self.progress(*pid, Progress::KilledPirate);
