@@ -4,7 +4,7 @@
 //!   gameplay numbers (`tuning/*.ron`) to `DIR/tuning/`, then
 //!   every command the simulation receives is appended to `DIR/session.jsonl`, tick by tick, together
 //!   with the clock it saw, the account tokens it issued and a state digest every few seconds.
-//! - **Replay** (`cargo run -p server --release --example replay -- DIR`): rebuilds the simulation
+//! - **Replay** (`cargo run -p sim --release --example replay -- DIR`): rebuilds the simulation
 //!   from `initial/` with the recorded tuning, feeds the same commands at the same ticks without any network or engine, and
 //!   checks each recorded digest. A bug report becomes a folder that reproduces itself.
 //! - **Digest**: a fingerprint of the whole simulation state (entities bit-exact, the store, the

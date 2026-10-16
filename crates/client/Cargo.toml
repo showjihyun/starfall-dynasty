@@ -8,8 +8,8 @@ bevy = { version = "0.20", features = ["wav"] }
 bevy_egui = "0.43"
 shared = { path = "../shared" }
 view = { path = "../view" }
-# Replays run the recorded simulation in-process (`--replay`).
-server = { path = "../server" }
+# Replays run the recorded simulation in-process (`--replay`); the library only, no network stack.
+sim = { path = "../sim" }
 serde_json = { workspace = true }
 tokio = { workspace = true }
 tokio-tungstenite = { workspace = true }

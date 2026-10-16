@@ -30,19 +30,19 @@ STARFALL은 이미 서버·클라이언트·역사 엔진·1000명 교전까지 
 
 | 글의 원칙 | STARFALL에서 | 상태 | 근거 위치 |
 |---|---|---|---|
-| **시뮬레이션을 엔진에서 분리** (블랙박스 아키텍처, 엔진은 '멍청하게' 받은 상태만 그린다) | 권위 서버의 `Game`이 동기식 순수 라이브러리다. Bevy 클라이언트는 스냅샷을 그리기만 한다. 엔진 없이 테스트한다. 클라이언트 쪽 계산(보간·지도 투영·게이지·먼지장·HUD 그리기)도 엔진 없는 `view` 크레이트에 있다. | ✅ | `crates/server/src/game/`, `crates/server/tests/`, `crates/view/` |
+| **시뮬레이션을 엔진에서 분리** (블랙박스 아키텍처, 엔진은 '멍청하게' 받은 상태만 그린다) | 권위 시뮬레이션 `Game`이 네트워크·비동기 런타임이 없는 별도 크레이트 `sim`의 동기식 순수 라이브러리다. Bevy 클라이언트는 스냅샷을 그리기만 한다. 엔진 없이 테스트한다. 클라이언트 쪽 계산(보간·지도 투영·게이지·먼지장·HUD 그리기)도 엔진 없는 `view` 크레이트에 있다. | ✅ | `crates/sim/src/game/`, `crates/sim/tests/`, `crates/view/` |
 | **커맨드 패턴** (상태 변경을 직렬화 가능한 객체로) | 모든 입력이 `ClientMsg`(serde)이고, `Game::handle(conn, msg)` 하나로 들어간다. | ✅ | `crates/shared/src/protocol.rs` |
-| **커맨드 기록·재생** (버그 재현 = 시작 상태 + 커맨드 재생) | `server --record DIR`로 기록하고 `examples/replay`로 재생한다. 기록된 상태 다이제스트와 비트 단위로 대조한다. `client --replay DIR`은 같은 기록을 3D로 보여 준다. | 🟢 | `crates/server/src/harness.rs`, `crates/client/src/replay.rs` |
+| **커맨드 기록·재생** (버그 재현 = 시작 상태 + 커맨드 재생) | `server --record DIR`로 기록하고 `examples/replay`로 재생한다. 기록된 상태 다이제스트와 비트 단위로 대조한다. `client --replay DIR`은 같은 기록을 3D로 보여 준다. | 🟢 | `crates/sim/src/harness.rs`, `crates/client/src/replay.rs` |
 | **결정론** (시드 하나, 같은 입력 → 같은 상태) | 성계·해적·미션은 시드 RNG를 쓴다(이미 충족). 이번에 시뮬레이션의 `HashMap` 순회(접속·함대·교전 명단)를 순서 있는 맵으로 바꿨다. 계정 토큰은 재생 시 기록값을 주입한다. 테스트로 보장한다. | 🟢 | `game/mod.rs`, `tests/harness.rs` |
 | **저장/불러오기를 첫날부터** | 상태를 JSON 스냅샷과 역사 JSONL로 영속화한다. 기록 시작 시점의 데이터 파일을 `initial/`에 복사해 재생의 시작 상태로 쓴다. | ✅ / 🟢 | `store.rs`, `harness::Recorder::start` |
 | **모든 객체를 Thing 하나로** (팻 스트럭트 + 종류 enum) | 함선·NPC·호위함·미사일·잔해가 모두 `Ent` 하나이고 `kind: EntityKind`로 구분한다. 직렬화 경로도 하나(`EntityState` / `pack`)다. | ✅ | `game/mod.rs`의 `Ent` |
 | **숫자로 하는 시각 검증** (스크린샷 두 장 대신 '85% 유사' 같은 수치) | `tools/imgdiff.py`가 유사도·변화 영역·밝기/채도 통계를 텍스트로 낸다. 고정 프레임 시간(`STARFALL_FIXED_FPS`)으로 같은 장면을 100% 재현한다. | 🟢 | `tools/imgdiff.py`, `client/src/main.rs` |
 | **레이어 끄기** (UI를 걷어내고 고치려는 레이어만 보기) | `STARFALL_HIDE_UI=1`로 HUD를 걷어내고 3D 장면만 찍는다. | 🟢 | `client/src/ui.rs` |
 | **소리도 텍스트로** | 효과음 원본은 길이·피크·RMS·스펙트럼 중심으로 골랐다. 게임 안에서는 `STARFALL_SFX_LOG=1`이 10초마다 종류별 재생 횟수를 로그로 남긴다. 음악은 LUFS를 맞췄다. | 🟢 | `client/src/audio.rs`, `assets/sfx/CREDITS.md` |
-| **성능은 텍스트로** (샘플리처럼 콘솔로 내는 측정) | `server/examples/bench`, `client --bench`, 서버 `[stats]` 단계별 비용 로그, `bot/examples/swarm`이 모두 텍스트로 출력한다. `shared::prof`의 구간 프로파일러가 서버 틱과 클라이언트 시스템을 호출 트리 표로 낸다. | ✅ | README 「성능」, `shared/src/prof.rs` |
+| **성능은 텍스트로** (샘플리처럼 콘솔로 내는 측정) | `sim/examples/bench`, `client --bench`, 서버 `[stats]` 단계별 비용 로그, `bot/examples/swarm`이 모두 텍스트로 출력한다. `shared::prof`의 구간 프로파일러가 서버 틱과 클라이언트 시스템을 호출 트리 표로 낸다. | ✅ | README 「성능」, `shared/src/prof.rs` |
 | **데이터를 코드 밖에** (컴파일 없이 수치 조정) | 함선 기본 능력치·모듈 성장·함급 배율·업그레이드 비용·호위함·NPC·전투 규칙 수치가 `tuning/*.ron`에 있고 실행 시 읽힌다. 수치 파일을 고친 뒤 시나리오나 밸런스 시트를 다시 돌리면 재컴파일 없이 반영된다. | ✅ | `tuning/`, `shared/src/tuning.rs` |
 | **실행 중인 게임을 텍스트 커맨드로 조종** | 개발 서버(`--dev`)의 `/grow`, `/cash`, 클라이언트 `--script`, 봇 라이브러리가 있다. 기록 파일을 손으로 쓰거나 고쳐서 재생할 수 있다. | ◐ | `client/src/main.rs`의 `automation`, `crates/bot` |
-| **게임 지표 관측성** (DPS·체력 등을 시간축 지표로) | 시뮬레이션이 명중·격침·보상을 내보내고, 함장별 초당 가한/받은 피해·실드/선체·격파 시간을 JSONL로 남긴다. 시나리오 검사(`dps`, `ttk`, `dealt`, `taken`), 밸런스 시트의 「교전 수치」 표, `server --metrics FILE`에서 쓴다. | ✅ | `crates/server/src/metrics.rs` |
+| **게임 지표 관측성** (DPS·체력 등을 시간축 지표로) | 시뮬레이션이 명중·격침·보상을 내보내고, 함장별 초당 가한/받은 피해·실드/선체·격파 시간을 JSONL로 남긴다. 시나리오 검사(`dps`, `ttk`, `dealt`, `taken`), 밸런스 시트의 「교전 수치」 표, `server --metrics FILE`에서 쓴다. | ✅ | `crates/sim/src/metrics.rs` |
 
 ## 이번에 적용한 핵심 (1단계)
 
@@ -55,17 +55,17 @@ STARFALL은 이미 서버·클라이언트·역사 엔진·1000명 교전까지 
 
 ```
 server --dev --record rec/bug42                                    # 플레이하며 기록 (평소처럼 접속)
-cargo run -p server --release --example replay -- rec/bug42 --twice
+cargo run -p sim --release --example replay -- rec/bug42 --twice
 #  replayed 1500 ticks (75 s of play) in 0.35 s — 13445 commands, 15 digests checked, final state 823b…
 #  REPLAY OK: every recorded digest matched
 #  DETERMINISTIC: second replay ended in the same state
-cargo run -p server --release --example replay -- rec/bug42 --dump 7@1200   # 그 순간 성계 7의 엔티티 표(텍스트)
+cargo run -p sim --release --example replay -- rec/bug42 --dump 7@1200   # 그 순간 성계 7의 엔티티 표(텍스트)
 ```
 
 - **`rec/X/initial/`**: 기록을 시작할 때의 `profiles.json`, `history.jsonl`이다. 재생은 이 파일의 사본에서 출발하므로 기록본은 바뀌지 않는다.
 - **`rec/X/session.jsonl`**: 첫 줄은 헤더(시작 시각, dev 여부)다. 이후 각 줄은 틱 하나로, 그 틱에 들어온 커맨드, 바뀐 시계, 발급된 토큰, 5초마다 찍는 상태 다이제스트를 담는다.
 - **다이제스트**: 모든 엔티티(위치는 비트 단위), 계정·프로필·잔해·시장·동맹, 역사 기록을 FNV-1a로 지문화한 16자리 값이다. "내 수정이 결과를 바꿨나?"가 한 줄 비교가 된다.
-- **보장 테스트**: `crates/server/tests/harness.rs`는 War Zone 교전, 해적, 미사일, 접속 끊김 후 토큰 재접속을 기록한다. 재생 결과가 모든 다이제스트와 실제 최종 상태에 일치하고, 두 번 재생해도 같아야 통과한다.
+- **보장 테스트**: `crates/sim/tests/harness.rs`는 War Zone 교전, 해적, 미사일, 접속 끊김 후 토큰 재접속을 기록한다. 재생 결과가 모든 다이제스트와 실제 최종 상태에 일치하고, 두 번 재생해도 같아야 통과한다.
 - **실측**: 실제 서버에서 봇 40명이 75초 동안 교전한 기록을 재생했다. 커맨드 13,445개, 격침 97회였고, 재생은 0.35초 걸렸으며 다이제스트 15개가 모두 일치했다.
 
 ### 2. 영향 평가: 시각 변화를 숫자로
@@ -91,9 +91,9 @@ python tools/imgdiff.py --stats after.png --crop 380,90,220,200    # 영역의 �
 ## 에이전트·개발자 작업 루프
 
 1. **재현**: 문제가 서버 상태에 있다면 `--record`로 남긴 폴더를 `replay`로 재현한다. `--dump`로 원하는 틱의 상태를 텍스트로 본다. 화면으로 봐야 하면 `client --replay DIR --from SECS --shot X.png --shot-at T`로 그 순간을 찍는다.
-2. **안쪽 루프 (화면 없이)**: `cargo test -p server -p shared -p history`로 검증한다. 시뮬레이션은 엔진 없이 몇 초면 돈다. 바뀐 규칙이 결과를 바꾸는지는 재생 다이제스트로 확인한다. 의도한 변경이라면 다이제스트가 달라지는 것이 정상이다.
+2. **안쪽 루프 (화면 없이)**: `cargo test -p sim -p shared -p history -p view`로 검증한다. 시뮬레이션은 엔진 없이 몇 초면 돈다. 바뀐 규칙이 결과를 바꾸는지는 재생 다이제스트로 확인한다. 의도한 변경이라면 다이제스트가 달라지는 것이 정상이다.
 3. **바깥 루프 (화면에 영향이 있을 때만)**: 고정 프레임 스크린샷과 `imgdiff` 수치로 목표에 가까워졌는지 판단한다. 이미지는 마지막에 사람이 확인한다.
-4. **성능**: `server/examples/bench N`, `client --bench`, `bot/examples/swarm`의 텍스트 수치를 이전 값과 비교한다.
+4. **성능**: `sim/examples/bench N`, `client --bench`, `bot/examples/swarm`의 텍스트 수치를 이전 값과 비교한다.
 
 ## 2단계: 게임을 실행하지 않는 결정론 개발 구조
 
@@ -123,13 +123,13 @@ python tools/imgdiff.py --stats after.png --crop 380,90,220,200    # 영역의 �
 새 게임플레이 기능이나 규칙 변경은 이 순서로 진행한다.
 
 1. **기대 동작을 시나리오 사양(JSON)으로 먼저 쓴다.** 누가 어디에 있고, 무엇을 하면, 언제 무엇이 참이어야 하는지 적는다. 처음에는 실패하는 사양이 된다.
-2. `shared`/`server`에서 규칙을 구현하고, `cargo run -p server --release --example scenario -- FILE --trace 5`로 측정값을 텍스트로 보며 고친다. 수백 초를 시뮬레이션해도 수 밀리초면 끝난다.
+2. `shared`/`sim`에서 규칙을 구현하고, `cargo run -p sim --release --example scenario -- FILE --trace 5`로 측정값을 텍스트로 보며 고친다. 수백 초를 시뮬레이션해도 수 밀리초면 끝난다.
 3. 수치가 바뀌는 변경이면 `examples/balance`로 밸런스 시트를 다시 뽑아 `docs/BALANCE.md`의 diff로 영향을 확인한다.
 4. 클라이언트는 받은 상태를 그리기만 한다. 화면은 마지막에 고정 프레임 스크린샷과 `imgdiff`로 확인한다.
 
-### 시나리오 사양 (`crates/server/scenarios/*.json`)
+### 시나리오 사양 (`crates/sim/scenarios/*.json`)
 
-파일 하나가 테스트 하나다. `cargo test -p server --test scenarios`가 전부 돌리고, 각 사양을 두 번 실행해 같은 상태로 끝나는지(결정성)도 검사한다. Rust 코드를 고치지 않고 파일만 추가하면 된다.
+파일 하나가 테스트 하나다. `cargo test -p sim --test scenarios`가 전부 돌리고, 각 사양을 두 번 실행해 같은 상태로 끝나는지(결정성)도 검사한다. Rust 코드를 고치지 않고 파일만 추가하면 된다.
 
 ```json
 {
@@ -161,7 +161,7 @@ python tools/imgdiff.py --stats after.png --crop 380,90,220,200    # 영역의 �
 
 ### 밸런스 시트 (`docs/BALANCE.md`)
 
-`cargo run -p server --release --example balance -- --write docs/BALANCE.md`는 함선 5종 × 모듈 Lv 1/5/9가 NPC 조우 5종과 싸우는 75판을 약 1초에 시뮬레이션해 표로 남긴다. 결정적이므로 수치 변경의 영향이 표의 diff로 드러난다.
+`cargo run -p sim --release --example balance -- --write docs/BALANCE.md`는 함선 5종 × 모듈 Lv 1/5/9가 NPC 조우 5종과 싸우는 75판을 약 1초에 시뮬레이션해 표로 남긴다. 결정적이므로 수치 변경의 영향이 표의 diff로 드러난다.
 
 첫 시트에서 보인 관찰과, 그에 따른 결정이다.
 
@@ -178,7 +178,7 @@ python tools/imgdiff.py --stats after.png --crop 380,90,220,200    # 영역의 �
 
 ### 이번 단계에서 추가한 것
 
-- `server::scenario`(사양 형식·실행기), `examples/scenario`(CLI, `--trace`, `--print-digest`), `tests/scenarios.rs`(전 사양 통과 + 결정성)
+- `sim::scenario`(사양 형식·실행기), `examples/scenario`(CLI, `--trace`, `--print-digest`), `tests/scenarios.rs`(전 사양 통과 + 결정성)
 - 시나리오 5종: 주력함 대 해적 무리, 전투기 결투, Core 안전 지대, Wild 범죄·현상금, 연속 워프
 - `examples/balance` → `docs/BALANCE.md`
 - `tests/interest.rs`: 400척 성계의 관심 영역 관리를 소켓 없이 검증한다(스냅샷 예산, 4틱 안에 전체 파악, 이탈 엔티티 제거, 바이너리 왕복).
@@ -241,7 +241,7 @@ STARFALL_FIXED_FPS=60 client --replay rec/bug42 --from 25 --shot a.png --shot-at
 - **기반**: `harness::Replayer`가 기록을 한 틱씩 진행한다(`Session::replay`도 이것을 쓴다). 각 틱이 보낸 메시지를 다음 틱까지 `game.out`에 남겨 두어, 보는 쪽이 한 연결의 메시지만 골라 갈 수 있다. `tests/harness.rs`는 단계 재생이 실시간 상태와 같게 끝나고, 함장 연결에 환영 메시지 1개와 스냅샷이 전달되는지 검사한다.
 - **주의**: 서버를 강제 종료(`taskkill /F`)하면 기록 파일의 마지막 다이제스트 이후 부분은 디스크에 남지 않는다. Ctrl+C로 끄면 끝까지 남는다.
 
-## 6단계: 게임플레이 관측성 (`server::metrics`)
+## 6단계: 게임플레이 관측성 (`sim::metrics`)
 
 전투가 어떻게 흘러갔는지를 시간축 수치로 남긴다. 화면을 보지 않고도 "이 함선은 이 적을 초당 얼마로 때리고, 얼마나 맞고, 몇 초 만에 격침하는가"를 텍스트로 비교한다.
 
@@ -272,7 +272,7 @@ STARFALL_FIXED_FPS=60 client --replay rec/bug42 --from 25 --shot a.png --shot-at
 
 | 어디서 | 명령 | 단위 |
 |---|---|---|
-| 서버 벤치 | `cargo run -p server --release --example bench 1000` (항상 켜짐, `--no-prof`로 끔) | ms/tick |
+| 서버 벤치 | `cargo run -p sim --release --example bench 1000` (항상 켜짐, `--no-prof`로 끔) | ms/tick |
 | 실서버 | `server --prof` 또는 `STARFALL_PROF=1` — `[stats]`와 함께 10초마다 | ms/tick |
 | 클라이언트 벤치 | `client --bench 15` (항상 켜짐, `STARFALL_PROF=0`으로 끔) — 워밍업 뒤부터 | ms/frame |
 
@@ -282,6 +282,14 @@ STARFALL_FIXED_FPS=60 client --replay rec/bug42 --from 25 --shot a.png --shot-at
 
 - **서버 1000명**(틱 9.98 ms): 시청자별 스냅샷 구성 37.6%, 전송 인코딩 18.3%, 무장 16.3%, 스냅샷 레코드 10.0%. 네트워크 쪽이 시뮬레이션보다 크다.
 - **클라이언트 약 1000척**(프레임 16.49 ms): 우리 시스템은 합쳐 1.33 ms다. 나머지는 엔진(렌더 추출, GPU 제출)이다. 그 안에서는 `ships::update_ship_fx` 0.36 ms, `ships::face_nozzle_glows` 0.23 ms, `ships::aim_turrets` 0.22 ms 순이다. 클라이언트 성능을 더 끌어올리려면 이 시스템들이 아니라 렌더 쪽(메시 수 31,020)을 봐야 한다.
+
+## 8단계: 시뮬레이션 크레이트 분리 (`crates/sim`)
+
+`server` 라이브러리였던 시뮬레이션을 `sim` 크레이트로 옮겼다. 게임 상태·규칙, 저장, 기록·재생, 시나리오, 지표가 모두 여기에 있다. 예제(`scenario`, `balance`, `replay`, `bench`), 테스트, 시나리오 사양(`crates/sim/scenarios/`)도 함께 옮겼다. `server`는 WebSocket과 20 Hz 루프만 있는 바이너리가 됐다.
+
+- **의존성**: `sim`은 tokio·tungstenite·futures 없이 27개 크레이트만 쓴다(`server`는 67개). 그래서 빠른 루프 `cargo test -p shared -p history -p sim -p view`가 네트워크 스택을 컴파일하지 않는다. 클라이언트의 `--replay`도 서버가 아니라 `sim`에만 의존한다.
+- **명령이 바뀌었다**: `-p server --example …`·`-p server --test …`는 이제 `-p sim …`이다. 서버 실행(`cargo run -p server --release`)과 봇 테스트 전 빌드(`cargo build -p server`)는 그대로다.
+- **동작은 같다**: 파일은 `git mv`로 옮겨 이력이 이어진다. 시나리오 다이제스트 6종, 밸런스 시트, 기존 기록의 재생(헤드리스와 3D 모두 `REPLAY OK`, 같은 최종 다이제스트), 봇 E2E가 이전과 같다.
 
 ## 지켜야 할 불변식
 
@@ -301,4 +309,4 @@ STARFALL_FIXED_FPS=60 client --replay rec/bug42 --from 25 --shot a.png --shot-at
 3. ~~**재생 시각화**~~: 완료(5단계). 남은 후보는 재생 중 일시정지·되감기와, 시점을 함장이 아닌 자유 카메라로 두는 관전 모드다.
 4. ~~**게임플레이 관측성**~~: 완료(6단계). 남은 후보는 채굴·거래 수익률(시간당 CR)과 PvP 교전 단위 요약, 그리고 지표 JSONL을 그래프로 그리는 도구다.
 5. ~~**텍스트 프로파일러**~~: 완료(7단계, `samply` 대신 내장 구간 프로파일러). 함수 단위 샘플링이 필요하면 관리자 권한에서 `samply record --save-only`로 기록하고 변환기를 붙이는 것이 남은 후보다.
-6. **시뮬레이션 크레이트 이름 정리**: `server` 라이브러리의 `game` 모듈을 `sim` 크레이트로 떼어 낸다. 구조상 분리는 이미 되어 있다.
+6. ~~**시뮬레이션 크레이트 이름 정리**~~: 완료(8단계).

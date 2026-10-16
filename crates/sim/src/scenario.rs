@@ -6,7 +6,7 @@
 //! and reports every check with the measured value — so a new gameplay test or a balance probe is a
 //! data file, not Rust code, and the same file always gives the same result.
 //!
-//! `cargo run -p server --release --example scenario -- crates/server/scenarios [--trace 5]`
+//! `cargo run -p sim --release --example scenario -- crates/sim/scenarios [--trace 5]`
 
 use crate::game::{ConnId, Game};
 use crate::metrics::{MetricsLog, Totals};

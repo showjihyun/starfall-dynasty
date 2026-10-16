@@ -1,10 +1,10 @@
-//! Server load benchmark: `cargo run -p server --release --example bench [players]`
+//! Server load benchmark: `cargo run -p sim --release --example bench [players]`
 //! N captains (a mix of fighters, cruisers and capitals with escorts) brawl in a war zone.
 //! Reports simulation tick time, the bytes the network layer would have to send, and a text
 //! profile of where the tick goes (`shared::prof`). `--no-prof` measures without spans.
 
-use server::game::Game;
-use server::store::Store;
+use sim::game::Game;
+use sim::store::Store;
 use shared::galaxy::Species;
 use shared::protocol::*;
 use shared::ships::{HullClass, Module};

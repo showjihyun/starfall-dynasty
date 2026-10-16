@@ -6,8 +6,8 @@
 //! connection tasks only shuttle frames.
 
 use futures_util::{SinkExt, StreamExt};
-use server::game::{ConnId, Game};
-use server::store::Store;
+use sim::game::{ConnId, Game};
+use sim::store::Store;
 use rayon::prelude::*;
 use shared::protocol::{ClientMsg, DEFAULT_PORT, ServerMsg, TICK_HZ, decode, encode, encode_snapshot};
 use std::collections::HashMap;
@@ -52,8 +52,8 @@ async fn main() -> std::io::Result<()> {
     // `--record DIR`: keep a replayable copy of this session (docs/HARNESS.md).
     let mut recorder = match arg("--record") {
         Some(dir) => {
-            let r = server::harness::Recorder::start(std::path::Path::new(&dir), &data, start_unix, game.dev_mode)?;
-            println!("[starfall] recording session to {dir} (replay: cargo run -p server --release --example replay -- {dir})");
+            let r = sim::harness::Recorder::start(std::path::Path::new(&dir), &data, start_unix, game.dev_mode)?;
+            println!("[starfall] recording session to {dir} (replay: cargo run -p sim --release --example replay -- {dir})");
             Some(r)
         }
         None => None,
@@ -61,16 +61,16 @@ async fn main() -> std::io::Result<()> {
     if game.dev_mode {
         println!("[starfall] DEV MODE: /grow and /cash chat commands enabled");
     }
-    // `--metrics FILE`: gameplay time series (server::metrics) — a line per captain per second in combat, kills, rewards.
+    // `--metrics FILE`: gameplay time series (sim::metrics) — a line per captain per second in combat, kills, rewards.
     let mut metrics = match arg("--metrics") {
         Some(path) => {
             use std::io::Write as _;
             let file = std::fs::OpenOptions::new().create(true).append(true).open(&path)?;
-            server::metrics::MetricsLog::attach(&mut game);
+            sim::metrics::MetricsLog::attach(&mut game);
             println!("[starfall] gameplay metrics to {path}");
             let mut w = std::io::BufWriter::new(file);
             writeln!(w, "{}", serde_json::json!({ "ev": "start", "unix": start_unix }))?;
-            Some((server::metrics::MetricsLog::new(1.0, false), w))
+            Some((sim::metrics::MetricsLog::new(1.0, false), w))
         }
         None => None,
     };
@@ -115,13 +115,13 @@ async fn main() -> std::io::Result<()> {
                         Inbound::Open(id, out) => { outs.insert(id, out); }
                         Inbound::Msg(id, m) => {
                             if let Some(r) = recorder.as_mut() {
-                                r.event(server::harness::Event::Msg(id, m.clone()));
+                                r.event(sim::harness::Event::Msg(id, m.clone()));
                             }
                             game.handle(id, m)
                         }
                         Inbound::Close(id) => {
                             if let Some(r) = recorder.as_mut() {
-                                r.event(server::harness::Event::Close(id));
+                                r.event(sim::harness::Event::Close(id));
                             }
                             outs.remove(&id);
                             game.disconnect(id);
@@ -166,7 +166,7 @@ async fn main() -> std::io::Result<()> {
                     // The span profile covers the same window as the stats (idle windows are dropped).
                     let window_prof = shared::prof::take();
                     if !outs.is_empty() {
-                        let phases: Vec<String> = game.prof.iter().zip(server::game::PROF_PHASES).filter(|(ns, _)| **ns as f64 / stat_ticks as f64 > 5e4).map(|(ns, name)| format!("{name} {:.2}", *ns as f64 / stat_ticks as f64 / 1e6)).collect();
+                        let phases: Vec<String> = game.prof.iter().zip(sim::game::PROF_PHASES).filter(|(ns, _)| **ns as f64 / stat_ticks as f64 > 5e4).map(|(ns, name)| format!("{name} {:.2}", *ns as f64 / stat_ticks as f64 / 1e6)).collect();
                         println!("[stats] phases ms/tick: {}", phases.join(", "));
                         let ents: usize = game.systems.values().map(|s| s.ents.len()).sum();
                         println!(

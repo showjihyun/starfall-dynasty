@@ -1,7 +1,7 @@
 //! Gameplay metrics (docs/HARNESS.md): collecting them never changes the simulation, they are
 //! deterministic, and the time series adds up to the totals.
 
-use server::scenario;
+use sim::scenario;
 
 fn spec(name: &str) -> scenario::Scenario {
     scenario::load(&std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("scenarios").join(format!("{name}.json"))).unwrap()

@@ -1,7 +1,7 @@
-//! Every gameplay spec in `crates/server/scenarios/*.json` must pass, and run deterministically.
+//! Every gameplay spec in `crates/sim/scenarios/*.json` must pass, and run deterministically.
 //! Adding a test is adding a JSON file (docs/HARNESS.md).
 
-use server::scenario;
+use sim::scenario;
 
 #[test]
 fn all_scenarios_pass_deterministically() {

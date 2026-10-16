@@ -1,7 +1,7 @@
 // Player ships: hull base stats, module growth, size classes, batteries, upgrade costs, escorts.
 // Read at run time (crates/shared/src/tuning.rs). After an edit:
-//   cargo run -p server --release --example balance -- --write docs/BALANCE.md   (then read the diff)
-//   cargo run -p server --release --example scenario
+//   cargo run -p sim --release --example balance -- --write docs/BALANCE.md   (then read the diff)
+//   cargo run -p sim --release --example scenario
 // Unknown or missing fields are errors.
 (
     // Level-1 stats of each hull, before size-class scaling. warp is in light-years.

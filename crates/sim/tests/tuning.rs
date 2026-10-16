@@ -2,7 +2,7 @@
 //! changes the outcome of a scenario, and restoring it restores the exact state.
 //! Its own test binary because it swaps the process-wide tuning.
 
-use server::scenario;
+use sim::scenario;
 
 #[test]
 fn tuning_drives_the_simulation() {

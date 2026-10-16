@@ -1,12 +1,12 @@
 //! Run gameplay scenario specs headless (docs/HARNESS.md).
 //!
-//! `cargo run -p server --release --example scenario -- [FILE|DIR]... [--trace SECS] [--print-digest] [--metrics DIR]`
+//! `cargo run -p sim --release --example scenario -- [FILE|DIR]... [--trace SECS] [--print-digest] [--metrics DIR]`
 //!
 //! Prints every check with its measured value and a one-line verdict per scenario; exits 1 if any fail.
 //! `--print-digest` shows the final-state fingerprint to pin in the file's `"digest"` field.
 //! `--metrics DIR` writes `DIR/<name>.jsonl`: per-captain samples every second, kills and rewards.
 
-use server::scenario;
+use sim::scenario;
 
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();

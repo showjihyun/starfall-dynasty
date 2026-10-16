@@ -1,14 +1,14 @@
 //! Headless balance sheet (docs/HARNESS.md): every hull at module levels 1/5/9 fights a set of NPC
 //! encounters with scripted aim. Deterministic, so a rule or number change shows up as a text diff.
 //!
-//! `cargo run -p server --release --example balance [-- --write docs/BALANCE.md]`
+//! `cargo run -p sim --release --example balance [-- --write docs/BALANCE.md]`
 //!
 //! Cell: `W 12s 84%` = won after 12 s with 84% hull left · `L 31s` = flagship lost after 31 s ·
 //! `- 70%` = nobody won within the time limit (hull left).
 //! A second table gives the fight in numbers (`crate::metrics`): damage per second dealt and taken
 //! over the fight, and the mean time-to-kill of the captain's kills.
 
-use server::scenario::{Captain, NpcGroup, Scenario, Step, run};
+use sim::scenario::{Captain, NpcGroup, Scenario, Step, run};
 use shared::galaxy::Species;
 use shared::missions::NpcArchetype;
 use shared::protocol::{ClientMsg, Controls, Profession};
@@ -61,7 +61,7 @@ fn main() {
     let enc = encounters();
     let mut out = String::new();
     out += "# 밸런스 시트\n\n";
-    out += "`cargo run -p server --release --example balance -- --write docs/BALANCE.md`로 생성한다(결정적이므로 규칙이나 수치를 바꾸면 이 표의 diff로 영향이 보인다).\n\n";
+    out += "`cargo run -p sim --release --example balance -- --write docs/BALANCE.md`로 생성한다(결정적이므로 규칙이나 수치를 바꾸면 이 표의 diff로 영향이 보인다).\n\n";
     out += &format!(
         "각 칸은 함장 1명(모든 모듈 Lv)과 해당 NPC가 Vesta Front에서 550 m 거리로 시작해, 조준 사격하며 {LIMIT:.0}초까지 싸운 결과다. `W 12s 84.0% −96` = 12초에 승리, 선체 84.0% 남음(96포인트 손실, −0이면 피격 전에 격파) · `L 31s` = 31초에 격침 · `- 70.0%` = 시간 내 승부 없음.\n\n"
     );
@@ -91,7 +91,7 @@ fn main() {
         }
     }
     out += "\n## 교전 수치\n\n";
-    out += "같은 교전을 수치로 본 표다(`server::metrics`). `85/18 · 7.5s` = 교전 내내 초당 85 피해를 주고 18 피해를 받았으며, 함장이 격파한 적은 첫 피격부터 격침까지 평균 7.5초 걸렸다. 피해는 실드와 선체를 합친 값이고, 교전 시간은 승패가 난 시점(없으면 제한 시간)까지다.\n\n";
+    out += "같은 교전을 수치로 본 표다(`sim::metrics`). `85/18 · 7.5s` = 교전 내내 초당 85 피해를 주고 18 피해를 받았으며, 함장이 격파한 적은 첫 피격부터 격침까지 평균 7.5초 걸렸다. 피해는 실드와 선체를 합친 값이고, 교전 시간은 승패가 난 시점(없으면 제한 시간)까지다.\n\n";
     out += "| 함선 | Lv |";
     for (name, ..) in &enc {
         out += &format!(" {name} |");

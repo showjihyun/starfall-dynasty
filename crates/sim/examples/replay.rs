@@ -1,13 +1,13 @@
 //! Replay a recorded session headless and verify it reproduces (docs/HARNESS.md).
 //!
-//! `cargo run -p server --release --example replay -- DIR [--dump SYSTEM@TICK]... [--twice]`
+//! `cargo run -p sim --release --example replay -- DIR [--dump SYSTEM@TICK]... [--twice]`
 //!
 //! - Prints one verdict line: `REPLAY OK` when every recorded digest matched, otherwise
 //!   `REPLAY DIVERGED at tick T` with both digests (exit code 1).
 //! - `--dump 7@1200` prints that system's entity table at that tick (text, for agents and bug reports).
 //! - `--twice` replays a second time and checks both runs end in the same state (determinism).
 
-use server::harness::{Session, dump_system};
+use sim::harness::{Session, dump_system};
 
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();

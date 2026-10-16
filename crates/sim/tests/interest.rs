@@ -2,9 +2,9 @@
 //! learn every entity within a few ticks, and drop the ones that leave — checked through the same
 //! `SnapshotCache` the client uses, with no sockets or engine.
 
-use server::game::Game;
-use server::game::interest::{NEW_BUDGET, SNAPSHOT_BUDGET};
-use server::store::Store;
+use sim::game::Game;
+use sim::game::interest::{NEW_BUDGET, SNAPSHOT_BUDGET};
+use sim::store::Store;
 use shared::galaxy::Species;
 use shared::glam::Vec3;
 use shared::missions::NpcArchetype;

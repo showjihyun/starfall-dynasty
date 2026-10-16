@@ -1,0 +1,16 @@
+[package]
+name = "sim"
+version = "0.1.0"
+edition = "2024"
+
+# The authoritative simulation as a pure, synchronous library: game state and rules, persistence,
+# record/replay, scenario specs, gameplay metrics. No network, no async runtime, no engine
+# (docs/HARNESS.md). The `server` binary wraps it in WebSockets; the client replays with it.
+
+[dependencies]
+shared = { path = "../shared" }
+history = { path = "../history" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+getrandom = "0.3"
+rayon = "1"

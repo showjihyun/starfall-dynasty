@@ -61,7 +61,8 @@ cargo run -p client --release
 crates/shared   프로토콜(JSON over WebSocket), 함선/모듈/업그레이드 규칙, 결정적 은하 생성, 일일 미션·시나리오
 crates/history  역사 엔진: 중요도, 증거(봉인/발견), 연구·반박, 인과 연결, 전기, Herald, JSONL 리플레이
 crates/view     클라이언트 순수 로직(엔진 없음): 보간, 피아 식별, 우주 지도 투영, HUD 게이지·패널, 먼지장
-crates/server   권위 서버: 비행 물리, 무기, NPC AI, PvP 규칙, 교전 추적, 채굴/시장, 함대, 영속화
+crates/sim      시뮬레이션(동기식 순수 라이브러리): 비행 물리, 무기, NPC AI, PvP 규칙, 교전 추적, 채굴/시장, 함대, 영속화, 기록·재생, 시나리오, 지표
+crates/server   네트워크 바이너리: WebSocket과 20 Hz 루프로 sim을 감싼다
 crates/client   Bevy 0.20 클라이언트, src/shaders/*.wesl (스카이박스·항성·행성·고리·선체·엔진·실드·빔·폭발·워프·글로우)
 crates/bot      헤드리스 봇(실제 소켓) — E2E/부하 테스트
 tools/blender   함선·프롭 모델링/베이크 스크립트 (README 참조)
@@ -72,20 +73,20 @@ tuning          밸런스 수치(ships/npcs/combat.ron) — 실행 시 읽음, �
 
 게임 자체를 에이전트가 재현·조종·수치 검증할 수 있게 설계하는 원칙(「게임 개발용 AI 하네스를 설계하는 법」)을 근거로 도입했다. 원칙별 현황, 이번에 적용한 핵심, 로드맵은 [docs/HARNESS.md](docs/HARNESS.md)에 있다.
 
-- **기록·재생**: `server --record DIR`로 기록하고 `cargo run -p server --release --example replay -- DIR --twice`로 재생한다. 재생 결과를 기록된 상태 다이제스트와 대조하고, 결정론까지 검사한다.
+- **기록·재생**: `server --record DIR`로 기록하고 `cargo run -p sim --release --example replay -- DIR --twice`로 재생한다. 재생 결과를 기록된 상태 다이제스트와 대조하고, 결정론까지 검사한다.
 - **게임플레이 지표**: 시나리오는 함장별 DPS·받은 피해·격파 시간을 요약하고(`--metrics DIR`이면 JSONL), `server --metrics FILE.jsonl`은 실서버 교전을 초 단위로 남긴다. 밸런스 시트에는 「교전 수치」 표가 있다.
 - **3D 재생**: `client --replay DIR [--as 함장] [--from 초] [--speed 배속]`으로 같은 기록을 그 함장 시점으로 본다. 다이제스트 판정을 출력하고, `STARFALL_FIXED_FPS`와 `--shot`으로 같은 장면을 매번 같은 이미지로 찍는다.
-- **수치는 코드 밖에**: `tuning/*.ron`을 고치고 `cargo run -p server --release --example balance -- --write docs/BALANCE.md`로 diff를 본다(재컴파일 없음, `STARFALL_TUNING=DIR`로 다른 수치 비교).
+- **수치는 코드 밖에**: `tuning/*.ron`을 고치고 `cargo run -p sim --release --example balance -- --write docs/BALANCE.md`로 diff를 본다(재컴파일 없음, `STARFALL_TUNING=DIR`로 다른 수치 비교).
 - **숫자로 하는 화면 검증**: `STARFALL_FIXED_FPS=60`(같은 명령이면 같은 이미지), `STARFALL_HIDE_UI=1`(HUD 제거), `python tools/imgdiff.py A.png B.png`(유사도·변화 영역·밝기/채도).
 
 ## 테스트
 
 ```
-cargo test -p shared -p history -p server -p view
+cargo test -p shared -p history -p sim -p view
 cargo build -p server && cargo test -p bot
 ```
 
-- `server/tests/game.rs` — 함선 1척 제한, 워프 거리, PvE 보상/일일 진행, PvP 규칙·전투 기록·잔해 조사·연구, 수배·현상금, 함대, 업그레이드 상한, 시나리오 1장 완주, 채굴/시장, 영속화
+- `sim/tests/game.rs` — 함선 1척 제한, 워프 거리, PvE 보상/일일 진행, PvP 규칙·전투 기록·잔해 조사·연구, 수배·현상금, 함대, 업그레이드 상한, 시나리오 1장 완주, 채굴/시장, 영속화
 - `view/tests/hud.rs` — HUD를 헤드리스 egui로 그려 글자·배치·색을 검사(조준선 게이지, 손실 막대, 함선 상태 패널)
 - `bot/tests/e2e.rs` — 실제 서버 프로세스에서 두 함장이 3회 워프 후 War Zone에서 교전 → 연대기 확인, 30명 동시 접속
 
@@ -122,7 +123,7 @@ cargo build -p server && cargo test -p bot
 측정 도구:
 
 ```
-cargo run -p server --release --example bench 1000                       서버 단독: N명 War Zone 난전의 틱 시간·송신량
+cargo run -p sim --release --example bench 1000                       서버 단독: N명 War Zone 난전의 틱 시간·송신량
 cargo run -p bot --release --example swarm -- ws://HOST:7777 1000 60     실소켓 N명이 접속·워프·교전 (서버는 --dev 권장)
 client --bench 20   (STARFALL_BENCH_SCALE=15 → 약 1000척)                 클라이언트 함대전 프레임 시간 (V-Sync 끔)
 client --dump-sfx DIR                                                    합성 효과음을 WAV로 출력

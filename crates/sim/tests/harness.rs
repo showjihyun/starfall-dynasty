@@ -1,9 +1,9 @@
 //! The harness contract (docs/HARNESS.md): a recorded session replays to exactly the same state.
 //! Drives the simulation the way the network loop does, records it, then replays it headless.
 
-use server::game::Game;
-use server::harness::{Event, Recorder, Session, digest};
-use server::store::Store;
+use sim::game::Game;
+use sim::harness::{Event, Recorder, Session, digest};
+use sim::store::Store;
 use shared::galaxy::Species;
 use shared::protocol::*;
 use shared::ships::HullClass;
@@ -90,7 +90,7 @@ fn recorded_session_replays_exactly() {
     }
     let live = digest(&g);
     drop(rec);
-    let tuning = rec_dir.join(server::harness::TUNING_DIR);
+    let tuning = rec_dir.join(sim::harness::TUNING_DIR);
     assert_eq!(shared::tuning::Tuning::load(&tuning).unwrap(), *g.tuning, "the recording keeps the numbers it ran with");
     assert!(g.systems[&7].ents.len() > 2, "the fight happened in the war zone");
     assert!(g.sessions.values().any(|s| s.player.is_some() && s.entity.is_some() && s.system == 7));

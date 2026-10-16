@@ -14,7 +14,7 @@
 use crate::net::{Net, NetEvent};
 use bevy::prelude::*;
 use crossbeam_channel::{Receiver, Sender};
-use server::harness::{Replayer, Session};
+use sim::harness::{Replayer, Session};
 use shared::protocol::{ClientMsg, PlayerId, ServerMsg, TICK_HZ, decode, decode_snapshot, encode, encode_snapshot};
 
 #[derive(Resource)]

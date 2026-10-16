@@ -1,7 +1,7 @@
 //! Gameplay rules exercised directly against the authoritative `Game` (no sockets).
 
-use server::game::{ConnId, Game};
-use server::store::Store;
+use sim::game::{ConnId, Game};
+use sim::store::Store;
 use shared::galaxy::{self, Ore, PoiKind, Species};
 use shared::glam::{Quat, Vec3};
 use shared::missions::{NpcArchetype, Objective};
