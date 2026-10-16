@@ -5,7 +5,7 @@ use bevy::prelude::*;
 use shared::chronicle::{BioEntry, Evidence, Headline, HistoricalEvent};
 use shared::galaxy::SystemId;
 use shared::protocol::*;
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::{HashSet, VecDeque};
 
 #[derive(States, Default, Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Screen {
@@ -16,10 +16,7 @@ pub enum Screen {
     Playing,
 }
 
-pub struct Snap {
-    pub at: f64,
-    pub ents: HashMap<EntityId, EntityState>,
-}
+pub use view::interp::{INTERP_DELAY, Snap};
 
 #[derive(Default)]
 pub struct UiFlags {
@@ -76,13 +73,10 @@ pub struct Session {
     pub snap_cache: SnapshotCache,
     /// Smoothed frames per second for the HUD.
     pub fps: f32,
-    /// HUD gauges: shield/hull fractions trailing behind the real ones (shows what was just lost).
-    pub gauge_lag: [f32; 2],
-    /// Red edge flash after hull damage (1 → fades to 0).
-    pub hull_flash: f32,
-    pub gauge_last: (f32, f64),
+    /// HUD gauges: shield/hull trailing behind the real values, and the hull-damage flash.
+    pub gauge: view::gauge::GaugeTrail,
     /// Star map (M) view state.
-    pub map: crate::starmap::MapView,
+    pub map: view::mapview::MapView,
 }
 
 impl Session {
@@ -103,32 +97,9 @@ impl Session {
 
     /// Interpolated entity state at render time `t` (seconds, same clock as `Snap::at`).
     pub fn sample(&self, id: EntityId, t: f64) -> Option<(Vec3, Quat, &EntityState)> {
-        let n = self.snaps.len();
-        if n == 0 {
-            return None;
-        }
-        let last = &self.snaps[n - 1];
-        let cur = last.ents.get(&id)?;
-        // Own ship: extrapolate from the newest snapshot for responsiveness.
-        if Some(id) == self.me || n < 2 {
-            let dt = ((t + INTERP_DELAY - last.at).clamp(0.0, 0.12)) as f32;
-            return Some((Vec3::from(cur.pos) + Vec3::from(cur.vel) * dt, Quat::from_array(cur.rot), cur));
-        }
-        for i in (0..n - 1).rev() {
-            let (a, b) = (&self.snaps[i], &self.snaps[i + 1]);
-            if a.at <= t && t <= b.at {
-                let (Some(ea), Some(eb)) = (a.ents.get(&id), b.ents.get(&id)) else { break };
-                let k = ((t - a.at) / (b.at - a.at).max(1e-4)) as f32;
-                let p = Vec3::from(ea.pos).lerp(Vec3::from(eb.pos), k);
-                let r = Quat::from_array(ea.rot).slerp(Quat::from_array(eb.rot), k);
-                return Some((p, r, eb));
-            }
-        }
-        Some((Vec3::from(cur.pos), Quat::from_array(cur.rot), cur))
+        view::interp::sample(&self.snaps, self.me, id, t)
     }
 }
-
-pub const INTERP_DELAY: f64 = 0.1;
 
 #[derive(Resource, Clone)]
 pub struct Args {

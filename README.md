@@ -60,6 +60,7 @@ cargo run -p client --release
 ```
 crates/shared   프로토콜(JSON over WebSocket), 함선/모듈/업그레이드 규칙, 결정적 은하 생성, 일일 미션·시나리오
 crates/history  역사 엔진: 중요도, 증거(봉인/발견), 연구·반박, 인과 연결, 전기, Herald, JSONL 리플레이
+crates/view     클라이언트 순수 로직(엔진 없음): 보간, 피아 식별, 우주 지도 투영, HUD 게이지·패널, 먼지장
 crates/server   권위 서버: 비행 물리, 무기, NPC AI, PvP 규칙, 교전 추적, 채굴/시장, 함대, 영속화
 crates/client   Bevy 0.20 클라이언트, src/shaders/*.wesl (스카이박스·항성·행성·고리·선체·엔진·실드·빔·폭발·워프·글로우)
 crates/bot      헤드리스 봇(실제 소켓) — E2E/부하 테스트
@@ -78,11 +79,12 @@ tuning          밸런스 수치(ships/npcs/combat.ron) — 실행 시 읽음, �
 ## 테스트
 
 ```
-cargo test -p shared -p history -p server
+cargo test -p shared -p history -p server -p view
 cargo build -p server && cargo test -p bot
 ```
 
 - `server/tests/game.rs` — 함선 1척 제한, 워프 거리, PvE 보상/일일 진행, PvP 규칙·전투 기록·잔해 조사·연구, 수배·현상금, 함대, 업그레이드 상한, 시나리오 1장 완주, 채굴/시장, 영속화
+- `view/tests/hud.rs` — HUD를 헤드리스 egui로 그려 글자·배치·색을 검사(조준선 게이지, 손실 막대, 함선 상태 패널)
 - `bot/tests/e2e.rs` — 실제 서버 프로세스에서 두 함장이 3회 워프 후 War Zone에서 교전 → 연대기 확인, 30명 동시 접속
 
 ## 렌더링

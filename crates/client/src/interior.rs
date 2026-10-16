@@ -210,7 +210,7 @@ fn drive_cameras(
             // Slow handheld drift; a jolt when the hull takes a hit.
             let span = if it.kind == Some(Kind::Bridge) { 0.25 } else { 0.03 };
             let drift = Vec3::new((t * 0.21).sin(), (t * 0.17).cos() * 0.5, (t * 0.13).sin() * 0.6) * span;
-            let shake = Vec3::new((t * 53.0).sin(), (t * 47.0).cos(), 0.0) * s.hull_flash * span * 0.8;
+            let shake = Vec3::new((t * 53.0).sin(), (t * 47.0).cos(), 0.0) * s.gauge.flash * span * 0.8;
             tf.translation = a.translation() + drift + shake;
             tf.look_at(l.translation() + drift * 0.3, Vec3::Y);
         }
@@ -238,7 +238,7 @@ fn animate(time: Res<Time<Real>>, s: Res<Session>, it: Res<Interior>, mut tfs: Q
         }
     }
     let now = time.elapsed_secs_f64();
-    let alert = s.engagement.is_some() || now - s.last_combat < 8.0 || s.hull_flash > 0.0;
+    let alert = s.engagement.is_some() || now - s.last_combat < 8.0 || s.gauge.flash > 0.0;
     let pulse = 0.5 + 0.5 * (t * 5.0).sin();
     // Strips and lights change every frame only while alarmed; otherwise once on the transition.
     if alert || *last_alert != Some(alert) {
@@ -273,7 +273,7 @@ fn panel_ui(mut contexts: EguiContexts, mut it: ResMut<Interior>, s: Res<Session
         egui::Frame::popup(ui.style()).inner_margin(6.0).show(ui, |ui| {
             ui.horizontal(|ui| {
                 ui.label(egui::RichText::new(title).size(13.0).strong().color(egui::Color32::from_rgb(255, 205, 110)));
-                let alert = s.engagement.is_some() || s.hull_flash > 0.0;
+                let alert = s.engagement.is_some() || s.gauge.flash > 0.0;
                 if alert {
                     ui.label(egui::RichText::new("● 적색 경보").size(11.0).color(egui::Color32::from_rgb(255, 80, 70)));
                 }

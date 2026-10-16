@@ -45,11 +45,8 @@ fn drift(s: Res<Session>, cam: Query<&GlobalTransform, With<MainCamera>>, mut mo
     let radius = me.map(|m| m.radius).unwrap_or(10.0);
     let vel = me.map(|m| Vec3::from(m.vel)).unwrap_or(Vec3::ZERO);
     let speed = vel.length();
-    let size = (radius * 45.0).clamp(380.0, 9_000.0);
-    let half = size * 0.5;
-    let width = size * 0.0005;
-    // Streak length grows with speed relative to the ship's own size.
-    let len = width * (1.0 + (speed / (radius * 0.6)).min(30.0));
+    let field = view::dust::Field::new(radius, speed);
+    let (size, width, len) = (field.size, field.width, field.len);
     let dir = if speed > 1.0 { vel / speed } else { Vec3::Z };
     let rot = Quat::from_rotation_arc(Vec3::Z, dir);
     let cp = c.translation();
@@ -68,11 +65,9 @@ fn drift(s: Res<Session>, cam: Query<&GlobalTransform, With<MainCamera>>, mut mo
             continue;
         }
         let mut rel = if first { t.translation * size } else { (t.translation - cp) * rescale };
-        rel = Vec3::new((rel.x + half).rem_euclid(size) - half, (rel.y + half).rem_euclid(size) - half, (rel.z + half).rem_euclid(size) - half);
+        rel = field.wrap(rel);
         t.translation = cp + rel;
-        // Shrink toward the box edges so wrapping never pops, and right at the camera.
-        let r = rel.length() / half;
-        let k = (1.0 - r * r).clamp(0.0, 1.0) * ((r - 0.06) * 4.0).clamp(0.0, 1.0);
+        let k = field.fade(rel);
         t.rotation = rot;
         t.scale = Vec3::new(width * k, width * k, len * k);
     }

@@ -9,68 +9,19 @@
 use crate::net::Net;
 use crate::scene::Env;
 use crate::state::{INTERP_DELAY, Session};
-use bevy::prelude::{Vec2, Vec3};
+use bevy::prelude::Vec3;
 use bevy_egui::egui;
 use egui::{Align2, Color32, FontId, Pos2, Rect, RichText, Stroke, Vec2 as EVec2};
 use shared::galaxy::{self, PoiKind, RiskTier, SystemId, coords};
 use shared::protocol::*;
+pub use view::mapview::Level;
+use view::mapview::{nice_step, system_extent};
+use view::palette::{ACCENT, DIM, GOLD, GREEN, RED};
+use view::relation::Viewer;
 
 const BG: Color32 = Color32::from_rgb(4, 7, 13);
 const GRID: Color32 = Color32::from_rgb(22, 34, 52);
 const GRID_TEXT: Color32 = Color32::from_rgb(70, 95, 130);
-const ACCENT: Color32 = Color32::from_rgb(110, 190, 255);
-const GOLD: Color32 = Color32::from_rgb(255, 205, 110);
-const DIM: Color32 = Color32::from_rgb(140, 150, 170);
-const RED: Color32 = Color32::from_rgb(255, 95, 80);
-const GREEN: Color32 = Color32::from_rgb(110, 230, 150);
-
-/// Galaxy chart scale limits (pixels per light-year); zooming in past the max enters the system chart.
-const G_MIN: f32 = 40.0;
-const G_MAX: f32 = 700.0;
-/// System chart: the farthest-out zoom shows the whole system (its extent plus this margin) before
-/// returning to the galaxy; opening the map frames this radius (meters) around my ship.
-const S_MARGIN: f32 = 1.25;
-const S_OPEN_RADIUS: f32 = 2_500.0;
-const S_MAX: f32 = 2.0;
-
-/// Radius (m) that contains every body of the current system.
-fn system_extent(env: &Env) -> f32 {
-    env.layout
-        .as_ref()
-        .map(|l| {
-            let pts = l.planets.iter().map(|p| p.pos.length() + p.radius).chain(l.asteroids.iter().map(|a| a.pos.length())).chain(l.pois.iter().map(|p| p.pos.length())).chain([l.station.length(), l.jump_point.length()]);
-            pts.fold(2_000.0, f32::max)
-        })
-        .unwrap_or(16_000.0)
-}
-
-#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
-pub enum Level {
-    Galaxy,
-    #[default]
-    System,
-}
-
-#[derive(Clone, Debug)]
-pub struct MapView {
-    pub level: Level,
-    /// Galaxy chart centre (ly, x/z) and scale (px per ly).
-    g_center: Vec2,
-    g_scale: f32,
-    /// System chart centre (m, x/z) and scale (px per m).
-    s_center: Vec2,
-    s_scale: f32,
-    /// Keep my ship centred on the system chart (cleared by dragging).
-    follow: bool,
-    was_open: bool,
-    selected: Option<SystemId>,
-}
-
-impl Default for MapView {
-    fn default() -> Self {
-        MapView { level: Level::System, g_center: Vec2::new(0.4, 2.8), g_scale: 120.0, s_center: Vec2::ZERO, s_scale: 0.03, follow: true, was_open: false, selected: None }
-    }
-}
 
 fn tier_color(t: RiskTier) -> Color32 {
     match t {
@@ -86,28 +37,9 @@ fn rgb(c: [f32; 3]) -> Color32 {
     Color32::from_rgb((c[0].clamp(0.0, 1.0) * 255.0) as u8, (c[1].clamp(0.0, 1.0) * 255.0) as u8, (c[2].clamp(0.0, 1.0) * 255.0) as u8)
 }
 
-/// A 1/2/5×10^n step whose on-screen size is at least `min_px`.
-fn nice_step(scale: f32, min_px: f32) -> f32 {
-    let raw = min_px / scale.max(1e-9);
-    let mag = 10f32.powf(raw.log10().floor());
-    for m in [1.0, 2.0, 5.0, 10.0] {
-        if mag * m >= raw {
-            return mag * m;
-        }
-    }
-    mag * 10.0
-}
-
 pub fn draw(ctx: &egui::Context, s: &mut Session, net: &Net, env: &Env, now: f64) {
     let open = s.ui.map;
-    if open && !s.map.was_open {
-        // Every opening starts on my ship.
-        s.map.level = Level::System;
-        s.map.follow = true;
-        s.map.selected = None;
-        s.map.s_scale = ctx.content_rect().size().min_elem() * 0.5 / S_OPEN_RADIUS;
-    }
-    s.map.was_open = open;
+    s.map.set_open(open, ctx.content_rect());
     if !open {
         return;
     }
@@ -142,29 +74,19 @@ fn top_bar(ui: &mut egui::Ui, map: Rect, s: &mut Session, env: &Env) {
             ui.label(RichText::new(crumb).size(18.0).strong().color(GOLD));
             ui.add_space(16.0);
             if ui.button("은하").clicked() {
-                s.map.level = Level::Galaxy;
-                s.map.g_center = Vec2::new(sys.map_pos[0], sys.map_pos[2]);
-                s.map.g_scale = 120.0;
+                s.map.show_galaxy(s.system);
             }
             if ui.button("현재 성계").clicked() {
-                s.map.level = Level::System;
-                s.map.follow = false;
-                s.map.s_center = Vec2::ZERO;
-                s.map.s_scale = map.size().min_elem() * 0.5 / (system_extent(env) * S_MARGIN);
+                s.map.frame_system(map, system_extent(env.layout.as_ref()));
             }
             if ui.button("내 위치").clicked() {
-                s.map.level = Level::System;
-                s.map.follow = true;
+                s.map.follow_me();
             }
-            let zoom = |s: &mut Session, k: f32| match s.map.level {
-                Level::Galaxy => s.map.g_scale = (s.map.g_scale * k).clamp(G_MIN, G_MAX),
-                Level::System => s.map.s_scale = (s.map.s_scale * k).min(S_MAX),
-            };
             if ui.button(" + ").clicked() {
-                zoom(s, 1.5);
+                s.map.zoom_by(1.5);
             }
             if ui.button(" − ").clicked() {
-                zoom(s, 1.0 / 1.5);
+                s.map.zoom_by(1.0 / 1.5);
             }
             if ui.button("닫기 (M)").clicked() {
                 s.ui.map = false;
@@ -176,35 +98,15 @@ fn top_bar(ui: &mut egui::Ui, map: Rect, s: &mut Session, env: &Env) {
 
 #[allow(clippy::too_many_arguments)]
 fn galaxy_chart(_ui: &mut egui::Ui, p: &egui::Painter, map: Rect, resp: &egui::Response, scroll: f32, hover: Option<Pos2>, s: &mut Session, env: &Env, now: f64) {
-    let v = &mut s.map;
-    if resp.dragged() {
-        let d = resp.drag_delta();
-        v.g_center -= Vec2::new(d.x, -d.y) / v.g_scale;
+    // Zooming in past the limit dives into the current system.
+    if s.map.galaxy_input(map, resp.dragged().then(|| resp.drag_delta()), scroll, hover, system_extent(env.layout.as_ref())) {
+        return;
     }
-    if scroll != 0.0 {
-        let k = (scroll * 0.0025).exp();
-        let new = (v.g_scale * k).clamp(G_MIN, G_MAX);
-        // Zoom about the cursor.
-        if let Some(h) = hover {
-            let before = Vec2::new(h.x - map.center().x, -(h.y - map.center().y)) / v.g_scale;
-            let after = Vec2::new(h.x - map.center().x, -(h.y - map.center().y)) / new;
-            v.g_center += before - after;
-        }
-        v.g_scale = new;
-        if k > 1.0 && v.g_scale >= G_MAX {
-            // Dive into the current system.
-            v.level = Level::System;
-            v.s_scale = map.size().min_elem() * 0.5 / (system_extent(env) * S_MARGIN);
-            v.s_center = Vec2::ZERO;
-            v.follow = false;
-            return;
-        }
-    }
-    let (c, sc) = (v.g_center, v.g_scale);
-    let to = |mp: [f32; 3]| Pos2::new(map.center().x + (mp[0] - c.x) * sc, map.center().y - (mp[2] - c.y) * sc);
+    let v = s.map.clone();
+    let sc = v.g_scale;
+    let to = |mp: [f32; 3]| v.galaxy_to_screen(map, mp);
     // Sector grid.
-    let (x0, x1) = (c.x - map.width() / 2.0 / sc, c.x + map.width() / 2.0 / sc);
-    let (z0, z1) = (c.y - map.height() / 2.0 / sc, c.y + map.height() / 2.0 / sc);
+    let (x0, x1, z0, z1) = v.galaxy_bounds(map);
     for xi in (x0 - coords::SECTOR_ORIGIN_X).floor() as i32..=(x1 - coords::SECTOR_ORIGIN_X).ceil() as i32 {
         let x = coords::SECTOR_ORIGIN_X + xi as f32;
         let a = to([x, 0.0, z0]);
@@ -270,8 +172,7 @@ fn galaxy_chart(_ui: &mut egui::Ui, p: &egui::Painter, map: Rect, resp: &egui::R
             s.map.selected = Some(id);
         }
         if resp.double_clicked() && id == s.system {
-            s.map.level = Level::System;
-            s.map.follow = true;
+            s.map.follow_me();
         }
     }
 }
@@ -280,40 +181,14 @@ fn galaxy_chart(_ui: &mut egui::Ui, p: &egui::Painter, map: Rect, resp: &egui::R
 fn system_chart(_ui: &mut egui::Ui, p: &egui::Painter, map: Rect, resp: &egui::Response, scroll: f32, hover: Option<Pos2>, s: &mut Session, net: &Net, env: &Env, now: f64) {
     let t = now - INTERP_DELAY;
     let me_pose = s.me.and_then(|m| s.sample(m, t)).map(|(pos, rot, st)| (pos, rot, st.clone()));
-    let fit_min = map.size().min_elem() * 0.5 / (system_extent(env) * S_MARGIN);
-    {
-        let v = &mut s.map;
-        if resp.dragged() {
-            let d = resp.drag_delta();
-            v.s_center -= Vec2::new(d.x, d.y) / v.s_scale;
-            v.follow = false;
-        }
-        if scroll != 0.0 {
-            let k = (scroll * 0.0025).exp();
-            if k < 1.0 && v.s_scale <= fit_min * 1.001 {
-                // Pull back out to the galaxy chart, centred on this system.
-                let sys = galaxy::system(s.system);
-                v.level = Level::Galaxy;
-                v.g_scale = G_MAX * 0.9;
-                v.g_center = Vec2::new(sys.map_pos[0], sys.map_pos[2]);
-                return;
-            }
-            let new = (v.s_scale * k).clamp(fit_min, S_MAX);
-            if let (Some(h), false) = (hover, v.follow) {
-                let off = Vec2::new(h.x - map.center().x, h.y - map.center().y);
-                v.s_center += off / v.s_scale - off / new;
-            }
-            v.s_scale = new;
-        }
-        if v.follow
-            && let Some((pos, _, _)) = &me_pose
-        {
-            v.s_center = Vec2::new(pos.x, pos.z);
-        }
+    // Zooming out of the fully framed system pulls back to the galaxy chart.
+    if s.map.system_input(map, resp.dragged().then(|| resp.drag_delta()), scroll, hover, system_extent(env.layout.as_ref()), s.system, me_pose.as_ref().map(|m| m.0)) {
+        return;
     }
-    let (c, sc) = (s.map.s_center, s.map.s_scale);
-    let to = |w: Vec3| Pos2::new(map.center().x + (w.x - c.x) * sc, map.center().y + (w.z - c.y) * sc);
-    let from = |sp: Pos2| Vec3::new(c.x + (sp.x - map.center().x) / sc, 0.0, c.y + (sp.y - map.center().y) / sc);
+    let v = s.map.clone();
+    let sc = v.s_scale;
+    let to = |w: Vec3| v.system_to_screen(map, w);
+    let from = |sp: Pos2| v.system_from_screen(map, sp);
 
     // Coordinate grid in km with edge labels.
     let step = nice_step(sc, 90.0);
@@ -420,7 +295,7 @@ fn system_chart(_ui: &mut egui::Ui, p: &egui::Painter, map: Rect, resp: &egui::R
     // Ships, live.
     let prof = s.profile.clone();
     let def = galaxy::system(s.system);
-    let my_owner = me_pose.as_ref().and_then(|m| m.2.owner);
+    let viewer = Viewer { me: s.me, player: s.player_id, fleet: s.fleet, alliance: s.my_alliance, alliances: &s.alliances, tier: def.tier };
     let ids: Vec<EntityId> = s.latest().map(|l| l.ents.keys().copied().collect()).unwrap_or_default();
     let mut drawn = 0usize;
     for id in ids {
@@ -434,16 +309,7 @@ fn system_chart(_ui: &mut egui::Ui, p: &egui::Painter, map: Rect, resp: &egui::R
         }
         drawn += 1;
         let mine = Some(id) == s.me;
-        let friend = !mine && st.owner.is_some() && (st.owner == my_owner || (st.fleet.is_some() && st.fleet == s.fleet) || (st.alliance.is_some() && st.alliance == s.my_alliance));
-        let war = st.alliance.is_some_and(|a| s.alliances.iter().any(|x| Some(x.id) == s.my_alliance && x.wars.contains(&a)));
-        let hostile = matches!(st.kind, EntityKind::Npc(_)) || (!friend && !mine && st.owner.is_some() && (def.tier.pvp_allowed() || (war && def.tier != RiskTier::Core)));
-        let col = match st.kind {
-            EntityKind::Wreck => GOLD,
-            _ if mine => GOLD,
-            _ if friend => GREEN,
-            _ if hostile => RED,
-            _ => ACCENT,
-        };
+        let col = viewer.relation(&st).color();
         let fwd = rot * Vec3::NEG_Z;
         let dir = EVec2::new(fwd.x, fwd.z).normalized();
         let size = if mine { 11.0 } else { (st.radius * sc).clamp(4.0, 9.0) + if matches!(st.class, Some(shared::ships::SizeClass::Capital)) { 3.0 } else { 0.0 } };
@@ -571,9 +437,7 @@ fn side_panel(ui: &mut egui::Ui, rect: Rect, s: &mut Session, net: &Net, now: f6
                     let sel = s.map.selected == Some(sys.id);
                     let name = RichText::new(format!("{}{}", if sel { "▶ " } else { "" }, sys.name)).color(tier_color(sys.tier));
                     if ui.add(egui::Label::new(name).sense(egui::Sense::click())).clicked() {
-                        s.map.selected = Some(sys.id);
-                        s.map.level = Level::Galaxy;
-                        s.map.g_center = Vec2::new(sys.map_pos[0], sys.map_pos[2]);
+                        s.map.show_system(sys.id);
                     }
                     ui.label(RichText::new(format!("{} · {d:.2} ly", coords::sector_of(sys.map_pos))).size(11.0).color(DIM));
                     if ui.add_enabled(d <= range && s.warp.is_none(), egui::Button::new("워프")).clicked() {

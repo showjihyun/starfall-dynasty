@@ -11,7 +11,7 @@ use shared::chronicle::Importance;
 use shared::galaxy::{self, Ore, PoiKind, RiskTier, Species};
 use shared::missions::{Objective, scenarios};
 use shared::protocol::*;
-use shared::ships::{HullClass, MAX_MODULE_LEVEL, Module, Ship, SizeClass, tier_cap, upgrade_cost};
+use shared::ships::{HullClass, MAX_MODULE_LEVEL, Module, Ship, tier_cap, upgrade_cost};
 
 #[derive(Resource)]
 pub struct Form {
@@ -31,11 +31,9 @@ impl Default for Form {
     }
 }
 
-const ACCENT: Color32 = Color32::from_rgb(110, 190, 255);
-const GOLD: Color32 = Color32::from_rgb(255, 205, 110);
-const DIM: Color32 = Color32::from_rgb(140, 150, 170);
-const RED: Color32 = Color32::from_rgb(255, 95, 80);
-const GREEN: Color32 = Color32::from_rgb(110, 230, 150);
+use view::hud::{bar, crosshair_gauges};
+use view::palette::{ACCENT, DIM, GOLD, GREEN, RED};
+use view::relation::Viewer;
 
 pub fn tier_color(t: RiskTier) -> Color32 {
     match t {
@@ -266,72 +264,6 @@ fn create(ctx: &egui::Context, form: &mut Form, s: &Session, net: &Net, args: &A
     });
 }
 
-fn bar(ui: &mut egui::Ui, frac: f32, color: Color32, label: String, w: f32) {
-    bar_with_loss(ui, frac, frac, color, label, w, 16.0);
-}
-
-/// Bar whose recently lost part (`lag` > `frac`) lingers in bright orange before draining away.
-fn bar_with_loss(ui: &mut egui::Ui, frac: f32, lag: f32, color: Color32, label: String, w: f32, h: f32) {
-    let (rect, _) = ui.allocate_exact_size(EVec2::new(w, h), egui::Sense::hover());
-    let p = ui.painter();
-    p.rect_filled(rect, 3.0, Color32::from_rgba_unmultiplied(20, 25, 35, 200));
-    let (frac, lag) = (frac.clamp(0.0, 1.0), lag.clamp(0.0, 1.0));
-    if lag > frac {
-        let mut l = rect;
-        l.set_width(rect.width() * lag);
-        p.rect_filled(l, 3.0, Color32::from_rgb(255, 170, 60));
-    }
-    let mut f = rect;
-    f.set_width(rect.width() * frac);
-    p.rect_filled(f, 3.0, color);
-    for k in 1..10 {
-        let x = rect.left() + rect.width() * k as f32 / 10.0;
-        p.line_segment([Pos2::new(x, rect.bottom() - h * 0.35), Pos2::new(x, rect.bottom())], Stroke::new(1.0, Color32::from_rgba_unmultiplied(0, 0, 0, 90)));
-    }
-    p.text(rect.center(), Align2::CENTER_CENTER, label, FontId::proportional(h * 0.7), Color32::WHITE);
-}
-
-/// Arc from angle `a0` to `a1` (radians, screen space: 0 = right, +pi/2 = down).
-fn arc(p: &egui::Painter, c: Pos2, r: f32, a0: f32, a1: f32, stroke: Stroke) {
-    if (a1 - a0).abs() < 1e-3 {
-        return;
-    }
-    let n = ((a1 - a0).abs() * 24.0).ceil().max(2.0) as usize;
-    let pts: Vec<Pos2> = (0..=n).map(|i| a0 + (a1 - a0) * i as f32 / n as f32).map(|a| c + EVec2::new(a.cos(), a.sin()) * r).collect();
-    p.add(egui::Shape::line(pts, stroke));
-}
-
-/// Combat gauges hugging the crosshair: shield on the left, hull on the right. Both fill from the
-/// bottom up, the just-lost part glows orange while it drains, and low values pulse.
-fn crosshair_gauges(p: &egui::Painter, c: Pos2, shield: f32, hull: f32, lag: [f32; 2], now: f64) {
-    use std::f32::consts::PI;
-    let r = 92.0;
-    let span = PI * 0.55;
-    let track = Stroke::new(9.0, Color32::from_rgba_unmultiplied(15, 20, 30, 150));
-    let pulse = 0.55 + 0.45 * ((now * 8.0).sin() as f32 * 0.5 + 0.5);
-    let hull_col = if hull > 0.6 {
-        GREEN
-    } else if hull > 0.3 {
-        Color32::from_rgb(255, 200, 80)
-    } else {
-        Color32::from_rgb(255, (70.0 * pulse) as u8, (60.0 * pulse) as u8)
-    };
-    let shield_col = if shield > 0.25 { Color32::from_rgb(80, 160, 255) } else { Color32::from_rgba_unmultiplied(80, 160, 255, (255.0 * pulse) as u8) };
-    let loss = Stroke::new(9.0, Color32::from_rgb(255, 170, 60));
-    // Screen angles grow clockwise (+y is down): each arc starts below the horizon and climbs.
-    let (l_bot, r_bot) = (PI - span / 2.0, span / 2.0);
-    for (frac, lagf, col, bottom, dir) in [(shield, lag[0], shield_col, l_bot, -1.0f32), (hull, lag[1], hull_col, r_bot, 1.0f32)] {
-        let at = |f: f32| bottom - dir * span * f.clamp(0.0, 1.0);
-        arc(p, c, r, at(0.0), at(1.0), track);
-        if lagf > frac {
-            arc(p, c, r, at(frac), at(lagf), loss);
-        }
-        arc(p, c, r, at(0.0), at(frac), Stroke::new(9.0, col));
-    }
-    p.text(c + EVec2::new(-r - 10.0, 0.0), Align2::RIGHT_CENTER, format!("실드\n{:.0}%", shield * 100.0), FontId::proportional(15.0), shield_col);
-    p.text(c + EVec2::new(r + 10.0, 0.0), Align2::LEFT_CENTER, format!("선체\n{:.0}%", hull * 100.0), FontId::proportional(15.0), hull_col);
-}
-
 #[allow(clippy::too_many_arguments)]
 fn hud(ctx: &egui::Context, s: &mut Session, net: &Net, env: &Env, vis: &Visuals, ships: &Query<(&ShipVis, &Transform)>, cam: &Query<(&Camera, &GlobalTransform), With<crate::control::MainCamera>>, now: f64) {
     let Some(prof) = s.profile.clone() else { return };
@@ -344,6 +276,7 @@ fn hud(ctx: &egui::Context, s: &mut Session, net: &Net, env: &Env, vis: &Visuals
     if let Ok((camera, cgt)) = cam.single() {
         let project = |p: Vec3| camera.world_to_viewport(cgt, p).ok().map(|v| Pos2::new(v.x, v.y));
         let my_pos = me.as_ref().map(|m| Vec3::from(m.pos)).unwrap_or(cgt.translation());
+        let viewer = Viewer { me: s.me, player: s.player_id, fleet: s.fleet, alliance: s.my_alliance, alliances: &s.alliances, tier: def.tier };
         if let Some(latest) = s.latest() {
             for e in latest.ents.values() {
                 if Some(e.id) == s.me || e.docked || e.kind == EntityKind::Missile {
@@ -355,15 +288,7 @@ fn hud(ctx: &egui::Context, s: &mut Session, net: &Net, env: &Env, vis: &Visuals
                     continue;
                 }
                 let Some(sp) = project(vt) else { continue };
-                let friend = e.owner.is_some() && (e.owner == s.player_id || (e.fleet.is_some() && e.fleet == prof_fleet(s)) || (e.alliance.is_some() && e.alliance == s.my_alliance));
-                let war = e.alliance.is_some_and(|a| s.alliances.iter().any(|x| Some(x.id) == s.my_alliance && x.wars.contains(&a)));
-                let hostile = matches!(e.kind, EntityKind::Npc(_)) || (!friend && e.owner.is_some() && (def.tier.pvp_allowed() || (war && def.tier != RiskTier::Core)));
-                let col = match e.kind {
-                    EntityKind::Wreck => GOLD,
-                    _ if friend => GREEN,
-                    _ if hostile => RED,
-                    _ => ACCENT,
-                };
+                let col = viewer.relation(e).color();
                 let r = (e.radius * 900.0 / d.max(1.0)).clamp(10.0, 80.0);
                 let is_target = s.target == Some(e.id);
                 let st = Stroke::new(if is_target { 2.0 } else { 1.0 }, col);
@@ -400,25 +325,16 @@ fn hud(ctx: &egui::Context, s: &mut Session, net: &Net, env: &Env, vis: &Visuals
 
     // Gauges: lagging "just lost" trail, red edge flash on hull damage.
     if let Some(m) = &me {
-        let dt = (now - s.gauge_last.1).clamp(0.0, 0.25) as f32;
-        if m.hull < s.gauge_last.0 - 1e-3 {
-            s.hull_flash = 1.0;
-        }
-        s.gauge_last = (m.hull, now);
-        for (lag, cur) in s.gauge_lag.iter_mut().zip([m.shield, m.hull]) {
-            // Hold briefly, then drain toward the real value; jump up immediately on regen/repair.
-            *lag = if cur >= *lag { cur } else { (*lag - dt * 0.35).max(cur) };
-        }
-        s.hull_flash = (s.hull_flash - dt * 1.8).max(0.0);
-        if s.hull_flash > 0.0 {
-            let a = (s.hull_flash * 110.0) as u8;
+        s.gauge.update(m.shield, m.hull, now);
+        if s.gauge.flash > 0.0 {
+            let a = (s.gauge.flash * 110.0) as u8;
             for k in 0..4 {
                 let w = 26.0 - k as f32 * 6.0;
                 let col = Color32::from_rgba_unmultiplied(255, 30, 20, a / (k + 1));
                 painter.rect_stroke(screen.shrink(w / 2.0 + k as f32 * 6.0), 0.0, Stroke::new(w, col), egui::StrokeKind::Middle);
             }
         }
-        crosshair_gauges(&painter, screen.center(), m.shield, m.hull, s.gauge_lag, now);
+        crosshair_gauges(&painter, screen.center(), m.shield, m.hull, s.gauge.lag, now);
     }
 
     // Crosshair.
@@ -449,27 +365,7 @@ fn hud(ctx: &egui::Context, s: &mut Session, net: &Net, env: &Env, vis: &Visuals
 
     // Bottom-center: ship status.
     egui::Area::new("ship".into()).anchor(Align2::CENTER_BOTTOM, EVec2::new(0.0, -36.0)).show(ctx, |ui| {
-        egui::Frame::popup(ui.style()).show(ui, |ui| {
-            let ship = &prof.ship;
-            let st = ship.stats();
-            ui.horizontal(|ui| {
-                ui.label(RichText::new(format!("「{}」", ship.name)).strong().size(16.0));
-                ui.label(RichText::new(format!("{} · {}급", ship.hull.name(), ship.designation())).color(ACCENT));
-            });
-            let class = ship.size_class();
-            let next = match class {
-                SizeClass::Small => format!(" · Rank 3에서 순양함으로 재건조 (현재 Rank {})", ship.rank()),
-                SizeClass::Cruiser => format!(" · Rank 7에서 주력함으로 (현재 Rank {})", ship.rank()),
-                SizeClass::Capital => String::new(),
-            };
-            ui.label(RichText::new(format!("{} · 전장 {:.0}m · 포탑 {}문{}{}{}", class.name(), st.radius * 2.2, st.turrets, if st.main_damage > 0.0 { " · 함수 주포" } else { "" }, if st.escorts > 0 { format!(" · 호위함 {}척", st.escorts) } else { String::new() }, next)).size(11.0).color(GOLD));
-            if let Some(m) = &me {
-                bar_with_loss(ui, m.shield, s.gauge_lag[0], Color32::from_rgb(60, 140, 255), format!("에너지 실드 {:.0}/{:.0}", m.shield * st.max_shield, st.max_shield), 420.0, 22.0);
-                bar_with_loss(ui, m.hull, s.gauge_lag[1], if m.hull > 0.35 { Color32::from_rgb(70, 190, 110) } else { RED }, format!("선체 내구도 {:.0}/{:.0}", m.hull * st.max_hull, st.max_hull), 420.0, 22.0);
-                let speed = Vec3::from(m.vel).length();
-                ui.label(RichText::new(format!("속도 {:.0} u/s{} · 화물 {}/{:.0} · 워프 {:.2} ly{}", speed, if m.boosting { " ⚡" } else { "" }, prof.cargo_used(), st.cargo, st.warp_range, if m.docked { " · 도킹 중" } else { "" })).size(12.0));
-            }
-        });
+        egui::Frame::popup(ui.style()).show(ui, |ui| view::hud::ship_status(ui, &prof.ship, prof.cargo_used(), me.as_ref(), s.gauge.lag));
     });
 
     // Right: target and objective tracker.
@@ -570,10 +466,6 @@ fn hud(ctx: &egui::Context, s: &mut Session, net: &Net, env: &Env, vis: &Visuals
             ui.label(RichText::new(format!("⚠ 서버 연결 끊김: {r}")).color(RED).size(18.0));
         });
     }
-}
-
-fn prof_fleet(s: &Session) -> Option<FleetId> {
-    s.fleet
 }
 
 fn poi_icon(k: PoiKind) -> &'static str {

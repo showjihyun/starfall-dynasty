@@ -7,6 +7,7 @@ edition = "2024"
 bevy = { version = "0.20", features = ["wav"] }
 bevy_egui = "0.43"
 shared = { path = "../shared" }
+view = { path = "../view" }
 serde_json = { workspace = true }
 tokio = { workspace = true }
 tokio-tungstenite = { workspace = true }
