@@ -61,6 +61,31 @@ pub struct Evidence {
     pub reliability: f32,
     /// Whether it has been discovered by anyone yet (fog of history).
     pub discovered_by: Option<String>,
+    /// What examination has shown. A forgery looks exactly like its original until examined.
+    #[serde(default, skip_serializing_if = "Authenticity::is_unverified")]
+    pub authenticity: Authenticity,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum Authenticity {
+    #[default]
+    Unverified,
+    Authentic,
+    Forged,
+}
+
+impl Authenticity {
+    pub fn is_unverified(&self) -> bool {
+        *self == Authenticity::Unverified
+    }
+
+    pub fn label(self) -> &'static str {
+        match self {
+            Authenticity::Unverified => "미검증",
+            Authenticity::Authentic => "진품 확인",
+            Authenticity::Forged => "위조 판명",
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -90,6 +115,9 @@ pub struct Research {
     /// Derived from cited evidence reliability; disputes lower it.
     pub confidence: f32,
     pub disputed_by: Vec<String>,
+    /// It cites evidence that was exposed as forged.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub discredited: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

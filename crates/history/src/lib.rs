@@ -47,6 +47,10 @@ pub enum DomainEvent {
     ArtifactRecovered { artifact_id: u64, artifact: String, player: String, from: String, system: SystemId, wreck_event: EventId },
     ArtifactSold { artifact_id: u64, artifact: String, player: String, credits: u64, system: SystemId },
     ArtifactDonated { artifact_id: u64, artifact: String, player: String, system: SystemId },
+    /// A forged copy of `original` with `text`. Secret: no chronicle entry, no biography line.
+    EvidenceForged { forger: String, original: u64, text: String },
+    /// `examiner` had `evidence` examined; research citing a forgery keeps `discredit` of its confidence.
+    EvidenceAuthenticated { examiner: String, evidence: u64, discredit: f32 },
 }
 
 #[derive(Serialize, Deserialize)]
@@ -66,6 +70,8 @@ pub struct HistoryEngine {
     battles_in: HashMap<SystemId, u32>,
     /// Latest chronicle entry about each artifact, so its story links cause to effect.
     artifact_last: HashMap<u64, EventId>,
+    /// Forged evidence id → (original id, forger). Only the engine knows until it is examined.
+    forgeries: HashMap<u64, (u64, String)>,
     log: Option<File>,
 }
 
@@ -131,7 +137,7 @@ impl HistoryEngine {
 
     fn add_evidence(&mut self, event: EventId, kind: EvidenceKind, source: &str, text: String, reliability: f32) -> u64 {
         let id = self.evidence.len() as u64 + 1;
-        self.evidence.push(Evidence { id, kind, event, source: source.to_string(), text, reliability, discovered_by: None });
+        self.evidence.push(Evidence { id, kind, event, source: source.to_string(), text, reliability, discovered_by: None, authenticity: Authenticity::Unverified });
         id
     }
 
@@ -151,6 +157,7 @@ impl HistoryEngine {
     pub fn apply(&mut self, unix: u64, ev: DomainEvent) -> Option<EventId> {
         match ev {
             ev @ (DomainEvent::AllianceFounded { .. } | DomainEvent::WarDeclared { .. } | DomainEvent::PeaceMade { .. }) => self.apply_diplomacy(unix, ev),
+            ev @ (DomainEvent::EvidenceForged { .. } | DomainEvent::EvidenceAuthenticated { .. }) => self.apply_forgery(unix, ev),
             ev @ (DomainEvent::ArtifactUnearthed { .. }
             | DomainEvent::ArtifactAppraised { .. }
             | DomainEvent::ArtifactLost { .. }
@@ -326,7 +333,7 @@ impl HistoryEngine {
                 let title = {
                     let e = self.events.iter_mut().find(|e| e.id == event)?;
                     e.research.retain(|r| r.author != author);
-                    e.research.push(Research { author: author.clone(), thesis: thesis.clone(), cited, confidence, disputed_by: vec![] });
+                    e.research.push(Research { author: author.clone(), thesis: thesis.clone(), cited, confidence, disputed_by: vec![], discredited: false });
                     // Researched events become more significant over time.
                     if e.importance < Importance::Major {
                         e.importance = match e.importance {
@@ -359,6 +366,64 @@ impl HistoryEngine {
                 }
                 Some(event)
             }
+        }
+    }
+
+    /// Who forged a piece of evidence (server side only; clients never see this).
+    pub fn forger_of(&self, evidence: u64) -> Option<&str> {
+        self.forgeries.get(&evidence).map(|(_, f)| f.as_str())
+    }
+
+    /// Forgery (design doc §53–54): a forged copy is indistinguishable from its original until it is
+    /// examined; then it is marked, the research built on it is discredited and the exposure is news.
+    fn apply_forgery(&mut self, unix: u64, ev: DomainEvent) -> Option<EventId> {
+        match ev {
+            DomainEvent::EvidenceForged { forger, original, text } => {
+                let o = self.evidence.iter().find(|e| e.id == original)?.clone();
+                let id = self.evidence.len() as u64 + 1;
+                self.evidence.push(Evidence { id, kind: o.kind, event: o.event, source: o.source, text, reliability: o.reliability, discovered_by: Some(forger.clone()), authenticity: Authenticity::Unverified });
+                self.forgeries.insert(id, (original, forger));
+                None
+            }
+            DomainEvent::EvidenceAuthenticated { examiner, evidence, discredit } => {
+                let idx = self.evidence.iter().position(|e| e.id == evidence)?;
+                if self.evidence[idx].authenticity != Authenticity::Unverified {
+                    return None;
+                }
+                let event = self.evidence[idx].event;
+                let title = self.events.iter().find(|e| e.id == event).map(|e| e.title.clone()).unwrap_or_default();
+                let Some((original, forger)) = self.forgeries.get(&evidence).cloned() else {
+                    self.evidence[idx].authenticity = Authenticity::Authentic;
+                    self.bio(&examiner, unix, format!("「{title}」의 증거를 감정해 진품임을 확인했다."), Some(event));
+                    return None;
+                };
+                self.evidence[idx].authenticity = Authenticity::Forged;
+                let source = self.evidence[idx].source.clone();
+                let mut fooled = vec![];
+                let system = {
+                    let e = self.events.iter_mut().find(|e| e.id == event)?;
+                    for r in e.research.iter_mut().filter(|r| r.cited.contains(&evidence) && !r.discredited) {
+                        r.discredited = true;
+                        r.confidence = (r.confidence * discredit).max(0.01);
+                        fooled.push(r.author.clone());
+                    }
+                    e.system
+                };
+                let summary = format!(
+                    "{examiner}의 감정 결과, 「{title}」에 관한 {source} 사본은 {forger}이(가) 원본(증거 #{original})을 고쳐 만든 위조품으로 드러났다.{}",
+                    if fooled.is_empty() { String::new() } else { format!(" 이를 인용한 연구({})는 신뢰를 잃었다.", fooled.join(", ")) }
+                );
+                let id = self.push_event(unix, system, "FORGERY_EXPOSED", format!("「{title}」 증거 위조 폭로"), summary, vec![forger.clone(), examiner.clone()], vec![], Importance::Major, vec![event]);
+                let e = self.add_evidence(id, EvidenceKind::ArchiveRecord, &format!("{examiner}의 감정 보고서"), format!("증거 #{evidence}: 원본 #{original}과 문체·기록 시각 불일치. 위조로 판정."), 0.9);
+                self.attach(id, vec![e]);
+                self.bio(&examiner, unix, format!("「{title}」의 위조 증거를 밝혀냈다. 위조자는 {forger}."), Some(id));
+                self.bio(&forger, unix, format!("「{title}」 증거를 위조한 사실이 {examiner}에게 폭로되었다."), Some(id));
+                for a in fooled.iter().filter(|a| **a != forger) {
+                    self.bio(a, unix, format!("「{title}」 연구가 위조 증거를 인용한 것으로 드러났다."), Some(id));
+                }
+                Some(id)
+            }
+            _ => None,
         }
     }
 
@@ -508,6 +573,7 @@ impl HistoryEngine {
                 "PEACE" => format!("포성이 멎다: {}", e.title),
                 "ALLIANCE" => format!("새 깃발: {}", e.title),
                 "ARTIFACT_UNEARTHED" => format!("땅속의 역사: {}", e.title),
+                "FORGERY_EXPOSED" => format!("위조 스캔들: {}", e.title),
                 "ARTIFACT_LOST" => format!("사라진 유물 — {}", e.title),
                 "ARTIFACT_RECOVERED" => format!("돌아온 유물: {}", e.title),
                 "ARTIFACT_SOLD" => format!("경매장 소식: {}", e.title),
@@ -515,7 +581,7 @@ impl HistoryEngine {
                 _ => e.title.clone(),
             };
             let mut body = e.summary.clone();
-            if let Some(r) = e.research.iter().max_by(|a, b| a.confidence.total_cmp(&b.confidence)) {
+            if let Some(r) = e.research.iter().filter(|r| !r.discredited).max_by(|a, b| a.confidence.total_cmp(&b.confidence)) {
                 body.push_str(&format!(" 역사가 {}는 \"{}\"라고 주장한다(신뢰도 {:.0}%).", r.author, r.thesis, r.confidence * 100.0));
             }
             out.push(Headline { date: e.date.clone(), headline, body });
@@ -628,6 +694,38 @@ mod tests {
         assert_eq!(h2.evidence.len(), n_evidence);
         assert_eq!(h2.biography("A"), bio);
         assert!(h2.evidence.iter().any(|e| e.discovered_by.as_deref() == Some("C")));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// A forgery is secret until examined, survives a replay of the log, and once exposed
+    /// discredits the research that cites it.
+    #[test]
+    fn forgery_is_secret_until_examined_and_replays() {
+        let dir = std::env::temp_dir().join(format!("sfd-forge-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("history.jsonl");
+        let mut h = HistoryEngine::open(&path).unwrap();
+        let ev = h.record(100, destroyed("A", "B", true)).unwrap();
+        let log = h.evidence.iter().find(|e| e.event == ev && e.kind == EvidenceKind::ShipLog).unwrap().id;
+        let n_events = h.events.len();
+        assert!(h.record(110, DomainEvent::EvidenceForged { forger: "M".into(), original: log, text: "A가 먼저 쐈다".into() }).is_none());
+        let fake = h.evidence.last().unwrap().id;
+        assert_eq!(h.events.len(), n_events, "no chronicle entry for a secret act");
+        assert!(h.biography("M").is_empty());
+        h.record(120, DomainEvent::ResearchPublished { author: "M".into(), event: ev, thesis: "A의 도발".into(), cited: vec![fake], historian: false });
+        // Replayed from the log, the forgery is still there and still secret.
+        drop(h);
+        let mut h = HistoryEngine::open(&path).unwrap();
+        assert_eq!(h.forger_of(fake), Some("M"));
+        assert_eq!(h.evidence.iter().find(|e| e.id == fake).unwrap().authenticity, Authenticity::Unverified);
+        let exposed = h.record(130, DomainEvent::EvidenceAuthenticated { examiner: "C".into(), evidence: fake, discredit: 0.3 }).unwrap();
+        assert_eq!(h.event(exposed).unwrap().kind, "FORGERY_EXPOSED");
+        let r = &h.event(ev).unwrap().research[0];
+        assert!(r.discredited);
+        assert!(h.herald(5).iter().all(|n| !n.body.contains("A의 도발")), "news no longer quotes discredited research");
+        assert!(h.record(140, DomainEvent::EvidenceAuthenticated { examiner: "C".into(), evidence: log, discredit: 0.3 }).is_none(), "the original is simply authentic");
+        assert_eq!(h.evidence.iter().find(|e| e.id == log).unwrap().authenticity, Authenticity::Authentic);
         let _ = std::fs::remove_dir_all(&dir);
     }
 

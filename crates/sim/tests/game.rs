@@ -607,3 +607,83 @@ fn archaeology_unearth_appraise_sell_and_donate() {
     let back: sim::store::StoreData = serde_json::from_str(&js).unwrap();
     assert_eq!(back.artifacts, g.store.data.artifacts);
 }
+
+#[test]
+fn forged_evidence_fools_research_until_authenticated() {
+    use shared::chronicle::Authenticity;
+    let mut g = game();
+    let a = join(&mut g, 1, "Alpha", Species::Human, HullClass::Talon, Profession::CombatPilot);
+    let _b = join(&mut g, 2, "Bravo", Species::Kharz, HullClass::Bastion, Profession::CombatPilot);
+    let forger = join(&mut g, 3, "Mallory", Species::Human, HullClass::Wren, Profession::Trader);
+    let hist = join(&mut g, 4, "Clio", Species::Veyr, HullClass::Seer, Profession::Historian);
+    // Alpha destroys Bravo in the war zone; the wreck holds the black box.
+    for conn in [1, 2] {
+        move_to_system(&mut g, conn, 7);
+    }
+    clear_npcs(&mut g, 7);
+    let (_, ea) = ent_of(&g, 1);
+    let (_, eb) = ent_of(&g, 2);
+    for _ in 0..200 {
+        g.apply_damage(7, ea, eb, 50.0);
+        g.tick(DT, T0);
+        if g.ent(7, eb).is_none() {
+            break;
+        }
+    }
+    let destroyed = g.history.events.iter().find(|e| e.kind == "SHIP_DESTROYED").unwrap().id;
+    let black_box = g.history.evidence.iter().find(|e| e.event == destroyed && e.kind == shared::chronicle::EvidenceKind::ShipLog).unwrap().clone();
+    // Mallory investigates the wreck, then forges the black box to blame Bravo.
+    move_to_system(&mut g, 3, 7);
+    clear_npcs(&mut g, 7);
+    let (wreck_id, wreck_pos) = g.systems[&7].ents.values().find(|e| e.kind == EntityKind::Wreck).map(|e| (e.id, e.pos)).unwrap();
+    place(&mut g, 3, wreck_pos + Vec3::X * 100.0, wreck_pos);
+    g.handle(3, ClientMsg::InvestigateWreck { wreck: wreck_id });
+    assert!(g.store.profile(forger).unwrap().archive.contains(&black_box.id));
+    // Forging needs the original in hand and costs credits.
+    g.out.clear();
+    g.handle(4, ClientMsg::ForgeEvidence { evidence: black_box.id, text: "x".repeat(10) });
+    assert!(errors(&g, 4).iter().any(|e| e.contains("가지고 있는")), "Clio does not hold it");
+    let credits_before = g.store.profile(forger).unwrap().wallet.credits;
+    g.handle(3, ClientMsg::ForgeEvidence { evidence: black_box.id, text: "마지막 기록: Bravo가 먼저 발포. 응사함.".into() });
+    let forged = g.history.evidence.last().unwrap().clone();
+    assert_ne!(forged.id, black_box.id);
+    assert_eq!((forged.kind, forged.event, &forged.source, forged.reliability), (black_box.kind, black_box.event, &black_box.source, black_box.reliability), "looks exactly like the original");
+    assert_eq!(forged.authenticity, Authenticity::Unverified);
+    assert!(g.store.profile(forger).unwrap().wallet.credits < credits_before);
+    assert!(g.store.profile(forger).unwrap().archive.contains(&forged.id));
+    assert!(!g.history.biography("Mallory").iter().any(|b| b.text.contains("위조")), "forging leaves no public trace");
+    // It is cited like real evidence.
+    g.handle(3, ClientMsg::PublishResearch { event: destroyed, thesis: "Bravo가 먼저 쐈다".into(), cite: vec![forged.id] });
+    let conf = g.history.event(destroyed).unwrap().research.iter().find(|r| r.author == "Mallory").unwrap().confidence;
+    assert!(conf > 0.5, "the forgery is convincing: {conf}");
+    let rep = g.store.profile(forger).unwrap().reputation;
+
+    // A historian examines it (free for Historians): the forgery is exposed.
+    let hist_credits = g.store.profile(hist).unwrap().wallet.credits;
+    let hist_rep = g.store.profile(hist).unwrap().reputation;
+    g.handle(4, ClientMsg::AuthenticateEvidence { evidence: forged.id });
+    let ev = g.history.evidence.iter().find(|e| e.id == forged.id).unwrap();
+    assert_eq!(ev.authenticity, Authenticity::Forged);
+    let exposed = g.history.events.iter().find(|e| e.kind == "FORGERY_EXPOSED").expect("exposure is history");
+    assert!(exposed.causes.contains(&destroyed));
+    assert!(exposed.actors.contains(&"Mallory".to_string()) && exposed.actors.contains(&"Clio".to_string()));
+    let r = g.history.event(destroyed).unwrap().research.iter().find(|r| r.author == "Mallory").unwrap().clone();
+    assert!(r.discredited && r.confidence < conf * 0.5, "{r:?}");
+    assert!(g.store.profile(forger).unwrap().reputation < rep, "the forger pays in reputation");
+    assert!(g.store.profile(hist).unwrap().reputation > hist_rep);
+    assert!(g.store.profile(hist).unwrap().wallet.credits > hist_credits, "a reward for exposing it");
+    assert!(g.history.herald(5).iter().any(|h| h.headline.contains("위조")));
+    // Examining it again is pointless; the original checks out as authentic and makes no news.
+    g.out.clear();
+    g.handle(4, ClientMsg::AuthenticateEvidence { evidence: forged.id });
+    assert!(!errors(&g, 4).is_empty());
+    let n = g.history.events.len();
+    g.handle(4, ClientMsg::AuthenticateEvidence { evidence: black_box.id });
+    assert_eq!(g.history.evidence.iter().find(|e| e.id == black_box.id).unwrap().authenticity, Authenticity::Authentic);
+    assert_eq!(g.history.events.len(), n);
+    // Anyone else pays to have evidence examined.
+    let before = g.store.profile(a).unwrap().wallet.credits;
+    let other = g.history.evidence.iter().find(|e| e.event == destroyed && e.authenticity == Authenticity::Unverified).unwrap().id;
+    g.handle(1, ClientMsg::AuthenticateEvidence { evidence: other });
+    assert!(g.store.profile(a).unwrap().wallet.credits < before);
+}

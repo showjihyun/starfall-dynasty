@@ -1,0 +1,10 @@
+// Historical manipulation (design doc §53–54): forged evidence and authenticity checks.
+// Read at run time (crates/shared/src/tuning.rs).
+(
+    forge_cost: 800,            // credits to forge a copy of evidence you hold
+    authenticate_cost: 300,     // credits to have evidence examined; Historians examine for free
+    forger_reputation: -20,     // when a forgery is exposed
+    examiner_reputation: 5,
+    examiner_reward: 600,       // credits for exposing a forgery
+    discredit: 0.3,             // research citing exposed forgeries keeps this share of its confidence
+)

@@ -21,7 +21,7 @@ use std::sync::{Arc, RwLock};
 
 pub const DIR_ENV: &str = "STARFALL_TUNING";
 pub const DIR_NAME: &str = "tuning";
-pub const FILES: [&str; 4] = ["ships.ron", "npcs.ron", "combat.ron", "artifacts.ron"];
+pub const FILES: [&str; 5] = ["ships.ron", "npcs.ron", "combat.ron", "artifacts.ron", "history.ron"];
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Tuning {
@@ -29,6 +29,7 @@ pub struct Tuning {
     pub npcs: NpcTuning,
     pub combat: CombatTuning,
     pub artifacts: ArtifactTuning,
+    pub history: HistoryTuning,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -183,6 +184,18 @@ pub struct NpcDef {
     pub bounty: Materials,
 }
 
+/// Forged evidence and authenticity checks (`history.ron`).
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct HistoryTuning {
+    pub forge_cost: u64,
+    pub authenticate_cost: u64,
+    pub forger_reputation: i32,
+    pub examiner_reputation: i32,
+    pub examiner_reward: u64,
+    pub discredit: f32,
+}
+
 /// Artifact names, values and station services (`artifacts.ron`).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -237,7 +250,7 @@ impl Tuning {
             let text = std::fs::read_to_string(&path).map_err(|e| format!("{}: {e}", path.display()))?;
             ron::from_str(&text).map_err(|e| format!("{}:{e}", path.display()))
         }
-        let t = Tuning { ships: read(dir, fallback, FILES[0])?, npcs: read(dir, fallback, FILES[1])?, combat: read(dir, fallback, FILES[2])?, artifacts: read(dir, fallback, FILES[3])? };
+        let t = Tuning { ships: read(dir, fallback, FILES[0])?, npcs: read(dir, fallback, FILES[1])?, combat: read(dir, fallback, FILES[2])?, artifacts: read(dir, fallback, FILES[3])?, history: read(dir, fallback, FILES[4])? };
         t.validate().map_err(|e| format!("{}: {e}", dir.display()))?;
         Ok(t)
     }

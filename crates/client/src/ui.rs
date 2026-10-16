@@ -7,7 +7,7 @@ use crate::state::{Args, Screen, Session, load_token};
 use bevy::prelude::*;
 use bevy_egui::{EguiContexts, egui};
 use egui::{Align2, Color32, FontId, Pos2, RichText, Stroke, Vec2 as EVec2};
-use shared::chronicle::Importance;
+use shared::chronicle::{Authenticity, Importance};
 use shared::galaxy::{self, Ore, PoiKind, RiskTier, Species};
 use shared::missions::{Objective, scenarios};
 use shared::protocol::*;
@@ -691,12 +691,49 @@ fn chronicle(ui: &mut egui::Ui, s: &mut Session, net: &Net, prof: &Profile) {
                     ui.label(RichText::new(format!("원인: {}", if names.is_empty() { format!("{:?}", e.causes) } else { names.join(", ") })).size(11.0).color(DIM));
                 }
                 ui.label(RichText::new("증거").color(DIM));
+                let t = shared::tuning::get();
+                let check_cost = if prof.profession == Profession::Historian { 0 } else { t.history.authenticate_cost };
                 for ev in evidence.iter().filter(|x| x.event == e.id) {
                     let mine = prof.archive.contains(&ev.id);
-                    ui.label(RichText::new(format!("{} {} — {} (신뢰 {:.0}%){}: {}", if mine { "📁" } else { "·" }, ev.kind.name(), ev.source, ev.reliability * 100.0, ev.discovered_by.as_ref().map(|d| format!(" 발견: {d}")).unwrap_or_default(), ev.text)).size(11.0));
+                    ui.horizontal_wrapped(|ui| {
+                        ui.label(RichText::new(format!("{} #{} {} — {} (신뢰 {:.0}%){}: {}", if mine { "📁" } else { "·" }, ev.id, ev.kind.name(), ev.source, ev.reliability * 100.0, ev.discovered_by.as_ref().map(|d| format!(" 발견: {d}")).unwrap_or_default(), ev.text)).size(11.0));
+                        match ev.authenticity {
+                            Authenticity::Forged => {
+                                ui.label(RichText::new("[위조 판명]").color(RED).size(11.0).strong());
+                            }
+                            Authenticity::Authentic => {
+                                ui.label(RichText::new("[진품 확인]").color(GREEN).size(11.0));
+                            }
+                            Authenticity::Unverified => {
+                                let txt = if check_cost == 0 { "감정 (무료)".to_string() } else { format!("감정 ({check_cost} CR)") };
+                                if ui.small_button(txt).on_hover_text("진위를 감정합니다. 위조품이면 위조자와 그것을 인용한 연구가 드러납니다.").clicked() {
+                                    net.send(ClientMsg::AuthenticateEvidence { evidence: ev.id });
+                                }
+                                if mine && !s.ui.forge_drafts.contains_key(&ev.id) && ui.small_button("위조…").on_hover_text("내용을 고친 사본을 만듭니다. 감정되기 전까지는 원본과 구별되지 않습니다.").clicked() {
+                                    s.ui.forge_drafts.insert(ev.id, ev.text.clone());
+                                }
+                            }
+                        }
+                    });
+                    if let Some(draft) = s.ui.forge_drafts.get_mut(&ev.id) {
+                        let mut send = false;
+                        let mut cancel = false;
+                        ui.horizontal(|ui| {
+                            ui.add(egui::TextEdit::singleline(draft).desired_width(360.0));
+                            send = ui.button(format!("위조 사본 만들기 ({} CR)", t.history.forge_cost)).clicked();
+                            cancel = ui.small_button("취소").clicked();
+                        });
+                        if send {
+                            net.send(ClientMsg::ForgeEvidence { evidence: ev.id, text: draft.clone() });
+                        }
+                        if send || cancel {
+                            s.ui.forge_drafts.remove(&ev.id);
+                        }
+                    }
                 }
                 for r in &e.research {
-                    ui.label(RichText::new(format!("🎓 {}: \"{}\" — 신뢰도 {:.0}%, 인용 {}건{}", r.author, r.thesis, r.confidence * 100.0, r.cited.len(), if r.disputed_by.is_empty() { String::new() } else { format!(", 반박: {}", r.disputed_by.join(", ")) })).color(ACCENT).size(12.0));
+                    let note = if r.discredited { " [위조 증거 인용 — 신뢰 상실]" } else { "" };
+                    ui.label(RichText::new(format!("🎓 {}: \"{}\" — 신뢰도 {:.0}%, 인용 {}건{}{note}", r.author, r.thesis, r.confidence * 100.0, r.cited.len(), if r.disputed_by.is_empty() { String::new() } else { format!(", 반박: {}", r.disputed_by.join(", ")) })).color(if r.discredited { DIM } else { ACCENT }).size(12.0));
                     if r.author != prof.name && ui.small_button(format!("{}의 연구 반박", r.author)).clicked() {
                         net.send(ClientMsg::DisputeResearch { event: e.id, author: r.author.clone() });
                     }
@@ -704,13 +741,10 @@ fn chronicle(ui: &mut egui::Ui, s: &mut Session, net: &Net, prof: &Profile) {
                 let held: Vec<u64> = evidence.iter().filter(|x| x.event == e.id && prof.archive.contains(&x.id)).map(|x| x.id).collect();
                 if !held.is_empty() {
                     ui.horizontal(|ui| {
-                        if s.ui.research_event != Some(e.id) {
-                            s.ui.research_event = Some(e.id);
-                            s.ui.research_thesis.clear();
-                        }
-                        ui.add(egui::TextEdit::singleline(&mut s.ui.research_thesis).hint_text("당신의 해석 (연구 주장)").desired_width(320.0));
+                        let draft = s.ui.research_drafts.entry(e.id).or_default();
+                        ui.add(egui::TextEdit::singleline(draft).hint_text("당신의 해석 (연구 주장)").desired_width(320.0));
                         if ui.button(format!("증거 {}건 인용하여 발표", held.len())).clicked() {
-                            net.send(ClientMsg::PublishResearch { event: e.id, thesis: s.ui.research_thesis.clone(), cite: held.clone() });
+                            net.send(ClientMsg::PublishResearch { event: e.id, thesis: draft.clone(), cite: held.clone() });
                         }
                     });
                 } else if e.kind == "SHIP_DESTROYED" {

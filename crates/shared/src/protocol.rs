@@ -111,6 +111,10 @@ pub enum ClientMsg {
     AppraiseArtifact { id: ArtifactId },
     SellArtifact { id: ArtifactId },
     DonateArtifact { id: ArtifactId },
+    /// Make a forged copy of evidence you hold, with your own text. It looks like the original.
+    ForgeEvidence { evidence: u64, text: String },
+    /// Have evidence examined: forgeries are exposed, genuine evidence is marked authentic.
+    AuthenticateEvidence { evidence: u64 },
     Ping { t: f64 },
 }
 

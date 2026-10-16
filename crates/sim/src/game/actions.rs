@@ -97,6 +97,8 @@ impl Game {
                 self.send(conn, ServerMsg::Biography { name, character, ship: ship_bio });
             }
             ClientMsg::PublishResearch { event, thesis, cite } => self.publish_research(conn, pid, event, thesis, cite),
+            ClientMsg::ForgeEvidence { evidence, text } => self.forge_evidence(conn, pid, evidence, text),
+            ClientMsg::AuthenticateEvidence { evidence } => self.authenticate_evidence(conn, pid, evidence),
             ClientMsg::DisputeResearch { event, author } => {
                 let me = self.store.profile(pid).unwrap();
                 let name = me.name.clone();
@@ -721,6 +723,74 @@ impl Game {
         } else {
             self.error(conn, "이 사건에 대한 증거가 아닙니다");
         }
+    }
+
+    /// Forge a copy of evidence you hold (design doc §53). The copy joins your archive and can be
+    /// cited; nothing public records the act until someone has it examined.
+    fn forge_evidence(&mut self, conn: ConnId, pid: PlayerId, evidence: u64, text: String) {
+        let prof = self.store.profile(pid).unwrap().clone();
+        if !prof.archive.contains(&evidence) {
+            return self.error(conn, "가지고 있는 증거만 위조할 수 있습니다");
+        }
+        let text: String = text.chars().take(160).collect();
+        if text.trim().chars().count() < 4 {
+            return self.error(conn, "위조할 내용을 입력하세요");
+        }
+        let cost = self.tuning.history.forge_cost;
+        if prof.wallet.credits < cost {
+            return self.error(conn, format!("위조 비용 {cost} CR이 부족합니다"));
+        }
+        let before = self.history.evidence.len();
+        self.history.record(self.unix, DomainEvent::EvidenceForged { forger: prof.name.clone(), original: evidence, text });
+        let Some(copy) = self.history.evidence.get(before).map(|e| e.id) else { return self.error(conn, "위조할 수 없는 증거입니다") };
+        if let Some(p) = self.store.profile_mut(pid) {
+            p.wallet.credits -= cost;
+            p.archive.push(copy);
+        }
+        self.toast(pid, format!("위조 사본 #{copy}을(를) 만들었습니다 (-{cost} CR). 누군가 감정하기 전까지는 원본과 구별되지 않습니다."));
+        self.push_profile(pid);
+        self.send_chronicle(conn, pid);
+    }
+
+    /// Have a piece of evidence examined (free for Historians): forgeries are exposed, with
+    /// consequences for the forger and a reward for the examiner.
+    fn authenticate_evidence(&mut self, conn: ConnId, pid: PlayerId, evidence: u64) {
+        let prof = self.store.profile(pid).unwrap().clone();
+        let Some(ev) = self.history.evidence.iter().find(|e| e.id == evidence).cloned() else {
+            return self.error(conn, "없는 증거입니다");
+        };
+        if ev.authenticity != shared::chronicle::Authenticity::Unverified {
+            return self.error(conn, format!("이미 감정된 증거입니다 ({})", ev.authenticity.label()));
+        }
+        let t = self.tuning.history;
+        let cost = if prof.profession == Profession::Historian { 0 } else { t.authenticate_cost };
+        if prof.wallet.credits < cost {
+            return self.error(conn, format!("감정 비용 {cost} CR이 부족합니다"));
+        }
+        if let Some(p) = self.store.profile_mut(pid) {
+            p.wallet.credits -= cost;
+        }
+        let forger = self.history.forger_of(evidence).map(str::to_string);
+        let exposed = self.history.record(self.unix, DomainEvent::EvidenceAuthenticated { examiner: prof.name.clone(), evidence, discredit: t.discredit });
+        match (exposed, forger) {
+            (Some(_), Some(forger)) => {
+                if let Some(p) = self.store.profile_mut(pid) {
+                    p.reputation += t.examiner_reputation;
+                    p.wallet.credits += t.examiner_reward;
+                }
+                if let Some(fp) = self.store.find_by_name(&forger) {
+                    if let Some(p) = self.store.profile_mut(fp) {
+                        p.reputation += t.forger_reputation;
+                    }
+                    self.toast(fp, format!("⚠ 당신이 위조한 증거 #{evidence}이(가) {}에게 폭로되었습니다 (평판 {})", prof.name, t.forger_reputation));
+                    self.push_profile(fp);
+                }
+                self.toast(pid, format!("위조 판명! 증거 #{evidence}은(는) {forger}의 위조품입니다 (+{} CR, 평판 +{})", t.examiner_reward, t.examiner_reputation));
+            }
+            _ => self.toast(pid, format!("감정 결과: 증거 #{evidence}은(는) 진품입니다{}", if cost > 0 { format!(" (비용 {cost} CR)") } else { String::new() })),
+        }
+        self.push_profile(pid);
+        self.send_chronicle(conn, pid);
     }
 
     fn dev_command(&mut self, pid: PlayerId, text: &str) {

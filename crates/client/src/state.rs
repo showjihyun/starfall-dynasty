@@ -5,7 +5,7 @@ use bevy::prelude::*;
 use shared::chronicle::{BioEntry, Evidence, Headline, HistoricalEvent};
 use shared::galaxy::SystemId;
 use shared::protocol::*;
-use std::collections::{HashSet, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 
 #[derive(States, Default, Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Screen {
@@ -31,8 +31,10 @@ pub struct UiFlags {
     pub alliance_tag: String,
     pub chat_input: String,
     pub invite_name: String,
-    pub research_thesis: String,
-    pub research_event: Option<u64>,
+    /// Draft research thesis per event (each event keeps its own text).
+    pub research_drafts: HashMap<u64, String>,
+    /// Draft forged text per evidence id (only while the forge field is open).
+    pub forge_drafts: HashMap<u64, String>,
     pub bio_query: String,
 }
 
