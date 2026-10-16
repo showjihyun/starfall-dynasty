@@ -655,8 +655,10 @@ impl Game {
                     cargo: vprof.cargo.clone(),
                     created_unix: self.unix,
                     investigated_by: vec![],
+                    artifacts: vec![],
                 });
                 let idx = self.store.data.wrecks.len() - 1;
+                self.sink_artifacts(vpid, sys, idx, ev);
                 let wid = self.spawn_wreck_entity(sys, e.pos, format!("{}의 잔해 「{}」", vprof.name, vprof.ship.name), idx);
                 if let Some(pm) = self.store.profile_mut(vpid) {
                     pm.cargo.clear();

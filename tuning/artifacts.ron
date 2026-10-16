@@ -1,0 +1,32 @@
+// Artifacts from ruins and ancient gates (crates/shared/src/artifacts.rs). Read at run time.
+// Name = "<system>의 <epithet> <noun>". Value = culture value × system reward multiplier × (1 ± value_spread).
+(
+    value_spread: 0.35,
+    // Station services for artifacts.
+    appraisal_cost: 400,          // credits; Archaeologists appraise for free
+    unappraised_sale: 0.4,        // share of the value a collector pays for an unidentified find
+    donation_reputation: 10,      // reputation for donating to a station museum
+    donation_share: 0.25,         // museum pays this share of the value as a finder's fee
+    cultures: {
+        Human: (
+            value: 2400,
+            nouns: ["왕관", "인장", "헌장", "항해일지", "훈장", "성간 지도"],
+            epithets: ["잃어버린", "제1 연합의", "망명 황제의", "침묵한 함대의", "첫 개척민의"],
+        ),
+        Veyr: (
+            value: 2800,
+            nouns: ["기억 껍질", "노래 수정", "순환의 고리", "포자 성유물"],
+            epithets: ["세 번째 순환의", "잊힌 군락의", "꿈꾸는", "배신당한"],
+        ),
+        Kharz: (
+            value: 2600,
+            nouns: ["피의 서약판", "전쟁 군기", "계약 인장", "군벌의 투구"],
+            epithets: ["깨진 맹약의", "첫 군벌의", "불타는", "무너진 성채의"],
+        ),
+        Precursor: (
+            value: 9000,
+            nouns: ["게이트 열쇠", "별지도 핵", "침묵의 구", "공명 결정"],
+            epithets: ["너머에서 온", "이름 없는", "깨어나는", "최초의"],
+        ),
+    },
+)

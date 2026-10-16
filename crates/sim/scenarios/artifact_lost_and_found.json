@@ -1,0 +1,27 @@
+{
+  "name": "artifact_lost_and_found",
+  "description": "고고학자가 유적에서 유물을 발굴하고, 격침당해 유물이 잔해와 함께 가라앉고, 다른 함장이 잔해를 조사해 회수한다",
+  "captains": [
+    { "name": "Indy", "hull": "Seer", "profession": "Archaeologist", "level": 1, "system": 6, "near_poi": "Ruin", "offset": [0, 0, 120] },
+    { "name": "Corsair", "hull": "Talon", "level": 5, "system": 6, "near_poi": "Ruin", "offset": [0, 0, 650], "heading": 0 },
+    { "name": "Finder", "hull": "Wren", "profession": "Historian", "level": 1, "system": 6, "near_poi": "Ruin", "offset": [250, 0, 0] }
+  ],
+  "script": [
+    { "at": 0.5, "captain": "Indy", "fill_nearest": "poi:Ruin", "msg": { "Scan": { "poi": 0 } } },
+    { "at": 0.5, "captain": "Finder", "fill_nearest": "poi:Ruin", "msg": { "Scan": { "poi": 0 } } },
+    { "at": 8.0, "captain": "Corsair", "msg": { "Controls": {} }, "repeat_every": 0.5 },
+    { "at": 8.0, "captain": "Corsair", "target_captain": "Indy", "aim": true, "msg": { "Controls": { "fire": true } }, "repeat_every": 0.1 },
+    { "at": 26.0, "captain": "Finder", "fill_nearest": "wreck", "msg": { "InvestigateWreck": { "wreck": 0 } } }
+  ],
+  "run_secs": 30,
+  "expect": [
+    { "at": 7.0, "check": "artifacts", "captain": "Indy", "min": 1 },
+    { "at": 7.0, "check": "artifacts", "captain": "Finder", "max": 0 },
+    { "at": 7.0, "check": "history", "kind": "ARTIFACT_UNEARTHED", "min": 1 },
+    { "at": 25.0, "check": "alive", "captain": "Indy", "alive": false },
+    { "at": 25.0, "check": "artifacts", "captain": "Indy", "max": 0 },
+    { "at": 25.0, "check": "history", "kind": "ARTIFACT_LOST", "min": 1 },
+    { "check": "artifacts", "captain": "Finder", "min": 1 },
+    { "check": "history", "kind": "ARTIFACT_RECOVERED", "min": 1 }
+  ]
+}

@@ -530,3 +530,80 @@ fn no_ship_is_invulnerable() {
     let e = g.ent(sys, me).unwrap();
     assert!((hull1 - e.hull - 20.0).abs() < 1e-3 && (shield1 - e.shield - 180.0).abs() < 1e-3);
 }
+
+#[test]
+fn archaeology_unearth_appraise_sell_and_donate() {
+    use shared::artifacts::Holder;
+    let mut g = game();
+    let indy = join(&mut g, 1, "Indy", Species::Human, HullClass::Seer, Profession::Archaeologist);
+    let lara = join(&mut g, 2, "Lara", Species::Veyr, HullClass::Seer, Profession::Archaeologist);
+    let ex = join(&mut g, 3, "Ex", Species::Human, HullClass::Wren, Profession::Explorer);
+    let ruins: Vec<galaxy::Poi> = galaxy::system_layout(6).pois.into_iter().filter(|p| p.kind == PoiKind::Ruin).collect();
+    for c in [1, 2, 3] {
+        move_to_system(&mut g, c, 6);
+    }
+    clear_npcs(&mut g, 6);
+    g.systems.get_mut(&6).unwrap().pirate_cd = f32::INFINITY;
+    let scan = |g: &mut Game, c: ConnId, poi: &galaxy::Poi| {
+        place(g, c, poi.pos + Vec3::new(0.0, 0.0, 100.0), poi.pos);
+        g.handle(c, ClientMsg::Scan { poi: poi.id });
+    };
+    // Only the Archaeologist digs anything up; the explorer gets the usual scan reward.
+    scan(&mut g, 1, &ruins[0]);
+    scan(&mut g, 3, &ruins[0]);
+    run(&mut g, 6.0);
+    assert_eq!(g.artifacts_of(indy).len(), 1);
+    assert!(g.artifacts_of(ex).is_empty());
+    // One find per site per day: a second Archaeologist at the same ruin comes away empty-handed.
+    scan(&mut g, 2, &ruins[0]);
+    run(&mut g, 6.0);
+    assert!(g.artifacts_of(lara).is_empty());
+    scan(&mut g, 1, &ruins[1]);
+    run(&mut g, 6.0);
+    let found: Vec<u64> = g.artifacts_of(indy).iter().map(|a| a.id).collect();
+    assert_eq!(found.len(), 2);
+    assert_eq!(g.history.events.iter().filter(|e| e.kind == "ARTIFACT_UNEARTHED").count(), 2);
+
+    // Station services need a dock; appraisal is free for an Archaeologist.
+    g.handle(1, ClientMsg::AppraiseArtifact { id: found[0] });
+    assert!(!g.store.data.artifacts[&found[0]].appraised, "not docked");
+    g.spawn_player(indy, 6, true);
+    let credits = |g: &Game, p| g.store.profile(p).unwrap().wallet.credits;
+    let before = credits(&g, indy);
+    g.handle(1, ClientMsg::AppraiseArtifact { id: found[0] });
+    let a0 = g.store.data.artifacts[&found[0]].clone();
+    assert!(a0.appraised && credits(&g, indy) == before);
+    g.handle(1, ClientMsg::SellArtifact { id: found[0] });
+    assert_eq!(credits(&g, indy), before + a0.value);
+    assert_eq!(g.store.data.artifacts[&found[0]].holder, Holder::Sold(6));
+    let rep = g.store.profile(indy).unwrap().reputation;
+    g.handle(1, ClientMsg::DonateArtifact { id: found[1] });
+    let a1 = g.store.data.artifacts[&found[1]].clone();
+    assert_eq!(a1.holder, Holder::Museum(6));
+    assert_eq!(g.store.profile(indy).unwrap().reputation, rep + 10);
+    let donated = g.history.events.iter().find(|e| e.kind == "ARTIFACT_DONATED").expect("donation is history");
+    assert!(!donated.causes.is_empty(), "linked to the excavation");
+    assert!(a1.provenance.len() >= 2, "{:?}", a1.provenance);
+    assert!(g.artifacts_of(indy).is_empty());
+    // Selling what you don't hold fails.
+    g.handle(1, ClientMsg::SellArtifact { id: found[1] });
+    assert!(errors(&g, 1).iter().any(|e| e.contains("가지고 있지 않은")));
+
+    // Anyone else pays to appraise, and an unidentified find sells cheap.
+    for id in &found {
+        g.store.data.artifacts.get_mut(id).unwrap().holder = Holder::Player(ex);
+        g.store.data.artifacts.get_mut(id).unwrap().appraised = false;
+    }
+    g.spawn_player(ex, 6, true);
+    let before = credits(&g, ex);
+    g.handle(3, ClientMsg::AppraiseArtifact { id: found[0] });
+    assert_eq!(credits(&g, ex), before - 400);
+    let v1 = g.store.data.artifacts[&found[1]].value;
+    g.handle(3, ClientMsg::SellArtifact { id: found[1] });
+    assert_eq!(credits(&g, ex), before - 400 + (v1 as f32 * 0.4) as u64);
+
+    // Artifacts persist with the store.
+    let js = serde_json::to_string(&g.store.data).unwrap();
+    let back: sim::store::StoreData = serde_json::from_str(&js).unwrap();
+    assert_eq!(back.artifacts, g.store.data.artifacts);
+}

@@ -1,5 +1,6 @@
 //! STARFALL DYNASTY — data and protocol shared by server, client and bots.
 
+pub mod artifacts;
 pub mod chronicle;
 pub mod galaxy;
 pub mod missions;

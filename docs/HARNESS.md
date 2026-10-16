@@ -149,12 +149,14 @@ python tools/imgdiff.py --stats after.png --crop 380,90,220,200    # 영역의 �
 }
 ```
 
-- **captains**: `hull`, `level`(모든 모듈), `system`, `pos`, `heading`(도), `species`, `profession`, `undocked`, `credits`를 정한다.
+- **captains**: `hull`, `level`(모든 모듈), `system`, `pos`, `heading`(도), `species`, `profession`, `undocked`, `credits`를 정한다. `near_poi`(`"Ruin"` 등)와 `offset`이면 그 성계의 첫 해당 지점 옆에 놓는다.
 - **npcs**: `archetype`, `level`, `system`, `pos`, `count`, `spacing`을 정한다. `ambient_pirates: true`면 배경 해적 생성을 켠다(기본은 꺼져 있다).
 - **script**: `at`초에 `captain`이 `msg`(임의의 `ClientMsg` JSON)를 보낸다.
   - `repeat_every`와 `until`로 반복 입력을 보낸다.
   - `target_nearest`(`npc`/`player`)로 가장 가까운 대상을 지정하고, `aim`으로 그 대상을 향해 조종한다.
-- **expect**: `at`초에 검사한다(생략하면 끝에서). 검사 종류: `alive`, `hull`, `credits`, `kills`, `deaths`, `count`(`npc`/`player`/`escort`/`wreck`), `in_system`, `history`(연대기 종류, 대소문자 무시), `engagement`, `dealt`·`taken`(가한·받은 피해), `dps`, `ttk`(평균 격파 시간).
+  - `target_captain`은 이름으로 목표를 지정한다. 그 함장이 격침되면 이 단계는 건너뛴다.
+  - `fill_nearest`는 메시지의 id를 가장 가까운 대상으로 채운다: `"poi:Ruin"`(→ `Scan`), `"wreck"`(→ `InvestigateWreck`). 사양에 엔티티·지점 id를 적지 않아도 된다.
+- **expect**: `at`초에 검사한다(생략하면 끝에서). 검사 종류: `alive`, `hull`, `credits`, `kills`, `deaths`, `count`(`npc`/`player`/`escort`/`wreck`), `in_system`, `history`(연대기 종류, 대소문자 무시), `engagement`, `dealt`·`taken`(가한·받은 피해), `dps`, `ttk`(평균 격파 시간), `artifacts`(보유 유물 수).
 - **digest**(선택): 최종 상태 지문을 고정한다. 결과가 조금이라도 바뀌면 실패하므로, 회귀를 엄격히 잡을 때만 쓴다(`--print-digest`로 값을 얻는다).
 
 실패하면 측정값이 함께 나오므로(`FAIL t=45.0s system 7 npc count 1 (want <= 0)`), 무엇을 고쳐야 할지 텍스트만으로 판단할 수 있다.
@@ -193,12 +195,13 @@ python tools/imgdiff.py --stats after.png --crop 380,90,220,200    # 영역의 �
 | `ships.ron` | 선체 5종의 Lv1 능력치, 모듈 레벨당 성장률, 함급(소형함·순양함·주력함)의 시작 랭크·크기/체력 배율·포탑·주포·호위함 수, 포탑/주포 배율, 모듈 업그레이드 비용, 호위함 능력치 |
 | `npcs.ron` | NPC 레벨 배율, 공통 사거리·재충전·포탑 수치, 아키타입 5종의 능력치·선회·포탑 수·현상금 |
 | `combat.ron` | 실드 관통 비율, 명중당 최소 선체 피해, 조준 원뿔(전투기·락온 유지·AI·주포) |
+| `artifacts.ron` | 유물 문화(인류·Veyr·Kharz·선구자)별 기본 가치와 이름 재료, 가치 편차, 감정 비용, 미감정 판매 비율, 기증 평판·사례금 |
 
 - **찾는 순서**: `STARFALL_TUNING` 환경 변수 → 현재 디렉터리와 그 상위의 `tuning/` → 실행 파일 위치와 그 상위. 다른 수치로 비교 실험하려면 폴더를 복사해 고친 뒤 `STARFALL_TUNING=DIR`로 돌린다.
 - **오타는 오류다**: 모르는 필드나 빠진 필드, 빠진 선체·모듈·함급·아키타입이 있으면 파일과 위치를 밝히며 로드에 실패한다. 조용히 기본값으로 돌아가지 않는다.
 - **이름·설명 문구는 코드에 남는다**: 선체 이름, 모듈 설명, 랭크 이름, 최대 모듈 레벨(10)과 랭크 공식처럼 구조를 정하는 값은 데이터가 아니다.
 - **서버가 기준이다**: 접속 시 `Welcome`에 서버의 수치가 실려 오고, 클라이언트는 그것을 설치해 HUD·워프 사거리를 서버와 같은 값으로 계산한다. 접속 전(캐릭터 생성 화면, 쇼룸)에는 로컬 `tuning/`을 읽는다.
-- **기록은 수치를 함께 남긴다**: `server --record DIR`이 `DIR/tuning/`에 복사본을 두고, 재생은 그것을 설치한다. 수치를 고친 뒤에도 예전 기록이 그대로 재현된다. 이전 형식의 기록(복사본 없음)은 현재 수치로 재생한다.
+- **기록은 수치를 함께 남긴다**: `server --record DIR`이 `DIR/tuning/`에 복사본을 두고, 재생은 그것을 설치한다. 수치를 고친 뒤에도 예전 기록이 그대로 재현된다. 이전 형식의 기록(복사본 없음)은 현재 수치로 재생하고, 기록보다 나중에 생긴 파일(예: `artifacts.ron`)은 현재 파일로 채운다.
 
 옮길 때 부동소수 연산 순서를 그대로 유지해, 시나리오 6종의 다이제스트와 `docs/BALANCE.md`가 비트 단위로 같게 나왔다. `tests/tuning.rs`는 수치 하나를 바꾸면 시나리오 결과가 달라지고, 되돌리면 정확히 같은 상태로 돌아오는지 검사한다.
 

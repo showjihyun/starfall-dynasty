@@ -12,7 +12,7 @@ use crate::game::{ConnId, Game};
 use crate::metrics::{MetricsLog, Totals};
 use crate::store::Store;
 use serde::{Deserialize, Serialize};
-use shared::galaxy::{Species, SystemId};
+use shared::galaxy::{self as galaxy, Species, SystemId};
 use shared::glam::{Quat, Vec3};
 use shared::missions::NpcArchetype;
 use shared::protocol::*;
@@ -67,6 +67,12 @@ pub struct Captain {
     /// World position; defaults to the system's spawn point.
     #[serde(default)]
     pub pos: Option<[f32; 3]>,
+    /// Place the captain at the system's first point of interest of this kind (e.g. `"Ruin"`)…
+    #[serde(default)]
+    pub near_poi: Option<shared::galaxy::PoiKind>,
+    /// …plus this offset (metres).
+    #[serde(default)]
+    pub offset: Option<[f32; 3]>,
     /// Yaw in degrees (0 = facing -Z).
     #[serde(default)]
     pub heading: f32,
@@ -124,6 +130,13 @@ pub struct Step {
     /// For `Controls`: steer yaw/pitch toward the current target, as a pilot would (scripted aim).
     #[serde(default)]
     pub aim: bool,
+    /// Fill the message's id with the nearest `"wreck"` (`InvestigateWreck`) or `"poi:<Kind>"`
+    /// (`Scan`), so a spec needs no entity or site ids.
+    #[serde(default)]
+    pub fill_nearest: Option<String>,
+    /// Target this captain's flagship before sending; the step is skipped once it is down.
+    #[serde(default)]
+    pub target_captain: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -163,6 +176,8 @@ pub enum Check {
     Dps { captain: String, #[serde(default)] min: Option<f32>, #[serde(default)] max: Option<f32> },
     /// Mean time-to-kill (s) of the captain's kills: first hit on the victim in the fight to its death.
     Ttk { captain: String, #[serde(default)] min: Option<f32>, #[serde(default)] max: Option<f32> },
+    /// Artifacts the captain holds.
+    Artifacts { captain: String, #[serde(default)] min: Option<u32>, #[serde(default)] max: Option<u32> },
 }
 
 /// Outcome of one scenario.
@@ -300,6 +315,11 @@ fn evaluate(run: &Run, c: &Check) -> (bool, String) {
             let (ok, s) = range((run.totals(captain).dps() * 10.0).round() / 10.0, *min, *max);
             (ok, format!("{captain} dps {s}"))
         }
+        Check::Artifacts { captain, min, max } => {
+            let v = run.pid(captain).map(|p| g.artifacts_of(p).len() as u32).unwrap_or(0);
+            let (ok, s) = range(v, *min, *max);
+            (ok, format!("{captain} artifacts {s}"))
+        }
         Check::Ttk { captain, min, max } => match run.totals(captain).mean_ttk() {
             Some(v) => {
                 let (ok, s) = range((v * 100.0).round() / 100.0, *min, *max);
@@ -358,6 +378,11 @@ pub fn run_opts(sc: &Scenario, trace_every: Option<f32>, metrics: bool) -> Repor
             if let Some(p) = c.pos {
                 e.pos = Vec3::from(p);
             }
+            if let Some(kind) = c.near_poi
+                && let Some(poi) = galaxy::system_layout(c.system).pois.iter().find(|p| p.kind == kind)
+            {
+                e.pos = poi.pos + Vec3::from(c.offset.unwrap_or_default());
+            }
             e.rot = Quat::from_rotation_y(-c.heading.to_radians());
         }
         // Escorts take formation around the (moved) flagship.
@@ -401,6 +426,10 @@ pub fn run_opts(sc: &Scenario, trace_every: Option<f32>, metrics: bool) -> Repor
                 continue;
             }
             let Some(conn) = run.conn(&st.captain) else { continue };
+            if let Some(name) = &st.target_captain {
+                let Some(t) = run.flagship(name).map(|e| e.id) else { continue };
+                run.g.handle(conn, ClientMsg::SetTarget(Some(t)));
+            }
             if let Some(kind) = &st.target_nearest
                 && let Some(me) = run.flagship(&st.captain).map(|e| (e.pos, e.id))
                 && let Some((sys, _)) = run.pid(&st.captain).and_then(|p| run.g.player_entity(p))
@@ -409,6 +438,27 @@ pub fn run_opts(sc: &Scenario, trace_every: Option<f32>, metrics: bool) -> Repor
                 run.g.handle(conn, ClientMsg::SetTarget(best));
             }
             let mut msg = st.msg.clone();
+            if let Some(what) = &st.fill_nearest
+                && let Some(me) = run.flagship(&st.captain).map(|e| e.pos)
+                && let Some((sys, _)) = run.pid(&st.captain).and_then(|p| run.g.player_entity(p))
+            {
+                let dist = |p: Vec3| p.distance(me);
+                match (&mut msg, what.strip_prefix("poi:")) {
+                    (ClientMsg::Scan { poi }, Some(kind)) => {
+                        let best = run.g.systems[&sys].layout.pois.iter().filter(|p| format!("{:?}", p.kind) == kind).min_by(|a, b| dist(a.pos).total_cmp(&dist(b.pos)));
+                        if let Some(p) = best {
+                            *poi = p.id;
+                        }
+                    }
+                    (ClientMsg::InvestigateWreck { wreck }, None) if what == "wreck" => {
+                        let best = run.g.systems[&sys].ents.values().filter(|e| e.kind == EntityKind::Wreck).min_by(|a, b| dist(a.pos).total_cmp(&dist(b.pos)));
+                        if let Some(w) = best {
+                            *wreck = w.id;
+                        }
+                    }
+                    _ => rep.lines.push(format!("SCRIPT: fill_nearest {what:?} does not fit {:?}", st.msg)),
+                }
+            }
             if st.aim
                 && let ClientMsg::Controls(c) = &mut msg
                 && let Some((pid, me)) = run.pid(&st.captain).and_then(|p| run.flagship(&st.captain).map(|e| (p, (e.pos, e.rot, e.target))))

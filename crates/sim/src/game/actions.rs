@@ -50,6 +50,9 @@ impl Game {
             ClientMsg::AllianceDeclareWar { target } => self.alliance_war(pid, target, true),
             ClientMsg::AlliancePeace { target } => self.alliance_war(pid, target, false),
             ClientMsg::RequestAlliances => self.send_alliances(pid),
+            ClientMsg::AppraiseArtifact { id } => self.artifact_service(conn, pid, sys, eid, id, super::artifacts::ArtifactAction::Appraise),
+            ClientMsg::SellArtifact { id } => self.artifact_service(conn, pid, sys, eid, id, super::artifacts::ArtifactAction::Sell),
+            ClientMsg::DonateArtifact { id } => self.artifact_service(conn, pid, sys, eid, id, super::artifacts::ArtifactAction::Donate),
             ClientMsg::Mine { asteroid } => self.mine(pid, sys, eid, asteroid),
             ClientMsg::Scan { poi } => self.start_scan(conn, pid, sys, eid, poi),
             ClientMsg::InvestigateWreck { wreck } => self.investigate(pid, sys, eid, wreck),
@@ -272,6 +275,7 @@ impl Game {
         if first_today {
             self.progress(pid, Progress::Scanned);
         }
+        self.unearth(pid, sys, &p);
         self.scenario_scan(pid, sys, p.kind);
         self.push_profile(pid);
     }
@@ -328,12 +332,14 @@ impl Game {
             pm.reputation += 1;
         }
         self.history.record(self.unix, DomainEvent::WreckInvestigated { investigator: prof.name.clone(), event: stored.event, found: found.len() as u32 });
-        self.toast(pid, format!("잔해 조사: 증거 {}건 확보, 화물 {}단위 회수. 연대기에서 연구를 발표할 수 있습니다.", found.len(), salvaged));
+        let artifacts = self.recover_artifacts(pid, sys, idx);
+        let relics = if artifacts > 0 { format!(", 유물 {artifacts}점 회수") } else { String::new() };
+        self.toast(pid, format!("잔해 조사: 증거 {}건 확보, 화물 {}단위 회수{relics}. 연대기에서 연구를 발표할 수 있습니다.", found.len(), salvaged));
         self.progress(pid, Progress::Scanned);
         self.push_profile(pid);
     }
 
-    fn require_docked(&mut self, pid: PlayerId, sys: SystemId, eid: Option<EntityId>) -> bool {
+    pub(super) fn require_docked(&mut self, pid: PlayerId, sys: SystemId, eid: Option<EntityId>) -> bool {
         let docked = eid.and_then(|e| self.ent(sys, e)).is_some_and(|e| e.docked);
         if !docked {
             self.toast(pid, "정거장에 도킹해야 합니다");

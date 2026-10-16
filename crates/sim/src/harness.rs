@@ -236,7 +236,9 @@ impl Session {
     pub fn initial_game(&self) -> std::io::Result<Game> {
         let tuning = self.dir.join(TUNING_DIR);
         if tuning.is_dir() {
-            shared::tuning::install(shared::tuning::Tuning::load(&tuning).map_err(std::io::Error::other)?);
+            // Files the recording predates (e.g. artifacts.ron) come from today's tuning.
+            let today = shared::tuning::Tuning::locate();
+            shared::tuning::install(shared::tuning::Tuning::load_with_fallback(&tuning, today.as_deref()).map_err(std::io::Error::other)?);
         }
         let initial = self.dir.join("initial");
         let profiles = initial.join(DATA_FILES[0]);

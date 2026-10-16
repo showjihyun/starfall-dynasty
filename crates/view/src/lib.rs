@@ -10,6 +10,7 @@
 //! - [`gauge`]: HUD shield/hull "just lost" trail and the hull-damage flash.
 //! - [`dust`]: the space dust field that wraps around the camera.
 //! - [`hud`]: egui drawing of the gauges and the ship status panel, checked headless.
+//! - [`panels`]: window sections (station artifacts) that return what the player clicked.
 
 pub mod dust;
 pub mod gauge;
@@ -17,6 +18,7 @@ pub mod hud;
 pub mod interp;
 pub mod mapview;
 pub mod palette;
+pub mod panels;
 pub mod relation;
 
 pub use egui;

@@ -2,6 +2,7 @@
 //! messages and drains `out`; tests drive it directly.
 
 mod actions;
+mod artifacts;
 mod diplomacy;
 pub mod interest;
 mod weapons;
@@ -487,6 +488,7 @@ impl Game {
             self.spawn_player(pid, p.last_system, true);
             self.broadcast_fleet(pid);
             self.send_alliances(pid);
+            self.push_artifacts(pid);
         }
     }
 

@@ -25,6 +25,10 @@ pub struct StoredWreck {
     pub cargo: BTreeMap<String, u32>,
     pub created_unix: u64,
     pub investigated_by: Vec<String>,
+    /// Artifacts that went down with the ship, waiting for whoever investigates.
+    /// (Left out of the JSON while empty, so stores and digests from before artifacts are unchanged.)
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub artifacts: Vec<u64>,
 }
 
 #[derive(Clone, Default, Serialize, Deserialize)]
@@ -38,6 +42,15 @@ pub struct StoreData {
     pub alliances: Vec<Alliance>,
     #[serde(default)]
     pub next_alliance: u32,
+    /// Every artifact ever unearthed, wherever it is now. (The artifact fields are left out of the
+    /// JSON while empty, so stores and digests from before artifacts are unchanged.)
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub artifacts: BTreeMap<u64, shared::artifacts::Artifact>,
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub next_artifact: u64,
+    /// (system, poi, day) sites already excavated: one artifact per site per UTC day.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub excavated: Vec<(SystemId, u32, u32)>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -145,6 +158,10 @@ impl Store {
             t.2 *= factor;
         }
     }
+}
+
+fn is_zero(v: &u64) -> bool {
+    *v == 0
 }
 
 /// 256-bit login token from the OS CSPRNG.

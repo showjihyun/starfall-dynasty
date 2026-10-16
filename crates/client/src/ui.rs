@@ -575,6 +575,21 @@ fn station(ui: &mut egui::Ui, s: &Session, net: &Net, prof: &Profile, env: &Env)
     if prof.cargo.is_empty() {
         ui.label(RichText::new("화물 없음 — 소행성대에서 채굴(N)하세요. 위험한 성계일수록 비싸게 팔립니다.").color(DIM).size(12.0));
     }
+    ui.separator();
+    let t = shared::tuning::get();
+    let prices = view::panels::ArtifactPrices {
+        appraisal: if prof.profession == Profession::Archaeologist { 0 } else { t.artifacts.appraisal_cost },
+        unappraised_sale: t.artifacts.unappraised_sale,
+        donation_share: t.artifacts.donation_share,
+        donation_reputation: t.artifacts.donation_reputation,
+    };
+    use view::panels::ArtifactRequest;
+    match view::panels::artifacts(ui, &s.artifacts, docked, &prices) {
+        Some(ArtifactRequest::Appraise(id)) => net.send(ClientMsg::AppraiseArtifact { id }),
+        Some(ArtifactRequest::Sell(id)) => net.send(ClientMsg::SellArtifact { id }),
+        Some(ArtifactRequest::Donate(id)) => net.send(ClientMsg::DonateArtifact { id }),
+        None => {}
+    }
 }
 
 fn missions(ui: &mut egui::Ui, net: &Net, prof: &Profile) {

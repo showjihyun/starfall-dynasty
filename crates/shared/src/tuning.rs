@@ -11,6 +11,7 @@
 //! The simulation reads one process-wide copy (`get`). The server sends it to clients on login so
 //! the HUD shows the server's numbers; a recording keeps a copy so replays use the same numbers.
 
+use crate::artifacts::Culture;
 use crate::missions::NpcArchetype;
 use crate::ships::{BaseStats, HullClass, Materials, Module, SizeClass};
 use serde::{Deserialize, Serialize};
@@ -20,13 +21,14 @@ use std::sync::{Arc, RwLock};
 
 pub const DIR_ENV: &str = "STARFALL_TUNING";
 pub const DIR_NAME: &str = "tuning";
-pub const FILES: [&str; 3] = ["ships.ron", "npcs.ron", "combat.ron"];
+pub const FILES: [&str; 4] = ["ships.ron", "npcs.ron", "combat.ron", "artifacts.ron"];
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Tuning {
     pub ships: ShipTuning,
     pub npcs: NpcTuning,
     pub combat: CombatTuning,
+    pub artifacts: ArtifactTuning,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -181,6 +183,26 @@ pub struct NpcDef {
     pub bounty: Materials,
 }
 
+/// Artifact names, values and station services (`artifacts.ron`).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ArtifactTuning {
+    pub value_spread: f32,
+    pub appraisal_cost: u64,
+    pub unappraised_sale: f32,
+    pub donation_reputation: i32,
+    pub donation_share: f32,
+    pub cultures: BTreeMap<Culture, CultureDef>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct CultureDef {
+    pub value: u64,
+    pub nouns: Vec<String>,
+    pub epithets: Vec<String>,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct CombatTuning {
@@ -196,15 +218,26 @@ pub struct CombatTuning {
 }
 
 impl Tuning {
-    /// Reads `ships.ron`, `npcs.ron` and `combat.ron` from `dir` and checks every hull, class,
-    /// module and archetype is present.
+    /// Reads every file in [`FILES`] from `dir` and checks every hull, class, module, archetype and
+    /// culture is present.
     pub fn load(dir: &Path) -> Result<Tuning, String> {
-        fn read<T: for<'de> Deserialize<'de>>(dir: &Path, file: &str) -> Result<T, String> {
-            let path = dir.join(file);
+        Self::load_with_fallback(dir, None)
+    }
+
+    /// Like `load`, but a file missing from `dir` is read from `fallback` instead (a recording made
+    /// before that file existed replays with today's numbers for it).
+    pub fn load_with_fallback(dir: &Path, fallback: Option<&Path>) -> Result<Tuning, String> {
+        fn read<T: for<'de> Deserialize<'de>>(dir: &Path, fallback: Option<&Path>, file: &str) -> Result<T, String> {
+            let mut path = dir.join(file);
+            if !path.is_file()
+                && let Some(f) = fallback
+            {
+                path = f.join(file);
+            }
             let text = std::fs::read_to_string(&path).map_err(|e| format!("{}: {e}", path.display()))?;
             ron::from_str(&text).map_err(|e| format!("{}:{e}", path.display()))
         }
-        let t = Tuning { ships: read(dir, FILES[0])?, npcs: read(dir, FILES[1])?, combat: read(dir, FILES[2])? };
+        let t = Tuning { ships: read(dir, fallback, FILES[0])?, npcs: read(dir, fallback, FILES[1])?, combat: read(dir, fallback, FILES[2])?, artifacts: read(dir, fallback, FILES[3])? };
         t.validate().map_err(|e| format!("{}: {e}", dir.display()))?;
         Ok(t)
     }
@@ -226,6 +259,12 @@ impl Tuning {
         }
         for a in NpcArchetype::ALL {
             self.npcs.archetypes.get(&a).ok_or(format!("npcs.ron: archetypes has no {a:?}"))?;
+        }
+        for c in Culture::ALL {
+            let d = self.artifacts.cultures.get(&c).ok_or(format!("artifacts.ron: cultures has no {c:?}"))?;
+            if d.nouns.is_empty() || d.epithets.is_empty() {
+                return Err(format!("artifacts.ron: {c:?} needs at least one noun and one epithet"));
+            }
         }
         Ok(())
     }

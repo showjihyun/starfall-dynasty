@@ -77,6 +77,8 @@ pub struct Session {
     pub gauge: view::gauge::GaugeTrail,
     /// Star map (M) view state.
     pub map: view::mapview::MapView,
+    /// Artifacts this captain holds (server-sent).
+    pub artifacts: Vec<shared::artifacts::Artifact>,
 }
 
 impl Session {
@@ -202,6 +204,7 @@ fn apply(s: &mut Session, m: ServerMsg, now: f64, next: &mut NextState<Screen>) 
             s.profile = profile;
             next.set(if has { Screen::Playing } else { Screen::Create });
         }
+        ServerMsg::Artifacts { held } => s.artifacts = held,
         ServerMsg::Error { msg } => {
             s.last_error = Some((msg.clone(), now));
             s.toast(format!("⚠ {msg}"), now);

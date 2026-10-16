@@ -2,6 +2,7 @@
 //! binary frames ([`encode_snapshot`]). The server is authoritative: clients only send intents
 //! and control axes; every state change comes back from the server.
 
+use crate::artifacts::ArtifactId;
 use crate::chronicle::{BioEntry, Evidence, EventId, Headline, HistoricalEvent};
 use crate::galaxy::{Ore, Species, SystemId};
 use crate::missions::{DailyMission, NpcArchetype};
@@ -25,10 +26,11 @@ pub enum Profession {
     Trader,
     CombatPilot,
     Historian,
+    Archaeologist,
 }
 
 impl Profession {
-    pub const ALL: [Profession; 5] = [Profession::Explorer, Profession::Miner, Profession::Trader, Profession::CombatPilot, Profession::Historian];
+    pub const ALL: [Profession; 6] = [Profession::Explorer, Profession::Miner, Profession::Trader, Profession::CombatPilot, Profession::Historian, Profession::Archaeologist];
     pub fn name(self) -> &'static str {
         match self {
             Profession::Explorer => "Explorer · 탐험가",
@@ -36,6 +38,7 @@ impl Profession {
             Profession::Trader => "Trader · 상인",
             Profession::CombatPilot => "Combat Pilot · 전투 조종사",
             Profession::Historian => "Historian · 역사학자",
+            Profession::Archaeologist => "Archaeologist · 고고학자",
         }
     }
     pub fn perk(self) -> &'static str {
@@ -45,6 +48,7 @@ impl Profession {
             Profession::Trader => "판매 가격 +20%",
             Profession::CombatPilot => "격파 보상 +30%, 피해 +8%",
             Profession::Historian => "잔해 조사 시 증거 2배, 연구 신뢰도 +",
+            Profession::Archaeologist => "유적·고대 게이트에서 이름 있는 유물 발굴, 유물 감정 무료",
         }
     }
 }
@@ -102,6 +106,11 @@ pub enum ClientMsg {
     AlliancePeace { target: AllianceId },
     RequestAlliances,
     EscortCommand { attack: bool },
+    /// Station services for artifacts (docked): reveal the true name and value, sell to collectors,
+    /// or donate to the station museum.
+    AppraiseArtifact { id: ArtifactId },
+    SellArtifact { id: ArtifactId },
+    DonateArtifact { id: ArtifactId },
     Ping { t: f64 },
 }
 
@@ -214,6 +223,8 @@ pub struct FleetMember {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum ServerMsg {
+    /// The artifacts this captain holds (sent on login and whenever they change).
+    Artifacts { held: Vec<crate::artifacts::Artifact> },
     /// `tuning`: the server's gameplay numbers, so the client's derived stats (HUD, warp range) match it.
     Welcome {
         player_id: PlayerId,

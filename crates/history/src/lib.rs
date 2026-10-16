@@ -38,6 +38,15 @@ pub enum DomainEvent {
     AllianceFounded { alliance: String, founder: String },
     WarDeclared { aggressor: String, target: String, by: String },
     PeaceMade { a: String, b: String, by: String },
+    /// An Archaeologist dug a named artifact out of a ruin or gate (`artifact` is what it was known as then).
+    ArtifactUnearthed { artifact_id: u64, artifact: String, culture: String, player: String, ship: String, system: SystemId, site: String },
+    ArtifactAppraised { artifact_id: u64, artifact: String, player: String, value: u64 },
+    /// It went down with its carrier's ship; `wreck_event` is that destruction.
+    ArtifactLost { artifact_id: u64, artifact: String, player: String, system: SystemId, wreck_event: EventId },
+    /// Someone investigating the wreck brought it back.
+    ArtifactRecovered { artifact_id: u64, artifact: String, player: String, from: String, system: SystemId, wreck_event: EventId },
+    ArtifactSold { artifact_id: u64, artifact: String, player: String, credits: u64, system: SystemId },
+    ArtifactDonated { artifact_id: u64, artifact: String, player: String, system: SystemId },
 }
 
 #[derive(Serialize, Deserialize)]
@@ -55,6 +64,8 @@ pub struct HistoryEngine {
     discovered_sites: HashSet<(SystemId, String)>,
     open_bounties: HashMap<String, EventId>,
     battles_in: HashMap<SystemId, u32>,
+    /// Latest chronicle entry about each artifact, so its story links cause to effect.
+    artifact_last: HashMap<u64, EventId>,
     log: Option<File>,
 }
 
@@ -140,6 +151,12 @@ impl HistoryEngine {
     pub fn apply(&mut self, unix: u64, ev: DomainEvent) -> Option<EventId> {
         match ev {
             ev @ (DomainEvent::AllianceFounded { .. } | DomainEvent::WarDeclared { .. } | DomainEvent::PeaceMade { .. }) => self.apply_diplomacy(unix, ev),
+            ev @ (DomainEvent::ArtifactUnearthed { .. }
+            | DomainEvent::ArtifactAppraised { .. }
+            | DomainEvent::ArtifactLost { .. }
+            | DomainEvent::ArtifactRecovered { .. }
+            | DomainEvent::ArtifactSold { .. }
+            | DomainEvent::ArtifactDonated { .. }) => self.apply_artifact(unix, ev),
             DomainEvent::PlayerFounded { player, species, ship, hull } => {
                 self.bio(&player, unix, format!("{species} 출신 함장으로 등록. 평생의 함선 「{ship}」({hull})을 인수했다."), None);
                 self.ship_bio(ship_key(&player, &ship), unix, format!("진수. 함장 {player}. 함급 {hull}."), None);
@@ -345,6 +362,66 @@ impl HistoryEngine {
         }
     }
 
+    /// Artifacts: discovery, loss with a ship, recovery from the wreck, sale and donation. Each entry
+    /// names the previous one about the same artifact as its cause.
+    fn apply_artifact(&mut self, unix: u64, ev: DomainEvent) -> Option<EventId> {
+        let prior = |s: &Self, id: u64| s.artifact_last.get(&id).copied();
+        let (artifact_id, event) = match ev {
+            DomainEvent::ArtifactUnearthed { artifact_id, artifact, culture, player, ship, system, site } => {
+                let sys = galaxy::system(system).name;
+                let imp = if culture == "선구자" { Importance::Major } else { Importance::Notable };
+                let id = self.push_event(unix, system, "ARTIFACT_UNEARTHED", format!("{site}에서 {culture} 유물 발굴"), format!("고고학자 {player}이(가) {sys}의 {site}에서 {artifact}을(를) 발굴했다."), vec![player.clone()], vec![ship.clone()], imp, vec![]);
+                let e = self.add_evidence(id, EvidenceKind::ArchiveRecord, "고고학 발굴 대장", format!("{site} 발굴 허가 및 출토 기록: {artifact}. 발굴자 {player}."), 0.9);
+                self.attach(id, vec![e]);
+                self.bio(&player, unix, format!("{sys}의 {site}에서 {artifact}을(를) 발굴했다."), Some(id));
+                self.ship_bio(ship_key(&player, &ship), unix, format!("{site} 발굴 지원."), Some(id));
+                (artifact_id, Some(id))
+            }
+            DomainEvent::ArtifactAppraised { artifact_id, artifact, player, value } => {
+                self.bio(&player, unix, format!("유물을 감정했다: {artifact} (감정가 {value} CR)."), prior(self, artifact_id));
+                (artifact_id, None)
+            }
+            DomainEvent::ArtifactLost { artifact_id, artifact, player, system, wreck_event } => {
+                let sys = galaxy::system(system).name;
+                let causes: Vec<EventId> = [Some(wreck_event), prior(self, artifact_id)].into_iter().flatten().collect();
+                let id = self.push_event(unix, system, "ARTIFACT_LOST", format!("{artifact} 실종"), format!("{player}의 함선과 함께 {artifact}이(가) {sys}의 잔해 속으로 사라졌다. 잔해를 조사하는 자가 그것을 찾게 될 것이다."), vec![player.clone()], vec![], Importance::Notable, causes);
+                self.bio(&player, unix, format!("격침과 함께 {artifact}을(를) 잃었다."), Some(id));
+                (artifact_id, Some(id))
+            }
+            DomainEvent::ArtifactRecovered { artifact_id, artifact, player, from, system, wreck_event } => {
+                let sys = galaxy::system(system).name;
+                let causes: Vec<EventId> = [prior(self, artifact_id), Some(wreck_event)].into_iter().flatten().collect();
+                let id = self.push_event(unix, system, "ARTIFACT_RECOVERED", format!("잃어버린 {artifact} 회수"), format!("{player}이(가) {sys}에서 {from}의 잔해를 조사하던 중 {artifact}을(를) 되찾았다."), vec![player.clone(), from.clone()], vec![], Importance::Major, causes);
+                let e = self.add_evidence(id, EvidenceKind::Testimony, &format!("{player}의 조사 일지"), format!("잔해 화물칸 깊은 곳에서 {artifact} 발견. 봉인 상태 양호."), 0.7);
+                self.attach(id, vec![e]);
+                self.bio(&player, unix, format!("{from}의 잔해에서 {artifact}을(를) 회수했다."), Some(id));
+                (artifact_id, Some(id))
+            }
+            DomainEvent::ArtifactSold { artifact_id, artifact, player, credits, system } => {
+                let sys = galaxy::system(system).name;
+                let imp = if credits >= 5000 { Importance::Notable } else { Importance::Minor };
+                let causes: Vec<EventId> = prior(self, artifact_id).into_iter().collect();
+                let id = self.push_event(unix, system, "ARTIFACT_SOLD", format!("{artifact}, 수집가에게"), format!("{player}이(가) {sys} 정거장에서 {artifact}을(를) {credits} CR에 팔았다. 유물은 개인 소장품이 되어 공공의 눈에서 사라졌다."), vec![player.clone()], vec![], imp, causes);
+                self.bio(&player, unix, format!("{artifact}을(를) {credits} CR에 팔았다."), Some(id));
+                (artifact_id, Some(id))
+            }
+            DomainEvent::ArtifactDonated { artifact_id, artifact, player, system } => {
+                let sys = galaxy::system(system).name;
+                let causes: Vec<EventId> = prior(self, artifact_id).into_iter().collect();
+                let id = self.push_event(unix, system, "ARTIFACT_DONATED", format!("{artifact}, {sys} 박물관에"), format!("{player}이(가) {artifact}을(를) {sys} 정거장 박물관에 기증했다. 누구나 그 앞에서 역사를 볼 수 있게 되었다."), vec![player.clone()], vec![], Importance::Major, causes);
+                let e = self.add_evidence(id, EvidenceKind::ArchiveRecord, &format!("{sys} 박물관 소장 목록"), format!("{artifact} — 기증자 {player}."), 0.95);
+                self.attach(id, vec![e]);
+                self.bio(&player, unix, format!("{artifact}을(를) {sys} 박물관에 기증했다."), Some(id));
+                (artifact_id, Some(id))
+            }
+            _ => return None,
+        };
+        if let Some(e) = event {
+            self.artifact_last.insert(artifact_id, e);
+        }
+        event
+    }
+
     fn apply_diplomacy(&mut self, unix: u64, ev: DomainEvent) -> Option<EventId> {
         match ev {
             DomainEvent::AllianceFounded { alliance, founder } => {
@@ -430,6 +507,11 @@ impl HistoryEngine {
                 "WAR" => format!("전쟁 발발 — {}", e.title),
                 "PEACE" => format!("포성이 멎다: {}", e.title),
                 "ALLIANCE" => format!("새 깃발: {}", e.title),
+                "ARTIFACT_UNEARTHED" => format!("땅속의 역사: {}", e.title),
+                "ARTIFACT_LOST" => format!("사라진 유물 — {}", e.title),
+                "ARTIFACT_RECOVERED" => format!("돌아온 유물: {}", e.title),
+                "ARTIFACT_SOLD" => format!("경매장 소식: {}", e.title),
+                "ARTIFACT_DONATED" => format!("박물관에 새 전시: {}", e.title),
                 _ => e.title.clone(),
             };
             let mut body = e.summary.clone();
@@ -547,5 +629,25 @@ mod tests {
         assert_eq!(h2.biography("A"), bio);
         assert!(h2.evidence.iter().any(|e| e.discovered_by.as_deref() == Some("C")));
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Lost Artifact Hunt: unearthed → lost with the ship → recovered from the wreck, each entry
+    /// caused by the one before, and the recovery makes the news.
+    #[test]
+    fn artifact_story_links_cause_to_effect() {
+        let mut h = HistoryEngine::new();
+        let art = |s: &str| s.to_string();
+        let dug = h.apply(1000, DomainEvent::ArtifactUnearthed { artifact_id: 5, artifact: art("미감정 유물 (고대 유적 Alpha)"), culture: art("Veyr"), player: art("Indy"), ship: art("Seer"), system: 6, site: art("고대 유적 Alpha") }).unwrap();
+        assert!(h.apply(1010, DomainEvent::ArtifactAppraised { artifact_id: 5, artifact: art("기억 껍질"), player: art("Indy"), value: 3000 }).is_none(), "appraisal is a biography line, not news");
+        let wreck = h.apply(1020, destroyed("Indy", "Corsair", true)).unwrap();
+        let lost = h.apply(1020, DomainEvent::ArtifactLost { artifact_id: 5, artifact: art("기억 껍질"), player: art("Indy"), system: 6, wreck_event: wreck }).unwrap();
+        let back = h.apply(1100, DomainEvent::ArtifactRecovered { artifact_id: 5, artifact: art("기억 껍질"), player: art("Finder"), from: art("Indy"), system: 6, wreck_event: wreck }).unwrap();
+        let ev = |id| h.event(id).unwrap();
+        assert!(ev(lost).causes.contains(&wreck) && ev(lost).causes.contains(&dug));
+        assert!(ev(back).causes.contains(&lost) && ev(back).causes.contains(&wreck));
+        assert_eq!(ev(back).importance, Importance::Major);
+        assert!(h.biography("Finder").iter().any(|b| b.text.contains("기억 껍질")));
+        assert!(h.biography("Indy").iter().any(|b| b.text.contains("감정")));
+        assert!(h.herald(5).iter().any(|n| n.headline.starts_with("돌아온 유물")));
     }
 }
