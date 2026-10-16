@@ -53,6 +53,11 @@ pub enum DomainEvent {
     EvidenceAuthenticated { examiner: String, evidence: u64, discredit: f32 },
     /// A journalist's Herald article about `event`.
     StoryFiled { reporter: String, event: EventId, headline: String, body: String, cited: Vec<u64> },
+    /// Contracts: `terms` is the human-readable job.
+    ContractSigned { contract_id: u64, employer: String, contractor: String, terms: String, reward: u64 },
+    ContractFulfilled { contract_id: u64, employer: String, contractor: String, terms: String, reward: u64, system: SystemId },
+    /// `betrayer` turned on `betrayed` while their contract stood.
+    ContractBetrayed { contract_id: u64, betrayer: String, betrayed: String, terms: String, system: SystemId },
 }
 
 #[derive(Serialize, Deserialize)]
@@ -76,6 +81,8 @@ pub struct HistoryEngine {
     artifact_last: HashMap<u64, EventId>,
     /// Forged evidence id → (original id, forger). Only the engine knows until it is examined.
     forgeries: HashMap<u64, (u64, String)>,
+    /// Contract id → its signing entry, the cause of fulfilment or betrayal.
+    contract_signed: HashMap<u64, EventId>,
     log: Option<File>,
 }
 
@@ -162,6 +169,32 @@ impl HistoryEngine {
         match ev {
             ev @ (DomainEvent::AllianceFounded { .. } | DomainEvent::WarDeclared { .. } | DomainEvent::PeaceMade { .. }) => self.apply_diplomacy(unix, ev),
             ev @ (DomainEvent::EvidenceForged { .. } | DomainEvent::EvidenceAuthenticated { .. }) => self.apply_forgery(unix, ev),
+            DomainEvent::ContractSigned { contract_id, employer, contractor, terms, reward } => {
+                let id = self.push_event(unix, 0, "CONTRACT_SIGNED", format!("{employer}–{contractor} 계약 체결"), format!("{contractor}이(가) {employer}의 의뢰를 받아들였다: {terms}. 보상 {reward} CR은 공증인에게 맡겨졌다."), vec![employer.clone(), contractor.clone()], vec![], Importance::Minor, vec![]);
+                let e = self.add_evidence(id, EvidenceKind::KharzContract, "공증된 계약서", format!("의뢰인 {employer}, 수임인 {contractor}. 조건: {terms}. 보상 {reward} CR. 어느 쪽도 상대에게 총을 겨누지 않는다."), 0.95);
+                self.attach(id, vec![e]);
+                self.contract_signed.insert(contract_id, id);
+                self.bio(&employer, unix, format!("{contractor}와(과) 계약했다: {terms}."), Some(id));
+                self.bio(&contractor, unix, format!("{employer}의 의뢰를 맡았다: {terms}."), Some(id));
+                Some(id)
+            }
+            DomainEvent::ContractFulfilled { contract_id, employer, contractor, terms, reward, system } => {
+                let causes: Vec<EventId> = self.contract_signed.get(&contract_id).copied().into_iter().collect();
+                let id = self.push_event(unix, system, "CONTRACT_FULFILLED", format!("{contractor}, {employer}과(와)의 계약 완수"), format!("{contractor}이(가) 약속대로 {terms}을(를) 해내고 {reward} CR을 받았다."), vec![contractor.clone(), employer.clone()], vec![], Importance::Notable, causes);
+                self.bio(&contractor, unix, format!("{employer}과(와)의 계약을 완수했다: {terms}."), Some(id));
+                self.bio(&employer, unix, format!("{contractor}이(가) 계약을 완수했다: {terms}."), Some(id));
+                Some(id)
+            }
+            DomainEvent::ContractBetrayed { contract_id, betrayer, betrayed, terms, system } => {
+                let sys = galaxy::system(system).name;
+                let causes: Vec<EventId> = self.contract_signed.get(&contract_id).copied().into_iter().collect();
+                let id = self.push_event(unix, system, "BETRAYAL", format!("{betrayer}의 배신"), format!("「{terms}」 계약이 살아 있는 동안 {betrayer}이(가) {sys}에서 {betrayed}에게 총구를 돌렸다. 계약은 깨졌다."), vec![betrayer.clone(), betrayed.clone()], vec![], Importance::Major, causes);
+                let e = self.add_evidence(id, EvidenceKind::SensorRecord, &format!("{betrayed}의 사격 경보 기록"), format!("계약 상대 {betrayer}로부터 피격. 계약 위반 자동 신고."), 0.9);
+                self.attach(id, vec![e]);
+                self.bio(&betrayer, unix, format!("{betrayed}과(와)의 계약을 깨고 그에게 총을 겨눴다."), Some(id));
+                self.bio(&betrayed, unix, format!("계약 상대 {betrayer}에게 배신당했다."), Some(id));
+                Some(id)
+            }
             DomainEvent::StoryFiled { reporter, event, headline, body, cited } => {
                 let title = self.events.iter().find(|e| e.id == event)?.title.clone();
                 let rel: Vec<f32> = cited.iter().filter_map(|c| self.evidence.iter().find(|e| e.id == *c && e.event == event)).map(|e| e.reliability).collect();
@@ -615,6 +648,8 @@ impl HistoryEngine {
                 "ALLIANCE" => format!("새 깃발: {}", e.title),
                 "ARTIFACT_UNEARTHED" => format!("땅속의 역사: {}", e.title),
                 "FORGERY_EXPOSED" => format!("위조 스캔들: {}", e.title),
+                "BETRAYAL" => format!("배신 — {}", e.title),
+                "CONTRACT_FULFILLED" => format!("약속은 지켜졌다: {}", e.title),
                 "ARTIFACT_LOST" => format!("사라진 유물 — {}", e.title),
                 "ARTIFACT_RECOVERED" => format!("돌아온 유물: {}", e.title),
                 "ARTIFACT_SOLD" => format!("경매장 소식: {}", e.title),

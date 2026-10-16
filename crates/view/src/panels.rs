@@ -61,3 +61,121 @@ pub fn artifacts(ui: &mut egui::Ui, held: &[Artifact], docked: bool, prices: &Ar
     }
     out
 }
+
+// ---- Contract board -------------------------------------------------------------------------
+
+use shared::contracts::{Contract, ContractId, ContractKind, ContractState};
+use shared::galaxy::{Ore, SystemId};
+
+/// What the player asked the contract board for.
+#[derive(Clone, Debug, PartialEq)]
+pub enum ContractRequest {
+    Post { kind: ContractKind, reward: u64, hours: u32 },
+    Accept(ContractId),
+    Cancel(ContractId),
+    Deliver(ContractId),
+}
+
+/// The "new contract" form (kept by the client between frames).
+#[derive(Clone, Debug, PartialEq)]
+pub struct ContractForm {
+    pub hunt: bool,
+    pub target: String,
+    pub ore: Ore,
+    pub units: u32,
+    pub system: SystemId,
+    pub reward: u64,
+    pub hours: u32,
+}
+
+impl Default for ContractForm {
+    fn default() -> Self {
+        ContractForm { hunt: true, target: String::new(), ore: Ore::Xenite, units: 10, system: 1, reward: 1000, hours: 24 }
+    }
+}
+
+fn state_label(c: &Contract) -> (String, Color32) {
+    match &c.state {
+        ContractState::Open => ("모집 중".into(), Color32::WHITE),
+        ContractState::Accepted => (format!("진행 중 — {}", c.contractor.as_ref().map(|c| c.1.as_str()).unwrap_or("?")), GOLD),
+        ContractState::Fulfilled => ("완수".into(), crate::palette::GREEN),
+        ContractState::Breached { by } => (format!("배신으로 파기 — {by}"), crate::palette::RED),
+        ContractState::Expired => ("기한 만료".into(), DIM),
+        ContractState::Cancelled => ("철회".into(), DIM),
+    }
+}
+
+/// The contract board: open jobs to take, your own contracts, and a form to post one.
+/// `me` is the viewer's player id; `credits` decides whether the post button is enabled.
+pub fn contracts(ui: &mut egui::Ui, list: &[Contract], me: u64, credits: u64, form: &mut ContractForm) -> Option<ContractRequest> {
+    let mut out = None;
+    ui.label(RichText::new("계약 게시판").strong());
+    ui.label(RichText::new("보상은 공증인이 보관합니다. 계약 중에 상대에게 총을 겨누면 배신 — 보상은 피해자에게, 배신은 연대기에.").size(11.0).color(DIM));
+    if list.is_empty() {
+        ui.label(RichText::new("게시된 계약이 없습니다.").color(DIM));
+    }
+    for c in list {
+        let mine = c.employer == me;
+        let taken = c.contractor.as_ref().is_some_and(|(p, _)| *p == me);
+        let (state, col) = state_label(c);
+        ui.horizontal_wrapped(|ui| {
+            ui.label(RichText::new(format!("#{} {}", c.id, c.kind.describe())).strong());
+            ui.label(RichText::new(format!("의뢰 {} · 보상 {} CR", c.employer_name, c.reward)).size(11.0));
+            ui.label(RichText::new(state).size(11.0).color(col));
+            match &c.state {
+                ContractState::Open if mine => {
+                    if ui.small_button("철회").clicked() {
+                        out = Some(ContractRequest::Cancel(c.id));
+                    }
+                }
+                ContractState::Open => {
+                    if ui.small_button("수락").clicked() {
+                        out = Some(ContractRequest::Accept(c.id));
+                    }
+                }
+                ContractState::Accepted if taken && matches!(c.kind, ContractKind::Delivery { .. }) => {
+                    if ui.small_button("납품").on_hover_text("목적지 정거장에 도킹한 상태에서 화물을 넘깁니다").clicked() {
+                        out = Some(ContractRequest::Deliver(c.id));
+                    }
+                }
+                _ => {}
+            }
+        });
+    }
+    ui.separator();
+    ui.label(RichText::new("새 계약").strong());
+    ui.horizontal(|ui| {
+        ui.radio_value(&mut form.hunt, true, "사냥");
+        ui.radio_value(&mut form.hunt, false, "운송");
+    });
+    if form.hunt {
+        ui.horizontal(|ui| {
+            ui.label("표적 함장");
+            ui.add(egui::TextEdit::singleline(&mut form.target).desired_width(160.0));
+        });
+    } else {
+        ui.horizontal(|ui| {
+            egui::ComboBox::from_id_salt("ore").selected_text(form.ore.name()).show_ui(ui, |ui| {
+                for o in Ore::ALL {
+                    ui.selectable_value(&mut form.ore, o, o.name());
+                }
+            });
+            ui.add(egui::DragValue::new(&mut form.units).range(1..=500).suffix(" 단위"));
+            egui::ComboBox::from_id_salt("dest").selected_text(shared::galaxy::system(form.system).name).show_ui(ui, |ui| {
+                for s in shared::galaxy::SYSTEMS {
+                    ui.selectable_value(&mut form.system, s.id, s.name);
+                }
+            });
+        });
+    }
+    ui.horizontal(|ui| {
+        ui.add(egui::DragValue::new(&mut form.reward).range(0..=1_000_000).suffix(" CR"));
+        ui.add(egui::DragValue::new(&mut form.hours).range(1..=72).suffix(" 시간"));
+        let kind = if form.hunt { ContractKind::Hunt { target: form.target.trim().to_string() } } else { ContractKind::Delivery { ore: form.ore, units: form.units, system: form.system } };
+        let ok = credits >= form.reward && (!form.hunt || !form.target.trim().is_empty());
+        if ui.add_enabled(ok, egui::Button::new("게시 (보상 공탁)")).clicked() {
+            out = Some(ContractRequest::Post { kind, reward: form.reward, hours: form.hours });
+        }
+    });
+    out
+}

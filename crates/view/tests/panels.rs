@@ -1,27 +1,11 @@
-//! Window panels checked headless: the artifact section shows what an unappraised find hides, and
-//! clicking its buttons returns the right request.
+//! Window panels checked headless: what they show, and which request a click returns.
 
 use egui::epaint::Shape;
 use egui::{Pos2, RawInput, Rect, Vec2};
 use shared::artifacts::{Artifact, Culture, Holder};
 use shared::chronicle::BioEntry;
-use view::panels::{self, ArtifactPrices, ArtifactRequest};
-
-fn artifact(id: u64, appraised: bool) -> Artifact {
-    Artifact {
-        id,
-        name: "Hollow Crown의 잃어버린 왕관".into(),
-        culture: Culture::Human,
-        origin_system: 6,
-        origin_site: "고대 유적 Alpha".into(),
-        value: 3000,
-        appraised,
-        holder: Holder::Player(1),
-        provenance: vec![BioEntry { date: "3827.001".into(), text: "발굴되었다.".into(), event: None }],
-    }
-}
-
-const PRICES: ArtifactPrices = ArtifactPrices { appraisal: 400, unappraised_sale: 0.4, donation_share: 0.25, donation_reputation: 10 };
+use shared::contracts::{Contract, ContractKind, ContractState};
+use view::panels::{self, ArtifactPrices, ArtifactRequest, ContractForm, ContractRequest};
 
 fn texts(shape: &Shape, out: &mut Vec<(String, Rect)>) {
     match shape {
@@ -31,15 +15,16 @@ fn texts(shape: &Shape, out: &mut Vec<(String, Rect)>) {
     }
 }
 
-/// Draws the panel for a few frames; `click` (a button label prefix) is clicked on the last frame.
-fn frame(held: &[Artifact], docked: bool, click: Option<&str>) -> (Vec<String>, Option<ArtifactRequest>) {
+/// Draws a panel for a few frames; `click` (a text prefix) is clicked on the last frame.
+/// Returns the texts of the last frame and the request the panel returned, if any.
+fn frame<R>(mut draw: impl FnMut(&mut egui::Ui) -> Option<R>, click: Option<&str>) -> (Vec<String>, Option<R>) {
     let ctx = egui::Context::default();
     ctx.global_style_mut(|s| s.animation_time = 0.0);
     let (mut seen, mut got) = (vec![], None);
     let mut at: Option<Pos2> = None;
     for i in 0..4 {
         let mut input = RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, Vec2::new(900.0, 700.0))), time: Some(i as f64 * 0.1), ..Default::default() };
-        // Press and release on the button found in the previous frame.
+        // Press and release on the text found in the previous frame.
         if let Some(p) = at.take() {
             input.events = vec![
                 egui::Event::PointerMoved(p),
@@ -49,7 +34,7 @@ fn frame(held: &[Artifact], docked: bool, click: Option<&str>) -> (Vec<String>, 
         }
         ctx.begin_pass(input);
         let mut r = None;
-        egui::Area::new("panel".into()).fixed_pos(Pos2::new(10.0, 10.0)).show(&ctx, |ui| r = panels::artifacts(ui, held, docked, &PRICES));
+        egui::Area::new("panel".into()).fixed_pos(Pos2::new(10.0, 10.0)).show(&ctx, |ui| r = draw(ui));
         let full = ctx.end_pass();
         if r.is_some() {
             got = r;
@@ -68,9 +53,31 @@ fn frame(held: &[Artifact], docked: bool, click: Option<&str>) -> (Vec<String>, 
     (seen, got)
 }
 
+// ---- artifacts
+
+fn artifact(id: u64, appraised: bool) -> Artifact {
+    Artifact {
+        id,
+        name: "Hollow Crown의 잃어버린 왕관".into(),
+        culture: Culture::Human,
+        origin_system: 6,
+        origin_site: "고대 유적 Alpha".into(),
+        value: 3000,
+        appraised,
+        holder: Holder::Player(1),
+        provenance: vec![BioEntry { date: "3827.001".into(), text: "발굴되었다.".into(), event: None }],
+    }
+}
+
+const PRICES: ArtifactPrices = ArtifactPrices { appraisal: 400, unappraised_sale: 0.4, donation_share: 0.25, donation_reputation: 10 };
+
+fn art_frame(held: &[Artifact], docked: bool, click: Option<&str>) -> (Vec<String>, Option<ArtifactRequest>) {
+    frame(|ui| panels::artifacts(ui, held, docked, &PRICES), click)
+}
+
 #[test]
 fn unappraised_find_hides_its_name_and_value() {
-    let (t, _) = frame(&[artifact(7, false)], true, None);
+    let (t, _) = art_frame(&[artifact(7, false)], true, None);
     assert!(t.iter().any(|s| s == "미감정 유물 (고대 유적 Alpha)"), "{t:?}");
     assert!(!t.iter().any(|s| s.contains("왕관") || s.contains("3000")), "name and value stay hidden: {t:?}");
     assert!(t.iter().any(|s| s == "감정 (400 CR)"));
@@ -79,7 +86,7 @@ fn unappraised_find_hides_its_name_and_value() {
 
 #[test]
 fn appraised_artifact_shows_name_value_and_prices() {
-    let (t, _) = frame(&[artifact(7, true)], true, None);
+    let (t, _) = art_frame(&[artifact(7, true)], true, None);
     assert!(t.iter().any(|s| s == "Hollow Crown의 잃어버린 왕관"));
     assert!(t.iter().any(|s| s.contains("인류 유물 · 감정가 3000 CR")), "{t:?}");
     assert!(!t.iter().any(|s| s.starts_with("감정 (")), "no appraisal button once appraised");
@@ -89,11 +96,59 @@ fn appraised_artifact_shows_name_value_and_prices() {
 }
 
 #[test]
-fn buttons_return_requests_only_when_docked() {
-    assert_eq!(frame(&[artifact(7, true)], true, Some("판매")).1, Some(ArtifactRequest::Sell(7)));
-    assert_eq!(frame(&[artifact(7, false)], true, Some("감정 (")).1, Some(ArtifactRequest::Appraise(7)));
-    assert_eq!(frame(&[artifact(9, true)], true, Some("박물관 기증")).1, Some(ArtifactRequest::Donate(9)));
-    assert_eq!(frame(&[artifact(7, true)], false, Some("판매")).1, None, "disabled away from the station");
-    let (t, _) = frame(&[], true, None);
+fn artifact_buttons_return_requests_only_when_docked() {
+    assert_eq!(art_frame(&[artifact(7, true)], true, Some("판매")).1, Some(ArtifactRequest::Sell(7)));
+    assert_eq!(art_frame(&[artifact(7, false)], true, Some("감정 (")).1, Some(ArtifactRequest::Appraise(7)));
+    assert_eq!(art_frame(&[artifact(9, true)], true, Some("박물관 기증")).1, Some(ArtifactRequest::Donate(9)));
+    assert_eq!(art_frame(&[artifact(7, true)], false, Some("판매")).1, None, "disabled away from the station");
+    let (t, _) = art_frame(&[], true, None);
     assert!(t.iter().any(|s| s.starts_with("유물 없음")));
+}
+
+// ---- contracts
+
+fn contract(id: u64, employer: u64, kind: ContractKind, state: ContractState, contractor: Option<u64>) -> Contract {
+    Contract { id, employer, employer_name: format!("P{employer}"), kind, reward: 1500, posted_unix: 0, expires_unix: 3600, state, contractor: contractor.map(|c| (c, format!("P{c}"))), signed_event: None }
+}
+
+fn hunt(target: &str) -> ContractKind {
+    ContractKind::Hunt { target: target.into() }
+}
+
+#[test]
+fn board_offers_the_right_action_per_contract() {
+    let delivery = ContractKind::Delivery { ore: shared::galaxy::Ore::Xenite, units: 5, system: 1 };
+    let list = vec![
+        contract(1, 2, hunt("Mark"), ContractState::Open, None),
+        contract(2, 1, hunt("Mark"), ContractState::Open, None),
+        contract(3, 2, delivery, ContractState::Accepted, Some(1)),
+        contract(4, 2, hunt("Mark"), ContractState::Breached { by: "P1".into() }, Some(1)),
+    ];
+    let board = |click| {
+        let mut form = ContractForm::default();
+        frame(|ui| panels::contracts(ui, &list, 1, 5000, &mut form), click)
+    };
+    let (t, _) = board(None);
+    assert!(t.iter().any(|s| s == "#1 Mark의 함선 격침"), "{t:?}");
+    assert!(t.iter().any(|s| s == "배신으로 파기 — P1"));
+    assert!(t.iter().any(|s| s == "진행 중 — P1"));
+    // Someone else's open contract: accept. Mine: withdraw. My running delivery: hand over.
+    assert_eq!(t.iter().filter(|s| *s == "수락").count(), 1);
+    assert_eq!(t.iter().filter(|s| *s == "철회").count(), 1);
+    assert_eq!(t.iter().filter(|s| *s == "납품").count(), 1);
+    assert_eq!(board(Some("수락")).1, Some(ContractRequest::Accept(1)));
+    assert_eq!(board(Some("철회")).1, Some(ContractRequest::Cancel(2)));
+    assert_eq!(board(Some("납품")).1, Some(ContractRequest::Deliver(3)));
+}
+
+#[test]
+fn posting_needs_a_target_and_the_reward_in_hand() {
+    let post = |form: ContractForm, credits| {
+        let mut form = form;
+        frame(|ui| panels::contracts(ui, &[], 1, credits, &mut form), Some("게시 (")).1
+    };
+    let with_target = ContractForm { target: "Mark".into(), reward: 2000, ..Default::default() };
+    assert_eq!(post(with_target.clone(), 5000), Some(ContractRequest::Post { kind: hunt("Mark"), reward: 2000, hours: 24 }));
+    assert_eq!(post(with_target, 1000), None, "cannot escrow what you lack");
+    assert_eq!(post(ContractForm { reward: 500, ..Default::default() }, 5000), None, "a hunt needs a target");
 }

@@ -23,6 +23,7 @@ pub struct UiFlags {
     pub map: bool,
     pub station: bool,
     pub missions: bool,
+    pub contracts: bool,
     pub chronicle: bool,
     pub fleet: bool,
     pub help: bool,
@@ -38,6 +39,8 @@ pub struct UiFlags {
     /// Journalists: draft (headline, body) per event, and events already filed this session.
     pub story_drafts: HashMap<u64, (String, String)>,
     pub stories_filed: HashSet<u64>,
+    /// The contract board's "new contract" form.
+    pub contract_form: view::panels::ContractForm,
     pub bio_query: String,
 }
 
@@ -84,6 +87,8 @@ pub struct Session {
     pub map: view::mapview::MapView,
     /// Artifacts this captain holds (server-sent).
     pub artifacts: Vec<shared::artifacts::Artifact>,
+    /// The contract board (server-sent).
+    pub contracts: Vec<shared::contracts::Contract>,
 }
 
 impl Session {
@@ -210,6 +215,7 @@ fn apply(s: &mut Session, m: ServerMsg, now: f64, next: &mut NextState<Screen>) 
             next.set(if has { Screen::Playing } else { Screen::Create });
         }
         ServerMsg::Artifacts { held } => s.artifacts = held,
+        ServerMsg::Contracts { list } => s.contracts = list,
         ServerMsg::Error { msg } => {
             s.last_error = Some((msg.clone(), now));
             s.toast(format!("⚠ {msg}"), now);

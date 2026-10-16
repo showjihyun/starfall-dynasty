@@ -771,3 +771,86 @@ fn journalists_file_stories_that_readers_pay_for() {
     assert_eq!(g.store.profile(rep).unwrap().reputation, rep_before, "Lois cited nothing forged");
     assert!(g.history.herald(10).iter().any(|h| h.headline.starts_with("[정정]") && h.by.as_deref() == Some("Clark")));
 }
+
+#[test]
+fn contracts_escrow_delivery_expiry_and_employer_betrayal() {
+    use shared::contracts::{ContractKind, ContractState};
+    let mut g = game();
+    let boss = join(&mut g, 1, "Boss", Species::Kharz, HullClass::Bastion, Profession::Trader);
+    let carrier = join(&mut g, 2, "Carrier", Species::Human, HullClass::Mule, Profession::Miner);
+    let credits = |g: &Game, p| g.store.profile(p).unwrap().wallet.credits;
+    let latest = |g: &Game| *g.store.data.contracts.keys().last().unwrap();
+    g.store.profile_mut(boss).unwrap().wallet.credits = 10_000;
+    let delivery = || ClientMsg::PostContract { kind: ContractKind::Delivery { ore: Ore::Xenite, units: 5, system: 1 }, reward: 1000, hours: 2 };
+
+    // Bad postings are refused and cost nothing.
+    g.handle(1, ClientMsg::PostContract { kind: ContractKind::Hunt { target: "Boss".into() }, reward: 1000, hours: 2 });
+    g.handle(1, ClientMsg::PostContract { kind: ContractKind::Hunt { target: "Nobody".into() }, reward: 1000, hours: 2 });
+    g.handle(1, ClientMsg::PostContract { kind: ContractKind::Hunt { target: "Carrier".into() }, reward: 10, hours: 2 });
+    g.handle(1, ClientMsg::PostContract { kind: ContractKind::Hunt { target: "Carrier".into() }, reward: 1000, hours: 999 });
+    assert!(g.store.data.contracts.is_empty());
+    assert_eq!(credits(&g, boss), 10_000);
+
+    // Cancel before acceptance: full refund.
+    g.handle(1, delivery());
+    assert_eq!(credits(&g, boss), 9_000, "escrow");
+    let c1 = latest(&g);
+    g.handle(1, ClientMsg::AcceptContract { id: c1 });
+    assert_eq!(g.store.data.contracts[&c1].state, ContractState::Open, "cannot take your own");
+    g.handle(1, ClientMsg::CancelContract { id: c1 });
+    assert_eq!((g.store.data.contracts[&c1].state.clone(), credits(&g, boss)), (ContractState::Cancelled, 10_000));
+
+    // Delivery: accept, carry the goods to the destination station, get paid; goods reach the employer.
+    g.handle(1, delivery());
+    let c2 = latest(&g);
+    g.handle(2, ClientMsg::AcceptContract { id: c2 });
+    g.handle(1, ClientMsg::CancelContract { id: c2 });
+    assert_eq!(g.store.data.contracts[&c2].state, ContractState::Accepted, "no withdrawing a signed contract");
+    g.store.profile_mut(carrier).unwrap().cargo.insert("Xenite".into(), 7);
+    g.spawn_player(carrier, 0, true);
+    g.out.clear();
+    g.handle(2, ClientMsg::DeliverContract { id: c2 });
+    assert!(errors(&g, 2).iter().any(|e| e.contains("정거장으로")), "wrong station");
+    g.spawn_player(carrier, 1, true);
+    let before = credits(&g, carrier);
+    g.handle(2, ClientMsg::DeliverContract { id: c2 });
+    assert_eq!(g.store.data.contracts[&c2].state, ContractState::Fulfilled);
+    assert_eq!(credits(&g, carrier), before + 1000);
+    assert_eq!(g.store.profile(carrier).unwrap().cargo.get("Xenite"), Some(&2));
+    assert_eq!(g.store.profile(boss).unwrap().cargo.get("Xenite"), Some(&5));
+    let done = g.history.events.iter().find(|e| e.kind == "CONTRACT_FULFILLED").unwrap();
+    assert!(!done.causes.is_empty(), "linked to the signing");
+    assert!(g.history.evidence.iter().any(|e| e.kind == shared::chronicle::EvidenceKind::KharzContract && e.text.contains("Carrier")), "the signed contract is evidence");
+
+    // A deadline that passes refunds the employer.
+    g.handle(1, delivery());
+    let c3 = latest(&g);
+    let b = credits(&g, boss);
+    g.unix += 3 * 3600;
+    for _ in 0..1200 {
+        g.tick(DT, g.unix);
+    }
+    assert_eq!(g.store.data.contracts[&c3].state, ContractState::Expired);
+    assert_eq!(credits(&g, boss), b + 1000);
+
+    // The employer turning on the contractor is a betrayal too: the escrow goes to the wronged side.
+    g.handle(1, delivery());
+    let c4 = latest(&g);
+    g.handle(2, ClientMsg::AcceptContract { id: c4 });
+    for conn in [1, 2] {
+        move_to_system(&mut g, conn, 7);
+    }
+    clear_npcs(&mut g, 7);
+    let (_, eb) = ent_of(&g, 1);
+    let (_, ec) = ent_of(&g, 2);
+    let before = credits(&g, carrier);
+    g.apply_damage(7, eb, ec, 5.0);
+    assert_eq!(g.store.data.contracts[&c4].state, ContractState::Breached { by: "Boss".into() });
+    assert_eq!(credits(&g, carrier), before + 1000, "compensation");
+    assert!(g.store.profile(boss).unwrap().reputation < 0);
+    let betrayal = g.history.events.iter().find(|e| e.kind == "BETRAYAL").unwrap();
+    assert_eq!(betrayal.actors[0], "Boss");
+    // Further fire is ordinary combat, not another betrayal.
+    g.apply_damage(7, ec, eb, 5.0);
+    assert_eq!(g.history.events.iter().filter(|e| e.kind == "BETRAYAL").count(), 1);
+}

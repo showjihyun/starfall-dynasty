@@ -120,6 +120,12 @@ pub enum ClientMsg {
     AuthenticateEvidence { evidence: u64 },
     /// Journalists: file a Herald article about an event, from the scene or holding its evidence.
     FileStory { event: EventId, headline: String, body: String, cite: Vec<u64> },
+    /// Contracts: post a job (reward goes into escrow), take one, withdraw an open one, hand over a delivery.
+    PostContract { kind: crate::contracts::ContractKind, reward: u64, hours: u32 },
+    AcceptContract { id: crate::contracts::ContractId },
+    CancelContract { id: crate::contracts::ContractId },
+    DeliverContract { id: crate::contracts::ContractId },
+    RequestContracts,
     Ping { t: f64 },
 }
 
@@ -232,6 +238,8 @@ pub struct FleetMember {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum ServerMsg {
+    /// The contract board: every open contract plus the ones this captain is party to.
+    Contracts { list: Vec<crate::contracts::Contract> },
     /// The artifacts this captain holds (sent on login and whenever they change).
     Artifacts { held: Vec<crate::artifacts::Artifact> },
     /// `tuning`: the server's gameplay numbers, so the client's derived stats (HUD, warp range) match it.

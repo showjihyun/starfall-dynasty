@@ -1,0 +1,22 @@
+{
+  "name": "contract_betrayal",
+  "description": "운송 계약을 수락한 함장이 의뢰인을 공격하면 계약이 깨진다 — 보상은 의뢰인에게 돌아가고, 배신은 연대기에 남으며 배신자는 평판을 잃는다",
+  "captains": [
+    { "name": "Patron", "hull": "Mule", "level": 1, "system": 7, "pos": [0, 0, 6000], "credits": 5000 },
+    { "name": "Turncoat", "hull": "Talon", "level": 5, "system": 7, "pos": [0, 0, 6600], "heading": 0 }
+  ],
+  "script": [
+    { "at": 0.5, "captain": "Patron", "msg": { "PostContract": { "kind": { "Delivery": { "ore": "Xenite", "units": 10, "system": 4 } }, "reward": 2000, "hours": 24 } } },
+    { "at": 1.0, "captain": "Turncoat", "fill_nearest": "contract", "msg": { "AcceptContract": { "id": 0 } } },
+    { "at": 3.0, "captain": "Turncoat", "target_captain": "Patron", "aim": true, "msg": { "Controls": { "fire": true } }, "repeat_every": 0.1, "until": 6.0 }
+  ],
+  "run_secs": 10,
+  "expect": [
+    { "at": 2.0, "check": "credits", "captain": "Patron", "max": 4500 },
+    { "check": "history", "kind": "BETRAYAL", "min": 1 },
+    { "check": "credits", "captain": "Patron", "min": 6000 },
+    { "check": "credits", "captain": "Turncoat", "max": 1500 },
+    { "check": "reputation", "captain": "Turncoat", "max": -1 },
+    { "check": "history", "kind": "CONTRACT_FULFILLED", "max": 0 }
+  ]
+}

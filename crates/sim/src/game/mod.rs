@@ -3,6 +3,7 @@
 
 mod actions;
 mod artifacts;
+mod contracts;
 mod diplomacy;
 pub mod interest;
 mod weapons;
@@ -489,6 +490,7 @@ impl Game {
             self.broadcast_fleet(pid);
             self.send_alliances(pid);
             self.push_artifacts(pid);
+            self.send_contracts(pid);
         }
     }
 

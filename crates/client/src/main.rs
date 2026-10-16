@@ -264,6 +264,10 @@ fn automation(
             "galaxy" if first => s.map.level = starmap::Level::Galaxy,
             "station" if first => s.ui.station = true,
             "missions" if first => s.ui.missions = true,
+            "contracts" if first => {
+                s.ui.contracts = true;
+                net.send(ClientMsg::RequestContracts);
+            }
             "chronicle" if first => {
                 s.ui.chronicle = true;
                 net.send(ClientMsg::RequestChronicle);

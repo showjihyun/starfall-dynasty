@@ -2,6 +2,7 @@
 
 pub mod artifacts;
 pub mod chronicle;
+pub mod contracts;
 pub mod galaxy;
 pub mod missions;
 pub mod prof;

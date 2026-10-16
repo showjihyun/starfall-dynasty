@@ -54,6 +54,11 @@ pub struct StoreData {
     /// Herald article id → the distinct readers its reporter has been paid for.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub story_readers: BTreeMap<u64, Vec<PlayerId>>,
+    /// Every contract ever posted (finished ones stay as records).
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub contracts: BTreeMap<u64, shared::contracts::Contract>,
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub next_contract: u64,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

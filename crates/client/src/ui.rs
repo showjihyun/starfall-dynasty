@@ -445,7 +445,7 @@ fn hud(ctx: &egui::Context, s: &mut Session, net: &Net, env: &Env, vis: &Visuals
 
     // Key hints.
     egui::Area::new("keys".into()).anchor(Align2::CENTER_BOTTOM, EVec2::new(0.0, -6.0)).show(ctx, |ui| {
-        ui.label(RichText::new("W/S 추진 · A/D 선회 · R/F 상하 · Q/E 롤 · 우클릭 조종 · Shift 부스트 · Space 사격/주포 · T 목표 · X 미사일 · B 호위공격 · Y 호위복귀 · C 1/3인칭 · I 함교 화면 · G 도킹 · N 채굴 · V 스캔 · M 지도 · U 정거장 · J 미션 · H 연대기 · K 함대 · L 동맹 · F1").size(11.0).color(DIM));
+        ui.label(RichText::new("W/S 추진 · A/D 선회 · R/F 상하 · Q/E 롤 · 우클릭 조종 · Shift 부스트 · Space 사격/주포 · T 목표 · X 미사일 · B 호위공격 · Y 호위복귀 · C 1/3인칭 · I 함교 화면 · G 도킹 · N 채굴 · V 스캔 · M 지도 · U 정거장 · J 미션 · O 계약 · H 연대기 · K 함대 · L 동맹 · F1").size(11.0).color(DIM));
     });
 
     if let Some(killer) = s.dead.clone() {
@@ -488,6 +488,24 @@ fn windows(ctx: &egui::Context, s: &mut Session, net: &Net, env: &Env) {
     let mut open = s.ui.missions;
     egui::Window::new("임무 (J)").open(&mut open).default_size([520.0, 560.0]).show(ctx, |ui| missions(ui, net, &prof));
     s.ui.missions = open;
+
+    let mut open = s.ui.contracts;
+    egui::Window::new("계약 (O)").open(&mut open).default_pos([360.0, 120.0]).default_size([560.0, 520.0]).show(ctx, |ui| {
+        egui::ScrollArea::vertical().show(ui, |ui| {
+            if ui.small_button("새로고침").clicked() {
+                net.send(ClientMsg::RequestContracts);
+            }
+            use view::panels::ContractRequest;
+            match view::panels::contracts(ui, &s.contracts, prof.player_id, prof.wallet.credits, &mut s.ui.contract_form) {
+                Some(ContractRequest::Post { kind, reward, hours }) => net.send(ClientMsg::PostContract { kind, reward, hours }),
+                Some(ContractRequest::Accept(id)) => net.send(ClientMsg::AcceptContract { id }),
+                Some(ContractRequest::Cancel(id)) => net.send(ClientMsg::CancelContract { id }),
+                Some(ContractRequest::Deliver(id)) => net.send(ClientMsg::DeliverContract { id }),
+                None => {}
+            }
+        });
+    });
+    s.ui.contracts = open;
 
     let mut open = s.ui.chronicle;
     egui::Window::new("은하 연대기 · Galactic Herald (H)").open(&mut open).default_size([720.0, 640.0]).show(ctx, |ui| chronicle(ui, s, net, &prof));

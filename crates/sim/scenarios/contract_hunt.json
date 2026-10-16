@@ -1,0 +1,24 @@
+{
+  "name": "contract_hunt",
+  "description": "의뢰인이 현상 사냥 계약을 걸고(보상은 에스크로), 사냥꾼이 수락해 War Zone에서 표적을 격침하면 보상을 받는다",
+  "captains": [
+    { "name": "Patron", "hull": "Mule", "level": 1, "system": 7, "pos": [0, 0, 7000], "credits": 5000 },
+    { "name": "Hunter", "hull": "Talon", "level": 5, "system": 7, "pos": [0, 0, 6000] },
+    { "name": "Mark", "hull": "Wren", "level": 1, "system": 7, "pos": [0, 0, 5450] }
+  ],
+  "script": [
+    { "at": 0.5, "captain": "Patron", "msg": { "PostContract": { "kind": { "Hunt": { "target": "Mark" } }, "reward": 3000, "hours": 24 } } },
+    { "at": 1.0, "captain": "Hunter", "fill_nearest": "contract", "msg": { "AcceptContract": { "id": 0 } } },
+    { "at": 2.0, "captain": "Hunter", "target_captain": "Mark", "aim": true, "msg": { "Controls": { "fire": true } }, "repeat_every": 0.1 }
+  ],
+  "run_secs": 30,
+  "expect": [
+    { "at": 0.6, "check": "credits", "captain": "Patron", "max": 3500 },
+    { "at": 1.1, "check": "history", "kind": "CONTRACT_SIGNED", "min": 1 },
+    { "check": "alive", "captain": "Mark", "alive": false },
+    { "check": "history", "kind": "CONTRACT_FULFILLED", "min": 1 },
+    { "check": "credits", "captain": "Hunter", "min": 4500 },
+    { "check": "credits", "captain": "Patron", "max": 3500 },
+    { "check": "history", "kind": "BETRAYAL", "max": 0 }
+  ]
+}

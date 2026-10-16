@@ -69,6 +69,9 @@ impl Game {
         if self.tick % 20 == 0 {
             self.store.decay_supply(0.9995);
         }
+        if self.tick % 1200 == 0 && !self.store.data.contracts.is_empty() {
+            self.expire_contracts();
+        }
         if self.tick % 1200 == 0 {
             let day = missions::day_index(self.unix);
             let online: Vec<PlayerId> = self.conn_of.keys().copied().collect();
@@ -486,6 +489,10 @@ impl Game {
         let (Some(attacker_pid), Some(victim_pid)) = (attacker_pid, target.side()) else { return };
         let victim_fleet = target.fleet;
         let victim_alliance = target.alliance;
+        // Turning on a contract partner is a betrayal (the contract breaks before anything else).
+        if !self.store.data.contracts.is_empty() {
+            self.contract_hit(attacker_pid, victim_pid, sys);
+        }
         let victim_wanted = self.player_entity(victim_pid).and_then(|(s, e)| self.ent(s, e)).is_some_and(|v| v.wanted);
         let at_war = self.at_war(attacker_alliance, victim_alliance);
         // Self-defence: the victim's side hit the attacker's side recently.
@@ -619,6 +626,11 @@ impl Game {
                     None => (killer_ent_name.unwrap_or_else(|| "우주의 위험".into()), None),
                 };
                 let pvp = killer.is_some_and(|(_, kp)| kp != vpid);
+                if let Some((_, kp)) = killer
+                    && kp != vpid
+                {
+                    self.contract_kill(kp, &vprof.name, sys);
+                }
                 let witnesses: Vec<String> = self.systems[&sys]
                     .ents
                     .values()

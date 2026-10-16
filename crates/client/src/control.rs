@@ -209,6 +209,12 @@ fn action_keys(keys: Res<ButtonInput<KeyCode>>, wants: Option<Res<EguiWantsInput
     if pressed(KeyCode::KeyJ) {
         s.ui.missions = !s.ui.missions;
     }
+    if pressed(KeyCode::KeyO) {
+        s.ui.contracts = !s.ui.contracts;
+        if s.ui.contracts {
+            net.send(ClientMsg::RequestContracts);
+        }
+    }
     if pressed(KeyCode::KeyH) {
         s.ui.chronicle = !s.ui.chronicle;
         if s.ui.chronicle {

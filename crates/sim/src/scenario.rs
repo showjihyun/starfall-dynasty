@@ -130,8 +130,8 @@ pub struct Step {
     /// For `Controls`: steer yaw/pitch toward the current target, as a pilot would (scripted aim).
     #[serde(default)]
     pub aim: bool,
-    /// Fill the message's id with the nearest `"wreck"` (`InvestigateWreck`) or `"poi:<Kind>"`
-    /// (`Scan`), so a spec needs no entity or site ids.
+    /// Fill the message's id with the nearest `"wreck"` (`InvestigateWreck`), `"poi:<Kind>"`
+    /// (`Scan`) or the newest open `"contract"` (`AcceptContract`, …), so a spec needs no ids.
     #[serde(default)]
     pub fill_nearest: Option<String>,
     /// Target this captain's flagship before sending; the step is skipped once it is down.
@@ -178,6 +178,7 @@ pub enum Check {
     Ttk { captain: String, #[serde(default)] min: Option<f32>, #[serde(default)] max: Option<f32> },
     /// Artifacts the captain holds.
     Artifacts { captain: String, #[serde(default)] min: Option<u32>, #[serde(default)] max: Option<u32> },
+    Reputation { captain: String, #[serde(default)] min: Option<i32>, #[serde(default)] max: Option<i32> },
 }
 
 /// Outcome of one scenario.
@@ -314,6 +315,11 @@ fn evaluate(run: &Run, c: &Check) -> (bool, String) {
         Check::Dps { captain, min, max } => {
             let (ok, s) = range((run.totals(captain).dps() * 10.0).round() / 10.0, *min, *max);
             (ok, format!("{captain} dps {s}"))
+        }
+        Check::Reputation { captain, min, max } => {
+            let v = run.pid(captain).and_then(|p| g.store.profile(p)).map(|p| p.reputation).unwrap_or(0);
+            let (ok, s) = range(v, *min, *max);
+            (ok, format!("{captain} reputation {s}"))
         }
         Check::Artifacts { captain, min, max } => {
             let v = run.pid(captain).map(|p| g.artifacts_of(p).len() as u32).unwrap_or(0);
@@ -454,6 +460,13 @@ pub fn run_opts(sc: &Scenario, trace_every: Option<f32>, metrics: bool) -> Repor
                         let best = run.g.systems[&sys].ents.values().filter(|e| e.kind == EntityKind::Wreck).min_by(|a, b| dist(a.pos).total_cmp(&dist(b.pos)));
                         if let Some(w) = best {
                             *wreck = w.id;
+                        }
+                    }
+                    (ClientMsg::AcceptContract { id } | ClientMsg::CancelContract { id } | ClientMsg::DeliverContract { id }, None) if what == "contract" => {
+                        // Newest open contract (or, for delivery, the newest running one).
+                        let best = run.g.store.data.contracts.values().rev().find(|c| matches!(c.state, shared::contracts::ContractState::Open | shared::contracts::ContractState::Accepted));
+                        if let Some(c) = best {
+                            *id = c.id;
                         }
                     }
                     _ => rep.lines.push(format!("SCRIPT: fill_nearest {what:?} does not fit {:?}", st.msg)),

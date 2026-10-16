@@ -1,0 +1,8 @@
+// Player contracts (crates/shared/src/contracts.rs). Read at run time.
+(
+    min_reward: 200,            // credits; the reward is held in escrow when posting
+    max_hours: 72,              // longest deadline
+    max_open: 5,                // open or running contracts one employer may have
+    fulfil_reputation: 5,       // contractor, on completion
+    betrayal_reputation: -30,   // whoever turns on the other party while a contract stands
+)

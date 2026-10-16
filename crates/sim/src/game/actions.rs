@@ -100,6 +100,11 @@ impl Game {
             ClientMsg::ForgeEvidence { evidence, text } => self.forge_evidence(conn, pid, evidence, text),
             ClientMsg::AuthenticateEvidence { evidence } => self.authenticate_evidence(conn, pid, evidence),
             ClientMsg::FileStory { event, headline, body, cite } => self.file_story(conn, pid, sys, event, headline, body, cite),
+            ClientMsg::PostContract { kind, reward, hours } => self.post_contract(conn, pid, kind, reward, hours),
+            ClientMsg::AcceptContract { id } => self.accept_contract(conn, pid, id),
+            ClientMsg::CancelContract { id } => self.cancel_contract(conn, pid, id),
+            ClientMsg::DeliverContract { id } => self.deliver_contract(conn, pid, sys, eid, id),
+            ClientMsg::RequestContracts => self.send_contracts(pid),
             ClientMsg::DisputeResearch { event, author } => {
                 let me = self.store.profile(pid).unwrap();
                 let name = me.name.clone();
