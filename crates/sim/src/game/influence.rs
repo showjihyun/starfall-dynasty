@@ -31,12 +31,90 @@ impl Game {
     /// `pid` did something worth `points` of influence in `sys`.
     pub(super) fn gain_influence(&mut self, pid: PlayerId, sys: SystemId, points: f32) {
         let Some(a) = self.alliance_of(pid) else { return };
-        if points <= 0.0 || galaxy::system(sys).tier == RiskTier::Core {
+        if points > 0.0 {
+            self.shift_influence(a, sys, points);
+        }
+    }
+
+    /// Add (or, negative, take away) an alliance's influence in a system, then re-check control.
+    fn shift_influence(&mut self, a: AllianceId, sys: SystemId, points: f32) {
+        if galaxy::system(sys).tier == RiskTier::Core {
             return;
         }
-        *self.store.data.influence.entry(sys).or_default().entry(a).or_default() += points;
+        let m = self.store.data.influence.entry(sys).or_default();
+        let v = m.entry(a).or_default();
+        *v = (*v + points).max(0.0);
+        m.retain(|_, v| *v >= 0.1);
         self.store.dirty = true;
         self.update_control(sys);
+        // A holder knocked below half the threshold loses its grip at once.
+        if let Some(h) = self.controller(sys)
+            && self.influence(sys, h) < self.tuning.social.control_threshold * 0.5
+        {
+            self.set_controller(sys, None);
+            self.update_control(sys);
+        }
+    }
+
+    /// A battle ended in `sys`: alliances on the winning side gain influence, those on losing sides lose some.
+    pub(super) fn battle_influence(&mut self, sys: SystemId, winner: &str, sides: &[String]) {
+        let t = self.tuning.social;
+        let alliance_of_key = |k: &str| k.strip_prefix('A').and_then(|id| id.parse::<AllianceId>().ok());
+        for k in sides {
+            let Some(a) = alliance_of_key(k) else { continue };
+            if k == winner {
+                self.shift_influence(a, sys, t.influence_battle_win);
+            } else {
+                self.shift_influence(a, sys, -t.influence_battle_loss);
+            }
+        }
+    }
+
+    /// Tax on a non-member's income in a controlled system: returns what they keep; the rest goes to
+    /// the controller's treasury. Members (and uncontrolled space) pay nothing.
+    pub(super) fn levy(&mut self, pid: PlayerId, sys: SystemId, income: u64) -> u64 {
+        let Some(c) = self.controller(sys) else { return income };
+        if self.alliance_of(pid) == Some(c) {
+            return income;
+        }
+        let tax = (income as f32 * self.tuning.social.tax_rate).round() as u64;
+        if tax == 0 {
+            return income;
+        }
+        if let Some(a) = self.store.data.alliances.iter_mut().find(|a| a.id == c) {
+            a.treasury += tax;
+        }
+        self.store.dirty = true;
+        income - tax
+    }
+
+    /// The leader pays the treasury out in equal shares (the remainder stays).
+    pub(super) fn alliance_dividend(&mut self, pid: PlayerId) {
+        let Some(aid) = self.alliance_of(pid) else { return self.toast(pid, "동맹 소속이 아닙니다") };
+        let Some(a) = self.alliance(aid).cloned() else { return };
+        if a.leader != pid {
+            return self.toast(pid, "맹주만 배당할 수 있습니다");
+        }
+        let n = a.members.len().max(1) as u64;
+        let share = a.treasury / n;
+        if share == 0 {
+            return self.toast(pid, "배당할 금고 잔액이 없습니다");
+        }
+        if let Some(x) = self.store.data.alliances.iter_mut().find(|x| x.id == aid) {
+            x.treasury -= share * n;
+        }
+        for m in &a.members {
+            if let Some(p) = self.store.profile_mut(*m) {
+                p.wallet.credits += share;
+            }
+            self.toast(*m, format!("[{}] 금고 배당: +{share} CR", a.tag));
+            self.push_profile(*m);
+        }
+        self.store.dirty = true;
+        let online: Vec<PlayerId> = self.conn_of.keys().copied().collect();
+        for p in online {
+            self.send_alliances(p);
+        }
     }
 
     /// Hand control to the leading alliance once it passes the threshold and beats the holder by the margin.

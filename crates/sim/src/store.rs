@@ -76,6 +76,9 @@ pub struct Alliance {
     pub members: Vec<PlayerId>,
     /// Alliances this one is at war with (kept symmetric).
     pub wars: Vec<u32>,
+    /// Tax collected in the systems it controls.
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub treasury: u64,
 }
 
 pub struct Store {

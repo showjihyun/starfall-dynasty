@@ -81,6 +81,9 @@ pub struct Captain {
     /// Credits on top of the starting wallet.
     #[serde(default)]
     pub credits: u64,
+    /// Cargo in the hold at the start (ore name → units).
+    #[serde(default)]
+    pub cargo: std::collections::BTreeMap<String, u32>,
 }
 
 fn human() -> Species {
@@ -183,6 +186,8 @@ pub enum Check {
     Influence { system: SystemId, tag: String, #[serde(default)] min: Option<f32>, #[serde(default)] max: Option<f32> },
     /// Who controls a system (`tag` omitted: nobody).
     Controller { system: SystemId, #[serde(default)] tag: Option<String> },
+    /// Credits in the treasury of the alliance with this tag.
+    Treasury { tag: String, #[serde(default)] min: Option<u64>, #[serde(default)] max: Option<u64> },
 }
 
 /// Outcome of one scenario.
@@ -325,6 +330,11 @@ fn evaluate(run: &Run, c: &Check) -> (bool, String) {
             let (ok, s) = range((v * 10.0).round() / 10.0, *min, *max);
             (ok, format!("system {system} influence of [{tag}] {s}"))
         }
+        Check::Treasury { tag, min, max } => {
+            let v = g.store.data.alliances.iter().find(|a| a.tag == *tag).map(|a| a.treasury).unwrap_or(0);
+            let (ok, s) = range(v, *min, *max);
+            (ok, format!("[{tag}] treasury {s}"))
+        }
         Check::Controller { system, tag } => {
             let is = g.controller(*system).and_then(|a| g.alliance(a)).map(|a| a.tag.clone());
             (is == *tag, format!("system {system} controlled by {is:?} (want {tag:?})"))
@@ -389,6 +399,7 @@ pub fn run_opts(sc: &Scenario, trace_every: Option<f32>, metrics: bool) -> Repor
                 p.ship.modules.insert(m, c.level.max(1));
             }
             p.wallet.credits += c.credits;
+            p.cargo.extend(c.cargo.clone());
         }
         run.g.spawn_player(pid, c.system, !c.undocked);
         if let Some((sys, eid)) = run.g.player_entity(pid)

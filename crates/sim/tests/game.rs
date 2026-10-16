@@ -884,7 +884,7 @@ fn influence_takes_control_with_a_margin_and_fades() {
     assert!((g.influence(3, fpa) - 70.0).abs() < 0.01);
     assert_eq!(g.controller(3), Some(fpa));
     assert!(g.history.events.iter().any(|e| e.kind == "SYSTEM_CONTROL"));
-    // Home turf: FPA members get 10% more for the same sale than an outsider.
+    // Home turf: FPA members get 10% more for the same sale, and the outsider pays 5% tax on top.
     let price = |g: &mut Game, conn: ConnId, pid: PlayerId| {
         let before = g.store.profile(pid).unwrap().wallet.credits;
         g.store.data.supply.clear();
@@ -893,7 +893,7 @@ fn influence_takes_control_with_a_margin_and_fades() {
     };
     let member = price(&mut g, 1, a);
     let outsider = price(&mut g, 3, loner);
-    assert!(member > outsider && (member as f32 / outsider as f32 - 1.1).abs() < 0.03, "{member} vs {outsider}");
+    assert!(member > outsider && (member as f32 / outsider as f32 - 1.1 / 0.95).abs() < 0.03, "{member} vs {outsider}");
     // EMP edges ahead but not by the 20% margin: control stays.
     sell(&mut g, 2, b, 3, 400);
     let (f, e) = (g.influence(3, fpa), g.influence(3, emp));
@@ -922,4 +922,62 @@ fn influence_takes_control_with_a_margin_and_fades() {
     }
     assert!(lost, "influence decays: {}", g.influence(3, emp));
     assert!(g.influence(3, emp) < 30.0);
+}
+
+#[test]
+fn controllers_tax_outsiders_and_pay_dividends() {
+    let mut g = game();
+    g.dev_mode = true;
+    let lead = join(&mut g, 1, "Lead", Species::Human, HullClass::Mule, Profession::Miner);
+    let mate = join(&mut g, 2, "Mate", Species::Human, HullClass::Mule, Profession::Miner);
+    let out = join(&mut g, 3, "Outsider", Species::Veyr, HullClass::Talon, Profession::CombatPilot);
+    g.store.profile_mut(lead).unwrap().wallet.credits = 5000;
+    g.handle(1, ClientMsg::AllianceCreate { name: "Tax Guild".into(), tag: "TAX".into() });
+    let tax = g.alliance_of(lead).unwrap();
+    g.handle(1, ClientMsg::AllianceInvite { name: "Mate".into() });
+    g.handle(2, ClientMsg::AllianceAccept { alliance: tax });
+    g.spawn_player(lead, 3, false);
+    g.handle(1, ClientMsg::Chat { text: "/influence 80".into() });
+    assert_eq!(g.controller(3), Some(tax));
+    let treasury = |g: &Game| g.alliance(tax).unwrap().treasury;
+    // A member selling at home pays no tax.
+    let sell = |g: &mut Game, conn: ConnId, pid: PlayerId| {
+        g.spawn_player(pid, 3, true);
+        g.store.profile_mut(pid).unwrap().cargo.insert("Ferrite".into(), 50);
+        g.store.data.supply.clear();
+        let before = g.store.profile(pid).unwrap().wallet.credits;
+        g.handle(conn, ClientMsg::Sell { ore: Ore::Ferrite, units: 50 });
+        g.store.profile(pid).unwrap().wallet.credits - before
+    };
+    sell(&mut g, 2, mate);
+    assert_eq!(treasury(&g), 0);
+    // An outsider pays 5%.
+    let got = sell(&mut g, 3, out);
+    let t1 = treasury(&g);
+    assert!(t1 > 0 && ((t1 as f32) / (got + t1) as f32 - 0.05).abs() < 0.01, "{t1} of {}", got + t1);
+    // Bounties are taxed too.
+    g.spawn_player(out, 3, false);
+    clear_npcs(&mut g, 3);
+    g.systems.get_mut(&3).unwrap().pirate_cd = f32::INFINITY;
+    let (_, eo) = ent_of(&g, 3);
+    let pos = g.ent(3, eo).unwrap().pos;
+    let npc = g.spawn_npc(3, NpcArchetype::Raider, 1, pos + Vec3::new(0.0, 0.0, -300.0), None);
+    for _ in 0..400 {
+        g.apply_damage(3, eo, npc, 40.0);
+        g.tick(DT, T0);
+        if g.ent(3, npc).is_none() {
+            break;
+        }
+    }
+    assert!(treasury(&g) > t1, "bounty tax");
+    // Only the leader pays out, in equal shares.
+    g.handle(2, ClientMsg::AllianceDividend);
+    assert_eq!(treasury(&g) > 0, true, "a member cannot");
+    let (cl, cm) = (g.store.profile(lead).unwrap().wallet.credits, g.store.profile(mate).unwrap().wallet.credits);
+    let pot = treasury(&g);
+    g.handle(1, ClientMsg::AllianceDividend);
+    let share = pot / 2;
+    assert_eq!(g.store.profile(lead).unwrap().wallet.credits, cl + share);
+    assert_eq!(g.store.profile(mate).unwrap().wallet.credits, cm + share);
+    assert_eq!(treasury(&g), pot - share * 2);
 }

@@ -34,7 +34,7 @@ fn cell(hull: HullClass, level: u8, arch: NpcArchetype, npc_level: u8, count: u3
         unix: 1_800_000_000,
         dev: false,
         ambient_pirates: false,
-        captains: vec![Captain { name: "Cap".into(), hull, species: Species::Human, profession: Profession::Explorer, level, system: 7, pos: Some([0.0, 0.0, 6000.0]), near_poi: None, offset: None, heading: 0.0, undocked: true, credits: 0 }],
+        captains: vec![Captain { name: "Cap".into(), hull, species: Species::Human, profession: Profession::Explorer, level, system: 7, pos: Some([0.0, 0.0, 6000.0]), near_poi: None, offset: None, heading: 0.0, undocked: true, credits: 0, cargo: Default::default() }],
         npcs: vec![NpcGroup { archetype: arch, level: npc_level, system: 7, pos: [0.0, 0.0, 5450.0], count, spacing: 80.0 }],
         script: vec![Step { at: 0.2, captain: "Cap".into(), msg: ClientMsg::Controls(Controls { thrust: 0.2, fire: true, ..Default::default() }), repeat_every: Some(0.1), until: None, target_nearest: Some("npc".into()), aim: true, fill_nearest: None, target_captain: None }],
         run_secs: LIMIT,

@@ -868,6 +868,12 @@ fn alliance(ui: &mut egui::Ui, s: &mut Session, net: &Net) {
             ui.label(format!("맹주 {} · 함장 {}명", a.leader, a.members.len()));
             ui.label(RichText::new(a.members.join(", ")).size(12.0).color(DIM));
             let leader = s.profile.as_ref().is_some_and(|p| p.name == a.leader);
+            ui.horizontal(|ui| {
+                ui.label(RichText::new(format!("금고 {} CR", a.treasury)).color(GOLD)).on_hover_text("지배 성계에서 비동맹 함장의 광석 판매·현상금에 붙는 세금");
+                if leader && ui.add_enabled(a.treasury >= a.members.len() as u64, egui::Button::new("동맹원에게 균등 배당")).clicked() {
+                    net.send(ClientMsg::AllianceDividend);
+                }
+            });
             if leader {
                 ui.horizontal(|ui| {
                     ui.add(egui::TextEdit::singleline(&mut s.ui.invite_name).hint_text("초대할 함장").desired_width(160.0));

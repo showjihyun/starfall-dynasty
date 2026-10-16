@@ -108,6 +108,7 @@ impl Game {
             ClientMsg::CancelContract { id } => self.cancel_contract(conn, pid, id),
             ClientMsg::DeliverContract { id } => self.deliver_contract(conn, pid, sys, eid, id),
             ClientMsg::RequestContracts => self.send_contracts(pid),
+            ClientMsg::AllianceDividend => self.alliance_dividend(pid),
             ClientMsg::DisputeResearch { event, author } => {
                 let me = self.store.profile(pid).unwrap();
                 let name = me.name.clone();
@@ -493,6 +494,7 @@ impl Game {
             self.store.add_supply(sys, ore, 1.0);
         }
         let total = (total * self.home_turf(pid, sys)).round() as u64;
+        let total = self.levy(pid, sys, total);
         if let Some(pm) = self.store.profile_mut(pid) {
             let c = pm.cargo.get_mut(ore.name()).unwrap();
             *c -= n;

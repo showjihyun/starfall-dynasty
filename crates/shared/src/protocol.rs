@@ -126,6 +126,8 @@ pub enum ClientMsg {
     CancelContract { id: crate::contracts::ContractId },
     DeliverContract { id: crate::contracts::ContractId },
     RequestContracts,
+    /// Alliance leader: pay the treasury out to the members in equal shares.
+    AllianceDividend,
     Ping { t: f64 },
 }
 
@@ -226,6 +228,9 @@ pub struct AllianceInfo {
     pub leader: String,
     pub members: Vec<String>,
     pub wars: Vec<AllianceId>,
+    /// Credits collected as tax in the systems it controls.
+    #[serde(default)]
+    pub treasury: u64,
 }
 
 /// One system's political standing: who controls it and every alliance's influence there.

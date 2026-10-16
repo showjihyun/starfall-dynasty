@@ -588,6 +588,7 @@ impl Game {
                             r.crystal /= 2;
                             r.datacore /= 2;
                         }
+                        r.credits = self.levy(*pid, sys, r.credits);
                         if let Some(pm) = self.store.profile_mut(*pid) {
                             pm.wallet.add(&r);
                             if i == 0 {
@@ -765,6 +766,10 @@ impl Game {
             let winner_key = if total_losses > 0 && winners.len() == 1 { Some(winners[0].clone()) } else { None };
             let sides: Vec<Side> = eng.sides.values().map(|(n, m, l)| Side { name: n.clone(), members: m.iter().cloned().collect(), losses: *l }).collect();
             let winner_name = winner_key.as_ref().map(|k| eng.sides[k].0.clone());
+            if let Some(k) = &winner_key {
+                let keys: Vec<String> = eng.sides.keys().cloned().collect();
+                self.battle_influence(sys, k, &keys);
+            }
             self.history.record(self.unix, DomainEvent::EngagementConcluded { system: sys, sides, winner: winner_name.clone(), seconds: (eng.last_fire - eng.started).max(1.0) as u32 });
             if let Some(k) = winner_key {
                 let reward = (1500.0 * galaxy::system(sys).tier.reward_mult()) as u64;

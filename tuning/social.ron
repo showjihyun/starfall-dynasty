@@ -15,4 +15,7 @@
     control_margin: 0.2,        // …and how far ahead of the current holder (20%)
     influence_decay_hourly: 0.97,
     control_bonus: 0.1,         // controlling alliance's members: +10% bounties and ore prices there
+    influence_battle_win: 25.0, // an alliance winning a battle in the system…
+    influence_battle_loss: 15.0,// …and each alliance on the losing side (subtracted)
+    tax_rate: 0.05,             // share of non-members' ore sales and bounties there paid to the controller's treasury
 )

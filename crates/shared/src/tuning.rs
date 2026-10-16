@@ -202,6 +202,9 @@ pub struct SocialTuning {
     pub control_margin: f32,
     pub influence_decay_hourly: f32,
     pub control_bonus: f32,
+    pub influence_battle_win: f32,
+    pub influence_battle_loss: f32,
+    pub tax_rate: f32,
 }
 
 /// Forged evidence and authenticity checks (`history.ron`).

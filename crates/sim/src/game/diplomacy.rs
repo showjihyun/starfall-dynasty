@@ -10,7 +10,7 @@ pub const ALLIANCE_COST: u64 = 1000;
 impl Game {
     pub fn alliance_info(&self, a: &Alliance) -> AllianceInfo {
         let name = |p: &PlayerId| self.store.profile(*p).map(|x| x.name.clone()).unwrap_or_default();
-        AllianceInfo { id: a.id, name: a.name.clone(), tag: a.tag.clone(), leader: name(&a.leader), members: a.members.iter().map(name).collect(), wars: a.wars.clone() }
+        AllianceInfo { id: a.id, name: a.name.clone(), tag: a.tag.clone(), leader: name(&a.leader), members: a.members.iter().map(name).collect(), wars: a.wars.clone(), treasury: a.treasury }
     }
 
     pub fn send_alliances(&mut self, pid: PlayerId) {
@@ -66,7 +66,7 @@ impl Game {
         }
         self.store.data.next_alliance += 1;
         let id = self.store.data.next_alliance;
-        self.store.data.alliances.push(Alliance { id, name: name.clone(), tag: tag.clone(), leader: pid, members: vec![pid], wars: vec![] });
+        self.store.data.alliances.push(Alliance { id, name: name.clone(), tag: tag.clone(), leader: pid, members: vec![pid], wars: vec![], treasury: 0 });
         let founder = self.store.profile(pid).unwrap().name.clone();
         self.history.record(self.unix, DomainEvent::AllianceFounded { alliance: format!("[{tag}] {name}"), founder });
         self.refresh_members(&[pid]);

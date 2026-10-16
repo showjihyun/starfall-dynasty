@@ -188,7 +188,7 @@ use shared::protocol::SystemStanding;
 /// tag) highlighted. Systems nobody has any influence in are left out.
 pub fn influence(ui: &mut egui::Ui, systems: &[SystemStanding], mine: Option<&str>, threshold: f32) {
     ui.label(RichText::new("성계 영향력").strong());
-    ui.label(RichText::new(format!("동맹원이 성계에서 해적 소탕·광석 판매·계약 완수·박물관 기증을 하면 영향력이 쌓입니다. {threshold:.0} 이상이고 지배 세력보다 20% 앞서면 지배권을 가져옵니다(지배 동맹원은 그 성계에서 현상금·판매가 +10%). 영향력은 매시간 줄어듭니다. Core 성계는 지배할 수 없습니다.")).size(11.0).color(DIM));
+    ui.label(RichText::new(format!("동맹원이 성계에서 해적 소탕·광석 판매·계약 완수·박물관 기증을 하고 교전에서 이기면 영향력이 쌓입니다(지면 줄어듭니다). {threshold:.0} 이상이고 지배 세력보다 20% 앞서면 지배권을 가져옵니다. 지배 동맹원은 그 성계에서 현상금·판매가 +10%, 다른 함장의 광석 판매·현상금 5%는 지배 동맹 금고로 갑니다. 영향력은 매시간 줄어듭니다. Core 성계는 지배할 수 없습니다.")).size(11.0).color(DIM));
     let active: Vec<&SystemStanding> = systems.iter().filter(|s| s.controller.is_some() || !s.standings.is_empty()).collect();
     if active.is_empty() {
         ui.label(RichText::new("아직 어느 성계에도 영향력을 가진 동맹이 없습니다.").color(DIM));

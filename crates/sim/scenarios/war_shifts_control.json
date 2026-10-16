@@ -1,0 +1,28 @@
+{
+  "name": "war_shifts_control",
+  "description": "지배 동맹(DEF)이 War Zone 교전에서 지면 영향력을 잃고, 이긴 동맹(ATK)이 패권을 가져간 뒤 다른 함장의 판매에서 세금을 걷는다",
+  "dev": true,
+  "captains": [
+    { "name": "Warden", "hull": "Wren", "level": 1, "system": 7, "pos": [0, 0, 5500], "credits": 2000 },
+    { "name": "Raider", "hull": "Bastion", "level": 9, "system": 7, "pos": [0, 0, 6200], "credits": 2000 },
+    { "name": "Merchant", "hull": "Mule", "level": 1, "system": 7, "undocked": false, "cargo": { "Ferrite": 60 } }
+  ],
+  "script": [
+    { "at": 0.2, "captain": "Warden", "msg": { "AllianceCreate": { "name": "Old Guard", "tag": "DEF" } } },
+    { "at": 0.2, "captain": "Raider", "msg": { "AllianceCreate": { "name": "New Order", "tag": "ATK" } } },
+    { "at": 0.4, "captain": "Warden", "msg": { "Chat": { "text": "/influence 70" } } },
+    { "at": 0.4, "captain": "Raider", "msg": { "Chat": { "text": "/influence 50" } } },
+    { "at": 1.0, "captain": "Raider", "target_captain": "Warden", "aim": true, "msg": { "Controls": { "fire": true } }, "repeat_every": 0.1 },
+    { "at": 40.0, "captain": "Merchant", "msg": { "Sell": { "ore": "Ferrite", "units": 60 } } }
+  ],
+  "run_secs": 42,
+  "expect": [
+    { "at": 0.8, "check": "controller", "system": 7, "tag": "DEF" },
+    { "at": 39.0, "check": "history", "kind": "BATTLE", "min": 1 },
+    { "at": 39.0, "check": "influence", "system": 7, "tag": "ATK", "min": 74 },
+    { "at": 39.0, "check": "influence", "system": 7, "tag": "DEF", "max": 56 },
+    { "at": 39.0, "check": "controller", "system": 7, "tag": "ATK" },
+    { "check": "treasury", "tag": "ATK", "min": 1 },
+    { "check": "treasury", "tag": "DEF", "max": 0 }
+  ]
+}
