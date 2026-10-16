@@ -13,10 +13,6 @@ pub(super) struct Shot {
     pub dmg: f32,
 }
 
-const LASER_CONE: f32 = 0.11; // ~6.3°
-const LOCK_CONE: f32 = 0.22;
-const NPC_CONE: f32 = 0.35;
-const MAIN_CONE: f32 = 0.12;
 /// Grid queries pad the weapon range by this so huge hulls at the edge are still found.
 const MAX_TARGET_RADIUS: f32 = 400.0;
 
@@ -51,7 +47,7 @@ impl Game {
         };
         if let Some(p) = preferred
             && let Some(t) = self.ent(sys, p).filter(|t| !t.dead)
-            && aim(t.pos, t.stats.radius).is_some_and(|a| a < LOCK_CONE.max(cone))
+            && aim(t.pos, t.stats.radius).is_some_and(|a| a < self.tuning.combat.lock_cone.max(cone))
             && self.can_damage(sys, e.id, p)
         {
             return Some(p);
@@ -89,7 +85,7 @@ impl Game {
         if !wants {
             return;
         }
-        let cone = if e.kind == EntityKind::Player { LASER_CONE } else { NPC_CONE };
+        let cone = if e.kind == EntityKind::Player { self.tuning.combat.laser_cone } else { self.tuning.combat.npc_cone };
         let preferred = if e.kind == EntityKind::Player { e.target } else { e.ai.as_ref().and_then(|a| a.target) };
         let best = self.cone_target(sys, e, e.stats.weapon_range, cone, preferred);
         let dmg = e.stats.damage * self.combat_pilot_bonus(e);
@@ -190,7 +186,7 @@ impl Game {
         }
         e.main_cd = e.stats.main_interval;
         let e = self.ent(sys, id).unwrap();
-        let target = self.cone_target(sys, e, e.stats.main_range, MAIN_CONE, e.target);
+        let target = self.cone_target(sys, e, e.stats.main_range, self.tuning.combat.main_cone, e.target);
         let dmg = e.stats.main_damage * self.combat_pilot_bonus(e);
         if let Some(t) = target {
             shots.push(Shot { from: id, to: t, dmg });

@@ -90,6 +90,8 @@ fn recorded_session_replays_exactly() {
     }
     let live = digest(&g);
     drop(rec);
+    let tuning = rec_dir.join(server::harness::TUNING_DIR);
+    assert_eq!(shared::tuning::Tuning::load(&tuning).unwrap(), *g.tuning, "the recording keeps the numbers it ran with");
     assert!(g.systems[&7].ents.len() > 2, "the fight happened in the war zone");
     assert!(g.sessions.values().any(|s| s.player.is_some() && s.entity.is_some() && s.system == 7));
 

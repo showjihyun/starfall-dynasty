@@ -1,0 +1,12 @@
+// Combat rules. Read at run time (crates/shared/src/tuning.rs).
+(
+    // No ship is invulnerable: this share of every hit passes through shields to the hull…
+    shield_bleed: 0.1,
+    // …and every hit that lands costs at least this many hull points.
+    min_hull_damage: 1.0,
+    // Aim cones in radians (0.11 ≈ 6.3°): player fighter guns, keeping a locked target, AI guns, bow main gun.
+    laser_cone: 0.11,
+    lock_cone: 0.22,
+    npc_cone: 0.35,
+    main_cone: 0.12,
+)

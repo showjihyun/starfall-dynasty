@@ -1,10 +1,11 @@
 //! Development harness (docs/HARNESS.md): make a game session reproducible and checkable in text.
 //!
-//! - **Record** (`server --record DIR`): the data files at start-up are copied to `DIR/initial/`, then
+//! - **Record** (`server --record DIR`): the data files at start-up are copied to `DIR/initial/` and the
+//!   gameplay numbers (`tuning/*.ron`) to `DIR/tuning/`, then
 //!   every command the simulation receives is appended to `DIR/session.jsonl`, tick by tick, together
 //!   with the clock it saw, the account tokens it issued and a state digest every few seconds.
 //! - **Replay** (`cargo run -p server --release --example replay -- DIR`): rebuilds the simulation
-//!   from `initial/`, feeds the same commands at the same ticks without any network or engine, and
+//!   from `initial/` with the recorded tuning, feeds the same commands at the same ticks without any network or engine, and
 //!   checks each recorded digest. A bug report becomes a folder that reproduces itself.
 //! - **Digest**: a fingerprint of the whole simulation state (entities bit-exact, the store, the
 //!   history), so "did my change alter the outcome?" is a one-line comparison.
@@ -55,6 +56,8 @@ pub struct TickRecord {
 pub const SESSION_FILE: &str = "session.jsonl";
 pub const FORMAT_VERSION: u32 = 1;
 const DATA_FILES: [&str; 2] = ["profiles.json", "history.jsonl"];
+/// Copy of `tuning/*.ron` inside a recording.
+pub const TUNING_DIR: &str = "tuning";
 
 /// FNV-1a, 64 bit: tiny, stable across platforms and runs (unlike the std hasher).
 #[derive(Clone, Copy)]
@@ -138,6 +141,10 @@ impl Recorder {
         let history = data_dir.join(DATA_FILES[1]);
         if history.exists() {
             std::fs::copy(&history, initial.join(DATA_FILES[1]))?;
+        }
+        // The numbers the simulation runs with, so a replay after a balance edit still reproduces.
+        if let Some(src) = shared::tuning::Tuning::locate() {
+            shared::tuning::Tuning::copy_files(&src, &dir.join(TUNING_DIR))?;
         }
         let mut out = BufWriter::new(std::fs::File::create(dir.join(SESSION_FILE))?);
         let digest_every = 100;
@@ -223,8 +230,13 @@ impl Session {
     }
 
     /// Fresh simulation in the recorded starting state, built entirely in memory: the recording is
-    /// read, never written, and no temporary files are involved.
+    /// read, never written, and no temporary files are involved. A recording that carries its
+    /// tuning installs it process-wide first; older ones run with the current numbers.
     pub fn initial_game(&self) -> std::io::Result<Game> {
+        let tuning = self.dir.join(TUNING_DIR);
+        if tuning.is_dir() {
+            shared::tuning::install(shared::tuning::Tuning::load(&tuning).map_err(std::io::Error::other)?);
+        }
         let initial = self.dir.join("initial");
         let profiles = initial.join(DATA_FILES[0]);
         let store = if profiles.exists() {

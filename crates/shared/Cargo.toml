@@ -7,3 +7,4 @@ edition = "2024"
 serde = { workspace = true }
 serde_json = { workspace = true }
 glam = { version = "0.33", features = ["serde"] }
+ron = "0.12"

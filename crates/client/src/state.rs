@@ -214,7 +214,10 @@ pub fn pump_network(net: Option<Res<Net>>, mut s: ResMut<Session>, time: Res<Tim
 
 fn apply(s: &mut Session, m: ServerMsg, now: f64, next: &mut NextState<Screen>) {
     match m {
-        ServerMsg::Welcome { player_id, token, profile, .. } => {
+        ServerMsg::Welcome { player_id, token, profile, tuning, .. } => {
+            if let Some(t) = tuning {
+                shared::tuning::install(*t);
+            }
             s.player_id = Some(player_id);
             save_token(&s.name, &token);
             s.token = Some(token);

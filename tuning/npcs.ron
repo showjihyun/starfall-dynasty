@@ -1,0 +1,26 @@
+// NPC ships (pirates, scenario guardians). Read at run time (crates/shared/src/tuning.rs).
+// hull, shield and damage are level-0 values; each level adds level_scale of them.
+(
+    level_scale: 0.35,
+    weapon_range: 520.0,          // + weapon_range_per_radius × radius
+    weapon_range_per_radius: 4.0,
+    shield_regen: 0.05,           // share of max shield per second
+    accel: 0.8,                   // share of speed
+    turret_damage: 0.5,           // share of gun damage
+    turret_interval: 1.1,         // seconds
+    turret_range: 1.2,            // share of weapon range
+
+    // bounty: credits × (1 + level), materials as given.
+    archetypes: {
+        Raider:   (hull: 160.0,  shield: 60.0,   damage: 8.0,  fire_interval: 0.5,  speed: 95.0, turn: 1.6, radius: 9.0,  turrets: 0,
+                   bounty: (credits: 90, alloy: 1)),
+        Gunship:  (hull: 320.0,  shield: 140.0,  damage: 13.0, fire_interval: 0.6,  speed: 70.0, turn: 1.6, radius: 14.0, turrets: 0,
+                   bounty: (credits: 200, alloy: 3, datacore: 1)),
+        Warden:   (hull: 260.0,  shield: 260.0,  damage: 12.0, fire_interval: 0.45, speed: 90.0, turn: 1.6, radius: 12.0, turrets: 0,
+                   bounty: (credits: 170, crystal: 3)),
+        Warlord:  (hull: 1900.0, shield: 700.0,  damage: 26.0, fire_interval: 0.35, speed: 65.0, turn: 0.7, radius: 30.0, turrets: 6,
+                   bounty: (credits: 2500, alloy: 20, datacore: 4, relic: 1)),
+        Sentinel: (hull: 5200.0, shield: 2200.0, damage: 38.0, fire_interval: 0.3,  speed: 55.0, turn: 0.7, radius: 60.0, turrets: 12,
+                   bounty: (credits: 9000, alloy: 40, crystal: 30, datacore: 10, relic: 3)),
+    },
+)

@@ -1,0 +1,80 @@
+// Player ships: hull base stats, module growth, size classes, batteries, upgrade costs, escorts.
+// Read at run time (crates/shared/src/tuning.rs). After an edit:
+//   cargo run -p server --release --example balance -- --write docs/BALANCE.md   (then read the diff)
+//   cargo run -p server --release --example scenario
+// Unknown or missing fields are errors.
+(
+    // Level-1 stats of each hull, before size-class scaling. warp is in light-years.
+    hulls: {
+        Wren:    (hull: 260.0, shield: 180.0, speed: 130.0, accel: 95.0, turn: 2.6, warp: 2.2, damage: 14.0, fire_interval: 0.30, weapon_range: 520.0, missile_damage: 70.0,  scan_range: 900.0,  mine_rate: 1.2, cargo: 30.0, radius: 9.0),
+        Talon:   (hull: 360.0, shield: 220.0, speed: 115.0, accel: 85.0, turn: 2.3, warp: 1.7, damage: 19.0, fire_interval: 0.24, weapon_range: 560.0, missile_damage: 95.0,  scan_range: 600.0,  mine_rate: 1.0, cargo: 25.0, radius: 11.0),
+        Bastion: (hull: 620.0, shield: 300.0, speed: 80.0,  accel: 50.0, turn: 1.4, warp: 1.6, damage: 30.0, fire_interval: 0.42, weapon_range: 640.0, missile_damage: 140.0, scan_range: 600.0,  mine_rate: 1.0, cargo: 40.0, radius: 16.0),
+        Mule:    (hull: 440.0, shield: 200.0, speed: 90.0,  accel: 60.0, turn: 1.7, warp: 1.7, damage: 15.0, fire_interval: 0.34, weapon_range: 500.0, missile_damage: 80.0,  scan_range: 700.0,  mine_rate: 2.4, cargo: 90.0, radius: 14.0),
+        Seer:    (hull: 320.0, shield: 340.0, speed: 105.0, accel: 75.0, turn: 2.0, warp: 2.0, damage: 16.0, fire_interval: 0.28, weapon_range: 600.0, missile_damage: 85.0,  scan_range: 1400.0, mine_rate: 1.3, cargo: 35.0, radius: 12.0),
+    },
+
+    // What each module level above 1 adds, as a share of the base value (warp_ly is added light-years).
+    growth: (
+        hull: 0.15,
+        shield: 0.18,
+        shield_regen: 0.06,       // regen/s as a share of base shield at reactor Lv1
+        reactor_regen: 0.012,     // + this per reactor level
+        reactor_fire_rate: 0.05,  // gun and turret intervals ÷ (1 + this × reactor level)
+        missile_cooldown: 7.0,    // seconds at reactor Lv1
+        reactor_missile: 0.04,
+        engine: 0.07,             // speed and acceleration
+        engine_turn: 0.05,
+        warp_ly: 0.55,
+        weapons_damage: 0.14,     // lasers, turrets, main gun and missiles
+        weapons_range: 0.03,
+        scanner_range: 0.12,
+        scan_time: 4.0,           // seconds at scanner Lv1
+        scanner_speed: 0.1,
+        scanner_mining: 0.1,
+        cargo: 0.25,
+    ),
+
+    // Rank = (total module levels − 8) / 7, 0..10. A class covers ranks from its min_rank up to the next class.
+    // Scaling: size and hp = base + per_rank × (rank − min_rank); speed/accel/turn/range are flat multipliers.
+    // hp also scales missiles, mining and cargo by its square root.
+    classes: {
+        Small:   (min_rank: 0, size: 1.0,  size_per_rank: 0.1, hp: 1.0, hp_per_rank: 0.0, speed: 1.0,  accel: 1.0,  turn: 1.0,  range: 1.0,
+                  turrets: 0,  turrets_per_rank: 0, main_gun: 0.0,  main_interval: 0.0, escorts: 0, escorts_every: 0),
+        Cruiser: (min_rank: 3, size: 5.5,  size_per_rank: 0.7, hp: 3.0, hp_per_rank: 0.4, speed: 0.72, accel: 0.55, turn: 0.42, range: 1.5,
+                  turrets: 4,  turrets_per_rank: 1, main_gun: 6.0,  main_interval: 5.0, escorts: 1, escorts_every: 2),
+        Capital: (min_rank: 7, size: 15.0, size_per_rank: 1.5, hp: 8.0, hp_per_rank: 1.2, speed: 0.55, accel: 0.32, turn: 0.2,  range: 2.2,
+                  turrets: 10, turrets_per_rank: 2, main_gun: 14.0, main_interval: 6.0, escorts: 3, escorts_every: 2),
+    },
+
+    // Turrets and the bow main gun relative to the forward guns (damage and range) and in seconds (interval).
+    batteries: (turret_damage: 0.7, turret_interval: 0.9, turret_range: 1.15, main_range: 1.8),
+
+    // Cost to raise a module from level l to l + 1: credits = round(credits × l^credits_exp),
+    // each material (per, after) = per × (l − after) once l > after.
+    upgrade: (
+        credits: 350.0,
+        credits_exp: 1.65,
+        modules: {
+            Hull:     (alloy: (4, 0), relic: (1, 6)),
+            Reactor:  (alloy: (4, 0), crystal: (3, 0), relic: (1, 6)),
+            Engine:   (alloy: (4, 0), relic: (1, 6)),
+            WarpCore: (alloy: (4, 0), crystal: (2, 0), datacore: (1, 2), relic: (1, 6)),
+            Shield:   (alloy: (4, 0), crystal: (3, 0), relic: (1, 6)),
+            Weapons:  (alloy: (4, 0), datacore: (2, 3), relic: (1, 6)),
+            Scanner:  (alloy: (4, 0), datacore: (2, 3), relic: (1, 6)),
+            Cargo:    (alloy: (4, 0), relic: (1, 6)),
+        },
+    ),
+
+    // Escort ships as shares of the flagship's stats, with floors (min_*) and a radius clamp.
+    escort: (
+        hp: 0.12,                 // hull, shield and regen
+        speed: 1.35, min_speed: 80.0,
+        accel: 2.0, min_accel: 60.0,
+        turn: 1.6,                // absolute
+        damage: 0.9,
+        fire_interval: 0.45,      // seconds
+        range: 0.6, min_range: 500.0,
+        radius: 0.09, min_radius: 10.0, max_radius: 32.0,
+    ),
+)

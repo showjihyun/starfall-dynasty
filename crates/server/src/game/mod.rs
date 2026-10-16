@@ -255,6 +255,8 @@ pub struct Game {
     pub issued_tokens: Vec<String>,
     /// QA cheats (`/grow N`, `/cash`) — only when the server runs with `--dev`.
     pub dev_mode: bool,
+    /// Gameplay numbers in force when the game was built (`tuning/*.ron`).
+    pub tuning: std::sync::Arc<shared::tuning::Tuning>,
 }
 
 impl Game {
@@ -279,6 +281,7 @@ impl Game {
             token_queue: VecDeque::new(),
             issued_tokens: Vec::new(),
             dev_mode: false,
+            tuning: shared::tuning::get(),
         };
         for def in galaxy::SYSTEMS {
             g.systems.insert(def.id, Sys { id: def.id, layout: galaxy::system_layout(def.id), ents: BTreeMap::new(), pirate_cd: 1.0, engagement: None, wrecks: HashMap::new(), sent_infos: HashMap::new(), grid: Default::default(), slots: Default::default() });
@@ -472,7 +475,7 @@ impl Game {
         let day = missions::day_index(self.unix);
         self.ensure_dailies(pid, day);
         let acc = self.store.account(pid).unwrap().clone();
-        self.send(conn, ServerMsg::Welcome { player_id: pid, token: acc.token.clone(), profile: acc.profile.clone(), server_unix: self.unix });
+        self.send(conn, ServerMsg::Welcome { player_id: pid, token: acc.token.clone(), profile: acc.profile.clone(), server_unix: self.unix, tuning: Some(Box::new((*self.tuning).clone())) });
         if let Some(p) = acc.profile {
             self.spawn_player(pid, p.last_system, true);
             self.broadcast_fleet(pid);
@@ -606,19 +609,20 @@ impl Game {
         let n = flag.stats.escorts;
         let prof = self.store.profile(pid).unwrap().clone();
         let mut ids = vec![];
+        let es = self.tuning.ships.escort;
         for k in 0..n {
             let id = self.alloc_entity();
             let mut st = Stats {
-                max_hull: flag.stats.max_hull * 0.12,
-                max_shield: flag.stats.max_shield * 0.12,
-                shield_regen: flag.stats.shield_regen * 0.12,
-                speed: (flag.stats.speed * 1.35).max(80.0),
-                accel: (flag.stats.accel * 2.0).max(60.0),
-                turn: 1.6,
-                damage: flag.stats.damage * 0.9,
-                fire_interval: 0.45,
-                weapon_range: (flag.stats.weapon_range * 0.6).max(500.0),
-                radius: (flag.stats.radius * 0.09).clamp(10.0, 32.0),
+                max_hull: flag.stats.max_hull * es.hp,
+                max_shield: flag.stats.max_shield * es.hp,
+                shield_regen: flag.stats.shield_regen * es.hp,
+                speed: (flag.stats.speed * es.speed).max(es.min_speed),
+                accel: (flag.stats.accel * es.accel).max(es.min_accel),
+                turn: es.turn,
+                damage: flag.stats.damage * es.damage,
+                fire_interval: es.fire_interval,
+                weapon_range: (flag.stats.weapon_range * es.range).max(es.min_range),
+                radius: (flag.stats.radius * es.radius).clamp(es.min_radius, es.max_radius),
                 ..Default::default()
             };
             st.turrets = 0;
@@ -670,29 +674,26 @@ impl Game {
     pub fn spawn_npc(&mut self, sys: SystemId, arch: NpcArchetype, level: u8, pos: Vec3, scenario_owner: Option<PlayerId>) -> EntityId {
         let id = self.alloc_entity();
         let (hull, shield, damage, interval, speed, radius) = arch.stats(level);
-        let weapon_range = 520.0 + radius * 4.0;
-        // Warlords and Sentinels are capital ships: they carry turret batteries too.
-        let turrets = match arch {
-            NpcArchetype::Warlord => 6,
-            NpcArchetype::Sentinel => 12,
-            _ => 0,
-        };
+        let n = &self.tuning.npcs;
+        let def = &n.archetypes[&arch];
+        let weapon_range = n.weapon_range + radius * n.weapon_range_per_radius;
         let stats = Stats {
             max_hull: hull,
             max_shield: shield,
-            shield_regen: shield * 0.05,
+            shield_regen: shield * n.shield_regen,
             speed,
-            accel: speed * 0.8,
-            turn: if radius > 25.0 { 0.7 } else { 1.6 },
+            accel: speed * n.accel,
+            turn: def.turn,
             damage,
             fire_interval: interval,
             weapon_range,
             missile_cooldown: 99.0,
             radius,
-            turrets,
-            turret_damage: damage * 0.5,
-            turret_interval: 1.1,
-            turret_range: weapon_range * 1.2,
+            // Warlords and Sentinels are capital ships: they carry turret batteries too.
+            turrets: def.turrets,
+            turret_damage: damage * n.turret_damage,
+            turret_interval: n.turret_interval,
+            turret_range: weapon_range * n.turret_range,
             ..Default::default()
         };
         let r = (id as f32 * 1.618).fract();

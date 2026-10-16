@@ -44,18 +44,14 @@ impl HullClass {
         }
     }
 
+    /// Level-1 stats from `tuning/ships.ron`.
     pub fn base(self) -> BaseStats {
-        match self {
-            HullClass::Wren => BaseStats { hull: 260., shield: 180., speed: 130., accel: 95., turn: 2.6, warp: 2.2, damage: 14., fire_interval: 0.30, weapon_range: 520., missile_damage: 70., scan_range: 900., mine_rate: 1.2, cargo: 30., radius: 9. },
-            HullClass::Talon => BaseStats { hull: 360., shield: 220., speed: 115., accel: 85., turn: 2.3, warp: 1.7, damage: 19., fire_interval: 0.24, weapon_range: 560., missile_damage: 95., scan_range: 600., mine_rate: 1.0, cargo: 25., radius: 11. },
-            HullClass::Bastion => BaseStats { hull: 620., shield: 300., speed: 80., accel: 50., turn: 1.4, warp: 1.6, damage: 30., fire_interval: 0.42, weapon_range: 640., missile_damage: 140., scan_range: 600., mine_rate: 1.0, cargo: 40., radius: 16. },
-            HullClass::Mule => BaseStats { hull: 440., shield: 200., speed: 90., accel: 60., turn: 1.7, warp: 1.7, damage: 15., fire_interval: 0.34, weapon_range: 500., missile_damage: 80., scan_range: 700., mine_rate: 2.4, cargo: 90., radius: 14. },
-            HullClass::Seer => BaseStats { hull: 320., shield: 340., speed: 105., accel: 75., turn: 2.0, warp: 2.0, damage: 16., fire_interval: 0.28, weapon_range: 600., missile_damage: 85., scan_range: 1400., mine_rate: 1.3, cargo: 35., radius: 12. },
-        }
+        crate::tuning::get().ships.hulls[&self]
     }
 }
 
-#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct BaseStats {
     pub hull: f32,
     pub shield: f32,
@@ -130,6 +126,7 @@ pub const MAX_MODULE_LEVEL: u8 = 10;
 pub const BASE_TIER_CAP: u8 = 5;
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
 pub struct Materials {
     pub credits: u64,
     pub alloy: u32,
@@ -184,24 +181,18 @@ impl Materials {
     }
 }
 
-/// Cost to raise `module` from `level` to `level + 1`.
+/// Cost to raise `module` from `level` to `level + 1` (`tuning/ships.ron`, `upgrade`).
 pub fn upgrade_cost(module: Module, level: u8) -> Materials {
-    let l = level as f32;
-    let credits = (350.0 * l.powf(1.65)).round() as u64;
-    let mut m = Materials { credits, alloy: 4 * level as u32, ..Default::default() };
-    match module {
-        Module::Shield | Module::Reactor => m.crystal = 3 * level as u32,
-        Module::WarpCore => {
-            m.crystal = 2 * level as u32;
-            m.datacore = level.saturating_sub(2) as u32;
-        }
-        Module::Weapons | Module::Scanner => m.datacore = level.saturating_sub(3) as u32 * 2,
-        _ => {}
+    let t = crate::tuning::get();
+    let u = &t.ships.upgrade;
+    let r = u.modules[&module];
+    Materials {
+        credits: (u.credits * (level as f32).powf(u.credits_exp)).round() as u64,
+        alloy: r.alloy.at(level),
+        crystal: r.crystal.at(level),
+        datacore: r.datacore.at(level),
+        relic: r.relic.at(level),
     }
-    if level >= 7 {
-        m.relic = (level - 6) as u32;
-    }
-    m
 }
 
 pub fn tier_cap(scenarios_completed: u32) -> u8 {
@@ -245,45 +236,45 @@ impl Ship {
     }
 
     pub fn stats(&self) -> Stats {
-        let b = self.hull.base();
+        let t = crate::tuning::get();
+        let (g, bat) = (&t.ships.growth, &t.ships.batteries);
+        let b = t.ships.hulls[&self.hull];
         let lv = |m: Module| (self.level(m) as f32 - 1.0).max(0.0);
-        let engine = 1.0 + 0.07 * lv(Module::Engine);
+        let engine = 1.0 + g.engine * lv(Module::Engine);
         let reactor = lv(Module::Reactor);
-        let rank = self.rank() as f32;
+        let rank = self.rank();
         let class = self.size_class();
-        let k = class.scaling(rank);
-        let damage = b.damage * (1.0 + 0.14 * lv(Module::Weapons));
-        let weapon_range = b.weapon_range * (1.0 + 0.03 * lv(Module::Weapons)) * k.range;
-        let (turrets, main_mult, main_interval, escorts) = match class {
-            SizeClass::Small => (0, 0.0, 0.0, 0),
-            SizeClass::Cruiser => (4 + (rank as u8 - 3), 6.0, 5.0, 1 + (rank as u8 >= 5) as u8),
-            SizeClass::Capital => (10 + 2 * (rank as u8 - 7), 14.0, 6.0, 3 + (rank as u8 - 7) / 2),
-        };
+        let c = &t.ships.classes[&class];
+        let k = class.scaling(rank as f32);
+        let damage = b.damage * (1.0 + g.weapons_damage * lv(Module::Weapons));
+        let weapon_range = b.weapon_range * (1.0 + g.weapons_range * lv(Module::Weapons)) * k.range;
+        let above = rank - c.min_rank;
+        let escorts = c.escorts + if c.escorts_every > 0 { above / c.escorts_every } else { 0 };
         Stats {
-            max_hull: b.hull * (1.0 + 0.15 * lv(Module::Hull)) * k.hp,
-            max_shield: b.shield * (1.0 + 0.18 * lv(Module::Shield)) * k.hp,
-            shield_regen: b.shield * (0.06 + 0.012 * reactor) * k.hp,
+            max_hull: b.hull * (1.0 + g.hull * lv(Module::Hull)) * k.hp,
+            max_shield: b.shield * (1.0 + g.shield * lv(Module::Shield)) * k.hp,
+            shield_regen: b.shield * (g.shield_regen + g.reactor_regen * reactor) * k.hp,
             speed: b.speed * engine * k.speed,
             accel: b.accel * engine * k.accel,
-            turn: b.turn * (1.0 + 0.05 * lv(Module::Engine)) * k.turn,
-            warp_range: b.warp + 0.55 * lv(Module::WarpCore),
+            turn: b.turn * (1.0 + g.engine_turn * lv(Module::Engine)) * k.turn,
+            warp_range: b.warp + g.warp_ly * lv(Module::WarpCore),
             damage,
-            fire_interval: b.fire_interval / (1.0 + 0.05 * reactor),
+            fire_interval: b.fire_interval / (1.0 + g.reactor_fire_rate * reactor),
             weapon_range,
-            missile_damage: b.missile_damage * (1.0 + 0.14 * lv(Module::Weapons)) * k.hp.sqrt(),
-            missile_cooldown: 7.0 / (1.0 + 0.04 * reactor),
-            scan_range: b.scan_range * (1.0 + 0.12 * lv(Module::Scanner)) * k.range,
-            scan_time: 4.0 / (1.0 + 0.1 * lv(Module::Scanner)),
-            mine_rate: b.mine_rate * (1.0 + 0.1 * lv(Module::Scanner)) * k.hp.sqrt(),
-            cargo: b.cargo * (1.0 + 0.25 * lv(Module::Cargo)) * k.hp.sqrt(),
+            missile_damage: b.missile_damage * (1.0 + g.weapons_damage * lv(Module::Weapons)) * k.hp.sqrt(),
+            missile_cooldown: g.missile_cooldown / (1.0 + g.reactor_missile * reactor),
+            scan_range: b.scan_range * (1.0 + g.scanner_range * lv(Module::Scanner)) * k.range,
+            scan_time: g.scan_time / (1.0 + g.scanner_speed * lv(Module::Scanner)),
+            mine_rate: b.mine_rate * (1.0 + g.scanner_mining * lv(Module::Scanner)) * k.hp.sqrt(),
+            cargo: b.cargo * (1.0 + g.cargo * lv(Module::Cargo)) * k.hp.sqrt(),
             radius: b.radius * k.size,
-            turrets,
-            turret_damage: damage * 0.7,
-            turret_interval: 0.9 / (1.0 + 0.05 * reactor),
-            turret_range: weapon_range * 1.15,
-            main_damage: damage * main_mult,
-            main_interval,
-            main_range: weapon_range * 1.8,
+            turrets: c.turrets + c.turrets_per_rank * above,
+            turret_damage: damage * bat.turret_damage,
+            turret_interval: bat.turret_interval / (1.0 + g.reactor_fire_rate * reactor),
+            turret_range: weapon_range * bat.turret_range,
+            main_damage: damage * c.main_gun,
+            main_interval: c.main_interval,
+            main_range: weapon_range * bat.main_range,
             escorts,
         }
     }
@@ -299,7 +290,7 @@ pub const RANKS: [&str; 11] = [
     "Scout", "Courier", "Corvette", "Frigate", "Destroyer", "Cruiser", "Battlecruiser", "Battleship", "Dreadnought", "Titan", "Leviathan",
 ];
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum SizeClass {
     /// Rank 0–2: one-person fighter. Forward guns, nimble.
     Small,
@@ -319,12 +310,12 @@ pub struct ClassScaling {
 }
 
 impl SizeClass {
+    pub const ALL: [SizeClass; 3] = [SizeClass::Small, SizeClass::Cruiser, SizeClass::Capital];
+
+    /// The largest class whose `min_rank` (`tuning/ships.ron`) the rank has reached.
     pub fn of_rank(rank: u8) -> SizeClass {
-        match rank {
-            0..=2 => SizeClass::Small,
-            3..=6 => SizeClass::Cruiser,
-            _ => SizeClass::Capital,
-        }
+        let t = crate::tuning::get();
+        SizeClass::ALL.into_iter().rev().find(|c| rank >= t.ships.classes[c].min_rank).unwrap_or(SizeClass::Small)
     }
 
     pub fn name(self) -> &'static str {
@@ -337,11 +328,9 @@ impl SizeClass {
 
     /// Bigger ships are vastly tougher and reach further, but turn like mountains.
     pub fn scaling(self, rank: f32) -> ClassScaling {
-        match self {
-            SizeClass::Small => ClassScaling { size: 1.0 + 0.1 * rank, hp: 1.0, speed: 1.0, accel: 1.0, turn: 1.0, range: 1.0 },
-            SizeClass::Cruiser => ClassScaling { size: 5.5 + 0.7 * (rank - 3.0), hp: 3.0 + 0.4 * (rank - 3.0), speed: 0.72, accel: 0.55, turn: 0.42, range: 1.5 },
-            SizeClass::Capital => ClassScaling { size: 15.0 + 1.5 * (rank - 7.0), hp: 8.0 + 1.2 * (rank - 7.0), speed: 0.55, accel: 0.32, turn: 0.2, range: 2.2 },
-        }
+        let c = crate::tuning::get().ships.classes[&self];
+        let above = rank - c.min_rank as f32;
+        ClassScaling { size: c.size + c.size_per_rank * above, hp: c.hp + c.hp_per_rank * above, speed: c.speed, accel: c.accel, turn: c.turn, range: c.range }
     }
 }
 

@@ -6,5 +6,6 @@ pub mod missions;
 pub mod protocol;
 pub mod rng;
 pub mod ships;
+pub mod tuning;
 
 pub use glam;

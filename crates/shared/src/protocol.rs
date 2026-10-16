@@ -214,7 +214,15 @@ pub struct FleetMember {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum ServerMsg {
-    Welcome { player_id: PlayerId, token: String, profile: Option<Profile>, server_unix: u64 },
+    /// `tuning`: the server's gameplay numbers, so the client's derived stats (HUD, warp range) match it.
+    Welcome {
+        player_id: PlayerId,
+        token: String,
+        profile: Option<Profile>,
+        server_unix: u64,
+        #[serde(default)]
+        tuning: Option<Box<crate::tuning::Tuning>>,
+    },
     Error { msg: String },
     Toast { text: String },
     Profile(Profile),

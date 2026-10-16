@@ -67,6 +67,7 @@ fn main() {
     }
     out += "\n";
     let t0 = std::time::Instant::now();
+    eprintln!("tuning {}", shared::tuning::Tuning::locate().map(|d| d.display().to_string()).unwrap_or_default());
     for hull in HullClass::ALL {
         for level in [1u8, 5, 9] {
             out += &format!("| {hull:?} | {level} |");

@@ -37,6 +37,10 @@ async fn main() -> std::io::Result<()> {
     let store = Store::open(data.join("profiles.json"))?;
     let history = history::HistoryEngine::open(&data.join("history.jsonl"))?;
     println!("[starfall] data dir {} — {} accounts, {} historical events", data.display(), store.data.accounts.len(), history.events.len());
+    match shared::tuning::Tuning::locate() {
+        Some(d) => println!("[starfall] tuning {}", d.display()),
+        None => println!("[starfall] no tuning/ directory found (set {})", shared::tuning::DIR_ENV),
+    }
     let start_unix = unix_now();
     let mut game = Game::new(store, history, start_unix);
     game.dev_mode = args.iter().any(|a| a == "--dev");

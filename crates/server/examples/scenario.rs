@@ -30,6 +30,7 @@ fn main() {
     if paths.is_empty() {
         paths = scenario::collect(std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/scenarios")));
     }
+    println!("tuning {}", shared::tuning::Tuning::locate().map(|d| d.display().to_string()).unwrap_or_default());
     let mut failed = 0;
     for p in &paths {
         let sc = match scenario::load(p) {

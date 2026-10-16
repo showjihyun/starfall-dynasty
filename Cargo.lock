@@ -5355,6 +5355,7 @@ name = "shared"
 version = "0.1.0"
 dependencies = [
  "glam",
+ "ron",
  "serde",
  "serde_json",
 ]

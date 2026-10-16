@@ -128,7 +128,7 @@ pub fn daily_missions(day: u32, player_id: u64) -> Vec<DailyMission> {
     out
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum NpcArchetype {
     Raider,
     Gunship,
@@ -138,6 +138,8 @@ pub enum NpcArchetype {
 }
 
 impl NpcArchetype {
+    pub const ALL: [NpcArchetype; 5] = [NpcArchetype::Raider, NpcArchetype::Gunship, NpcArchetype::Warden, NpcArchetype::Warlord, NpcArchetype::Sentinel];
+
     pub fn name(self) -> &'static str {
         match self {
             NpcArchetype::Raider => "Raider",
@@ -147,26 +149,17 @@ impl NpcArchetype {
             NpcArchetype::Sentinel => "Leviathan Sentinel",
         }
     }
-    /// (hull, shield, damage, fire interval, speed, radius)
+    /// (hull, shield, damage, fire interval, speed, radius) at `level` (`tuning/npcs.ron`).
     pub fn stats(self, level: u8) -> (f32, f32, f32, f32, f32, f32) {
-        let l = 1.0 + 0.35 * level as f32;
-        match self {
-            NpcArchetype::Raider => (160. * l, 60. * l, 8. * l, 0.5, 95., 9.),
-            NpcArchetype::Gunship => (320. * l, 140. * l, 13. * l, 0.6, 70., 14.),
-            NpcArchetype::Warden => (260. * l, 260. * l, 12. * l, 0.45, 90., 12.),
-            NpcArchetype::Warlord => (1900. * l, 700. * l, 26. * l, 0.35, 65., 30.),
-            NpcArchetype::Sentinel => (5200. * l, 2200. * l, 38. * l, 0.3, 55., 60.),
-        }
+        let t = crate::tuning::get();
+        let l = 1.0 + t.npcs.level_scale * level as f32;
+        let d = &t.npcs.archetypes[&self];
+        (d.hull * l, d.shield * l, d.damage * l, d.fire_interval, d.speed, d.radius)
     }
     pub fn bounty(self, level: u8) -> Materials {
-        let l = 1 + level as u64;
-        match self {
-            NpcArchetype::Raider => Materials { credits: 90 * l, alloy: 1, ..Default::default() },
-            NpcArchetype::Gunship => Materials { credits: 200 * l, alloy: 3, datacore: 1, ..Default::default() },
-            NpcArchetype::Warden => Materials { credits: 170 * l, crystal: 3, ..Default::default() },
-            NpcArchetype::Warlord => Materials { credits: 2500 * l, alloy: 20, datacore: 4, relic: 1, ..Default::default() },
-            NpcArchetype::Sentinel => Materials { credits: 9000 * l, alloy: 40, crystal: 30, datacore: 10, relic: 3 },
-        }
+        let mut m = crate::tuning::get().npcs.archetypes[&self].bounty.clone();
+        m.credits *= 1 + level as u64;
+        m
     }
 }
 
