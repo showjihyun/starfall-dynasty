@@ -40,10 +40,11 @@ fn cell(hull: HullClass, level: u8, arch: NpcArchetype, npc_level: u8, count: u3
     };
     let r = run(&sc, None);
     let hull_left = r.final_hull.first().map(|h| h.1).unwrap_or(0.0);
+    let lost = r.final_hull_lost.first().map(|h| h.1).unwrap_or(0.0);
     match (r.down_at.first(), r.npcs_cleared_at) {
         (Some((_, t)), cleared) if cleared.is_none_or(|c| c > *t) => format!("L {t:.0}s"),
-        (_, Some(t)) => format!("W {t:.0}s {:.0}%", hull_left * 100.0),
-        _ => format!("- {:.0}%", hull_left * 100.0),
+        (_, Some(t)) => format!("W {t:.0}s {:.1}% −{lost:.0}", hull_left * 100.0),
+        _ => format!("- {:.1}% −{lost:.0}", hull_left * 100.0),
     }
 }
 
@@ -54,7 +55,7 @@ fn main() {
     out += "# 밸런스 시트\n\n";
     out += "`cargo run -p server --release --example balance -- --write docs/BALANCE.md`로 생성한다(결정적이므로 규칙이나 수치를 바꾸면 이 표의 diff로 영향이 보인다).\n\n";
     out += &format!(
-        "각 칸은 함장 1명(모든 모듈 Lv)과 해당 NPC가 Vesta Front에서 550 m 거리로 시작해, 조준 사격하며 {LIMIT:.0}초까지 싸운 결과다. `W 12s 84%` = 12초에 승리, 선체 84% 남음 · `L 31s` = 31초에 격침 · `- 70%` = 시간 내 승부 없음.\n\n"
+        "각 칸은 함장 1명(모든 모듈 Lv)과 해당 NPC가 Vesta Front에서 550 m 거리로 시작해, 조준 사격하며 {LIMIT:.0}초까지 싸운 결과다. `W 12s 84.0% −96` = 12초에 승리, 선체 84.0% 남음(96포인트 손실, −0이면 피격 전에 격파) · `L 31s` = 31초에 격침 · `- 70.0%` = 시간 내 승부 없음.\n\n"
     );
     out += "| 함선 | Lv |";
     for (name, ..) in &enc {

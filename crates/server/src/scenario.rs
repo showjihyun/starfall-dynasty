@@ -141,6 +141,8 @@ pub enum Check {
     Alive { captain: String, #[serde(default = "yes")] alive: bool },
     /// Hull fraction 0..1 of the flagship (0 when destroyed).
     Hull { captain: String, #[serde(default)] min: Option<f32>, #[serde(default)] max: Option<f32> },
+    /// Hull points lost so far (max hull − hull; the whole hull when destroyed).
+    HullLost { captain: String, #[serde(default)] min: Option<f32>, #[serde(default)] max: Option<f32> },
     Credits { captain: String, #[serde(default)] min: Option<u64>, #[serde(default)] max: Option<u64> },
     Kills { captain: String, #[serde(default)] min: Option<u32>, #[serde(default)] max: Option<u32> },
     Deaths { captain: String, #[serde(default)] min: Option<u32>, #[serde(default)] max: Option<u32> },
@@ -168,6 +170,8 @@ pub struct Report {
     pub down_at: Vec<(String, f32)>,
     /// Flagship hull fraction of each captain at the end (0 when destroyed).
     pub final_hull: Vec<(String, f32)>,
+    /// Hull points each captain's flagship lost by the end (its whole hull when destroyed).
+    pub final_hull_lost: Vec<(String, f32)>,
 }
 
 impl Report {
@@ -227,6 +231,11 @@ fn evaluate(run: &Run, c: &Check) -> (bool, String) {
             let h = run.flagship(captain).map(|e| e.hull / e.stats.max_hull.max(1.0)).unwrap_or(0.0);
             let (ok, s) = range((h * 1000.0).round() / 1000.0, *min, *max);
             (ok, format!("{captain} hull {s}"))
+        }
+        Check::HullLost { captain, min, max } => {
+            let lost = run.flagship(captain).map(|e| e.stats.max_hull - e.hull).unwrap_or(f32::INFINITY);
+            let (ok, s) = range((lost * 10.0).round() / 10.0, *min, *max);
+            (ok, format!("{captain} hull lost {s}"))
         }
         Check::Credits { captain, min, max } => {
             let v = run.pid(captain).and_then(|p| g.store.profile(p)).map(|p| p.wallet.credits).unwrap_or(0);
@@ -403,6 +412,7 @@ pub fn run(sc: &Scenario, trace_every: Option<f32>) -> Report {
     }
     rep.digest = crate::harness::digest(&run.g);
     rep.final_hull = run.conns.iter().map(|(n, _)| (n.clone(), run.flagship(n).map(|e| e.hull / e.stats.max_hull.max(1.0)).unwrap_or(0.0))).collect();
+    rep.final_hull_lost = run.conns.iter().map(|(n, _)| (n.clone(), run.flagship(n).map(|e| e.stats.max_hull - e.hull).unwrap_or(f32::INFINITY))).collect();
     if let Some(want) = &sc.digest {
         let ok = *want == rep.digest;
         rep.lines.push(format!("{} digest {} (want {want})", if ok { "PASS" } else { "FAIL" }, rep.digest));

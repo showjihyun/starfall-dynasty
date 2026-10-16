@@ -129,14 +129,15 @@ async fn thirty_concurrent_captains() {
             while bot.ents.len() < 5 && tokio::time::Instant::now() < deadline {
                 bot.pump(0.2).await;
             }
-            (snaps, bot.ents.len())
+            let kinds: Vec<String> = bot.ents.values().map(|e| format!("{:?}", e.kind)).collect();
+            (snaps, bot.ents.len(), format!("captain {i} in system {} as {:?}, sees {kinds:?}", bot.system, bot.me))
         }));
     }
     let mut total = 0;
     for h in handles {
-        let (snaps, seen) = h.await.unwrap();
-        assert!(snaps >= 40, "bot starved of snapshots: {snaps}");
-        assert!(seen >= 5, "bot sees others in its home system: {seen}");
+        let (snaps, seen, who) = h.await.unwrap();
+        assert!(snaps >= 40, "bot starved of snapshots: {snaps} ({who})");
+        assert!(seen >= 5, "bot sees others in its home system: {seen} — {who}");
         total += snaps;
     }
     println!("30 captains, {total} snapshots received");

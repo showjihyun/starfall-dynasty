@@ -503,3 +503,30 @@ fn alliances_share_colours_and_wars_open_frontier_space() {
     assert!(!g.at_war(Some(fpa), Some(emp)));
     assert!(g.history.events.iter().any(|e| e.kind == "PEACE"));
 }
+
+#[test]
+fn no_ship_is_invulnerable() {
+    // A 1-point hit on a full-shield capital still costs hull; shields take the rest of each hit.
+    let mut g = game();
+    let c = 1;
+    let pid = join(&mut g, c, "Titan", Species::Human, HullClass::Bastion, Profession::CombatPilot);
+    {
+        let p = g.store.profile_mut(pid).unwrap();
+        for m in Module::ALL {
+            p.ship.modules.insert(m, 9);
+        }
+    }
+    g.spawn_player(pid, 7, false);
+    let (sys, me) = ent_of(&g, c);
+    let npc = g.spawn_npc(sys, NpcArchetype::Raider, 1, g.ent(sys, me).unwrap().pos + Vec3::new(0.0, 0.0, -300.0), None);
+    let (hull0, shield0) = { let e = g.ent(sys, me).unwrap(); (e.hull, e.shield) };
+    g.apply_damage(sys, npc, me, 1.0);
+    let e = g.ent(sys, me).unwrap();
+    assert!(hull0 - e.hull >= 1.0, "hull must lose at least 1 point (lost {})", hull0 - e.hull);
+    assert!((shield0 - e.shield - 0.9).abs() < 1e-4, "shield takes 90% of the hit (took {})", shield0 - e.shield);
+    // A big hit: 10% bleeds through, the shield takes the rest.
+    let (hull1, shield1) = (e.hull, e.shield);
+    g.apply_damage(sys, npc, me, 200.0);
+    let e = g.ent(sys, me).unwrap();
+    assert!((hull1 - e.hull - 20.0).abs() < 1e-3 && (shield1 - e.shield - 180.0).abs() < 1e-3);
+}

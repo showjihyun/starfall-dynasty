@@ -5,6 +5,10 @@ use history::{DomainEvent, Side};
 use shared::galaxy::RiskTier;
 
 const BOUNDS: f32 = 16_000.0;
+/// No ship is invulnerable: this share of every hit passes through shields straight to the hull…
+pub const SHIELD_BLEED: f32 = 0.1;
+/// …and every hit that lands costs at least this many hull points, however weak the attacker.
+pub const MIN_HULL_DAMAGE: f32 = 1.0;
 
 use super::weapons::Shot;
 
@@ -429,9 +433,9 @@ impl Game {
             let a_pos = self.ent(sys, from).unwrap().pos;
             let t = self.ent_mut(sys, to).unwrap();
             dir = (a_pos - t.pos).normalize_or_zero();
-            let absorbed = dmg.min(t.shield);
+            let absorbed = (dmg * (1.0 - SHIELD_BLEED)).min(t.shield);
             t.shield -= absorbed;
-            t.hull -= dmg - absorbed;
+            t.hull -= if dmg > 0.0 { (dmg - absorbed).max(MIN_HULL_DAMAGE) } else { 0.0 };
             t.last_hit = now;
             // One entry per attacker (latest hit last), so a ship under fire from hundreds stays cheap.
             t.attackers.retain(|(a, _, time)| *a != from && now - time < 30.0);
