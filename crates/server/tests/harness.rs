@@ -93,6 +93,15 @@ fn recorded_session_replays_exactly() {
     assert!(g.systems[&7].ents.len() > 2, "the fight happened in the war zone");
     assert!(g.sessions.values().any(|s| s.player.is_some() && s.entity.is_some() && s.system == 7));
 
+    // The recording holds no credentials: neither issued tokens nor tokens used to log in appear in it.
+    let recorded = std::fs::read_to_string(rec_dir.join("session.jsonl")).unwrap();
+    let real_tokens: Vec<String> = g.store.data.accounts.values().map(|a| a.token.clone()).collect();
+    assert!(real_tokens.len() >= 2 && bellona_token.is_some());
+    for t in &real_tokens {
+        assert!(!recorded.contains(t.as_str()), "token leaked into the recording");
+    }
+    assert!(recorded.contains("issued-"), "tokens are pseudonymized, not dropped");
+
     let session = Session::load(&rec_dir).unwrap();
     let a = session.replay(|_| {}).unwrap();
     assert!(a.digests_checked >= 9, "digests every 100 ticks: {}", a.digests_checked);

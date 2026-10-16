@@ -27,7 +27,7 @@ pub struct StoredWreck {
     pub investigated_by: Vec<String>,
 }
 
-#[derive(Default, Serialize, Deserialize)]
+#[derive(Clone, Default, Serialize, Deserialize)]
 pub struct StoreData {
     pub next_id: PlayerId,
     pub accounts: BTreeMap<PlayerId, Account>,
@@ -61,6 +61,12 @@ pub struct Store {
 impl Store {
     pub fn memory() -> Self {
         Store { data: StoreData { next_id: 1, ..Default::default() }, by_name: HashMap::new(), path: None, dirty: false }
+    }
+
+    /// In-memory store over existing data (nothing is ever written).
+    pub fn from_data(data: StoreData) -> Self {
+        let by_name = data.accounts.values().map(|a| (a.name.to_lowercase(), a.id)).collect();
+        Store { data, by_name, path: None, dirty: false }
     }
 
     pub fn open(path: PathBuf) -> std::io::Result<Self> {

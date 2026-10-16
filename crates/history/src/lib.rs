@@ -67,23 +67,27 @@ impl HistoryEngine {
         Self::default()
     }
 
-    /// Replays an existing log (if any) and keeps appending to it.
-    pub fn open(path: &Path) -> std::io::Result<Self> {
+    /// Rebuilds the engine from a log without attaching any file (replays and tools stay read-only).
+    pub fn from_log(reader: impl BufRead) -> std::io::Result<Self> {
         let mut eng = HistoryEngine::new();
-        if path.exists() {
-            for line in BufReader::new(File::open(path)?).lines() {
-                let line = line?;
-                if line.trim().is_empty() {
-                    continue;
+        for line in reader.lines() {
+            let line = line?;
+            if line.trim().is_empty() {
+                continue;
+            }
+            match serde_json::from_str::<LogLine>(&line) {
+                Ok(l) => {
+                    eng.apply(l.unix, l.ev);
                 }
-                match serde_json::from_str::<LogLine>(&line) {
-                    Ok(l) => {
-                        eng.apply(l.unix, l.ev);
-                    }
-                    Err(e) => eprintln!("history: skipping corrupt line: {e}"),
-                }
+                Err(e) => eprintln!("history: skipping corrupt line: {e}"),
             }
         }
+        Ok(eng)
+    }
+
+    /// Replays an existing log (if any) and keeps appending to it.
+    pub fn open(path: &Path) -> std::io::Result<Self> {
+        let mut eng = if path.exists() { Self::from_log(BufReader::new(File::open(path)?))? } else { HistoryEngine::new() };
         if let Some(dir) = path.parent() {
             std::fs::create_dir_all(dir)?;
         }

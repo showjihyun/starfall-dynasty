@@ -8,11 +8,16 @@
 //!   checks each recorded digest. A bug report becomes a folder that reproduces itself.
 //! - **Digest**: a fingerprint of the whole simulation state (entities bit-exact, the store, the
 //!   history), so "did my change alter the outcome?" is a one-line comparison.
+//!
+//! Recordings hold no credentials: every account token (in the copied store, in logins and in newly
+//! issued ones) is replaced by a stable pseudonym, consistently, so logins still match on replay.
+//! Replay builds its state in memory and writes nothing to disk.
 
 use crate::game::{ConnId, Game};
 use crate::store::Store;
 use serde::{Deserialize, Serialize};
 use shared::protocol::{ClientMsg, TICK_HZ};
+use std::collections::HashMap;
 use std::io::{BufRead, BufWriter, Write};
 use std::path::{Path, PathBuf};
 
@@ -89,7 +94,12 @@ pub fn digest(g: &Game) -> String {
             h.u64(e.dead as u64 | (e.docked as u64) << 1);
         }
     }
-    h.bytes(serde_json::to_string(&g.store.data).unwrap_or_default().as_bytes());
+    // Tokens are left out: recordings carry pseudonyms, the live server real ones.
+    let mut data = g.store.data.clone();
+    for a in data.accounts.values_mut() {
+        a.token.clear();
+    }
+    h.bytes(serde_json::to_string(&data).unwrap_or_default().as_bytes());
     h.u64(g.history.events.len() as u64);
     if let Some(last) = g.history.events.last() {
         h.bytes(serde_json::to_string(last).unwrap_or_default().as_bytes());
@@ -103,32 +113,59 @@ pub struct Recorder {
     pending: Vec<Event>,
     last_unix: u64,
     digest_every: u64,
+    /// Real token → pseudonym written to the recording.
+    alias: HashMap<String, String>,
 }
+
+/// What a login with a token the recording never saw becomes: it fails on replay exactly as it did live.
+const UNKNOWN_TOKEN: &str = "unknown-token";
 
 impl Recorder {
     /// Copies the data files that `Game::new` is about to load, then opens the session file.
     pub fn start(dir: &Path, data_dir: &Path, unix: u64, dev_mode: bool) -> std::io::Result<Recorder> {
         let initial = dir.join("initial");
         std::fs::create_dir_all(&initial)?;
-        for f in DATA_FILES {
-            let src = data_dir.join(f);
-            if src.exists() {
-                std::fs::copy(&src, initial.join(f))?;
+        let mut alias = HashMap::new();
+        let profiles = data_dir.join(DATA_FILES[0]);
+        if profiles.exists() {
+            let mut data: crate::store::StoreData = serde_json::from_str(&std::fs::read_to_string(&profiles)?).map_err(std::io::Error::other)?;
+            for a in data.accounts.values_mut() {
+                let pseudo = format!("redacted-{}", a.id);
+                alias.insert(std::mem::replace(&mut a.token, pseudo.clone()), pseudo);
             }
+            std::fs::write(initial.join(DATA_FILES[0]), serde_json::to_string(&data)?)?;
+        }
+        let history = data_dir.join(DATA_FILES[1]);
+        if history.exists() {
+            std::fs::copy(&history, initial.join(DATA_FILES[1]))?;
         }
         let mut out = BufWriter::new(std::fs::File::create(dir.join(SESSION_FILE))?);
         let digest_every = 100;
         writeln!(out, "{}", serde_json::to_string(&Header { version: FORMAT_VERSION, unix, dev_mode, digest_every })?)?;
-        Ok(Recorder { out, pending: vec![], last_unix: unix, digest_every })
+        Ok(Recorder { out, pending: vec![], last_unix: unix, digest_every, alias })
     }
 
     pub fn event(&mut self, e: Event) {
+        let e = match e {
+            Event::Msg(c, ClientMsg::Hello { version, name, token: Some(t) }) => {
+                let t = self.alias.get(&t).cloned().unwrap_or_else(|| UNKNOWN_TOKEN.into());
+                Event::Msg(c, ClientMsg::Hello { version, name, token: Some(t) })
+            }
+            other => other,
+        };
         self.pending.push(e);
     }
 
     /// Call right after `game.tick(..)`.
     pub fn end_tick(&mut self, g: &mut Game, unix: u64) -> std::io::Result<()> {
-        let mut rec = TickRecord { tick: g.tick, events: std::mem::take(&mut self.pending), tokens: std::mem::take(&mut g.issued_tokens), ..Default::default() };
+        let issued: Vec<String> = std::mem::take(&mut g.issued_tokens)
+            .into_iter()
+            .map(|t| {
+                let n = self.alias.len();
+                self.alias.entry(t).or_insert_with(|| format!("issued-{n}")).clone()
+            })
+            .collect();
+        let mut rec = TickRecord { tick: g.tick, events: std::mem::take(&mut self.pending), tokens: issued, ..Default::default() };
         if unix != self.last_unix {
             rec.unix = Some(unix);
             self.last_unix = unix;
@@ -185,22 +222,18 @@ impl Session {
         Ok(Session { header, records, dir: dir.to_path_buf() })
     }
 
-    /// Fresh simulation in the recorded starting state. Uses copies of the initial data files, so the
-    /// recording itself is never modified.
+    /// Fresh simulation in the recorded starting state, built entirely in memory: the recording is
+    /// read, never written, and no temporary files are involved.
     pub fn initial_game(&self) -> std::io::Result<Game> {
-        let scratch = std::env::temp_dir().join(format!("starfall-replay-{}-{}", std::process::id(), self.header.unix));
-        let _ = std::fs::remove_dir_all(&scratch);
-        std::fs::create_dir_all(&scratch)?;
-        for f in DATA_FILES {
-            let src = self.dir.join("initial").join(f);
-            if src.exists() {
-                std::fs::copy(&src, scratch.join(f))?;
-            }
-        }
-        let mut store = Store::open(scratch.join("profiles.json"))?;
-        // Persist nothing during a replay.
-        store.dirty = false;
-        let history = history::HistoryEngine::open(&scratch.join("history.jsonl"))?;
+        let initial = self.dir.join("initial");
+        let profiles = initial.join(DATA_FILES[0]);
+        let store = if profiles.exists() {
+            Store::from_data(serde_json::from_str(&std::fs::read_to_string(&profiles)?).map_err(std::io::Error::other)?)
+        } else {
+            Store::memory()
+        };
+        let log = initial.join(DATA_FILES[1]);
+        let history = if log.exists() { history::HistoryEngine::from_log(std::io::BufReader::new(std::fs::File::open(&log)?))? } else { history::HistoryEngine::new() };
         let mut g = Game::new(store, history, self.header.unix);
         g.dev_mode = self.header.dev_mode;
         Ok(g)
