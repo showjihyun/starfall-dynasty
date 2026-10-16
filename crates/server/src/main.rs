@@ -37,8 +37,18 @@ async fn main() -> std::io::Result<()> {
     let store = Store::open(data.join("profiles.json"))?;
     let history = history::HistoryEngine::open(&data.join("history.jsonl"))?;
     println!("[starfall] data dir {} — {} accounts, {} historical events", data.display(), store.data.accounts.len(), history.events.len());
-    let mut game = Game::new(store, history, unix_now());
+    let start_unix = unix_now();
+    let mut game = Game::new(store, history, start_unix);
     game.dev_mode = args.iter().any(|a| a == "--dev");
+    // `--record DIR`: keep a replayable copy of this session (docs/HARNESS.md).
+    let mut recorder = match arg("--record") {
+        Some(dir) => {
+            let r = server::harness::Recorder::start(std::path::Path::new(&dir), &data, start_unix, game.dev_mode)?;
+            println!("[starfall] recording session to {dir} (replay: cargo run -p server --release --example replay -- {dir})");
+            Some(r)
+        }
+        None => None,
+    };
     if game.dev_mode {
         println!("[starfall] DEV MODE: /grow and /cash chat commands enabled");
     }
@@ -81,12 +91,33 @@ async fn main() -> std::io::Result<()> {
                 while let Ok(ev) = rx.try_recv() {
                     match ev {
                         Inbound::Open(id, out) => { outs.insert(id, out); }
-                        Inbound::Msg(id, m) => game.handle(id, m),
-                        Inbound::Close(id) => { outs.remove(&id); game.disconnect(id); }
+                        Inbound::Msg(id, m) => {
+                            if let Some(r) = recorder.as_mut() {
+                                r.event(server::harness::Event::Msg(id, m.clone()));
+                            }
+                            game.handle(id, m)
+                        }
+                        Inbound::Close(id) => {
+                            if let Some(r) = recorder.as_mut() {
+                                r.event(server::harness::Event::Close(id));
+                            }
+                            outs.remove(&id);
+                            game.disconnect(id);
+                        }
                     }
                 }
                 let t0 = std::time::Instant::now();
-                game.tick(dt, unix_now());
+                let unix = unix_now();
+                game.tick(dt, unix);
+                if let Some(r) = recorder.as_mut()
+                    && let Err(e) = r.end_tick(&mut game, unix)
+                {
+                    eprintln!("[starfall] recording stopped: {e}");
+                    recorder = None;
+                }
+                if recorder.is_none() {
+                    game.issued_tokens.clear();
+                }
                 // Per-viewer snapshots are binary; encode the batch in parallel.
                 let frames: Vec<(ConnId, Message)> = game.out.par_drain(..).map(|(c, m)| (c, wire(&m))).collect();
                 for (conn, frame) in frames {

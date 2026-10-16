@@ -37,6 +37,8 @@ pub struct Models {
     pub plume: Handle<Mesh>,
     pub shield: Handle<Mesh>,
     pub quad: Handle<Mesh>,
+    /// Dark plug that closes big-ship engine bores (their mirrored metal walls read as glass bulbs).
+    pub bore: (Handle<Mesh>, Handle<StandardMaterial>),
 }
 
 pub type WorldAsset = bevy::world_serialization::WorldAsset;
@@ -171,7 +173,7 @@ impl Models {
     }
 }
 
-fn load_models(mut commands: Commands, server: Res<AssetServer>, mut meshes: ResMut<Assets<Mesh>>) {
+fn load_models(mut commands: Commands, server: Res<AssetServer>, mut meshes: ResMut<Assets<Mesh>>, mut mats: ResMut<Assets<StandardMaterial>>) {
     let mut available = std::collections::HashSet::new();
     let mut names: Vec<String> = ["npc_raider", "npc_gunship", "npc_warden", "npc_warlord", "npc_sentinel", "wreck", "bridge_interior", "cockpit_interior"].iter().map(|s| s.to_string()).collect();
     for h in HullClass::ALL {
@@ -188,7 +190,7 @@ fn load_models(mut commands: Commands, server: Res<AssetServer>, mut meshes: Res
     }
     // STARFALL_PRELOAD_ALL=1 restores eager loading (for comparing memory/load time).
     let preload = std::env::var("STARFALL_PRELOAD_ALL").is_ok();
-    let m = Models { available, cache: Default::default(), server: server.clone(), plume: meshes.add(meshes::plume(0.25)), shield: meshes.add(Sphere::new(1.0).mesh().ico(4).unwrap()), quad: meshes.add(Rectangle::new(1.0, 1.0)) };
+    let m = Models { available, cache: Default::default(), server: server.clone(), plume: meshes.add(meshes::plume(0.25)), shield: meshes.add(Sphere::new(1.0).mesh().ico(4).unwrap()), quad: meshes.add(Rectangle::new(1.0, 1.0)), bore: (meshes.add(Circle::new(0.97)), mats.add(StandardMaterial { base_color: Color::srgb(0.015, 0.02, 0.035), unlit: true, ..default() })) };
     if preload {
         for n in m.available.clone() {
             m.handle(&n);
@@ -410,12 +412,13 @@ fn on_model_ready(
             if n.starts_with("Engine_") {
                 let (col, core) = if hostile { ([1.0, 0.3, 0.1], [1.0, 0.8, 0.5]) } else { ([0.3, 0.6, 1.0], [0.85, 0.95, 1.0]) };
                 // Capital-ship drives read as broad glowing banks, not kilometre-long torches.
-                let (len, gain) = match ship.class {
-                    SizeClass::Small => (13.0, 1.0),
-                    SizeClass::Cruiser => (7.0, 0.55),
-                    SizeClass::Capital => (4.5, 0.35),
+                // (length, width, gain, style): fighters burn a short torch; big hulls a long, slender ion wake.
+                let (len, width, gain, style) = match ship.class {
+                    SizeClass::Small => (13.0, 0.9, 1.0, 0.0),
+                    SizeClass::Cruiser => (10.0, 0.75, 0.9, 1.0),
+                    SizeClass::Capital => (9.0, 0.7, 0.8, 1.0),
                 };
-                let m = engine_mats.add(EngineMat { p: EngineParams { color: v4(col, 0.4), core: v4(core, 0.0), seed: Vec4::new(ship.seed + ship.plumes.len() as f32, gain, 0.0, 0.0) } });
+                let m = engine_mats.add(EngineMat { p: EngineParams { color: v4(col, 0.4), core: v4(core, 0.0), seed: Vec4::new(ship.seed + ship.plumes.len() as f32, gain, style, 0.0) } });
                 ship.plumes.push(m.clone());
                 let glow_gain = match ship.class {
                     SizeClass::Small => 1.0,
@@ -423,10 +426,15 @@ fn on_model_ready(
                     SizeClass::Capital => 0.75,
                 };
                 let seed = ship.seed;
-                let glow = ship.nozzle_glow.get_or_insert_with(|| (flare_mats.add(FlareMat { p: FlareParams { color: v4(col, glow_gain * 1.0), shape: Vec4::new(0.0, 0.0, 1.0, seed) } }), glow_gain * 1.0)).0.clone();
+                let glow = ship.nozzle_glow.get_or_insert_with(|| (flare_mats.add(FlareMat { p: FlareParams { color: v4(col, glow_gain * 1.0), shape: Vec4::new(0.0, style, 1.0, seed) } }), glow_gain * 1.0)).0.clone();
                 commands.entity(d).with_children(|c| {
-                    c.spawn((NotShadowCaster, Mesh3d(models.plume.clone()), MeshMaterial3d(m), Transform::from_scale(Vec3::new(0.9, 0.9, len))));
-                    c.spawn((NozzleGlow, NotShadowCaster, Mesh3d(models.quad.clone()), MeshMaterial3d(glow), Transform::from_xyz(0.0, 0.0, 0.15).with_scale(Vec3::splat(3.2))));
+                    c.spawn((NotShadowCaster, Mesh3d(models.plume.clone()), MeshMaterial3d(m), Transform::from_scale(Vec3::new(width, width, len))));
+                    let sprite = if style > 0.5 { 2.0 } else { 3.2 };
+                    c.spawn((NozzleGlow, NotShadowCaster, Mesh3d(models.quad.clone()), MeshMaterial3d(glow), Transform::from_xyz(0.0, 0.0, 0.15).with_scale(Vec3::splat(sprite))));
+                    if style > 0.5 {
+                        // Circle faces +Z = out of the nozzle; sits just inside the exit plane.
+                        c.spawn((NotShadowCaster, Mesh3d(models.bore.0.clone()), MeshMaterial3d(models.bore.1.clone()), Transform::from_xyz(0.0, 0.0, -0.04)));
+                    }
                 });
             } else if n.starts_with("Gun_") {
                 ship.muzzles.push(d);

@@ -441,9 +441,22 @@ fn aim_flare(cam: Query<&GlobalTransform, With<crate::control::MainCamera>>, mut
     }
 }
 
-fn spin_things(time: Res<Time>, mut q: Query<(&Spin, &mut Transform)>) {
-    let dt = time.delta_secs();
-    for (s, mut t) in &mut q {
-        t.rotate_local(Quat::from_euler(EulerRot::XYZ, s.0.x * dt, s.0.y * dt, s.0.z * dt));
+/// Orientation a spinning thing had when it appeared.
+#[derive(Component)]
+struct SpinBase(Quat);
+
+/// Spin is a function of the clock, not accumulated per frame: the same moment always shows the
+/// same orientation however late an asset finished loading (reproducible screenshots, HARNESS.md).
+fn spin_things(mut commands: Commands, time: Res<Time>, mut q: Query<(Entity, &Spin, &mut Transform, Option<&SpinBase>)>) {
+    let t = time.elapsed_secs_wrapped();
+    for (e, s, mut tf, base) in &mut q {
+        let base = match base {
+            Some(b) => b.0,
+            None => {
+                commands.entity(e).insert(SpinBase(tf.rotation));
+                tf.rotation
+            }
+        };
+        tf.rotation = base * Quat::from_euler(EulerRot::XYZ, s.0.x * t, s.0.y * t, s.0.z * t);
     }
 }

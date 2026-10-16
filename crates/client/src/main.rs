@@ -78,6 +78,11 @@ fn main() {
     .add_systems(PreUpdate, state::pump_network)
     .add_systems(EguiPrimaryContextPass, ui::ui_system)
     .add_systems(Update, (automation, ping));
+    // Harness (docs/HARNESS.md): STARFALL_FIXED_FPS=60 advances time by exactly 1/60 s per frame, so
+    // `--shot-at 8` is always the same frame and before/after screenshots compare pixel for pixel.
+    if let Some(fps) = std::env::var("STARFALL_FIXED_FPS").ok().and_then(|v| v.parse::<f64>().ok()).filter(|f| *f > 0.0) {
+        app.insert_resource(bevy::time::TimeUpdateStrategy::ManualDuration(std::time::Duration::from_secs_f64(1.0 / fps)));
+    }
     if let Some(secs) = bench_secs {
         app.add_plugins(bench::BenchPlugin { seconds: secs });
     }

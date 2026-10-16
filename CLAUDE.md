@@ -1,0 +1,19 @@
+# STARFALL DYNASTY — agent notes
+
+Rust workspace: `shared` (protocol, rules, galaxy), `history` (event-sourced chronicle), `server` (authoritative
+simulation `Game` + WebSocket binary), `client` (Bevy 0.20 renderer), `bot` (headless clients, load tests).
+The game is designed to be its own harness — read `docs/HARNESS.md` before changing simulation or visuals.
+
+## Verify every change (fast loop first)
+
+- Logic: `cargo test --release -p shared -p history -p server` (seconds, no engine). Network: `cargo build --release -p server && cargo test --release -p bot`.
+- Reproduce server state: `server --dev --record DIR`, then `cargo run -p server --release --example replay -- DIR [--twice] [--dump SYS@TICK]`.
+- Visuals, by numbers: `STARFALL_FIXED_FPS=60 STARFALL_HIDE_UI=1 client --showroom 7 --shot X.png --shot-at 8` (same command → identical image), then `python tools/imgdiff.py before.png after.png [--crop X,Y,W,H]` or `--stats`.
+- Performance, as text: `cargo run -p server --release --example bench 1000`, `client --bench 15` (`STARFALL_BENCH_SCALE=15` ≈ 1000 ships), `cargo run -p bot --release --example swarm -- ws://127.0.0.1:PORT 1000 60`.
+
+## Invariants
+
+- The simulation is deterministic: ordered maps (`BTreeMap`/`BTreeSet`) wherever iteration order can affect state; no wall clock or OS randomness in game logic (time arrives via `tick(dt, unix)`, gameplay randomness via `shared::rng`).
+- All state changes enter through `ClientMsg` → `Game::handle`, so they are recorded and replayable.
+- The client only renders server state; client-side animation is a function of the clock, not accumulated per frame.
+- Kill a running `server.exe` before rebuilding it (Windows locks the binary).

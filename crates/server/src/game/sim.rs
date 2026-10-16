@@ -488,8 +488,8 @@ impl Game {
         let eng = s.engagement.get_or_insert_with(|| Engagement { started: now, last_fire: now, sides: BTreeMap::new(), dirty: false });
         let fresh = eng.sides.is_empty();
         eng.last_fire = now;
-        let new_a = eng.sides.entry(ak).or_insert_with(|| (an, HashSet::new(), 0)).1.insert(aname);
-        let new_v = eng.sides.entry(vk).or_insert_with(|| (vn, HashSet::new(), 0)).1.insert(vname);
+        let new_a = eng.sides.entry(ak).or_insert_with(|| (an, BTreeSet::new(), 0)).1.insert(aname);
+        let new_v = eng.sides.entry(vk).or_insert_with(|| (vn, BTreeSet::new(), 0)).1.insert(vname);
         eng.dirty |= new_a || new_v;
         if fresh {
             self.broadcast_engagement(sys);

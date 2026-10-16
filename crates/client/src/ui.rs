@@ -95,6 +95,10 @@ pub fn ui_system(
         }
     }
     let now = time.elapsed_secs_f64();
+    // Harness layer toggle: STARFALL_HIDE_UI=1 leaves only the 3D scene in screenshots.
+    if *screen.get() == Screen::Playing && std::env::var_os("STARFALL_HIDE_UI").is_some() {
+        return Ok(());
+    }
     let Some(net) = net else { return Ok(()) };
     match screen.get() {
         Screen::Connecting => connecting(ctx, &s),

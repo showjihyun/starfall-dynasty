@@ -75,7 +75,17 @@ fn fragment(vertex_output: VertexOutput, @builtin(front_facing) is_front: bool) 
         pbr_input.material.emissive = vec4<f32>(ext.glow.rgb * ext.glow.w * blink * (1.0 + ext.state.z), 1.0);
     }
     if kind == 3 {
-        pbr_input.material.emissive = vec4<f32>(ext.glow.rgb * ext.glow.w * (1.5 + 2.5 * ext.state.z), 1.0);
+        // Engine core: glowing plasma, not glass. No reflections; hottest (white-blue) where the core
+        // faces the viewer, cooling toward its rim, so a nozzle seen from behind reads as a burning drive.
+        let vc = normalize(view.world_position - in.world_position.xyz);
+        let facing = max(dot(normalize(in.world_normal), vc), 0.0);
+        let hot = pow(facing, 2.5);
+        pbr_input.material.base_color = vec4<f32>(0.0, 0.0, 0.0, 1.0);
+        pbr_input.material.metallic = 0.0;
+        pbr_input.material.perceptual_roughness = 1.0;
+        let boost = 1.0 + 1.6 * ext.state.z;
+        let plasma = ext.glow.rgb * ext.glow.w * (0.3 + 1.3 * hot) + vec3<f32>(1.0, 1.0, 1.0) * pow(facing, 10.0) * ext.glow.w * 0.9;
+        pbr_input.material.emissive = vec4<f32>(plasma * boost, 1.0);
     }
     if kind <= 1 {
         pbr_input.material.base_color = vec4<f32>(mix(pbr_input.material.base_color.rgb, vec3<f32>(0.02, 0.018, 0.016), scorch * 0.85), pbr_input.material.base_color.a);

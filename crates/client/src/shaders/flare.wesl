@@ -22,8 +22,10 @@ fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
     if p.shape.z > 0.5 {
         // Nozzle glow: white-hot centre fading to the exhaust colour, gently flickering.
         let flick = 0.9 + 0.1 * sin(globals.time * 37.0 + p.shape.w);
-        let g = exp(-r * 3.2) * 1.3 + exp(-r * 1.5) * 0.3;
-        let col = mix(p.color.rgb, vec3<f32>(1.0, 1.0, 1.0), exp(-r * 5.0));
+        // shape.y > 0: tight core (big-ship ion ports) — a hot centre in a dark bore, not a lit ball.
+        let tight = p.shape.y;
+        let g = mix(exp(-r * 3.2) * 1.3 + exp(-r * 1.5) * 0.3, exp(-r * 7.0) * 1.6 + exp(-r * 2.6) * 0.18, tight);
+        let col = mix(p.color.rgb, vec3<f32>(1.0, 1.0, 1.0), exp(-r * mix(5.0, 9.0, tight)));
         return vec4<f32>(col * g * p.color.w * flick * smoothstep(1.0, 0.7, r), 0.0);
     }
     let tint = mix(p.color.rgb, vec3<f32>(1.0, 1.0, 1.0), 0.45);

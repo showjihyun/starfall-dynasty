@@ -14,7 +14,7 @@ use shared::glam::{Quat, Vec3};
 use shared::missions::{self, NpcArchetype, Progress};
 use shared::protocol::*;
 use shared::ships::Stats;
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque};
 
 pub type ConnId = u64;
 
@@ -179,7 +179,7 @@ pub struct Engagement {
     pub started: f64,
     pub last_fire: f64,
     /// side key → (display name, members, losses)
-    pub sides: BTreeMap<String, (String, HashSet<String>, u32)>,
+    pub sides: BTreeMap<String, (String, BTreeSet<String>, u32)>,
     /// Membership changed since the last broadcast (sent at most once a second).
     pub dirty: bool,
 }
@@ -232,9 +232,11 @@ pub struct Game {
     pub store: Store,
     pub history: HistoryEngine,
     pub systems: BTreeMap<SystemId, Sys>,
-    pub sessions: HashMap<ConnId, Session>,
-    pub conn_of: HashMap<PlayerId, ConnId>,
-    pub fleets: HashMap<FleetId, Fleet>,
+    // Ordered maps: iteration order feeds entity ids and event order, so it must not vary between runs
+    // (a recorded session has to replay to the same state; see docs/HARNESS.md).
+    pub sessions: BTreeMap<ConnId, Session>,
+    pub conn_of: BTreeMap<PlayerId, ConnId>,
+    pub fleets: BTreeMap<FleetId, Fleet>,
     pub out: Vec<(ConnId, ServerMsg)>,
     pub now: f64,
     pub unix: u64,
@@ -247,6 +249,10 @@ pub struct Game {
     pub hostility: HashMap<(PlayerId, PlayerId), f64>,
     /// Nanoseconds spent per tick phase since the last report ([`PROF_PHASES`]).
     pub prof: [u128; 8],
+    /// Replay feeds the tokens a recorded run issued, so logins with a saved token still match.
+    pub token_queue: VecDeque<String>,
+    /// Tokens issued since the recorder last drained them.
+    pub issued_tokens: Vec<String>,
     /// QA cheats (`/grow N`, `/cash`) — only when the server runs with `--dev`.
     pub dev_mode: bool,
 }
@@ -257,9 +263,9 @@ impl Game {
             store,
             history,
             systems: BTreeMap::new(),
-            sessions: HashMap::new(),
-            conn_of: HashMap::new(),
-            fleets: HashMap::new(),
+            sessions: BTreeMap::new(),
+            conn_of: BTreeMap::new(),
+            fleets: BTreeMap::new(),
             out: Vec::new(),
             now: 0.0,
             unix,
@@ -270,6 +276,8 @@ impl Game {
             pending_fx: BTreeMap::new(),
             hostility: HashMap::new(),
             prof: [0; 8],
+            token_queue: VecDeque::new(),
+            issued_tokens: Vec::new(),
             dev_mode: false,
         };
         for def in galaxy::SYSTEMS {
@@ -446,7 +454,8 @@ impl Game {
                 pid
             }
             None => {
-                let t = crate::store::new_token();
+                let t = self.token_queue.pop_front().unwrap_or_else(crate::store::new_token);
+                self.issued_tokens.push(t.clone());
                 self.store.create_account(&name, t)
             }
         };

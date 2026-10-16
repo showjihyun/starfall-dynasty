@@ -66,6 +66,13 @@ crates/bot      헤드리스 봇(실제 소켓) — E2E/부하 테스트
 tools/blender   함선·프롭 모델링/베이크 스크립트 (README 참조)
 ```
 
+## 개발 하네스
+
+게임 자체를 에이전트가 재현·조종·수치 검증할 수 있게 설계하는 원칙(「게임 개발용 AI 하네스를 설계하는 법」)을 근거로 도입했다. 원칙별 현황, 이번에 적용한 핵심, 로드맵은 [docs/HARNESS.md](docs/HARNESS.md)에 있다.
+
+- **기록·재생**: `server --record DIR`로 기록하고 `cargo run -p server --release --example replay -- DIR --twice`로 재생한다. 재생 결과를 기록된 상태 다이제스트와 대조하고, 결정론까지 검사한다.
+- **숫자로 하는 화면 검증**: `STARFALL_FIXED_FPS=60`(같은 명령이면 같은 이미지), `STARFALL_HIDE_UI=1`(HUD 제거), `python tools/imgdiff.py A.png B.png`(유사도·변화 영역·밝기/채도).
+
 ## 테스트
 
 ```
