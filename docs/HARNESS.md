@@ -156,7 +156,7 @@ python tools/imgdiff.py --stats after.png --crop 380,90,220,200    # 영역의 �
   - `target_nearest`(`npc`/`player`)로 가장 가까운 대상을 지정하고, `aim`으로 그 대상을 향해 조종한다.
   - `target_captain`은 이름으로 목표를 지정한다. 그 함장이 격침되면 이 단계는 건너뛴다.
   - `fill_nearest`는 메시지의 id를 가장 가까운 대상으로 채운다: `"poi:Ruin"`(→ `Scan`), `"wreck"`(→ `InvestigateWreck`), `"contract"`(가장 최근의 열린·진행 계약 → `AcceptContract`·`CancelContract`·`DeliverContract`). 사양에 엔티티·지점 id를 적지 않아도 된다.
-- **expect**: `at`초에 검사한다(생략하면 끝에서). 검사 종류: `alive`, `hull`, `credits`, `kills`, `deaths`, `count`(`npc`/`player`/`escort`/`wreck`), `in_system`, `history`(연대기 종류, 대소문자 무시), `engagement`, `dealt`·`taken`(가한·받은 피해), `dps`, `ttk`(평균 격파 시간), `artifacts`(보유 유물 수), `reputation`, `influence`(`system`·`tag`), `controller`(`system`, `tag` 생략 시 무주지), `treasury`(`tag`), `institute`(`name`, `exhibits_min`, `visitors_min`/`max`). `fill_nearest`는 쉼표로 여러 개(`"artifact,institute"`)를 채울 수 있다. 함장에 `cargo`(광석 이름 → 단위)로 시작 화물을 줄 수 있다.
+- **expect**: `at`초에 검사한다(생략하면 끝에서). 검사 종류: `alive`, `hull`, `credits`, `kills`, `deaths`, `count`(`npc`/`player`/`escort`/`wreck`), `in_system`, `history`(연대기 종류, 대소문자 무시), `engagement`, `dealt`·`taken`(가한·받은 피해), `dps`, `ttk`(평균 격파 시간), `artifacts`(보유 유물 수), `reputation`, `influence`(`system`·`tag`), `controller`(`system`, `tag` 생략 시 무주지), `treasury`(`tag`), `institute`(`name`, `exhibits_min`, `visitors_min`/`max`), `archive`(보유 기록 수). `fill_nearest`에 `"evidence"`(가장 최근 확보한 기록 → `LeakEvidence`). `fill_nearest`는 쉼표로 여러 개(`"artifact,institute"`)를 채울 수 있다. 함장에 `cargo`(광석 이름 → 단위)로 시작 화물을 줄 수 있다.
 - **digest**(선택): 최종 상태 지문을 고정한다. 결과가 조금이라도 바뀌면 실패하므로, 회귀를 엄격히 잡을 때만 쓴다(`--print-digest`로 값을 얻는다).
 
 실패하면 측정값이 함께 나오므로(`FAIL t=45.0s system 7 npc count 1 (want <= 0)`), 무엇을 고쳐야 할지 텍스트만으로 판단할 수 있다.
@@ -195,7 +195,7 @@ python tools/imgdiff.py --stats after.png --crop 380,90,220,200    # 영역의 �
 | `ships.ron` | 선체 5종의 Lv1 능력치, 모듈 레벨당 성장률, 함급(소형함·순양함·주력함)의 시작 랭크·크기/체력 배율·포탑·주포·호위함 수, 포탑/주포 배율, 모듈 업그레이드 비용, 호위함 능력치 |
 | `npcs.ron` | NPC 레벨 배율, 공통 사거리·재충전·포탑 수치, 아키타입 5종의 능력치·선회·포탑 수·현상금 |
 | `combat.ron` | 실드 관통 비율, 명중당 최소 선체 피해, 조준 원뿔(전투기·락온 유지·AI·주포) |
-| `history.ron` | 증거 위조 비용, 감정 비용(역사학자 무료), 위조 폭로 시 위조자·감정자 평판과 보상, 위조 증거를 인용한 연구에 남는 신뢰 비율, 기자의 송고료·독자당 원고료·독자 상한·정정 시 평판 |
+| `history.ron` | 증거 위조 비용, 감정 비용(역사학자 무료), 위조 폭로 시 위조자·감정자 평판과 보상, 위조 증거를 인용한 연구에 남는 신뢰 비율, 기자의 송고료·독자당 원고료·독자 상한·정정 시 평판, 격침 시 탈취 기록 수, 공개 평판, 특종 보너스 |
 | `social.ron` | 계약 최소 보상, 최장 기한, 의뢰인당 진행 계약 수, 완수·배신 시 평판, 활동별 영향력, 지배 기준치·역전 여유, 시간당 감쇠, 지배 동맹 보너스, 교전 승패 영향력, 세율, 과잉 확장 계수, 무료 성계 수, 유지비(기본·지수), 기관 설립비·관람 수입·전시 평판 |
 | `artifacts.ron` | 유물 문화(인류·Veyr·Kharz·선구자)별 기본 가치와 이름 재료, 가치 편차, 감정 비용, 미감정 판매 비율, 기증 평판·사례금 |
 

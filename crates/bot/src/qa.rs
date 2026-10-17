@@ -245,6 +245,16 @@ pub async fn run(url: &str, a_name: &str, b_name: &str) -> Result<Report, String
         format!("표시 {marked:?}, 정정 {}, 기자 평판 {b_rep}→{}", herald3.iter().any(|h| h.headline.starts_with("[정정]")), b.profile.as_ref().map(|p| p.reputation).unwrap_or(0)),
     );
 
+    // 8. Information warfare: B leaks the original black box; A can read it, and it is news.
+    if let Some(id) = log {
+        b.send(ClientMsg::LeakEvidence { evidence: id }).await;
+    }
+    b.pump(0.5).await;
+    let (events4, evidence4, herald4) = chronicle(&mut a).await.ok_or("no chronicle")?;
+    let open = evidence4.iter().find(|e| Some(e.id) == log).is_some_and(|e| e.leaked && !e.text.starts_with("[봉인됨"));
+    r.check("8-1", "기록 공개 → 다른 함장도 블랙박스를 읽음, 폭로 사건", open && events4.iter().any(|e| e.kind == "LEAK"), format!("공개 {open}, 헤드라인 {:?}", herald4.iter().find(|h| h.headline.starts_with("폭로")).map(|h| h.headline.clone())));
+    r.check("8-2", "첫 기사는 [단독]", herald3.iter().chain(herald4.iter()).any(|h| h.by.as_deref() == Some(b_name) && (h.headline.starts_with("[단독]") || h.headline.starts_with("[정정]"))) && b.log.iter().any(|m| matches!(m, ServerMsg::Toast { text } if text.starts_with("[단독]"))), "송고 알림의 [단독] 표시");
+
     // 6. Alliance and territory.
     a.send(ClientMsg::AllianceCreate { name: "QA Pact".into(), tag: "QAP".into() }).await;
     a.pump(0.5).await;

@@ -1,0 +1,30 @@
+{
+  "name": "intel_seized_and_leaked",
+  "description": "잔해를 조사해 증거를 쥔 함장을 격침하면 그 기록 일부를 빼앗고(정보 탈취), 빼앗은 기록을 공개하면 봉인된 블랙박스까지 모두가 읽게 된다(기밀 공개)",
+  "dev": true,
+  "captains": [
+    { "name": "Holder", "hull": "Bastion", "level": 5, "system": 7, "pos": [0, 0, 6000] },
+    { "name": "Victim", "hull": "Wren", "level": 1, "system": 7, "pos": [0, 0, 5500] },
+    { "name": "Spy", "hull": "Bastion", "level": 9, "system": 7, "pos": [9000, 0, 6000] }
+  ],
+  "script": [
+    { "at": 0.5, "captain": "Holder", "target_captain": "Victim", "aim": true, "msg": { "Controls": { "fire": true } }, "repeat_every": 0.1, "until": 7.0 },
+    { "at": 7.2, "captain": "Holder", "msg": { "Controls": {} } },
+    { "at": 8.0, "captain": "Holder", "msg": { "Chat": { "text": "/tp wreck" } } },
+    { "at": 8.5, "captain": "Holder", "fill_nearest": "wreck", "msg": { "InvestigateWreck": { "wreck": 0 } } },
+    { "at": 9.8, "captain": "Spy", "msg": { "Chat": { "text": "/tp wreck" } } },
+    { "at": 10.0, "captain": "Spy", "target_captain": "Holder", "aim": true, "msg": { "Controls": { "fire": true, "thrust": 0.3 } }, "repeat_every": 0.1 },
+    { "at": 55.0, "captain": "Spy", "fill_nearest": "evidence", "msg": { "LeakEvidence": { "evidence": 0 } } }
+  ],
+  "run_secs": 58,
+  "expect": [
+    { "at": 7.5, "check": "alive", "captain": "Victim", "alive": false },
+    { "at": 9.5, "check": "archive", "captain": "Holder", "min": 2 },
+    { "at": 9.5, "check": "archive", "captain": "Spy", "max": 0 },
+    { "at": 54.0, "check": "alive", "captain": "Holder", "alive": false },
+    { "at": 54.0, "check": "archive", "captain": "Spy", "min": 2 },
+    { "at": 54.0, "check": "history", "kind": "INTEL_SEIZED", "min": 1 },
+    { "check": "history", "kind": "LEAK", "min": 1 },
+    { "check": "reputation", "captain": "Spy", "min": 1 }
+  ]
+}

@@ -1082,3 +1082,57 @@ fn institutes_one_per_captain_paid_by_daily_visitors() {
     let back: sim::store::StoreData = serde_json::from_str(&js).unwrap();
     assert_eq!(back.institutes, g.store.data.institutes);
 }
+
+#[test]
+fn leaks_unseal_records_and_first_story_is_the_scoop() {
+    let mut g = game();
+    let _a = join(&mut g, 1, "Alpha", Species::Human, HullClass::Talon, Profession::CombatPilot);
+    let _b = join(&mut g, 2, "Bravo", Species::Kharz, HullClass::Bastion, Profession::CombatPilot);
+    let lois = join(&mut g, 3, "Lois", Species::Human, HullClass::Wren, Profession::Journalist);
+    let clark = join(&mut g, 4, "Clark", Species::Human, HullClass::Wren, Profession::Journalist);
+    let outsider = join(&mut g, 5, "Outsider", Species::Veyr, HullClass::Wren, Profession::Explorer);
+    for conn in [1, 2] {
+        move_to_system(&mut g, conn, 7);
+    }
+    clear_npcs(&mut g, 7);
+    let (_, ea) = ent_of(&g, 1);
+    let (_, eb) = ent_of(&g, 2);
+    for _ in 0..200 {
+        g.apply_damage(7, ea, eb, 50.0);
+        g.tick(DT, T0);
+        if g.ent(7, eb).is_none() {
+            break;
+        }
+    }
+    let destroyed = g.history.events.iter().find(|e| e.kind == "SHIP_DESTROYED").unwrap().id;
+    let log = g.history.evidence.iter().find(|e| e.event == destroyed && e.kind == shared::chronicle::EvidenceKind::ShipLog).unwrap().id;
+    let events = g.history.chronicle(shared::chronicle::Importance::Trivial, 50);
+    let sealed = |g: &Game| g.history.visible_evidence(&events, &[]).into_iter().find(|e| e.id == log).unwrap().text.starts_with("[봉인됨");
+    assert!(sealed(&g), "nobody has opened the black box yet");
+    // Lois holds it (as if from the wreck) and leaks it: now an outsider can read it.
+    g.store.profile_mut(lois).unwrap().archive.push(log);
+    g.out.clear();
+    g.handle(5, ClientMsg::LeakEvidence { evidence: log });
+    assert!(errors(&g, 5).iter().any(|e| e.contains("가지고 있는")), "only a holder can leak");
+    g.handle(3, ClientMsg::LeakEvidence { evidence: log });
+    assert!(!sealed(&g));
+    assert!(g.history.events.iter().any(|e| e.kind == "LEAK" && e.causes.contains(&destroyed)));
+    g.out.clear();
+    g.handle(3, ClientMsg::LeakEvidence { evidence: log });
+    assert!(errors(&g, 3).iter().any(|e| e.contains("이미 공개")));
+    let _ = outsider;
+    // Scoop: the first article on an event earns [단독] and a bonus; the second does not.
+    let story = |head: &str| ClientMsg::FileStory { event: destroyed, headline: head.into(), body: "공개된 블랙박스에 따르면 마지막 교신은 이랬다.".into(), cite: vec![log] };
+    let pay = |g: &mut Game, conn: ConnId, pid: PlayerId, head: &str| {
+        let before = g.store.profile(pid).unwrap().wallet.credits;
+        g.handle(conn, story(head));
+        g.store.profile(pid).unwrap().wallet.credits - before
+    };
+    let first = pay(&mut g, 3, lois, "첫 보도");
+    g.store.profile_mut(clark).unwrap().archive.push(log);
+    let second = pay(&mut g, 4, clark, "후속 보도");
+    assert_eq!(first, second + 500, "{first} vs {second}");
+    let herald = g.history.herald(10);
+    assert!(herald.iter().any(|h| h.headline == "[단독] 첫 보도"));
+    assert!(herald.iter().any(|h| h.headline == "후속 보도"));
+}

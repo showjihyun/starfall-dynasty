@@ -120,6 +120,8 @@ pub enum ClientMsg {
     AuthenticateEvidence { evidence: u64 },
     /// Journalists: file a Herald article about an event, from the scene or holding its evidence.
     FileStory { event: EventId, headline: String, body: String, cite: Vec<u64> },
+    /// Make a record you hold public (a leak): everyone can read it, sealed or not.
+    LeakEvidence { evidence: u64 },
     /// Contracts: post a job (reward goes into escrow), take one, withdraw an open one, hand over a delivery.
     PostContract { kind: crate::contracts::ContractKind, reward: u64, hours: u32 },
     AcceptContract { id: crate::contracts::ContractId },

@@ -64,6 +64,9 @@ pub struct Evidence {
     /// What examination has shown. A forgery looks exactly like its original until examined.
     #[serde(default, skip_serializing_if = "Authenticity::is_unverified")]
     pub authenticity: Authenticity,
+    /// Made public by a holder: readable by everyone, even a sealed ship log.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub leaked: bool,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -154,6 +157,9 @@ pub struct Story {
     pub reliability: f32,
     /// It cited evidence later exposed as forged; the Herald runs it as a correction.
     pub retracted: bool,
+    /// The first article about its event (a scoop).
+    #[serde(default)]
+    pub scoop: bool,
 }
 
 /// Game calendar: 1 real day = 1 galactic year starting at 3827; day-of-year from seconds.

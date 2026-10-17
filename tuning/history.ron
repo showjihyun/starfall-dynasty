@@ -13,4 +13,9 @@
     story_per_reader: 60,       // credits per distinct reader of the article…
     story_reader_cap: 20,       // …up to this many readers
     retraction_reputation: -10, // when an article's evidence is exposed as forged
+
+    // Information warfare.
+    seize_max: 3,               // evidence copied from a captain's archive when you destroy their ship
+    leak_reputation: 2,         // making a held record public
+    scoop_bonus: 500,           // the first journalist to write up an event: [단독] and this many credits
 )

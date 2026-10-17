@@ -637,6 +637,7 @@ impl Game {
                     && kp != vpid
                 {
                     self.contract_kill(kp, &vprof.name, sys);
+                    self.seize_intel(kp, vpid, sys);
                 }
                 let witnesses: Vec<String> = self.systems[&sys]
                     .ents

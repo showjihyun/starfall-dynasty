@@ -736,6 +736,11 @@ fn chronicle(ui: &mut egui::Ui, s: &mut Session, net: &Net, prof: &Profile) {
                     let mine = prof.archive.contains(&ev.id);
                     ui.horizontal_wrapped(|ui| {
                         ui.label(RichText::new(format!("{} #{} {} — {} (신뢰 {:.0}%){}: {}", if mine { "📁" } else { "·" }, ev.id, ev.kind.name(), ev.source, ev.reliability * 100.0, ev.discovered_by.as_ref().map(|d| format!(" 발견: {d}")).unwrap_or_default(), ev.text)).size(11.0));
+                        if ev.leaked {
+                            ui.label(RichText::new("[공개됨]").color(GOLD).size(11.0));
+                        } else if mine && ui.small_button("공개").on_hover_text("이 기록을 모두가 읽을 수 있게 공개합니다(봉인된 블랙박스 포함). 연대기·Herald에 폭로로 남습니다.").clicked() {
+                            net.send(ClientMsg::LeakEvidence { evidence: ev.id });
+                        }
                         match ev.authenticity {
                             Authenticity::Forged => {
                                 ui.label(RichText::new("[위조 판명]").color(RED).size(11.0).strong());

@@ -238,6 +238,9 @@ pub struct HistoryTuning {
     pub story_per_reader: u64,
     pub story_reader_cap: u32,
     pub retraction_reputation: i32,
+    pub seize_max: u32,
+    pub leak_reputation: i32,
+    pub scoop_bonus: u64,
 }
 
 /// Artifact names, values and station services (`artifacts.ron`).

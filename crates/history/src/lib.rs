@@ -61,6 +61,10 @@ pub enum DomainEvent {
     /// Control of a system passed to `alliance` (none: nobody holds it any more).
     SystemControlChanged { system: SystemId, alliance: Option<String>, previous: Option<String> },
     InstituteFounded { institute_id: u64, name: String, founder: String, system: SystemId },
+    /// `by` destroyed `from`'s ship and copied these records from their archive.
+    IntelSeized { by: String, from: String, evidence: Vec<u64>, system: SystemId },
+    /// `by` made a record public.
+    EvidenceLeaked { by: String, evidence: u64 },
     /// An artifact went on display at an institute.
     ExhibitAcquired { institute_id: u64, institute: String, artifact_id: u64, artifact: String, donor: String, system: SystemId },
 }
@@ -155,7 +159,7 @@ impl HistoryEngine {
 
     fn add_evidence(&mut self, event: EventId, kind: EvidenceKind, source: &str, text: String, reliability: f32) -> u64 {
         let id = self.evidence.len() as u64 + 1;
-        self.evidence.push(Evidence { id, kind, event, source: source.to_string(), text, reliability, discovered_by: None, authenticity: Authenticity::Unverified });
+        self.evidence.push(Evidence { id, kind, event, source: source.to_string(), text, reliability, discovered_by: None, authenticity: Authenticity::Unverified, leaked: false });
         id
     }
 
@@ -202,6 +206,40 @@ impl HistoryEngine {
                 self.bio(&betrayed, unix, format!("계약 상대 {betrayer}에게 배신당했다."), Some(id));
                 Some(id)
             }
+            DomainEvent::IntelSeized { by, from, evidence, system } => {
+                let sys = galaxy::system(system).name;
+                let id = self.push_event(unix, system, "INTEL_SEIZED", format!("{from}의 기록 탈취"), format!("{by}이(가) {sys}에서 {from}의 함선을 격침하고 그 기록 보관함에서 자료 {}건을 빼냈다.", evidence.len()), vec![by.clone(), from.clone()], vec![], Importance::Minor, vec![]);
+                self.bio(&by, unix, format!("{from}의 함선에서 기록 {}건을 탈취했다.", evidence.len()), Some(id));
+                self.bio(&from, unix, format!("격침당하며 기록 {}건을 {by}에게 빼앗겼다.", evidence.len()), Some(id));
+                Some(id)
+            }
+            DomainEvent::EvidenceLeaked { by, evidence } => {
+                let ev = self.evidence.iter_mut().find(|e| e.id == evidence)?;
+                if ev.leaked {
+                    return None;
+                }
+                ev.leaked = true;
+                ev.discovered_by.get_or_insert_with(|| by.clone());
+                let (event, source, text) = (ev.event, ev.source.clone(), ev.text.clone());
+                let (title, system, actors) = {
+                    let e = self.events.iter_mut().find(|e| e.id == event)?;
+                    // A leak draws attention: the event becomes more significant.
+                    if e.importance < Importance::Major {
+                        e.importance = match e.importance {
+                            Importance::Trivial => Importance::Minor,
+                            Importance::Minor => Importance::Notable,
+                            _ => Importance::Major,
+                        };
+                    }
+                    (e.title.clone(), e.system, e.actors.clone())
+                };
+                let id = self.push_event(unix, system, "LEAK", format!("「{title}」 기밀 공개"), format!("{by}이(가) 「{title}」에 관한 {source}을(를) 공개했다: \"{text}\""), vec![by.clone()], vec![], Importance::Notable, vec![event]);
+                self.bio(&by, unix, format!("「{title}」에 관한 {source}을(를) 공개했다."), Some(id));
+                for a in actors.iter().filter(|a| **a != by).take(4) {
+                    self.bio(a, unix, format!("「{title}」에 관한 기록이 {by}에 의해 공개되었다."), Some(id));
+                }
+                Some(id)
+            }
             DomainEvent::InstituteFounded { institute_id, name, founder, system } => {
                 let sys = galaxy::system(system).name;
                 let id = self.push_event(unix, system, "INSTITUTE_FOUNDED", format!("{name} 개관"), format!("{founder}이(가) {sys} 정거장에 「{name}」을(를) 세웠다. 유물과 기록을 모아 누구나 볼 수 있게 하겠다고 한다."), vec![founder.clone()], vec![], Importance::Notable, vec![]);
@@ -238,7 +276,8 @@ impl HistoryEngine {
                 let rel: Vec<f32> = cited.iter().filter_map(|c| self.evidence.iter().find(|e| e.id == *c && e.event == event)).map(|e| e.reliability).collect();
                 let reliability = if rel.is_empty() { 0.5 } else { rel.iter().sum::<f32>() / rel.len() as f32 };
                 let id = self.stories.len() as u64 + 1;
-                self.stories.push(Story { id, date: galactic_date(unix), unix, event, reporter: reporter.clone(), headline: headline.clone(), body, cited, reliability, retracted: false });
+                let scoop = !self.stories.iter().any(|s| s.event == event);
+                self.stories.push(Story { id, date: galactic_date(unix), unix, event, reporter: reporter.clone(), headline: headline.clone(), body, cited, reliability, retracted: false, scoop });
                 self.bio(&reporter, unix, format!("「{title}」에 관한 기사 「{headline}」을(를) Herald에 송고했다."), Some(event));
                 None
             }
@@ -465,7 +504,7 @@ impl HistoryEngine {
             DomainEvent::EvidenceForged { forger, original, text } => {
                 let o = self.evidence.iter().find(|e| e.id == original)?.clone();
                 let id = self.evidence.len() as u64 + 1;
-                self.evidence.push(Evidence { id, kind: o.kind, event: o.event, source: o.source, text, reliability: o.reliability, discovered_by: Some(forger.clone()), authenticity: Authenticity::Unverified });
+                self.evidence.push(Evidence { id, kind: o.kind, event: o.event, source: o.source, text, reliability: o.reliability, discovered_by: Some(forger.clone()), authenticity: Authenticity::Unverified, leaked: false });
                 self.forgeries.insert(id, (original, forger));
                 None
             }
@@ -623,7 +662,7 @@ impl HistoryEngine {
             .map(|e| {
                 let mut e = e.clone();
                 // Undiscovered ship logs stay sealed until someone investigates the wreck (fog of history).
-                if e.discovered_by.is_none() && e.kind == EvidenceKind::ShipLog && !archive.contains(&e.id) {
+                if e.discovered_by.is_none() && !e.leaked && e.kind == EvidenceKind::ShipLog && !archive.contains(&e.id) {
                     e.text = "[봉인됨 — 잔해를 조사해야 열람 가능]".into();
                 }
                 e
@@ -655,7 +694,11 @@ impl HistoryEngine {
         let covered: HashSet<EventId> = self.stories.iter().filter(|s| !s.retracted).map(|s| s.event).collect();
         let mut dated: Vec<(u64, usize, Headline)> = self.auto_headlines(limit, &covered).into_iter().enumerate().map(|(i, (u, h))| (u, i, h)).collect();
         for s in self.stories.iter().rev().take(limit) {
-            let headline = if s.retracted { format!("[정정] {}", s.headline) } else { s.headline.clone() };
+            let headline = match (s.retracted, s.scoop) {
+                (true, _) => format!("[정정] {}", s.headline),
+                (false, true) => format!("[단독] {}", s.headline),
+                (false, false) => s.headline.clone(),
+            };
             let body = if s.retracted {
                 format!("이 기사가 근거로 삼은 증거는 위조로 판명되었다. 원문: {}", s.body)
             } else {
@@ -689,6 +732,7 @@ impl HistoryEngine {
                 "BETRAYAL" => format!("배신 — {}", e.title),
                 "SYSTEM_CONTROL" => format!("세력 판도: {}", e.title),
                 "INSTITUTE_FOUNDED" => format!("새 연구 기관: {}", e.title),
+                "LEAK" => format!("폭로: {}", e.title),
                 "EXHIBIT_ACQUIRED" => format!("전시 소식: {}", e.title),
                 "CONTRACT_FULFILLED" => format!("약속은 지켜졌다: {}", e.title),
                 "ARTIFACT_LOST" => format!("사라진 유물 — {}", e.title),
@@ -862,7 +906,7 @@ mod tests {
         drop(h);
         let mut h = HistoryEngine::open(&path).unwrap();
         let herald = h.herald(5);
-        assert_eq!(herald[0].headline, "현장 르포");
+        assert_eq!(herald[0].headline, "[단독] 현장 르포", "the first article on an event is the scoop");
         assert_eq!(herald[0].by.as_deref(), Some("Lois"));
         assert!(herald.iter().all(|n| n.by.is_some() || !n.headline.contains("또 하나의 함선")), "{herald:?}");
         assert!(h.stories[0].reliability > 0.9, "rests on the black box");

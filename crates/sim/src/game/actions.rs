@@ -103,6 +103,7 @@ impl Game {
             ClientMsg::ForgeEvidence { evidence, text } => self.forge_evidence(conn, pid, evidence, text),
             ClientMsg::AuthenticateEvidence { evidence } => self.authenticate_evidence(conn, pid, evidence),
             ClientMsg::FileStory { event, headline, body, cite } => self.file_story(conn, pid, sys, event, headline, body, cite),
+            ClientMsg::LeakEvidence { evidence } => self.leak_evidence(conn, pid, evidence),
             ClientMsg::PostContract { kind, reward, hours } => self.post_contract(conn, pid, kind, reward, hours),
             ClientMsg::AcceptContract { id } => self.accept_contract(conn, pid, id),
             ClientMsg::CancelContract { id } => self.cancel_contract(conn, pid, id),
@@ -191,11 +192,13 @@ impl Game {
         }
         let cite: Vec<u64> = cite.into_iter().filter(|c| prof.archive.contains(c)).collect();
         self.history.record(self.unix, DomainEvent::StoryFiled { reporter: prof.name.clone(), event, headline: headline.clone(), body, cited: cite });
-        let fee = self.tuning.history.story_fee;
+        // The first article about an event is a scoop.
+        let scoop = self.history.stories.last().is_some_and(|s| s.scoop && s.reporter == prof.name && s.event == event);
+        let fee = self.tuning.history.story_fee + if scoop { self.tuning.history.scoop_bonus } else { 0 };
         if let Some(p) = self.store.profile_mut(pid) {
             p.wallet.credits += fee;
         }
-        self.toast(pid, format!("기사 「{headline}」이(가) Herald에 실렸습니다 (+{fee} CR, 독자 한 명당 +{} CR)", self.tuning.history.story_per_reader));
+        self.toast(pid, format!("{}기사 「{headline}」이(가) Herald에 실렸습니다 (+{fee} CR, 독자 한 명당 +{} CR)", if scoop { "[단독] " } else { "" }, self.tuning.history.story_per_reader));
         self.push_profile(pid);
         self.send_chronicle(conn, pid);
     }
@@ -797,6 +800,41 @@ impl Game {
         } else {
             self.error(conn, "이 사건에 대한 증거가 아닙니다");
         }
+    }
+
+    /// Information warfare (design doc §22): destroying a captain's ship copies part of their archive.
+    pub(super) fn seize_intel(&mut self, killer: PlayerId, victim: PlayerId, sys: SystemId) {
+        let max = self.tuning.history.seize_max as usize;
+        let (Some(k), Some(v)) = (self.store.profile(killer).cloned(), self.store.profile(victim).cloned()) else { return };
+        let taken: Vec<u64> = v.archive.iter().rev().filter(|id| !k.archive.contains(id)).take(max).copied().collect();
+        if taken.is_empty() {
+            return;
+        }
+        if let Some(p) = self.store.profile_mut(killer) {
+            p.archive.extend(taken.iter().copied());
+        }
+        self.history.record(self.unix, DomainEvent::IntelSeized { by: k.name.clone(), from: v.name.clone(), evidence: taken.clone(), system: sys });
+        self.toast(killer, format!("{}의 기록 보관함에서 자료 {}건을 확보했습니다 — 연대기(H)에서 공개하거나 인용할 수 있습니다", v.name, taken.len()));
+        self.toast(victim, format!("격침당하며 기록 {}건을 {}에게 빼앗겼습니다", taken.len(), k.name));
+        self.push_profile(killer);
+    }
+
+    /// Make a record you hold public: everyone can read it (a sealed ship log included).
+    fn leak_evidence(&mut self, conn: ConnId, pid: PlayerId, evidence: u64) {
+        let prof = self.store.profile(pid).unwrap().clone();
+        if !prof.archive.contains(&evidence) {
+            return self.error(conn, "가지고 있는 기록만 공개할 수 있습니다");
+        }
+        if self.history.record(self.unix, DomainEvent::EvidenceLeaked { by: prof.name.clone(), evidence }).is_none() {
+            return self.error(conn, "이미 공개된 기록입니다");
+        }
+        let rep = self.tuning.history.leak_reputation;
+        if let Some(p) = self.store.profile_mut(pid) {
+            p.reputation += rep;
+        }
+        self.toast(pid, format!("기록 #{evidence}을(를) 공개했습니다 — 이제 누구나 읽을 수 있습니다 (평판 +{rep})"));
+        self.push_profile(pid);
+        self.send_chronicle(conn, pid);
     }
 
     /// Forge a copy of evidence you hold (design doc §53). The copy joins your archive and can be
