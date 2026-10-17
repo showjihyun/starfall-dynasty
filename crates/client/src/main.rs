@@ -137,6 +137,8 @@ fn showroom(s: &mut Session, args: &Args) {
     let base = if args.hull.is_some() { layout.station + Vec3::new(0.0, 60.0, 420.0) } else { layout.station + Vec3::new(0.0, 170.0, 120.0) };
     let mut ents = std::collections::HashMap::new();
     let face = Quat::from_rotation_y(0.35);
+    // `--species human|veyr|kharz` dresses the whole showroom fleet in one species' style.
+    let only_species = std::env::args().skip_while(|a| a != "--species").nth(1).and_then(|s| shared::galaxy::Species::ALL.into_iter().find(|x| format!("{x:?}").eq_ignore_ascii_case(&s)));
     for (i, h) in HullClass::ALL.into_iter().enumerate() {
         let mut ship = Ship::new(format!("{h:?}"), h, (i % 7) as u8);
         if i % 2 == 1 {
@@ -170,13 +172,15 @@ fn showroom(s: &mut Session, args: &Args) {
                 owner: None,
                 alliance: None,
                 class: Some(ship.size_class()),
+                // Every species' style on show (docs/ART_DIRECTION.md §4).
+                species: Some(only_species.unwrap_or(shared::galaxy::Species::ALL[i % 3])),
             },
         );
     }
     // A pirate for scale and hostile livery.
     ents.insert(
         200,
-        EntityState { id: 200, kind: EntityKind::Npc(shared::missions::NpcArchetype::Raider), name: "Raider".into(), hull_class: None, rank: 1, livery: 7, pos: (base + Vec3::new(40.0, 40.0, -320.0)).to_array(), rot: Quat::from_rotation_y(2.5).to_array(), vel: [0.0; 3], hull: 0.7, shield: 0.5, radius: 9.0, fleet: None, wanted: false, boosting: true, mining: None, docked: false, owner: None, alliance: None, class: None },
+        EntityState { id: 200, kind: EntityKind::Npc(shared::missions::NpcArchetype::Raider), name: "Raider".into(), hull_class: None, rank: 1, livery: 7, pos: (base + Vec3::new(40.0, 40.0, -320.0)).to_array(), rot: Quat::from_rotation_y(2.5).to_array(), vel: [0.0; 3], hull: 0.7, shield: 0.5, radius: 9.0, fleet: None, wanted: false, boosting: true, mining: None, docked: false, owner: None, alliance: None, class: None, species: None },
     );
     s.me = args.hull.map(|hc| 100 + shared::ships::HullClass::ALL.iter().position(|h| *h == hc).unwrap() as u32);
     s.profile = None;

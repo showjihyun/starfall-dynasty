@@ -30,6 +30,10 @@ SCENES = {
     'gate': (['--showroom', '9', '--look', 'gate'], 'The Deep: neutron star, ancient gate glyphs'),
     'ruin': (['--showroom', '6', '--look', 'ruin'], 'Hollow Crown: ruin glow, Wild-tier nebula'),
     'derelict': (['--showroom', '4', '--look', 'derelict'], 'Vesta Corridor: white dwarf, derelict convoy'),
+    # Species styles (docs/ART_DIRECTION.md §4): the same fleet and camera, one species each.
+    'human': (['--showroom', '7', '--species', 'human'], 'Human: the baseline worn-industrial hulls'),
+    'veyr': (['--showroom', '7', '--species', 'veyr'], 'Veyr: dark-teal nacre, violet veins, iridescent rim'),
+    'kharz': (['--showroom', '7', '--species', 'kharz'], 'Kharz: blackened iron, amber heat seams'),
 }
 
 

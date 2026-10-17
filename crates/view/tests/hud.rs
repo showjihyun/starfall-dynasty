@@ -82,6 +82,7 @@ fn me(shield: f32, hull: f32) -> EntityState {
         owner: Some(7),
         alliance: None,
         class: None,
+        species: None,
     }
 }
 

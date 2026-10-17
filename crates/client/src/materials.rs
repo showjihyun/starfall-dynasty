@@ -118,6 +118,8 @@ pub struct HullParams {
     pub glow: Vec4,
     /// x damage, y hit flash, z boost, w seed.
     pub state: Vec4,
+    /// Species style (`view::palette::species_style`): x style id (−1 none), rgb accent.
+    pub species: Vec4,
 }
 
 impl MaterialExtension for HullExt {

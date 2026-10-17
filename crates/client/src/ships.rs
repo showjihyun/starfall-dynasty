@@ -51,6 +51,8 @@ pub struct ShipVis {
     pub glow: [f32; 3],
     /// Drawn in hostile colours (glow, plumes, shield): my relation to it, kept up to date.
     pub hostile: bool,
+    /// Species style for the hull shader (`palette::species_style`).
+    pub species: [f32; 4],
     pub hull_mats: Vec<Handle<HullMat>>,
     pub plumes: Vec<Handle<EngineMat>>,
     /// Camera-facing glow at every nozzle exit (one material per ship).
@@ -289,6 +291,7 @@ fn spawn_visual(
         livery,
         glow,
         hostile,
+        species: view::palette::species_style(st.species),
         hull_mats: vec![],
         plumes: vec![],
         nozzle_glow: None,
@@ -467,7 +470,7 @@ fn on_model_ready(
                 } else {
                     0.0
                 };
-                hull_mats.add(HullMat { base, extension: HullExt { p: HullParams { livery: v4(ship.livery, kind), glow: v4(ship.glow, if kind == 3.0 { 1.6 } else { 4.0 }), state: Vec4::new(0.0, 0.0, 0.0, ship.seed) } } })
+                hull_mats.add(HullMat { base, extension: HullExt { p: HullParams { livery: v4(ship.livery, kind), glow: v4(ship.glow, if kind == 3.0 { 1.6 } else { 4.0 }), state: Vec4::new(0.0, 0.0, 0.0, ship.seed), species: Vec4::from_array(ship.species) } } })
             });
             ship.hull_mats.push(hm.clone());
             commands.entity(d).remove::<MeshMaterial3d<StandardMaterial>>().insert(MeshMaterial3d(hm.clone()));

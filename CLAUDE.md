@@ -5,6 +5,10 @@ simulation `Game` as a pure library: rules, store, record/replay, scenarios, met
 `bot` (headless clients, load tests).
 The game is designed to be its own harness — read `docs/HARNESS.md` before changing simulation or visuals.
 
+**Always read first:** [`docs/AI_게임_개발_지침.md`](docs/AI_게임_개발_지침.md) — how to build this 3D game with AI
+(one clear goal per round, detailed prompts/specs, test early and often, review AI output, PC-first platform,
+no feature creep, never trust untested output, keep measuring performance). Its checklist applies to every task.
+
 ## Verify every change (fast loop first)
 
 - Logic: `cargo test --release -p shared -p history -p sim -p view` (seconds, no engine). Client math and HUD

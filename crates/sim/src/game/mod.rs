@@ -62,6 +62,8 @@ pub struct Ent {
     pub hull_class: Option<shared::ships::HullClass>,
     pub rank: u8,
     pub livery: u8,
+    /// The captain's species (visual style only).
+    pub species: Option<galaxy::Species>,
     pub pos: Vec3,
     pub rot: Quat,
     pub vel: Vec3,
@@ -106,6 +108,7 @@ impl Ent {
             hull_class: None,
             rank: 0,
             livery: 0,
+            species: None,
             pos,
             rot,
             vel: Vec3::ZERO,
@@ -155,6 +158,7 @@ impl Ent {
             hull_class: self.hull_class,
             rank: self.rank,
             livery: self.livery,
+            species: self.species,
             pos: self.pos.to_array(),
             rot: self.rot.to_array(),
             vel: self.vel.to_array(),
@@ -563,6 +567,7 @@ impl Game {
         ent.hull_class = Some(prof.ship.hull);
         ent.rank = prof.ship.rank();
         ent.livery = prof.ship.livery;
+        ent.species = Some(prof.species);
         ent.fleet = self.fleet_of(pid);
         ent.alliance = self.alliance_of(pid);
         ent.class = Some(prof.ship.size_class());
@@ -649,6 +654,7 @@ impl Game {
             e.hull_class = Some(prof.ship.hull);
             e.rank = 2;
             e.livery = prof.ship.livery;
+            e.species = Some(prof.species);
             e.fleet = flag.fleet;
             e.alliance = flag.alliance;
             e.class = Some(shared::ships::SizeClass::Small);

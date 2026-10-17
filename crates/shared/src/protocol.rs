@@ -219,6 +219,9 @@ pub struct EntityState {
     /// Size class drives the model tier (fighter / cruiser / capital).
     #[serde(default)]
     pub class: Option<SizeClass>,
+    /// The captain's species: the ship's visual style (docs/ART_DIRECTION.md §4). None for NPCs.
+    #[serde(default)]
+    pub species: Option<Species>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -325,6 +328,8 @@ pub struct EntityInfo {
     pub owner: Option<PlayerId>,
     pub alliance: Option<AllianceId>,
     pub class: Option<SizeClass>,
+    #[serde(default)]
+    pub species: Option<Species>,
 }
 
 /// Per-tick motion, quantized to integers:
@@ -337,7 +342,7 @@ const F_WANTED: i32 = 4;
 
 pub fn pack(e: &EntityState) -> (EntityInfo, DynState) {
     let q = |v: f32, k: f32| (v * k).round() as i32;
-    let info = EntityInfo { id: e.id, kind: e.kind, name: e.name.clone(), hull_class: e.hull_class, rank: e.rank, livery: e.livery, radius: e.radius, fleet: e.fleet, owner: e.owner, alliance: e.alliance, class: e.class };
+    let info = EntityInfo { id: e.id, kind: e.kind, name: e.name.clone(), hull_class: e.hull_class, rank: e.rank, livery: e.livery, radius: e.radius, fleet: e.fleet, owner: e.owner, alliance: e.alliance, class: e.class, species: e.species };
     let flags = (e.boosting as i32 * F_BOOST) | (e.docked as i32 * F_DOCKED) | (e.wanted as i32 * F_WANTED);
     let d = [
         e.id as i32,
@@ -384,6 +389,7 @@ pub fn unpack(i: &EntityInfo, d: &DynState) -> EntityState {
         owner: i.owner,
         alliance: i.alliance,
         class: i.class,
+        species: i.species,
     }
 }
 
@@ -657,7 +663,7 @@ mod tests {
 
     #[test]
     fn snapshot_pack_roundtrip_and_cache() {
-        let e = EntityState { id: 7, kind: EntityKind::Player, name: "A".into(), hull_class: Some(HullClass::Talon), rank: 3, livery: 2, pos: [1234.56, -7.25, 9000.0], rot: [0.0, 0.7071, 0.0, 0.7071], vel: [12.3, 0.0, -4.5], hull: 0.5, shield: 0.25, radius: 11.0, fleet: None, wanted: true, boosting: true, mining: Some(3), docked: false, owner: Some(1), alliance: Some(2), class: Some(SizeClass::Cruiser) };
+        let e = EntityState { id: 7, kind: EntityKind::Player, name: "A".into(), hull_class: Some(HullClass::Talon), rank: 3, livery: 2, pos: [1234.56, -7.25, 9000.0], rot: [0.0, 0.7071, 0.0, 0.7071], vel: [12.3, 0.0, -4.5], hull: 0.5, shield: 0.25, radius: 11.0, fleet: None, wanted: true, boosting: true, mining: Some(3), docked: false, owner: Some(1), alliance: Some(2), class: Some(SizeClass::Cruiser), species: Some(Species::Kharz) };
         let (info, d) = pack(&e);
         let back = unpack(&info, &d);
         assert!((back.pos[0] - e.pos[0]).abs() < 0.06 && back.wanted && back.boosting && back.mining == Some(3) && !back.docked);

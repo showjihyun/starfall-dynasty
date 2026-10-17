@@ -15,6 +15,7 @@ struct HullExt {
     livery: vec4<f32>,  // rgb livery, w = part kind (0 hull, 1 livery, 2 glow, 3 engine core)
     glow: vec4<f32>,    // rgb glow tint, w = glow strength
     state: vec4<f32>,   // x damage 0..1, y hit flash 0..1, z boost 0..1, w seed
+    species: vec4<f32>, // x style (-1 none, 0 Human, 1 Veyr, 2 Kharz), rgb accent (docs/ART_DIRECTION.md §4)
 }
 
 @group(constants::MATERIAL_BIND_GROUP) @binding(100) var<uniform> ext: HullExt;
@@ -87,6 +88,24 @@ fn fragment(vertex_output: VertexOutput, @builtin(front_facing) is_front: bool) 
         let plasma = ext.glow.rgb * ext.glow.w * (0.3 + 1.3 * hot) + vec3<f32>(1.0, 1.0, 1.0) * pow(facing, 10.0) * ext.glow.w * 0.9;
         pbr_input.material.emissive = vec4<f32>(plasma * boost, 1.0);
     }
+    // Species style on the hull and livery plates (Human is the baseline look).
+    let style = i32(round(ext.species.x));
+    // Contour lines of a noise field, a constant few pixels wide whatever the slope of the field
+    // (fwidth), so they stay lines instead of blotches: fine Veyr veins, broader Kharz heat seams.
+    let fv = fbm(uvp * 2.6 + vec3<f32>(3.1, 0.0, 0.0)) - 0.5;
+    let vein = 1.0 - smoothstep(0.0, fwidth(fv) * 1.2 + 1e-4, abs(fv));
+    let fs = fbm(uvp * 1.1 + vec3<f32>(0.0, 5.3, 0.0)) - 0.5;
+    let seam = 1.0 - smoothstep(0.0, fwidth(fs) * 2.0 + 1e-4, abs(fs));
+    if kind <= 1 && style == 1 {
+        // Veyr: nacre shell, dark teal, a little glossier.
+        pbr_input.material.base_color = vec4<f32>(pbr_input.material.base_color.rgb * vec3<f32>(0.55, 0.85, 0.9), pbr_input.material.base_color.a);
+        pbr_input.material.perceptual_roughness = pbr_input.material.perceptual_roughness * 0.7;
+    }
+    if kind <= 1 && style == 2 {
+        // Kharz: blackened forged iron.
+        pbr_input.material.base_color = vec4<f32>(pbr_input.material.base_color.rgb * vec3<f32>(0.36, 0.33, 0.31), pbr_input.material.base_color.a);
+        pbr_input.material.metallic = max(pbr_input.material.metallic, 0.75);
+    }
     if kind <= 1 {
         pbr_input.material.base_color = vec4<f32>(mix(pbr_input.material.base_color.rgb, vec3<f32>(0.02, 0.018, 0.016), scorch * 0.85), pbr_input.material.base_color.a);
         pbr_input.material.perceptual_roughness = mix(pbr_input.material.perceptual_roughness, 0.95, scorch);
@@ -108,8 +127,22 @@ fn fragment(vertex_output: VertexOutput, @builtin(front_facing) is_front: bool) 
     }
     // Cool rim light so ships read against black space, tinted by livery.
     let v = normalize(view.world_position - in.world_position.xyz);
-    let rim = pow(1.0 - max(dot(normalize(in.world_normal), v), 0.0), 4.0);
-    out.color = vec4<f32>(out.color.rgb + mix(vec3<f32>(0.35, 0.5, 0.8), ext.livery.rgb, 0.4) * rim * 0.35, out.color.a);
+    let facing = max(dot(normalize(in.world_normal), v), 0.0);
+    let rim = pow(1.0 - facing, 4.0);
+    var rim_col = mix(vec3<f32>(0.35, 0.5, 0.8), ext.livery.rgb, 0.4);
+    if kind <= 1 && style == 1 {
+        // Veyr nacre: the rim shifts from the vein violet to teal with the viewing angle; veins breathe.
+        rim_col = mix(vec3<f32>(0.2, 0.9, 0.8), ext.species.yzw, facing) * 1.6;
+        let breathe = 0.55 + 0.45 * sin(t * 1.4 + ext.state.w * 3.0);
+        out.color = vec4<f32>(out.color.rgb + ext.species.yzw * vein * breathe * 0.45 * (1.0 - scorch), out.color.a);
+    }
+    if kind <= 1 && style == 2 {
+        // Kharz heat seams: amber, slow and dull like cooling metal.
+        let cool = 0.6 + 0.4 * sin(t * 0.6 + ext.state.w * 5.0);
+        out.color = vec4<f32>(out.color.rgb + ext.species.yzw * seam * cool * 1.4, out.color.a);
+        rim_col = rim_col * vec3<f32>(1.0, 0.85, 0.7);
+    }
+    out.color = vec4<f32>(out.color.rgb + rim_col * rim * 0.35, out.color.a);
     // Hit flash.
     out.color = vec4<f32>(out.color.rgb + vec3<f32>(1.5, 1.7, 2.2) * ext.state.y * (0.3 + rim), out.color.a);
 

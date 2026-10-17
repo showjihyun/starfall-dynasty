@@ -60,3 +60,17 @@ pub mod side {
         if hostile { &HOSTILE } else { &FRIEND }
     }
 }
+
+/// Species styles for the hull shader (docs/ART_DIRECTION.md §4): `[style, r, g, b]`, linear RGB.
+/// Style 0 = Human, the baseline worn-industrial look (no extra treatment); 1 = Veyr, nacre shell
+/// with violet veins (the rgb) shading to teal at the rim; 2 = Kharz, blackened iron with amber heat
+/// seams (amber, never red: red means hostile). NPCs and unknown species get −1 (untouched).
+pub fn species_style(s: Option<shared::galaxy::Species>) -> [f32; 4] {
+    use shared::galaxy::Species;
+    match s {
+        Some(Species::Human) => [0.0, 0.85, 0.9, 1.0],
+        Some(Species::Veyr) => [1.0, 0.6, 0.25, 1.0],
+        Some(Species::Kharz) => [2.0, 1.0, 0.58, 0.18],
+        None => [-1.0, 0.0, 0.0, 0.0],
+    }
+}

@@ -69,6 +69,7 @@ pub(crate) mod tests {
             owner: None,
             alliance: None,
             class: None,
+            species: None,
         }
     }
 
