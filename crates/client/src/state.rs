@@ -135,6 +135,10 @@ pub struct Args {
     pub look: Option<String>,
     /// `--replay DIR`: play a recorded session instead of connecting.
     pub replay: Option<String>,
+    /// `--no-create`: with `--auto`, log in but stop at character creation (QA screenshots).
+    pub no_create: bool,
+    /// `--token T`: log in with this token instead of the saved one (QA: look at a bot's captain).
+    pub token: Option<String>,
 }
 
 /// Per-user config dir only (never a shared temp dir); `None` means the token is not persisted.

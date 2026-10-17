@@ -154,10 +154,12 @@ impl Game {
                 continue;
             }
             readers.push(reader);
-            if let Some(rp) = self.store.find_by_name(by)
-                && let Some(p) = self.store.profile_mut(rp)
-            {
-                p.wallet.credits += t.story_per_reader;
+            if let Some(rp) = self.store.find_by_name(by) {
+                if let Some(p) = self.store.profile_mut(rp) {
+                    p.wallet.credits += t.story_per_reader;
+                }
+                // The reporter sees the fee arrive (it used to show only at the next profile update).
+                self.push_profile(rp);
             }
         }
     }
@@ -905,7 +907,35 @@ impl Game {
                     self.send_influence(pid);
                 }
             }
-            _ => self.toast(pid, "[dev] /grow N, /cash, /influence N"),
+            // QA: `/tp station|wreck|poi:<Kind>` — jump next to it in your system (undocked, at rest).
+            Some("/tp") => {
+                let what = it.next().unwrap_or("station").to_string();
+                let Some((sys, eid)) = self.player_entity(pid) else { return };
+                let Some(me) = self.ent(sys, eid).map(|e| e.pos) else { return };
+                let near = |p: Vec3| p.distance(me);
+                let target = match what.as_str() {
+                    "station" => Some(self.systems[&sys].layout.station),
+                    "wreck" => self.systems[&sys].ents.values().filter(|e| e.kind == EntityKind::Wreck).map(|e| e.pos).min_by(|a, b| near(*a).total_cmp(&near(*b))),
+                    k => {
+                        let kind = k.trim_start_matches("poi:");
+                        let skip = self.store.profile(pid).map(|p| p.scanned.clone()).unwrap_or_default();
+                        let pois = &self.systems[&sys].layout.pois;
+                        // Prefer a site not scanned today, so repeated `/tp poi:Ruin` walks the ruins.
+                        pois.iter().filter(|p| format!("{:?}", p.kind) == kind).find(|p| !skip.contains(&(sys, p.id))).or_else(|| pois.iter().find(|p| format!("{:?}", p.kind) == kind)).map(|p| p.pos)
+                    }
+                };
+                match target {
+                    Some(t) => {
+                        if let Some(e) = self.ent_mut(sys, eid) {
+                            e.docked = false;
+                            e.pos = t + Vec3::new(0.0, 0.0, 120.0);
+                            e.vel = Vec3::ZERO;
+                        }
+                    }
+                    None => self.toast(pid, format!("[dev] /tp: {what} 없음")),
+                }
+            }
+            _ => self.toast(pid, "[dev] /grow N, /cash, /influence N [SYS], /tp station|wreck|poi:Kind"),
         }
     }
 

@@ -149,7 +149,7 @@ fn connecting(ctx: &egui::Context, s: &Session) {
 
 fn login(ctx: &egui::Context, form: &mut Form, s: &mut Session, net: &Net, args: &Args) {
     if args.auto && !form.sent_hello && !form.name.is_empty() {
-        send_hello(form, s, net);
+        send_hello(form, s, net, args.token.clone());
     }
     full_screen(ctx, Color32::TRANSPARENT, |ui| {
         ui.add_space(ui.available_height() * 0.25);
@@ -160,7 +160,7 @@ fn login(ctx: &egui::Context, form: &mut Form, s: &mut Session, net: &Net, args:
             let r = ui.add(egui::TextEdit::singleline(&mut form.name).hint_text("2~20자").desired_width(320.0));
             let go = ui.add_enabled(form.name.trim().chars().count() >= 2, egui::Button::new(RichText::new("접속").size(18.0)).min_size(EVec2::new(160.0, 36.0))).clicked() || (r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)));
             if go {
-                send_hello(form, s, net);
+                send_hello(form, s, net, args.token.clone());
             }
             if let Some((e, _)) = &s.last_error {
                 ui.label(RichText::new(e).color(RED));
@@ -171,11 +171,11 @@ fn login(ctx: &egui::Context, form: &mut Form, s: &mut Session, net: &Net, args:
     });
 }
 
-fn send_hello(form: &mut Form, s: &mut Session, net: &Net) {
+fn send_hello(form: &mut Form, s: &mut Session, net: &Net, token: Option<String>) {
     let name = form.name.trim().to_string();
     s.name = name.clone();
     s.last_error = None;
-    net.send(ClientMsg::Hello { version: PROTOCOL_VERSION, name: name.clone(), token: load_token(&name) });
+    net.send(ClientMsg::Hello { version: PROTOCOL_VERSION, name: name.clone(), token: token.or_else(|| load_token(&name)) });
     form.sent_hello = true;
     if form.ship_name.is_empty() {
         form.ship_name = format!("SNS {}", name);
@@ -193,7 +193,7 @@ fn create(ctx: &egui::Context, form: &mut Form, s: &Session, net: &Net, args: &A
     let send = |form: &Form| {
         net.send(ClientMsg::CreateCharacter { species: form.species, profession: form.profession, hull: form.hull, ship_name: form.ship_name.trim().to_string(), livery: form.livery });
     };
-    if args.auto && form.sent_hello {
+    if args.auto && !args.no_create && form.sent_hello {
         form.sent_hello = false;
         if form.ship_name.is_empty() {
             form.ship_name = format!("SNS {}", form.name);
@@ -514,7 +514,7 @@ fn windows(ctx: &egui::Context, s: &mut Session, net: &Net, env: &Env) {
     s.ui.contracts = open;
 
     let mut open = s.ui.chronicle;
-    egui::Window::new("은하 연대기 · Galactic Herald (H)").open(&mut open).default_size([720.0, 640.0]).show(ctx, |ui| chronicle(ui, s, net, &prof));
+    egui::Window::new("은하 연대기 · Galactic Herald (H)").open(&mut open).default_pos([300.0, 60.0]).default_size([720.0, 640.0]).show(ctx, |ui| chronicle(ui, s, net, &prof));
     s.ui.chronicle = open;
 
     let mut open = s.ui.fleet;
@@ -522,7 +522,7 @@ fn windows(ctx: &egui::Context, s: &mut Session, net: &Net, env: &Env) {
     s.ui.fleet = open;
 
     let mut open = s.ui.alliance;
-    egui::Window::new("동맹 (L)").open(&mut open).default_size([520.0, 520.0]).show(ctx, |ui| alliance(ui, s, net));
+    egui::Window::new("동맹 (L)").open(&mut open).default_pos([360.0, 100.0]).default_size([520.0, 520.0]).show(ctx, |ui| alliance(ui, s, net));
     s.ui.alliance = open;
 
     let mut open = s.ui.help;

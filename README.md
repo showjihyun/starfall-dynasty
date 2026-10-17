@@ -93,6 +93,7 @@ cargo build -p server && cargo test -p bot
 
 - `sim/tests/game.rs` — 함선 1척 제한, 워프 거리, PvE 보상/일일 진행, PvP 규칙·전투 기록·잔해 조사·연구, 수배·현상금, 함대, 업그레이드 상한, 시나리오 1장 완주, 채굴/시장, 영속화
 - `view/tests/hud.rs` — HUD를 헤드리스 egui로 그려 글자·배치·색을 검사(조준선 게이지, 손실 막대, 함선 상태 패널)
+- `bot/tests/qa.rs` — Phase 2·3 플레이 체크리스트(docs/QA_PHASE2_3.md)를 헤드리스 함장 둘이 실제 서버에서 플레이: 발굴·계약·배신·격침·잔해·위조·기사·영토, 17항목
 - `bot/tests/e2e.rs` — 실제 서버 프로세스에서 두 함장이 3회 워프 후 War Zone에서 교전 → 연대기 확인, 30명 동시 접속
 
 ## 렌더링

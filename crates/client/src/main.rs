@@ -6,6 +6,7 @@
 
 mod audio;
 mod bench;
+mod clicks;
 mod control;
 mod dust;
 mod fx;
@@ -42,6 +43,8 @@ fn parse_args() -> Args {
         showroom: has("--showroom"),
         look: get("--look"),
         replay: get("--replay"),
+        no_create: has("--no-create"),
+        token: get("--token"),
         script: get("--script").map(|s| s.split(';').map(|x| x.trim().to_string()).filter(|x| !x.is_empty()).collect()).unwrap_or_default(),
     }
 }
@@ -82,6 +85,9 @@ fn main() {
     .add_systems(PreUpdate, (replay::drive.run_if(resource_exists::<replay::Replay>), state::pump_network).chain())
     .add_systems(EguiPrimaryContextPass, ui::ui_system)
     .add_systems(Update, (automation, ping));
+    if let Some(spec) = std::env::args().skip_while(|a| a != "--clicks").nth(1) {
+        app.insert_resource(clicks::parse(&spec)).add_systems(PreUpdate, clicks::inject.before(bevy_egui::EguiPreUpdateSet::ProcessInput));
+    }
     // Harness (docs/HARNESS.md): STARFALL_FIXED_FPS=60 advances time by exactly 1/60 s per frame, so
     // `--shot-at 8` is always the same frame and before/after screenshots compare pixel for pixel.
     if let Some(fps) = std::env::var("STARFALL_FIXED_FPS").ok().and_then(|v| v.parse::<f64>().ok()).filter(|f| *f > 0.0) {
