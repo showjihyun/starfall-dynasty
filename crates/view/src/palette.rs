@@ -74,3 +74,8 @@ pub fn species_style(s: Option<shared::galaxy::Species>) -> [f32; 4] {
         None => [-1.0, 0.0, 0.0, 0.0],
     }
 }
+
+/// The ancient civilisation's light (gates, ruins, glyphs; docs/ART_DIRECTION.md §4): teal-cyan, linear
+/// RGB, and the emissive strength that keeps its hue instead of blowing out to white.
+pub const ANCIENT: [f32; 3] = [0.2, 0.9, 0.8];
+pub const ANCIENT_GLOW: f32 = 2.2;

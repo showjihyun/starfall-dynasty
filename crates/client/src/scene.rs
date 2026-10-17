@@ -79,6 +79,29 @@ fn spin_ring(ev: On<WorldInstanceReady>, mut commands: Commands, children: Query
     }
 }
 
+/// Ancient props (gate, ruin) from Blender carry very bright glyph emission that tonemaps to white:
+/// re-tint every glowing material to the ancient teal at a strength that keeps the hue.
+fn ancient_glow(ev: On<WorldInstanceReady>, children: Query<&Children>, mut q: Query<&mut MeshMaterial3d<StandardMaterial>>, mut mats: ResMut<Assets<StandardMaterial>>) {
+    let [r, g, b] = view::palette::ANCIENT;
+    let k = view::palette::ANCIENT_GLOW;
+    let mut done: std::collections::HashMap<AssetId<StandardMaterial>, Handle<StandardMaterial>> = Default::default();
+    for d in children.iter_descendants(ev.entity) {
+        let Ok(mut h) = q.get_mut(d) else { continue };
+        if let Some(n) = done.get(&h.0.id()) {
+            h.0 = n.clone();
+            continue;
+        }
+        let Some(m) = mats.get(&h.0).cloned() else { continue };
+        let e = m.emissive;
+        if e.red + e.green + e.blue < 0.5 {
+            continue;
+        }
+        let n = mats.add(StandardMaterial { emissive: LinearRgba::rgb(r * k, g * k, b * k), ..m });
+        done.insert(h.0.id(), n.clone());
+        h.0 = n;
+    }
+}
+
 #[derive(Component)]
 pub struct SystemScene;
 
@@ -317,10 +340,10 @@ fn build_system(
     for p in &lay.pois {
         let (col, size): ([f32; 3], f32) = match p.kind {
             PoiKind::Anomaly => ([0.3, 0.9, 1.0], 30.0),
-            PoiKind::Ruin => ([1.0, 0.75, 0.35], 60.0),
+            PoiKind::Ruin => (view::palette::ANCIENT, 60.0),
             PoiKind::Derelict => ([0.9, 0.5, 0.3], 45.0),
             PoiKind::Signal => ([1.0, 0.3, 0.4], 20.0),
-            PoiKind::AncientGate => ([0.7, 0.5, 1.0], 420.0),
+            PoiKind::AncientGate => (view::palette::ANCIENT, 420.0),
         };
         let emis = |k: f32| StandardMaterial { base_color: Color::srgb(0.08, 0.08, 0.1), emissive: LinearRgba::rgb(col[0] * k, col[1] * k, col[2] * k), perceptual_roughness: 0.4, metallic: 0.6, ..default() };
         let mut e = commands.spawn((SystemScene, PoiMarker(p.id), Transform::from_translation(p.pos), Visibility::default()));
@@ -330,7 +353,7 @@ fn build_system(
                     c.spawn((Spin(Vec3::new(0.2, 0.5, 0.1)), Mesh3d(meshes.add(Sphere::new(size * 0.4).mesh().ico(1).unwrap())), MeshMaterial3d(std_mats.add(emis(8.0)))));
                 }
                 PoiKind::Ruin if props.assets.ruin.is_some() => {
-                    c.spawn((WorldAssetRoot(props.assets.ruin.clone().unwrap()), Spin(Vec3::Y * 0.01), Transform::default()));
+                    c.spawn((WorldAssetRoot(props.assets.ruin.clone().unwrap()), Spin(Vec3::Y * 0.01), Transform::default())).observe(ancient_glow);
                 }
                 PoiKind::Ruin => {
                     let stone = std_mats.add(StandardMaterial { base_color: Color::srgb(0.42, 0.38, 0.33), perceptual_roughness: 0.95, ..default() });
@@ -352,7 +375,7 @@ fn build_system(
                     c.spawn((Spin(Vec3::Y), Mesh3d(meshes.add(Cone { radius: 6.0, height: 26.0 })), MeshMaterial3d(std_mats.add(emis(10.0)))));
                 }
                 PoiKind::AncientGate if props.assets.gate.is_some() => {
-                    c.spawn((WorldAssetRoot(props.assets.gate.clone().unwrap()), Transform::default()));
+                    c.spawn((WorldAssetRoot(props.assets.gate.clone().unwrap()), Transform::default())).observe(ancient_glow);
                 }
                 PoiKind::AncientGate => {
                     let stone = std_mats.add(StandardMaterial { base_color: Color::srgb(0.2, 0.18, 0.24), metallic: 0.3, perceptual_roughness: 0.7, ..default() });
@@ -362,7 +385,7 @@ fn build_system(
             }
             // Detailed Blender props carry their own glow; keep only a faint beacon halo around them.
             let modeled = (p.kind == PoiKind::Ruin && props.assets.ruin.is_some()) || (p.kind == PoiKind::AncientGate && props.assets.gate.is_some());
-            let halo = if modeled { 0.08 } else { 0.5 };
+            let halo = if modeled { 0.035 } else { 0.5 };
             c.spawn((NotShadowCaster, Mesh3d(meshes.add(Sphere::new(size * 3.0).mesh().ico(3).unwrap())), MeshMaterial3d(glows.add(GlowMat { p: GlowParams { color: v4(col, halo), center: p.pos.extend(size * 0.3), shape: Vec4::new(3.5, 2.0, size * 3.0, 0.0) } }))));
         });
     }

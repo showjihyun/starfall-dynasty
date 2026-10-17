@@ -115,7 +115,12 @@ Core `GREEN` → Frontier (255,210,90) → Wild (255,140,60) → War Zone `RED` 
   - Kharz: 검게 그을린 쇠(밝기 ×0.33), 금속성 0.75 이상, 천천히 식는 호박색 열 균열.
   - 맥과 균열은 노이즈 등고선을 `fwidth`로 화면상 몇 픽셀 폭으로 고정해서, 거리와 관계없이 선으로 보인다.
   - 참고 이미지: `human.png`, `veyr.png`, `kharz.png` (`client --showroom 7 --species X`).
-- **2단계(예정):** Blender에서 종족별 부착물을 만든다(Kharz 뿔·덧댄 장갑, Veyr 늑골, Human 해치·표기). 노드는 `Species_<종족>_*`로 두고 클라이언트가 해당 종족만 보이게 한다. 리버리 기본값도 종족별로 정한다.
+- **2단계(소형 선체 완료):** `tools/blender/build_ships.py`의 `species_kits`가 다섯 소형 선체에 종족 부착물을 만든다. 노드는 `Species_<Human|Veyr|Kharz>_Kit`이고, 클라이언트는 함장의 종족 것만 보이게 한다(NPC는 모두 숨김). 부착물은 선체 표면에 레이캐스트로 붙인다.
+  - Human: 항법등 달린 안테나 마스트 두 개, 측면 방열 핀, 상부 해치.
+  - Veyr: 동체 단면을 따라 감싼 고리 늑골 세 개와 척추를 따라 빛나는 맥.
+  - Kharz: 앞으로 솟은 뱃머리 뿔 한 쌍, 리벳 박은 덧댄 장갑판 세 장.
+  - 검토용 미리보기: `tools/blender/previews/<선체>_species.png`(종족 셋을 같은 각도로).
+  - 남은 것: 중형·대형 선체(`build_capitals.py`)와 종족별 리버리 기본값.
 - **규칙:** 종족 색은 관계 색(3.4절)과 겹치지 않는다. Kharz는 빨강이 아닌 호박색, Veyr는 아군 청록과 구분되는 보라를 쓴다.
 
 | 종족 | 기획 키워드 | 형태 언어 | 재질·색 | 발광 | 프롬프트 |
@@ -270,9 +275,9 @@ cores, running lights and weapon ports.
 | `docs/art/reference/gate.png` | `--showroom 9 --look gate` | 심우주: 중성자성 보라 하늘, 고대 게이트 |
 | `docs/art/reference/ruin.png` | `--showroom 6 --look ruin` | Hollow Crown: 유적 발광, Wild 성운 |
 | `docs/art/reference/derelict.png` | `--showroom 4 --look derelict` | Vesta Corridor: 백색 왜성, 버려진 호송선 |
-| `docs/art/reference/human.png` | `--showroom 7 --species human` | Human 기준 선체 |
-| `docs/art/reference/veyr.png` | `--showroom 7 --species veyr` | Veyr: 진주빛 청록, 보라 맥, 무지갯빛 림 |
-| `docs/art/reference/kharz.png` | `--showroom 7 --species kharz` | Kharz: 그을린 쇠, 호박색 열 균열 |
+| `docs/art/reference/human.png` | `--showroom 7 --species human --shot-at 20` | Human: 기준 선체, 마스트·방열 핀·해치 |
+| `docs/art/reference/veyr.png` | `--showroom 7 --species veyr --shot-at 20` | Veyr: 진주빛 청록, 보라 맥, 고리 늑골 |
+| `docs/art/reference/kharz.png` | `--showroom 7 --species kharz --shot-at 20` | Kharz: 그을린 쇠, 호박색 열 균열, 뿔, 덧댄 장갑 |
 
 - **콘셉트·모델 기준:** `tools/blender/previews/*.png`. 함선별 히어로 렌더와 시트, 대형 함선, 소품.
 - **생성 프롬프트에 붙일 이미지:** 참고 이미지 중 가장 가까운 장면 하나, 그리고 같은 계열 함선의 `previews` 시트.
@@ -310,7 +315,7 @@ cores, running lights and weapon ports.
 **남은 것:**
 1. **종족 비주얼 2단계**(4절): Blender 종족 부착물과 종족별 리버리 기본값이 남았다. 리버리 판에서 Kharz 균열이 잔점처럼 보이는 곳이 있다(UV 이음새).
 7. **레이 트레이싱과 커스텀 재질:** Solari는 `StandardMaterial`만 추적한다. 선체(`HullMat` 확장 재질), 행성, 항성, 플룸, 실드는 RT 장면에 들어가지 않는다.
-2. **고대 게이트·유적 문양:** Blender 원본은 청록 (.25,.85,1)인데, 게임은 발광을 아군 색 × 4로 덮어써서 거의 흰색으로 날아간다(`gate.png`). 고대 문명 색을 `side`와 별도로 지켜야 한다.
+2. ~~고대 게이트·유적 문양이 흰색으로 날아감~~ → **고침**(2026-10-17): `palette::ANCIENT` (.2,.9,.8), 세기 2.2. 모델 소품의 발광 재질을 불러올 때 다시 칠하고, 후광(0.035)과 POI 색(게이트는 보라, 유적은 금색이었음)도 같은 청록으로 맞췄다.
 3. **'적 빨강'의 색조 차이:** 해적 리버리 [.8,.12,.1]과 Blender 해적 발광 (1,.25,.12)이 3.4절 램프 밖에 따로 있다.
 4. **선체 바 색:** 상태 바 (70,190,110)와 임계값 0.35가 조준선 게이지(`GREEN`, 0.6/0.3)와 다르다. 목표 바 (220,90,70)도 `RED`가 아니다.
 5. **팔레트 밖 리터럴:** `interior.rs`의 GOLD·DIM 복사본, 지도 배경·격자 상수, HUD의 POI 하늘색.
