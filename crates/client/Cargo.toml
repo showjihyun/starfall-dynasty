@@ -15,3 +15,9 @@ tokio = { workspace = true }
 tokio-tungstenite = { workspace = true }
 futures-util = { workspace = true }
 crossbeam-channel = { workspace = true }
+
+[features]
+# Experimental ray-traced lighting (src/raytracing.rs): Vulkan only, run with STARFALL_RT=1.
+raytracing = ["bevy/bevy_solari"]
+# + DLSS Ray Reconstruction denoiser: needs DLSS_SDK, VULKAN_SDK and clang at build time.
+raytracing_dlss = ["raytracing", "bevy/dlss"]

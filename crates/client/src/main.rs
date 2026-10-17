@@ -15,6 +15,8 @@ mod materials;
 mod meshes;
 mod music;
 mod net;
+#[cfg(feature = "raytracing")]
+mod raytracing;
 mod replay;
 mod scene;
 mod ships;
@@ -60,6 +62,8 @@ fn main() {
     shared::prof::enable_from_env();
     let bench_secs: Option<f32> = std::env::args().position(|a| a == "--bench").map(|i| std::env::args().nth(i + 1).and_then(|v| v.parse().ok()).unwrap_or(20.0));
     let mut app = App::new();
+    #[cfg(feature = "raytracing_dlss")]
+    app.insert_resource(raytracing::dlss_project_id());
     app.add_plugins(
         DefaultPlugins
             .set(WindowPlugin {
@@ -95,6 +99,11 @@ fn main() {
     }
     if let Some(secs) = bench_secs {
         app.add_plugins(bench::BenchPlugin { seconds: secs });
+    }
+    // Experimental ray-traced lighting (src/raytracing.rs): `--features raytracing` and STARFALL_RT=1.
+    #[cfg(feature = "raytracing")]
+    if raytracing::wanted() {
+        app.add_plugins(raytracing::RaytracingPlugin);
     }
     app.run();
 }

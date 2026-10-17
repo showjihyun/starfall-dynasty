@@ -206,7 +206,12 @@ cores, running lights and weapon ports.
   - HDR, 톤매핑 TonyMcMapface, FOV 62°.
   - 블룸: NATURAL, 세기 0.2, 저주파 0.55, 임계값 0.9, 부드러움 0.45.
   - 원칙: **진짜 밝은 것만 블룸**. 새 발광체는 방출 세기로 조절하고, 블룸 설정을 바꾸지 않는다.
-- **레이 트레이싱 계층** (2026-10-17 스파이크, Bevy Solari): Vulkan에서만 동작한다(DX12는 wgpu에 ray query가 없음). 노이즈 제거(DLSS RR)가 있어야 쓸 수 있다. 래스터 화면이 기준이고, RT는 같은 아트 디렉션을 더 정확히 비추는 선택 옵션이다.
+- **레이 트레이싱 (실험, 기본 꺼짐):** Bevy Solari를 쓰고, Vulkan에서만 동작한다(wgpu DX12에는 ray query가 없음). **래스터 화면이 기준 룩이다.**
+  - 빌드: `cargo build --release -p client --features raytracing`. DLSS 잡음 제거까지 쓰려면 `--features raytracing_dlss`이고, 빌드할 때 `DLSS_SDK`, `VULKAN_SDK`, `LIBCLANG_PATH`가 필요하다. 실행 파일 옆에 `nvngx_dlss.dll`과 `nvngx_dlssd.dll`을 둔다.
+  - 실행: `STARFALL_RT=1 client …`. 플래그 없이 빌드하거나 `STARFALL_RT`를 켜지 않으면 기존 화면과 같다(artcheck 통과).
+  - 측정(RTX 4070 SUPER, 720p 시험 장면): 래스터 1.95 ms, RT 2.17 ms(잡음 심함), RT + DLSS 2.87 ms(깨끗함).
+  - 한계: Solari는 `StandardMaterial`만 추적한다. 실제 게임에서 RT를 켜면 선체 리버리, 종족 스타일, 발광 같은 커스텀 효과가 사라진다. 정거장과 소행성만 제대로 이득을 본다.
+  - 결정(2026-10-17): 실험 플래그로 보류하고, 래스터 품질을 우선한다.
 
 ---
 
