@@ -896,9 +896,11 @@ impl Game {
                 self.push_profile(pid);
             }
             // QA: give your alliance N influence in the system you are in (control rules apply).
+            // QA: `/influence N [SYSTEM]` — your alliance gains N in that system (default: where you are).
             Some("/influence") => {
                 let n: f32 = it.next().and_then(|v| v.parse().ok()).unwrap_or(80.0);
-                if let Some((sys, _)) = self.player_entity(pid) {
+                let here = self.player_entity(pid).map(|(s, _)| s);
+                if let Some(sys) = it.next().and_then(|v| v.parse::<SystemId>().ok()).or(here) {
                     self.gain_influence(pid, sys, n);
                     self.send_influence(pid);
                 }

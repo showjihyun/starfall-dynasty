@@ -205,6 +205,18 @@ pub struct SocialTuning {
     pub influence_battle_win: f32,
     pub influence_battle_loss: f32,
     pub tax_rate: f32,
+    pub overreach: f32,
+    pub free_systems: u32,
+    pub upkeep_base: u64,
+    pub upkeep_exponent: f32,
+}
+
+impl SocialTuning {
+    /// Hourly treasury upkeep for holding `n` systems (the first `free_systems` cost nothing).
+    pub fn upkeep(&self, n: usize) -> u64 {
+        let over = n.saturating_sub(self.free_systems as usize);
+        if over == 0 { 0 } else { (self.upkeep_base as f32 * (over as f32).powf(self.upkeep_exponent)).round() as u64 }
+    }
 }
 
 /// Forged evidence and authenticity checks (`history.ron`).

@@ -102,10 +102,39 @@ fn main() {
     }
     out += "\n";
     out += &numbers;
+    out += &territory();
     print!("{out}");
     eprintln!("{} duels simulated in {:.2} s", HullClass::ALL.len() * 3 * enc.len(), t0.elapsed().as_secs_f64());
     if let Some(path) = write {
         std::fs::write(&path, &out).expect("write balance sheet");
         eprintln!("wrote {path}");
     }
+}
+
+/// Territory economy (tuning/social.ron): what holding n systems costs and how hard the next one is.
+fn territory() -> String {
+    let g = sim::game::Game::new(sim::store::Store::memory(), history::HistoryEngine::new(), 1_800_000_000);
+    let t = g.tuning.social;
+    let mut out = String::new();
+    out += "
+## 영토 경제
+
+";
+    out += &format!(
+        "동맹이 성계 n개를 지배할 때의 시간당 유지비와, 다음 성계를 얻는 난이도다. 새 성계의 영향력은 1/(1 + {} × n)배로만 쌓인다(과잉 확장). 유지비를 세금만으로 대려면 비동맹 함장들이 그 동맹 영토에서 시간당 거래·현상금으로 `유지비 ÷ 세율({:.0}%)`만큼 벌어야 한다. 금고가 유지비를 못 내면 가장 약한 성계부터 철수한다.
+
+",
+        t.overreach,
+        t.tax_rate * 100.0
+    );
+    out += "| 지배 성계 n | 시간당 유지비 | 다음 성계 영향력 배율 | 다음 성계 장악에 필요한 원래 활동량 | 유지비를 세금으로 대는 데 필요한 비동맹 거래/시간 |
+|---|---|---|---|---|
+";
+    for n in 1..=6usize {
+        let upkeep = g.upkeep(n);
+        let mult = 1.0 / (1.0 + t.overreach * n as f32);
+        out += &format!("| {n} | {upkeep} CR | ×{mult:.2} | {:.0} | {} CR |
+", t.control_threshold / mult, (upkeep as f32 / t.tax_rate).round());
+    }
+    out
 }

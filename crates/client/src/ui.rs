@@ -870,6 +870,10 @@ fn alliance(ui: &mut egui::Ui, s: &mut Session, net: &Net) {
             let leader = s.profile.as_ref().is_some_and(|p| p.name == a.leader);
             ui.horizontal(|ui| {
                 ui.label(RichText::new(format!("금고 {} CR", a.treasury)).color(GOLD)).on_hover_text("지배 성계에서 비동맹 함장의 광석 판매·현상금에 붙는 세금");
+                let held = s.influence.iter().filter(|x| x.controller.as_ref().is_some_and(|c| c.0 == a.id)).count();
+                let upkeep = shared::tuning::get().social.upkeep(held);
+                ui.label(RichText::new(format!("지배 {held}곳 · 유지비 {upkeep} CR/시간")).size(12.0).color(if upkeep > a.treasury { RED } else { DIM }))
+                    .on_hover_text("첫 성계는 무료. 금고가 유지비를 못 내면 가장 약한 성계부터 철수합니다.");
                 if leader && ui.add_enabled(a.treasury >= a.members.len() as u64, egui::Button::new("동맹원에게 균등 배당")).clicked() {
                     net.send(ClientMsg::AllianceDividend);
                 }

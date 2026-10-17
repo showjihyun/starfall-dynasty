@@ -1,0 +1,26 @@
+{
+  "name": "empire_overreach",
+  "description": "성계를 셋 쥔 동맹은 새 영향력이 덜 쌓이고(과잉 확장), 금고가 비면 매시간 유지비를 못 내 가장 약한 성계부터 철수한다",
+  "dev": true,
+  "captains": [
+    { "name": "Emperor", "hull": "Talon", "level": 1, "system": 3, "credits": 2000 }
+  ],
+  "script": [
+    { "at": 0.2, "captain": "Emperor", "msg": { "AllianceCreate": { "name": "Grand Empire", "tag": "EMP" } } },
+    { "at": 0.4, "captain": "Emperor", "msg": { "Chat": { "text": "/influence 100 3" } } },
+    { "at": 0.5, "captain": "Emperor", "msg": { "Chat": { "text": "/influence 100 4" } } },
+    { "at": 0.6, "captain": "Emperor", "msg": { "Chat": { "text": "/influence 100 6" } } }
+  ],
+  "run_secs": 3610,
+  "expect": [
+    { "at": 1.0, "check": "influence", "system": 3, "tag": "EMP", "min": 99.9, "max": 100.1 },
+    { "at": 1.0, "check": "influence", "system": 4, "tag": "EMP", "min": 79.9, "max": 80.1 },
+    { "at": 1.0, "check": "influence", "system": 6, "tag": "EMP", "min": 66.6, "max": 66.7 },
+    { "at": 1.0, "check": "controller", "system": 6, "tag": "EMP" },
+    { "at": 1.0, "check": "history", "kind": "SYSTEM_CONTROL", "min": 3, "max": 3 },
+    { "check": "controller", "system": 6 },
+    { "check": "controller", "system": 3, "tag": "EMP" },
+    { "check": "controller", "system": 4, "tag": "EMP" },
+    { "check": "history", "kind": "SYSTEM_CONTROL", "min": 4, "max": 4 }
+  ]
+}

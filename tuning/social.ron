@@ -18,4 +18,10 @@
     influence_battle_win: 25.0, // an alliance winning a battle in the system…
     influence_battle_loss: 15.0,// …and each alliance on the losing side (subtracted)
     tax_rate: 0.05,             // share of non-members' ore sales and bounties there paid to the controller's treasury
+
+    // Snowball guard.
+    overreach: 0.25,            // influence gains ÷ (1 + overreach × other systems the alliance already controls)
+    free_systems: 1,            // systems held without upkeep (the home base)
+    upkeep_base: 150,           // hourly treasury upkeep = upkeep_base × (held − free_systems)^upkeep_exponent;
+    upkeep_exponent: 1.5,       // unpaid → the weakest held system is abandoned
 )

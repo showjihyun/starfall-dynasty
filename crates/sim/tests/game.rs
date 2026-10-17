@@ -981,3 +981,37 @@ fn controllers_tax_outsiders_and_pay_dividends() {
     assert_eq!(g.store.profile(mate).unwrap().wallet.credits, cm + share);
     assert_eq!(treasury(&g), pot - share * 2);
 }
+
+#[test]
+fn upkeep_is_paid_from_the_treasury_while_it_lasts() {
+    let mut g = game();
+    g.dev_mode = true;
+    let lord = join(&mut g, 1, "Lord", Species::Human, HullClass::Talon, Profession::CombatPilot);
+    g.store.profile_mut(lord).unwrap().wallet.credits = 5000;
+    g.handle(1, ClientMsg::AllianceCreate { name: "Grand Empire".into(), tag: "EMP".into() });
+    let emp = g.alliance_of(lord).unwrap();
+    g.spawn_player(lord, 3, false);
+    for sys in [3, 4] {
+        g.handle(1, ClientMsg::Chat { text: format!("/influence 100 {sys}") });
+    }
+    assert_eq!(g.held_by(emp), vec![3, 4]);
+    assert_eq!(g.upkeep(1), 0, "the first system is free");
+    assert_eq!(g.upkeep(2), 150);
+    assert!(g.upkeep(3) > 2 * g.upkeep(2), "upkeep grows faster than territory");
+    g.store.data.alliances.iter_mut().find(|a| a.id == emp).unwrap().treasury = 400;
+    let hour = 3600 * 20;
+    let run_hour = |g: &mut Game| {
+        g.tick = (g.tick / hour + 1) * hour - 1;
+        g.tick(DT, T0);
+    };
+    run_hour(&mut g);
+    assert_eq!(g.alliance(emp).unwrap().treasury, 250, "paid");
+    run_hour(&mut g);
+    assert_eq!(g.alliance(emp).unwrap().treasury, 100);
+    assert_eq!(g.held_by(emp).len(), 2, "still paying");
+    run_hour(&mut g);
+    assert_eq!(g.held_by(emp).len(), 1, "could not pay: the weakest system is abandoned");
+    assert_eq!(g.alliance(emp).unwrap().treasury, 0);
+    run_hour(&mut g);
+    assert_eq!(g.held_by(emp).len(), 1, "the home system costs nothing");
+}
