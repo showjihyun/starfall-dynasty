@@ -172,6 +172,35 @@ pub struct NpcTuning {
     pub turret_interval: f32,
     pub turret_range: f32,
     pub archetypes: BTreeMap<NpcArchetype, NpcDef>,
+    /// How NPCs use 3D space. Missing (recordings made before it existed): the old flat behaviour.
+    #[serde(default)]
+    pub tactics: Tactics,
+}
+
+/// 3D tactics for NPCs and escorts (main goal: fights that use height). The default is the old
+/// flat behaviour, so a recording made before this existed replays unchanged.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Tactics {
+    /// Closing in, a pirate aims this × distance above or below the target (its dive side), so the
+    /// attack run comes in at an angle (0.55 ≈ 29°).
+    pub dive_slope: f32,
+    /// In gun range, the orbit strafe is tilted out of the ship's horizontal by an angle in this range
+    /// (degrees, fixed per ship)…
+    pub orbit_tilt: (f32, f32),
+    /// …and the tilt turns at this many radians per second (a corkscrew around the target).
+    pub orbit_spin: f32,
+    /// Pirate groups spawn within this horizontal and vertical half-extent of their anchor (u).
+    pub spawn_xz: f32,
+    pub spawn_y: f32,
+    /// Idle patrol circle: vertical swing as a share of its radius.
+    pub wander_tilt: f32,
+}
+
+impl Default for Tactics {
+    fn default() -> Self {
+        Tactics { dive_slope: 0.0, orbit_tilt: (0.0, 0.0), orbit_spin: 0.0, spawn_xz: 300.0, spawn_y: 80.0, wander_tilt: 0.0 }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

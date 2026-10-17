@@ -106,12 +106,54 @@ fn main() {
     out += &social_economy();
     out += &galaxy_sheet();
     out += &mineral_sheet();
+    out += &vertical_sheet();
     print!("{out}");
     eprintln!("{} duels simulated in {:.2} s", HullClass::ALL.len() * 3 * enc.len(), t0.elapsed().as_secs_f64());
     if let Some(path) = write {
         std::fs::write(&path, &out).expect("write balance sheet");
         eprintln!("wrote {path}");
     }
+}
+
+/// Main goal "3D freedom": how much fights use height. A hit counts as from above/below when the
+/// shot came at least `HIGH_ANGLE` degrees off the system plane; a flat fight scores near 0%.
+fn vertical_sheet() -> String {
+    let mut out = String::from("\n## 3D 활용도\n\n");
+    out += &format!(
+        "목표: 평면이 아닌 3차원 전투. 명중 한 발마다 쏜 쪽이 표적보다 얼마나 위·아래에 있었는지(성계 평면 기준 고도각)를 잰다. 「위·아래 명중」 = |고도각| ≥ {:.0}°인 명중 비율, 「평균 고도각」 = |고도각| 평균. 함장 쪽(호위함 포함)이 준 명중만 센다.\n\n| 전투 | 함장 | 명중 | 위·아래 명중 | 평균 고도각 |\n|---|---|---|---|---|\n",
+        sim::metrics::HIGH_ANGLE
+    );
+    let mut row = |label: &str, r: &sim::scenario::Report| {
+        for (name, t) in &r.totals {
+            if t.hits_dealt == 0 {
+                continue;
+            }
+            out += &format!("| {label} | {name} | {} | {:.0}% | {:.1}° |\n", t.hits_dealt, t.high_angle_share().unwrap_or(0.0) * 100.0, t.mean_elev().unwrap_or(0.0));
+        }
+    };
+    for (sys, label) in [(3u16, "해적 사냥 15분 (Frontier)"), (6, "해적 사냥 15분 (Wild)")] {
+        let sc = Scenario {
+            name: format!("vertical hunt {sys}"),
+            description: String::new(),
+            unix: 1_800_000_000,
+            dev: false,
+            ambient_pirates: true,
+            captains: vec![Captain { name: "Hunter".into(), hull: HullClass::Talon, species: Species::Human, profession: Profession::CombatPilot, level: 5, system: sys, pos: None, near_poi: None, near_deposit: None, offset: None, heading: 0.0, undocked: true, credits: 0, cargo: Default::default() }],
+            npcs: vec![],
+            script: vec![Step { at: 0.2, captain: "Hunter".into(), msg: ClientMsg::Controls(Controls { thrust: 0.7, fire: true, ..Default::default() }), repeat_every: Some(0.1), until: None, target_nearest: Some("npc".into()), aim: true, fill_nearest: None, target_captain: None }],
+            run_secs: 900.0,
+            expect: vec![],
+            digest: None,
+        };
+        row(label, &run(&sc, None));
+    }
+    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("scenarios");
+    for file in ["capital_vs_raiders", "fighter_duel_gunship", "war_shifts_control", "wild_crime_bounty"] {
+        let text = std::fs::read_to_string(dir.join(format!("{file}.json"))).unwrap();
+        let sc: Scenario = serde_json::from_str(&text).unwrap();
+        row(&format!("시나리오 {file}"), &run(&sc, None));
+    }
+    out
 }
 
 /// Phase 4-2: the mineral catalogue, what the galaxy's asteroids hold, and what specimens add to mining.

@@ -26,7 +26,19 @@ use std::collections::BTreeMap;
 #[serde(tag = "ev", rename_all = "snake_case")]
 pub enum Metric {
     /// A landed hit: shield points absorbed and hull points lost.
-    Hit { t: f64, sys: SystemId, from: EntityId, from_side: Option<PlayerId>, to: EntityId, to_side: Option<PlayerId>, shield: f32, hull: f32 },
+    /// `elev`: degrees the shot came from above (+) or below (−) the target, against the system plane.
+    Hit {
+        t: f64,
+        sys: SystemId,
+        from: EntityId,
+        from_side: Option<PlayerId>,
+        to: EntityId,
+        to_side: Option<PlayerId>,
+        shield: f32,
+        hull: f32,
+        #[serde(default)]
+        elev: f32,
+    },
     Kill { t: f64, sys: SystemId, victim: EntityId, victim_name: String, victim_side: Option<PlayerId>, killer: Option<PlayerId>, ttk: f32 },
     /// Bounty credits paid to a player for an NPC kill.
     Reward { t: f64, player: PlayerId, credits: u64 },
@@ -46,7 +58,14 @@ pub struct Totals {
     pub last_hit: Option<f64>,
     /// Time-to-kill of every victim this captain killed.
     pub ttk: Vec<f32>,
+    /// 3D use (goal: fights that use height): hits dealt from at least [`HIGH_ANGLE`] above or below
+    /// the target, and the sum of |elevation| over all hits dealt.
+    pub high_angle_hits: u32,
+    pub elev_abs_sum: f32,
 }
+
+/// Degrees off the system plane from which a hit counts as coming from above or below.
+pub const HIGH_ANGLE: f32 = 20.0;
 
 impl Totals {
     /// Average damage per second over the time this captain was dealing it (first to last hit).
@@ -59,6 +78,16 @@ impl Totals {
 
     pub fn mean_ttk(&self) -> Option<f32> {
         (!self.ttk.is_empty()).then(|| self.ttk.iter().sum::<f32>() / self.ttk.len() as f32)
+    }
+
+    /// Share (0–1) of hits dealt from above or below (|elevation| ≥ [`HIGH_ANGLE`]).
+    pub fn high_angle_share(&self) -> Option<f32> {
+        (self.hits_dealt > 0).then(|| self.high_angle_hits as f32 / self.hits_dealt as f32)
+    }
+
+    /// Mean |elevation| (degrees) of hits dealt.
+    pub fn mean_elev(&self) -> Option<f32> {
+        (self.hits_dealt > 0).then(|| self.elev_abs_sum / self.hits_dealt as f32)
     }
 }
 
@@ -128,12 +157,14 @@ impl MetricsLog {
         let mut lines = vec![];
         for ev in events {
             match ev {
-                Metric::Hit { t: at, from_side, to_side, shield, hull, .. } => {
+                Metric::Hit { t: at, from_side, to_side, shield, hull, elev, .. } => {
                     let d = shield + hull;
                     if let Some(p) = from_side {
                         let tot = self.totals.entry(p).or_default();
                         tot.dealt += d;
                         tot.hits_dealt += 1;
+                        tot.elev_abs_sum += elev.abs();
+                        tot.high_angle_hits += (elev.abs() >= HIGH_ANGLE) as u32;
                         tot.first_hit.get_or_insert(at);
                         tot.last_hit = Some(at);
                         self.window.entry(p).or_default().0 += d;

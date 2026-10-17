@@ -182,6 +182,9 @@ pub enum Check {
     Dps { captain: String, #[serde(default)] min: Option<f32>, #[serde(default)] max: Option<f32> },
     /// Mean time-to-kill (s) of the captain's kills: first hit on the victim in the fight to its death.
     Ttk { captain: String, #[serde(default)] min: Option<f32>, #[serde(default)] max: Option<f32> },
+    /// Share (0–1) of the captain's side's hits that came from above or below the target
+    /// (|elevation| ≥ 20° off the system plane): how much the fight used height.
+    Vertical { captain: String, #[serde(default)] min: Option<f32>, #[serde(default)] max: Option<f32> },
     /// Artifacts the captain holds.
     Artifacts { captain: String, #[serde(default)] min: Option<u32>, #[serde(default)] max: Option<u32> },
     /// Mineral specimens the captain holds.
@@ -384,6 +387,13 @@ fn evaluate(run: &Run, c: &Check) -> (bool, String) {
             let (ok, s) = range(v, *min, *max);
             (ok, format!("{captain} artifacts {s}"))
         }
+        Check::Vertical { captain, min, max } => match run.totals(captain).high_angle_share() {
+            Some(v) => {
+                let (ok, s) = range((v * 100.0).round() / 100.0, *min, *max);
+                (ok, format!("{captain} hits from above/below {s}"))
+            }
+            None => (false, format!("{captain} vertical: no hits")),
+        },
         Check::Ttk { captain, min, max } => match run.totals(captain).mean_ttk() {
             Some(v) => {
                 let (ok, s) = range((v * 100.0).round() / 100.0, *min, *max);

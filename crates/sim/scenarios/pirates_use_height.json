@@ -1,0 +1,19 @@
+{
+  "name": "pirates_use_height",
+  "description": "3D 전투(최종 목표): 같은 높이에서 시작해도 해적 둘은 위·아래로 파고들고 기운 궤도로 돌아, 사냥꾼의 명중 30% 이상이 표적의 위·아래 20° 밖에서 나온다(평면 전투면 0%). 싸움은 여전히 이긴다",
+  "captains": [
+    { "name": "Hunter", "hull": "Talon", "level": 1, "system": 5, "pos": [0, 0, 6000] }
+  ],
+  "npcs": [
+    { "archetype": "Raider", "level": 1, "system": 5, "pos": [0, 0, 3500], "count": 2, "spacing": 150 }
+  ],
+  "script": [
+    { "at": 0.5, "captain": "Hunter", "target_nearest": "npc", "aim": true, "msg": { "Controls": { "thrust": 0.4, "fire": true } }, "repeat_every": 0.1 }
+  ],
+  "run_secs": 90,
+  "expect": [
+    { "check": "count", "system": 5, "kind": "npc", "max": 0 },
+    { "check": "alive", "captain": "Hunter" },
+    { "check": "vertical", "captain": "Hunter", "min": 0.3 }
+  ]
+}

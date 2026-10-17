@@ -10,6 +10,17 @@
     turret_interval: 1.1,         // seconds
     turret_range: 1.2,            // share of weapon range
 
+    // 3D tactics (main goal "3D freedom", docs/BALANCE.md 「3D 활용도」). Leaving this block out gives
+    // the old flat behaviour: dive 0, tilt 0, spin 0, spawn 300/80, wander 0.
+    tactics: (
+        dive_slope: 0.55,         // attack runs come in ~29° from above or below
+        orbit_tilt: (35.0, 80.0), // orbit plane tilt per ship, degrees out of the ship's horizontal
+        orbit_spin: 0.25,         // rad/s: the orbit plane keeps turning (corkscrew)
+        spawn_xz: 300.0,
+        spawn_y: 260.0,           // pirate groups spawn in a ball, not a flat slab
+        wander_tilt: 0.6,
+    ),
+
     // bounty: credits × (1 + level), materials as given. Economy rebalance v1 (2026-10-17): credits ×0.6.
     archetypes: {
         Raider:   (hull: 160.0,  shield: 60.0,   damage: 8.0,  fire_interval: 0.5,  speed: 95.0, turn: 1.6, radius: 9.0,  turrets: 0,

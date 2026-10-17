@@ -358,7 +358,8 @@ impl Game {
         let level = tier.pirate_level();
         for i in 0..n {
             let arch = if tier.pirate_level() >= 2 && r.f32() < 0.3 { NpcArchetype::Gunship } else { NpcArchetype::Raider };
-            let pos = anchor + Vec3::new(r.range(-300., 300.), r.range(-80., 80.) + 60.0, r.range(-300., 300.)) + Vec3::X * i as f32 * 40.0;
+            let (xz, y) = (self.tuning.npcs.tactics.spawn_xz, self.tuning.npcs.tactics.spawn_y);
+            let pos = anchor + Vec3::new(r.range(-xz, xz), r.range(-y, y) + 60.0, r.range(-xz, xz)) + Vec3::X * i as f32 * 40.0;
             // Never spawn on top of the station.
             if pos.distance(layout.station) < 1200.0 {
                 continue;
@@ -405,13 +406,15 @@ impl Game {
             Some((tp, tv)) => {
                 let to = tp - pos;
                 let d = to.length();
+                let tac = self.tuning.npcs.tactics;
                 if d > range * 0.7 {
                     controls.thrust = 1.0;
-                    tp + tv * 0.6
+                    // Dive in from above or below rather than head-on in the plane.
+                    tp + tv * 0.6 + Vec3::Y * dive_side(id) * d * tac.dive_slope
                 } else {
-                    // Strafe around the target while keeping guns on it.
+                    // Strafe around the target while keeping guns on it, in a tilted, turning plane.
                     controls.thrust = 0.25;
-                    controls.strafe_x = ai.orbit_sign;
+                    (controls.strafe_x, controls.strafe_y) = orbit_strafe(id, ai.orbit_sign, self.now, &tac);
                     tp + tv * 0.3
                 }
             }
@@ -420,7 +423,8 @@ impl Game {
                 if home_d > 300.0 {
                     controls.thrust = 0.6;
                 }
-                ai.home + Vec3::new((self.now as f32 * 0.1 + id as f32).sin() * 200.0, 0.0, (self.now as f32 * 0.1 + id as f32).cos() * 200.0)
+                let (s, c) = (self.now as f32 * 0.1 + id as f32).sin_cos();
+                ai.home + Vec3::new(s * 200.0, c * 200.0 * self.tuning.npcs.tactics.wander_tilt, c * 200.0)
             }
         };
         let fwd = rot * Vec3::NEG_Z;
@@ -534,7 +538,8 @@ impl Game {
             t.attackers.push((from, attacker_pid, now));
             let to_side = t.side();
             if let Some(m) = self.metrics.as_mut() {
-                m.push(crate::metrics::Metric::Hit { t: now, sys, from, from_side: attacker_pid, to, to_side, shield: absorbed, hull: hull_dmg });
+                let elev = dir.y.clamp(-1.0, 1.0).asin().to_degrees();
+                m.push(crate::metrics::Metric::Hit { t: now, sys, from, from_side: attacker_pid, to, to_side, shield: absorbed, hull: hull_dmg, elev });
             }
             if absorbed > 0.0 {
                 self.pending_fx.entry(sys).or_default().push(Fx::ShieldHit { entity: to, dir: dir.to_array() });
@@ -849,4 +854,17 @@ impl Game {
             }
         }
     }
+}
+
+/// Which way a ship dives at its target: half from above, half from below.
+pub(super) fn dive_side(id: EntityId) -> f32 {
+    if id % 2 == 0 { 1.0 } else { -1.0 }
+}
+
+/// Orbit strafe (local x, local y) for a ship circling its target: tilted out of its horizontal by a
+/// per-ship angle in `orbit_tilt` that turns at `orbit_spin` (tuning `npcs.ron` tactics).
+pub(super) fn orbit_strafe(id: EntityId, sign: f32, now: f64, tac: &shared::tuning::Tactics) -> (f32, f32) {
+    let k = shared::rng::Rng::from_parts(&[0x0B17, id as u64]).f32();
+    let tilt = (tac.orbit_tilt.0 + (tac.orbit_tilt.1 - tac.orbit_tilt.0) * k).to_radians() + now as f32 * tac.orbit_spin;
+    (sign * tilt.cos(), sign * tilt.sin())
 }

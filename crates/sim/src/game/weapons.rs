@@ -221,7 +221,8 @@ impl Game {
             Some(t) => {
                 let d = t.pos.distance(e.pos);
                 c.thrust = if d > e.stats.weapon_range * 0.6 { 1.0 } else { 0.3 };
-                c.strafe_x = ai.orbit_sign * 0.6;
+                let (sx, sy) = super::sim::orbit_strafe(id, ai.orbit_sign, now, &self.tuning.npcs.tactics);
+                (c.strafe_x, c.strafe_y) = (sx * 0.6, sy * 0.6);
                 c.boost = d > 2000.0;
                 t.pos + t.vel * 0.4
             }
