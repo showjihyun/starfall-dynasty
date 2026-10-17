@@ -116,7 +116,12 @@ fn spawn_fx(
                     }
                     WeaponKind::Pulse => {
                         let k = mount as usize;
-                        let start = pick(&sv.turret_muzzles, k).or_else(|| pick(&sv.muzzles, k)).unwrap_or_else(|| {
+                        // Firing arcs (server: even batteries dorsal, odd ventral): fire from a muzzle on
+                        // that side of the hull, so shots never come through the ship.
+                        let dorsal = k % 2 == 0;
+                        let on_side: Vec<Entity> = sv.turret_muzzles.iter().copied().filter(|m| gt.get(*m).is_ok_and(|g| ((stf.rotation.inverse() * (g.translation() - stf.translation)).y >= 0.0) == dorsal)).collect();
+                        let list = if on_side.is_empty() { &sv.turret_muzzles } else { &on_side };
+                        let start = pick(list, k / 2).or_else(|| pick(&sv.muzzles, k)).unwrap_or_else(|| {
                             // No turret nodes: spread shots along the hull.
                             let a = k as f32 * 2.399;
                             stf.translation + stf.rotation * Vec3::new(a.cos() * sv.radius * 0.25, sv.radius * 0.12, (k as f32 / 8.0 - 0.5) * sv.radius * 1.4)

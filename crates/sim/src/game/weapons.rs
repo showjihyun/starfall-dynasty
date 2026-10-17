@@ -151,6 +151,10 @@ impl Game {
             return;
         }
         let (target, searched) = self.turret_target(sys, e);
+        // Firing arcs: where the target sits in the ship's own frame (+y = the hull's top).
+        let overlap = self.tuning.combat.turret_arc_overlap;
+        let up = target.and_then(|t| self.ent(sys, t)).map(|t| (e.rot.inverse() * (t.pos - e.pos)).normalize_or_zero().y).unwrap_or(0.0);
+        let covers = |i: usize| if i % 2 == 0 { up >= -overlap } else { up <= overlap };
         let dmg = e.stats.turret_damage * self.combat_pilot_bonus(e);
         let interval = e.stats.turret_interval;
         let n = e.turret_cds.len();
@@ -161,7 +165,7 @@ impl Game {
             e.retarget_cd = if searched { 0.5 } else { e.retarget_cd - dt };
             for (i, cd) in e.turret_cds.iter_mut().enumerate() {
                 *cd -= dt;
-                if *cd <= 0.0 && target.is_some() {
+                if *cd <= 0.0 && target.is_some() && covers(i) {
                     // Stagger the batteries so they ripple instead of firing in lockstep.
                     *cd = interval * (0.85 + 0.3 * ((i * 7 + 3) % n.max(1)) as f32 / n.max(1) as f32);
                     fired.push(i as u8);

@@ -9,4 +9,8 @@
     lock_cone: 0.22,
     npc_cone: 0.35,
     main_cone: 0.12,
+    // Turret firing arcs (3D): batteries alternate dorsal/ventral. A dorsal battery engages targets
+    // above the hull's plane plus this overlap band (0.25 ≈ 14° below it); ventral the mirror image.
+    // So a ship level with you takes every battery, one straight above or below only half. 1.0 = no arcs.
+    turret_arc_overlap: 0.25,
 )

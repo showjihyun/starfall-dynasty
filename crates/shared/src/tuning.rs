@@ -371,6 +371,15 @@ pub struct CombatTuning {
     pub lock_cone: f32,
     pub npc_cone: f32,
     pub main_cone: f32,
+    /// Turret firing arcs (3D step 3): batteries alternate dorsal and ventral; a dorsal battery
+    /// engages targets whose direction in the ship's frame has up-component ≥ −this (ventral ≤ +this).
+    /// 1.0 = no arcs, the behaviour before arcs existed (and the default for recordings without it).
+    #[serde(default = "no_arcs")]
+    pub turret_arc_overlap: f32,
+}
+
+fn no_arcs() -> f32 {
+    1.0
 }
 
 impl Tuning {

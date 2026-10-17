@@ -1201,3 +1201,35 @@ fn escorts_do_not_count_as_pirates() {
     let pirates = g.systems[&3].ents.values().filter(|e| matches!(e.kind, EntityKind::Npc(_))).count();
     assert!(pirates > 0, "pirates still show up around a big fleet");
 }
+
+/// 3D step 3: turret batteries have firing arcs, alternating dorsal and ventral (tuning
+/// `combat.ron` turret_arc_overlap). A target level with a capital ship draws every battery; one
+/// straight above or below draws only that half — so attackers dive, and captains roll.
+#[test]
+fn turret_arcs_reward_attacking_from_above_or_below() {
+    let hits = |offset: Vec3| {
+        let mut g = game();
+        let pid = join(&mut g, 1, "Admiral", Species::Human, HullClass::Bastion, Profession::Explorer);
+        for m in Module::ALL {
+            g.store.profile_mut(pid).unwrap().ship.modules.insert(m, 9);
+        }
+        move_to_system(&mut g, 1, 5);
+        clear_npcs(&mut g, 5);
+        let me = Vec3::new(0.0, 0.0, 6000.0);
+        place(&mut g, 1, me, me + Vec3::NEG_Z * 100.0);
+        let (sys, eid) = ent_of(&g, 1);
+        assert!(g.ent(sys, eid).unwrap().turret_cds.len() >= 8, "a capital ship with turret batteries");
+        let target = g.spawn_npc(sys, NpcArchetype::Sentinel, 1, me + offset, None);
+        g.ent_mut(sys, target).unwrap().ai = None;
+        g.handle(1, ClientMsg::SetTarget(Some(target)));
+        g.metrics = Some(vec![]);
+        run(&mut g, 10.0);
+        g.metrics.unwrap().iter().filter(|m| matches!(m, sim::metrics::Metric::Hit { from, to, .. } if *from == eid && *to == target)).count()
+    };
+    let (level, above, below) = (hits(Vec3::X * 500.0), hits(Vec3::Y * 500.0), hits(Vec3::NEG_Y * 500.0));
+    assert!(level > 20, "level target draws fire: {level}");
+    for (what, n) in [("above", above), ("below", below)] {
+        let share = n as f32 / level as f32;
+        assert!((0.35..0.65).contains(&share), "a target straight {what} draws only half the batteries: {n} vs {level} level");
+    }
+}
