@@ -123,6 +123,23 @@ impl Game {
                 _ => {}
             }
         }
+        (self.turret_search(sys, e, None), true)
+    }
+
+    /// Up-component of the direction to `t` in `e`'s own frame (+ = above the hull's plane).
+    fn up_of(e: &Ent, t: Vec3) -> f32 {
+        (e.rot.inverse() * (t - e.pos)).normalize_or_zero().y
+    }
+
+    /// Whether battery `i` (even dorsal, odd ventral) can fire at something `up` above the hull's plane.
+    fn battery_covers(i: usize, up: f32, overlap: f32) -> bool {
+        if i % 2 == 0 { up >= -overlap } else { up <= overlap }
+    }
+
+    /// Nearest engaged hostile in turret reach; `dorsal: Some(..)` limits it to that half's arc.
+    fn turret_search(&self, sys: SystemId, e: &Ent, dorsal: Option<bool>) -> Option<EntityId> {
+        let range = e.stats.turret_range;
+        let overlap = self.tuning.combat.turret_arc_overlap;
         let now = self.now;
         let side = e.side();
         let recent: HashSet<EntityId> = e.attackers.iter().filter(|(_, _, at)| now - at < 15.0).map(|(a, _, _)| *a).collect();
@@ -130,6 +147,11 @@ impl Game {
         self.systems[&sys].grid.visit(e.pos, range + MAX_TARGET_RADIUS, |t| {
             let d = t.pos.distance(e.pos);
             if d > range + t.radius || best.is_some_and(|(_, bd)| d >= bd) {
+                return;
+            }
+            if let Some(dorsal) = dorsal
+                && !Self::battery_covers(if dorsal { 0 } else { 1 }, Self::up_of(e, t.pos), overlap)
+            {
                 return;
             }
             let engaged = match side {
@@ -142,7 +164,7 @@ impl Game {
                 best = Some((t.id, d));
             }
         });
-        (best.map(|b| b.0), true)
+        best.map(|b| b.0)
     }
 
     pub(super) fn fire_turrets(&mut self, sys: SystemId, id: EntityId, dt: f32, shots: &mut Vec<Shot>) {
@@ -153,32 +175,58 @@ impl Game {
         let (target, searched) = self.turret_target(sys, e);
         // Firing arcs: where the target sits in the ship's own frame (+y = the hull's top).
         let overlap = self.tuning.combat.turret_arc_overlap;
-        let up = target.and_then(|t| self.ent(sys, t)).map(|t| (e.rot.inverse() * (t.pos - e.pos)).normalize_or_zero().y).unwrap_or(0.0);
-        let covers = |i: usize| if i % 2 == 0 { up >= -overlap } else { up <= overlap };
+        let up = target.and_then(|t| self.ent(sys, t)).map(|t| Self::up_of(e, t.pos)).unwrap_or(0.0);
+        // The half that cannot reach the main target takes its own side's nearest hostile (kept
+        // between searches while it stays valid and on that side).
+        let idle_half = match target {
+            Some(_) if !Self::battery_covers(0, up, overlap) => Some(true),
+            Some(_) if !Self::battery_covers(1, up, overlap) => Some(false),
+            _ => None,
+        };
+        // The idle half searches on the same staggered timer as the main pick.
+        let alt_due = searched || e.retarget_cd <= 0.0;
+        let mut alt_searched = false;
+        let alt = idle_half.and_then(|dorsal| {
+            let keep = e.turret_alt.filter(|a| !alt_due && Some(*a) != target && self.ent(sys, *a).is_some_and(|t| !t.dead && t.pos.distance(e.pos) <= e.stats.turret_range + t.stats.radius && Self::battery_covers(if dorsal { 0 } else { 1 }, Self::up_of(e, t.pos), overlap)));
+            keep.or_else(|| {
+                alt_searched = alt_due;
+                if alt_due { self.turret_search(sys, e, Some(dorsal)) } else { None }
+            })
+        });
+        let alt_up = alt.and_then(|t| self.ent(sys, t)).map(|t| Self::up_of(e, t.pos)).unwrap_or(0.0);
+        let aim = |i: usize| -> Option<EntityId> {
+            match (target, alt) {
+                (Some(t), _) if Self::battery_covers(i, up, overlap) => Some(t),
+                (_, Some(a)) if Self::battery_covers(i, alt_up, overlap) => Some(a),
+                _ => None,
+            }
+        };
         let dmg = e.stats.turret_damage * self.combat_pilot_bonus(e);
         let interval = e.stats.turret_interval;
         let n = e.turret_cds.len();
-        let mut fired = vec![];
+        let mut fired: Vec<(u8, EntityId)> = vec![];
         {
+            let aims: Vec<Option<EntityId>> = (0..n).map(aim).collect();
             let e = self.ent_mut(sys, id).unwrap();
             e.turret_target = target;
-            e.retarget_cd = if searched { 0.5 } else { e.retarget_cd - dt };
+            e.turret_alt = alt;
+            e.retarget_cd = if searched || alt_searched { 0.5 } else { e.retarget_cd - dt };
             for (i, cd) in e.turret_cds.iter_mut().enumerate() {
                 *cd -= dt;
-                if *cd <= 0.0 && target.is_some() && covers(i) {
+                if *cd <= 0.0
+                    && let Some(t) = aims[i]
+                {
                     // Stagger the batteries so they ripple instead of firing in lockstep.
                     *cd = interval * (0.85 + 0.3 * ((i * 7 + 3) % n.max(1)) as f32 / n.max(1) as f32);
-                    fired.push(i as u8);
+                    fired.push((i as u8, t));
                 } else if *cd < 0.0 {
                     *cd = 0.0;
                 }
             }
         }
-        if let Some(t) = target {
-            for mount in fired {
-                shots.push(Shot { from: id, to: t, dmg });
-                self.fx(sys, Fx::Shot { from: id, to: t, weapon: WeaponKind::Pulse, mount, hit: true });
-            }
+        for (mount, t) in fired {
+            shots.push(Shot { from: id, to: t, dmg });
+            self.fx(sys, Fx::Shot { from: id, to: t, weapon: WeaponKind::Pulse, mount, hit: true });
         }
     }
 

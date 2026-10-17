@@ -94,6 +94,8 @@ pub struct Ent {
     pub main_cd: f32,
     /// Turret battery target, re-acquired on a staggered timer rather than every tick.
     pub turret_target: Option<EntityId>,
+    /// What the half of the batteries that cannot reach `turret_target` engages (its own side's nearest).
+    pub turret_alt: Option<EntityId>,
     pub retarget_cd: f32,
 }
 
@@ -135,6 +137,7 @@ impl Ent {
             turret_cds: (0..stats.turrets).map(|i| 0.2 + i as f32 * 0.137 % 0.9).collect(),
             main_cd: 1.0,
             turret_target: None,
+            turret_alt: None,
             retarget_cd: (id % 10) as f32 * 0.05,
         }
     }

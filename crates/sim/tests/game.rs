@@ -1233,3 +1233,33 @@ fn turret_arcs_reward_attacking_from_above_or_below() {
         assert!((0.35..0.65).contains(&share), "a target straight {what} draws only half the batteries: {n} vs {level} level");
     }
 }
+
+/// Round B: a battery that cannot reach the main target engages the nearest hostile on its own side,
+/// so a capital ship fights above and below at once instead of idling half its guns.
+#[test]
+fn turret_halves_engage_their_own_side() {
+    let mut g = game();
+    let pid = join(&mut g, 1, "Admiral", Species::Human, HullClass::Bastion, Profession::Explorer);
+    for m in Module::ALL {
+        g.store.profile_mut(pid).unwrap().ship.modules.insert(m, 9);
+    }
+    move_to_system(&mut g, 1, 5);
+    clear_npcs(&mut g, 5);
+    let me = Vec3::new(0.0, 0.0, 6000.0);
+    place(&mut g, 1, me, me + Vec3::NEG_Z * 100.0);
+    let (sys, eid) = ent_of(&g, 1);
+    let above = g.spawn_npc(sys, NpcArchetype::Sentinel, 1, me + Vec3::Y * 500.0, None);
+    let below = g.spawn_npc(sys, NpcArchetype::Sentinel, 1, me + Vec3::NEG_Y * 500.0, None);
+    for t in [above, below] {
+        g.ent_mut(sys, t).unwrap().ai = None;
+    }
+    g.handle(1, ClientMsg::SetTarget(Some(above)));
+    // Both hostiles are shooting at us, so both count as engaged.
+    g.ent_mut(sys, eid).unwrap().attackers = vec![(above, None, 0.0), (below, None, 0.0)];
+    g.metrics = Some(vec![]);
+    run(&mut g, 10.0);
+    let hits = |t: EntityId| g.metrics.as_ref().unwrap().iter().filter(|m| matches!(m, sim::metrics::Metric::Hit { from, to, .. } if *from == eid && *to == t)).count();
+    let (a, b) = (hits(above), hits(below));
+    assert!(a > 20 && b > 20, "dorsal half on the target above ({a}), ventral half on the one below ({b})");
+    assert!((a as f32 / b as f32 - 1.0).abs() < 0.35, "the halves share the work: {a} vs {b}");
+}
