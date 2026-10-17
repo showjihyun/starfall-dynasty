@@ -53,6 +53,8 @@ pub struct ShipVis {
     pub hostile: bool,
     /// Species style for the hull shader (`palette::species_style`).
     pub species: [f32; 4],
+    /// The captain's species: which `Species_<Name>_Kit` node the model shows (none for NPCs).
+    pub species_of: Option<shared::galaxy::Species>,
     pub hull_mats: Vec<Handle<HullMat>>,
     pub plumes: Vec<Handle<EngineMat>>,
     /// Camera-facing glow at every nozzle exit (one material per ship).
@@ -292,6 +294,7 @@ fn spawn_visual(
         glow,
         hostile,
         species: view::palette::species_style(st.species),
+        species_of: st.species,
         hull_mats: vec![],
         plumes: vec![],
         nozzle_glow: None,
@@ -455,6 +458,10 @@ fn on_model_ready(
                 muzzles.push((k, d));
             } else if let Some(rank) = n.strip_prefix("Rank").and_then(|r| r.split('_').next()).and_then(|r| r.parse::<u8>().ok()) {
                 commands.entity(d).insert(RankPart(rank));
+            } else if let Some(kit) = n.strip_prefix("Species_").and_then(|r| r.split('_').next()) {
+                // Species kit (docs/ART_DIRECTION.md §4): only the captain's own species is shown.
+                let mine = ship.species_of.is_some_and(|s| format!("{s:?}") == kit);
+                commands.entity(d).insert(if mine { Visibility::Inherited } else { Visibility::Hidden });
             }
         }
         if let Ok((MeshMaterial3d(h), gname)) = mesh_q.get(d) {

@@ -1160,6 +1160,116 @@ def build_seer(ship):
 
 # ================================================================ registry
 
+# ================================================================ species kits (docs/ART_DIRECTION.md §4)
+# Separate nodes `Species_<Human|Veyr|Kharz>_Kit`; the client shows the one matching the captain's
+# species. Parts are anchored by ray casts onto the finished hull so they sit on its real surface.
+
+def _body_bounds(ship):
+    lo = Vector((1e9, 1e9, 1e9))
+    hi = Vector((-1e9, -1e9, -1e9))
+    for o in ship.groups.get("body", []):
+        for v in o.data.vertices:
+            p = o.matrix_world @ v.co
+            lo = Vector((min(lo.x, p.x), min(lo.y, p.y), min(lo.z, p.z)))
+            hi = Vector((max(hi.x, p.x), max(hi.y, p.y), max(hi.z, p.z)))
+    return lo, hi
+
+
+def _hit(ship, origin, direction):
+    """Nearest hit on the body from origin along direction: (point, normal) or None."""
+    best = None
+    for o in ship.groups.get("body", []):
+        inv = o.matrix_world.inverted()
+        ok, loc, nrm, _ = o.ray_cast(inv @ Vector(origin), inv.to_3x3() @ Vector(direction))
+        if ok:
+            p = o.matrix_world @ loc
+            d = (p - Vector(origin)).length
+            if best is None or d < best[0]:
+                best = (d, p, (o.matrix_world.to_3x3() @ nrm).normalized())
+    return None if best is None else (best[1], best[2])
+
+
+def species_kits(ship):
+    lo, hi = _body_bounds(ship)
+    length = hi.y - lo.y
+    u = length / 30.0  # ~1 m on a 30 m hull
+    zc = (lo.z + hi.z) / 2
+    yat = lambda f: lo.y + f * length  # f: 0 stern .. 1 nose (+Y)
+
+    def top(x, f):
+        h = _hit(ship, (x, yat(f), hi.z + 10 * u), (0, 0, -1))
+        return h[0] if h else None
+
+    def side(f, z=None):
+        h = _hit(ship, (hi.x + 10 * u, yat(f), zc if z is None else z), (-1, 0, 0))
+        return h[0] if h else None
+
+    # --- Human: industrial — antenna masts with running lights, side radiator fins, a top hatch.
+    def human_top(bm):
+        for f, hgt in ((0.32, 3.2), (0.4, 2.0)):
+            p = top(0.0, f)
+            if p:
+                antenna(bm, p - Vector((0, 0, 0.1 * u)), hgt * u, r=0.07 * u)
+        p = top(0.0, 0.66)
+        if p:
+            box(bm, p + Vector((0, 0, 0.05 * u)), (1.7 * u, 1.7 * u, 0.16 * u))
+            box(bm, p + Vector((0, 0, 0.16 * u)), (1.1 * u, 1.1 * u, 0.1 * u), mat=L)
+
+    def human_side(bm):
+        p = side(0.45)
+        if p:
+            for k in range(3):
+                c = p + Vector((0.5 * u, (k - 1) * 0.9 * u, 0))
+                box(bm, c, (1.0 * u, 0.12 * u, 1.3 * u))
+            light(bm, p + Vector((0.2 * u, 1.6 * u, 0.4 * u)), r=0.12 * u)
+
+    ship.part(human_top, group="Species_Human_Kit", bevel=0.01, segs=1)
+    ship.part(human_side, group="Species_Human_Kit", bevel=0.01, segs=1, mirror=True)
+
+    # --- Veyr: bio-tech — hoop ribs following the fuselage section, a glowing spine vein.
+    def veyr(bm):
+        tops = []
+        for f in (0.36, 0.5, 0.64):
+            t, s = top(0.0, f), side(f)
+            b = _hit(ship, (0, yat(f), lo.z - 10 * u), (0, 0, 1))
+            if not (t and s and b):
+                continue
+            a = s.x + 0.35 * u
+            zt, zb = t.z + 0.35 * u, b[0].z - 0.35 * u
+            cz, bz = (zt + zb) / 2, (zt - zb) / 2
+            pts = [Vector((a * math.cos(2 * math.pi * k / 24), yat(f), cz + bz * math.sin(2 * math.pi * k / 24))) for k in range(25)]
+            for p0, p1 in zip(pts, pts[1:]):
+                prism(bm, p0, p1, 0.16 * u, 0.12 * u, chamfer=0.4, up=(0, 1, 0))
+            tops.append(Vector((0, yat(f), zt + 0.05 * u)))
+        for p0, p1 in zip(tops, tops[1:]):
+            strip(bm, p0, p1, w=0.09 * u, h=0.05 * u, mat=G)
+
+    ship.part(veyr, group="Species_Veyr_Kit", bevel=0, subsurf=1, angle=60, weighted=False)
+
+    # --- Kharz: forged war hull — forward horns at the bow, riveted patch armour on the back.
+    def kharz_horns(bm):
+        p = top(0.18 * (hi.x - lo.x), 0.78) or side(0.78)
+        if p:
+            base = p + Vector((0, 0, -0.1 * u))
+            tip = base + Vector((0.6 * u, 4.2 * u, 1.6 * u))
+            cyl(bm, base, tip, 0.45 * u, 0.0, n=10)
+            cyl(bm, base - Vector((0, 0.3 * u, 0)), base + Vector((0, 0.5 * u, 0)), 0.6 * u, 0.6 * u, n=10)
+
+    def kharz_plates(bm):
+        for f in (0.3, 0.44, 0.58):
+            p = top(0.0, f)
+            if not p:
+                continue
+            c = p + Vector((0, 0, 0.06 * u))
+            box(bm, c, (2.4 * u, 1.7 * u, 0.18 * u))
+            for sx in (-1, 1):
+                for sy in (-1, 1):
+                    box(bm, c + Vector((sx * 1.0 * u, sy * 0.65 * u, 0.12 * u)), (0.16 * u, 0.16 * u, 0.12 * u))
+
+    ship.part(kharz_horns, group="Species_Kharz_Kit", bevel=0.015, segs=1, mirror=True)
+    ship.part(kharz_plates, group="Species_Kharz_Kit", bevel=0.01, segs=1)
+
+
 STYLES = {
     'talon': dict(paint=(0.16, 0.17, 0.19), paint2=(0.1, 0.11, 0.12), accent=(0.21, 0.22, 0.24),
                   metal=0.45, rough=0.42, spacing=(1.2, 1.6, 0.9), wear=0.9, grime=0.9, sub_amt=0.25),
@@ -1182,6 +1292,7 @@ def run(name, bake=True, preview=True, tex=2048):
     mats, socks = shiplib.make_materials(STYLES[name])
     ship = Ship(name, mats)
     BUILDERS[name](ship)
+    species_kits(ship)
     objs = ship.finalize()
     tris, per = ship.tri_count()
     log(name, "triangles", tris, per)
@@ -1201,8 +1312,9 @@ def run(name, bake=True, preview=True, tex=2048):
         gl.inputs['Emission Color'].default_value = (0.35, 0.8, 1.0, 1)
         cam = shiplib.setup_preview_scene()
         ranks = [o for n_, o in objs.items() if n_.startswith("Rank")]
+        kits = {n_: o for n_, o in objs.items() if n_.startswith("Species_")}
         allo = list(objs.values())
-        for o in ranks:
+        for o in ranks + list(kits.values()):
             o.hide_render = True
         shiplib.frame(cam, allo, (1.0, 1.15, 0.55))
         shiplib.render(os.path.join(PREVIEWS, name + ".png"))
@@ -1221,6 +1333,20 @@ def run(name, bake=True, preview=True, tex=2048):
             shiplib.render(p, 640, 360, 48)
             views.append(p)
         shiplib.compose_sheet(views, os.path.join(PREVIEWS, name + "_sheet.png"))
+        # Species kits: one render each, same angle (docs/ART_DIRECTION.md §4).
+        for o in ranks:
+            o.hide_render = True
+        kviews = []
+        for kname in ("Species_Human_Kit", "Species_Veyr_Kit", "Species_Kharz_Kit"):
+            for n_, o in kits.items():
+                o.hide_render = n_ != kname
+            p = os.path.join(tmp, "%s_%s.png" % (name, kname))
+            shiplib.frame(cam, allo, (1.0, 0.9, 0.7))
+            shiplib.render(p, 640, 360, 48)
+            kviews.append(p)
+        for o in kits.values():
+            o.hide_render = True
+        shiplib.compose_sheet(kviews, os.path.join(PREVIEWS, name + "_species.png"), cols=3)
     log(name, "done in %.1fs" % (time.time() - t0))
     return tris
 

@@ -18,6 +18,8 @@ import subprocess
 import sys
 import tempfile
 
+from PIL import Image
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 REF = os.path.join(ROOT, 'docs', 'art', 'reference')
 CLIENT = os.path.join(ROOT, 'target', 'release', 'client.exe' if os.name == 'nt' else 'client')
@@ -31,16 +33,24 @@ SCENES = {
     'ruin': (['--showroom', '6', '--look', 'ruin'], 'Hollow Crown: ruin glow, Wild-tier nebula'),
     'derelict': (['--showroom', '4', '--look', 'derelict'], 'Vesta Corridor: white dwarf, derelict convoy'),
     # Species styles (docs/ART_DIRECTION.md §4): the same fleet and camera, one species each.
-    'human': (['--showroom', '7', '--species', 'human'], 'Human: the baseline worn-industrial hulls'),
-    'veyr': (['--showroom', '7', '--species', 'veyr'], 'Veyr: dark-teal nacre, violet veins, iridescent rim'),
-    'kharz': (['--showroom', '7', '--species', 'kharz'], 'Kharz: blackened iron, amber heat seams'),
+    # Shot at 20 s, when the orbit frames a small hull (species kits: masts / ribs / horns).
+    'human': (['--showroom', '7', '--species', 'human', '--shot-at', '20'], 'Human: worn-industrial hulls, masts, radiators, hatch'),
+    'veyr': (['--showroom', '7', '--species', 'veyr', '--shot-at', '20'], 'Veyr: dark-teal nacre, violet veins, hoop ribs'),
+    'kharz': (['--showroom', '7', '--species', 'kharz', '--shot-at', '20'], 'Kharz: blackened iron, amber heat seams, bow horns, patch armour'),
 }
 
 
 def render(args, out):
     env = dict(os.environ, STARFALL_FIXED_FPS='60', STARFALL_HIDE_UI='1')
-    subprocess.run([CLIENT, *args, '--shot', out, '--shot-at', '8'], env=env, cwd=ROOT, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=120)
-    return os.path.exists(out)
+    at = [] if '--shot-at' in args else ['--shot-at', '8']
+    # A screenshot taken before the window is ready can come back as a 1×1 image: never accept one.
+    for _ in range(2):
+        if os.path.exists(out):
+            os.remove(out)
+        subprocess.run([CLIENT, *args, '--shot', out, *at], env=env, cwd=ROOT, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=180)
+        if os.path.exists(out) and Image.open(out).size[0] >= 640:
+            return True
+    return False
 
 
 def similarity(a, b):
