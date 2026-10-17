@@ -9,4 +9,11 @@
     scarcity_supply: 120.0,
     trader_bonus: 1.2,          // Trader profession: sale price ×
     miner_bonus: 1.4,           // Miner profession: mining rate ×
+
+    // Risk premium by system tier: scans, artifacts and battle wins…
+    risk_reward: { Core: 0.6, Frontier: 1.0, Wild: 1.5, WarZone: 1.8, Deep: 2.6 },
+    // …and pirate bounties (Core never pays less than Frontier for a pirate). Rebalance v1.1 (2026-10-17):
+    // Wild/WarZone/Deep 1.5/1.8/2.6 → 0.95/1.15/1.6 — more and tougher pirates already pay more there;
+    // Wild hunting was ~2× Wild mining, now ~1.3×.
+    bounty_risk: { Core: 1.0, Frontier: 1.0, Wild: 0.95, WarZone: 1.15, Deep: 1.6 },
 )

@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 
 pub type SystemId = u16;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum RiskTier {
     /// Safe space. No PvP.
     Core,
@@ -41,14 +41,14 @@ impl RiskTier {
         }
     }
 
+    /// Reward multiplier for scans, artifacts and battle wins (`tuning/economy.ron` `risk_reward`).
     pub fn reward_mult(self) -> f32 {
-        match self {
-            RiskTier::Core => 0.6,
-            RiskTier::Frontier => 1.0,
-            RiskTier::Wild => 1.5,
-            RiskTier::WarZone => 1.8,
-            RiskTier::Deep => 2.6,
-        }
+        crate::tuning::get().economy.risk_reward[&self]
+    }
+
+    /// Pirate bounty multiplier (`tuning/economy.ron` `bounty_risk`).
+    pub fn bounty_mult(self) -> f32 {
+        crate::tuning::get().economy.bounty_risk[&self]
     }
 
     pub fn label(self) -> &'static str {

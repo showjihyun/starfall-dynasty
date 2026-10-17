@@ -196,6 +196,10 @@ pub struct EconomyTuning {
     pub scarcity_supply: f32,
     pub trader_bonus: f32,
     pub miner_bonus: f32,
+    /// Per risk tier: scan, artifact and battle-win rewards…
+    pub risk_reward: BTreeMap<crate::galaxy::RiskTier, f32>,
+    /// …and pirate bounties.
+    pub bounty_risk: BTreeMap<crate::galaxy::RiskTier, f32>,
 }
 
 /// Player contracts (`social.ron`).
@@ -334,6 +338,10 @@ impl Tuning {
         }
         for a in NpcArchetype::ALL {
             self.npcs.archetypes.get(&a).ok_or(format!("npcs.ron: archetypes has no {a:?}"))?;
+        }
+        for t in [crate::galaxy::RiskTier::Core, crate::galaxy::RiskTier::Frontier, crate::galaxy::RiskTier::Wild, crate::galaxy::RiskTier::WarZone, crate::galaxy::RiskTier::Deep] {
+            self.economy.risk_reward.get(&t).ok_or(format!("economy.ron: risk_reward has no {t:?}"))?;
+            self.economy.bounty_risk.get(&t).ok_or(format!("economy.ron: bounty_risk has no {t:?}"))?;
         }
         for o in crate::galaxy::Ore::ALL {
             self.economy.ore_prices.get(&o).ok_or(format!("economy.ron: ore_prices has no {o:?}"))?;

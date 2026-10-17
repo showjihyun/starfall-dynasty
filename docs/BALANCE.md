@@ -70,9 +70,12 @@ Phase 2·3 수입원을 한 표로 모았다. 사냥·채굴은 시뮬레이션�
 | Talon | 1 | Orion Drift (Frontier) | 7 | 980 CR | 34521 | 102초에 격침 |
 | Talon | 5 | Orion Drift (Frontier) | 70 | 9800 CR | 39200 | 끝까지 |
 | Talon | 9 | Orion Drift (Frontier) | 70 | 9800 CR | 39200 | 끝까지 |
-| Talon | 1 | Hollow Crown (Wild) | 3 | 945 CR | 63352 | 54초에 격침 |
-| Talon | 5 | Hollow Crown (Wild) | 83 | 35433 CR | 141732 | 끝까지 |
-| Talon | 9 | Hollow Crown (Wild) | 83 | 35433 CR | 141732 | 끝까지 |
+| Talon | 1 | Hollow Crown (Wild) | 3 | 600 CR | 40223 | 54초에 격침 |
+| Talon | 5 | Hollow Crown (Wild) | 83 | 22456 CR | 89824 | 끝까지 |
+| Talon | 9 | Hollow Crown (Wild) | 83 | 22456 CR | 89824 | 끝까지 |
+| Talon | 1 | Vesta Front (War Zone) | 3 | 1361 CR | 43668 | 112초에 격침 |
+| Talon | 5 | Vesta Front (War Zone) | 70 | 30440 CR | 121760 | 끝까지 |
+| Talon | 9 | Vesta Front (War Zone) | 70 | 30440 CR | 121760 | 끝까지 |
 
 ### 채굴·판매 (시뮬레이션)
 

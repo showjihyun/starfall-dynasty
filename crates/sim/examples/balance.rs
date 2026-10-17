@@ -151,7 +151,7 @@ fn social_economy() -> String {
 
     // Hunting: 15 minutes in a pirate system with ambient spawning, flying at and shooting the nearest pirate.
     out += "### 해적 사냥 (15분 시뮬레이션)\n\n성계 기본 해적 출현(18초마다 보충)을 켠 채, 가장 가까운 해적에게 다가가며 조준 사격한다. 격침되면 그 시점까지로 계산한다.\n\n| 함선 | Lv | 성계 | 격파 | 현상금 합계 | 시간당 CR | 생존 |\n|---|---|---|---|---|---|---|\n";
-    for (sys, label) in [(3u16, "Orion Drift (Frontier)"), (6, "Hollow Crown (Wild)")] {
+    for (sys, label) in [(3u16, "Orion Drift (Frontier)"), (6, "Hollow Crown (Wild)"), (7, "Vesta Front (War Zone)")] {
         for level in [1u8, 5, 9] {
             let sc = Scenario {
                 name: format!("hunt {sys} {level}"),

@@ -579,7 +579,7 @@ impl Game {
                 let level = e.ai.as_ref().map(|a| a.level).unwrap_or(0);
                 if let Some((_, kpid)) = killer {
                     let mut reward = arch.bounty(level);
-                    let mult = tier.reward_mult().max(1.0) * if self.store.profile(kpid).is_some_and(|p| p.profession == Profession::CombatPilot) { 1.3 } else { 1.0 };
+                    let mult = tier.bounty_mult() * if self.store.profile(kpid).is_some_and(|p| p.profession == Profession::CombatPilot) { 1.3 } else { 1.0 };
                     reward.credits = (reward.credits as f32 * mult * self.home_turf(kpid, sys)) as u64;
                     let group = self.credit_group(kpid, sys);
                     for (i, pid) in group.iter().enumerate() {
