@@ -13,6 +13,9 @@ The game is designed to be its own harness — read `docs/HARNESS.md` before cha
   See it in 3D: `STARFALL_FIXED_FPS=60 client --replay DIR [--as NAME] [--from SECS] [--speed X] --shot X.png --shot-at T`
   (prints the digest verdict; same command → identical image).
 - Visuals, by numbers: `STARFALL_FIXED_FPS=60 STARFALL_HIDE_UI=1 client --showroom 7 --shot X.png --shot-at 8` (same command → identical image), then `python tools/imgdiff.py before.png after.png [--crop X,Y,W,H]` or `--stats`.
+- Art direction: docs/ART_DIRECTION.md is the visual style guide (prompts, palette, rules); colours come only from
+  `crates/view/src/palette.rs`. After a visual change run `python tools/artcheck.py` (renders the reference scenes and
+  compares them with docs/art/reference/); approve an intended new look with `--update` in the same commit.
 - Play QA (no human needed): `cargo run -p bot --release --example qa` plays docs/QA_PHASE2_3.md with two headless captains
   against a real `--dev` server and prints PASS/FAIL per item; `--keep --data DIR` leaves the world up for
   `client --token … --auto --script "station 1" --shot …`; `client --clicks "x,y@t;…"` injects real mouse clicks.

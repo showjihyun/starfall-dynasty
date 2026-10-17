@@ -8,7 +8,7 @@ use bevy::prelude::*;
 use bevy_egui::{EguiContexts, egui};
 use egui::{Align2, Color32, FontId, Pos2, RichText, Stroke, Vec2 as EVec2};
 use shared::chronicle::{Authenticity, Importance};
-use shared::galaxy::{self, Ore, PoiKind, RiskTier, Species};
+use shared::galaxy::{self, Ore, PoiKind, Species};
 use shared::missions::{Objective, scenarios};
 use shared::protocol::*;
 use shared::ships::{HullClass, MAX_MODULE_LEVEL, Module, Ship, tier_cap, upgrade_cost};
@@ -35,15 +35,7 @@ use view::hud::{bar, crosshair_gauges};
 use view::palette::{ACCENT, DIM, GOLD, GREEN, RED};
 use view::relation::Viewer;
 
-pub fn tier_color(t: RiskTier) -> Color32 {
-    match t {
-        RiskTier::Core => GREEN,
-        RiskTier::Frontier => Color32::from_rgb(230, 220, 110),
-        RiskTier::Wild => Color32::from_rgb(255, 150, 70),
-        RiskTier::WarZone => RED,
-        RiskTier::Deep => Color32::from_rgb(190, 120, 255),
-    }
-}
+pub use view::palette::tier_color;
 
 fn setup_fonts(ctx: &egui::Context) {
     let mut fonts = egui::FontDefinitions::default();
@@ -401,7 +393,7 @@ fn hud(ctx: &egui::Context, s: &mut Session, net: &Net, env: &Env, vis: &Visuals
             egui::Frame::popup(ui.style()).show(ui, |ui| {
                 ui.label(RichText::new("목표").color(DIM).size(11.0));
                 ui.label(RichText::new(&t.name).color(RED).strong());
-                bar(ui, t.shield, Color32::from_rgb(60, 140, 255), "실드".into(), 280.0);
+                bar(ui, t.shield, view::palette::SHIELD, "실드".into(), 280.0);
                 bar(ui, t.hull, Color32::from_rgb(220, 90, 70), "선체".into(), 280.0);
                 if let Some(m) = &me {
                     ui.label(format!("거리 {:.0}u", Vec3::from(t.pos).distance(Vec3::from(m.pos))));

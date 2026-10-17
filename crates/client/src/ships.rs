@@ -46,10 +46,11 @@ pub type WorldAsset = bevy::world_serialization::WorldAsset;
 #[derive(Component)]
 pub struct ShipVis {
     pub id: EntityId,
-    pub kind: EntityKind,
     pub radius: f32,
     pub livery: [f32; 3],
     pub glow: [f32; 3],
+    /// Drawn in hostile colours (glow, plumes, shield): my relation to it, kept up to date.
+    pub hostile: bool,
     pub hull_mats: Vec<Handle<HullMat>>,
     pub plumes: Vec<Handle<EngineMat>>,
     /// Camera-facing glow at every nozzle exit (one material per ship).
@@ -279,15 +280,15 @@ fn spawn_visual(
 ) -> Entity {
     let hostile = matches!(st.kind, EntityKind::Npc(_));
     let livery = if hostile { LIVERIES[7] } else { LIVERIES[st.livery as usize % 8] };
-    let glow = if hostile { [1.0, 0.25, 0.15] } else { [0.45, 0.8, 1.0] };
+    let glow = view::palette::side::of(hostile).glow;
     let tf = Transform::from_translation(pos).with_rotation(rot);
     let seed = (st.id as f32 * 0.618).fract() * 10.0;
     let mut v = ShipVis {
         id: st.id,
-        kind: st.kind,
         radius: st.radius,
         livery,
         glow,
+        hostile,
         hull_mats: vec![],
         plumes: vec![],
         nozzle_glow: None,
@@ -354,7 +355,7 @@ fn spawn_visual(
                 }),
             };
             let scale = st.radius * 2.2 / len;
-            let shield = shield_mats.add(ShieldMat { p: ShieldParams { color: if hostile { Vec4::new(1.0, 0.35, 0.2, 1.0) } else { Vec4::new(0.35, 0.7, 1.0, 1.0) }, hit: Vec4::new(0.0, 0.0, 1.0, 10.0), center: pos.extend(st.radius) } });
+            let shield = shield_mats.add(ShieldMat { p: ShieldParams { color: v4(view::palette::side::of(hostile).shield, 1.0), hit: Vec4::new(0.0, 0.0, 1.0, 10.0), center: pos.extend(st.radius) } });
             v.shield = Some(shield.clone());
             let root = commands.spawn((v, tf, Visibility::default())).id();
             commands.entity(root).with_children(|c| {
@@ -403,7 +404,7 @@ fn on_model_ready(
 ) {
     let Ok(ModelRoot(root)) = roots.get(ev.entity) else { return };
     let Ok(mut ship) = ships.get_mut(*root) else { return };
-    let hostile = matches!(ship.kind, EntityKind::Npc(_));
+    let hostile = ship.hostile;
     let mut cache: HashMap<AssetId<StandardMaterial>, Handle<HullMat>> = HashMap::new();
     let mut turrets: Vec<(usize, Entity)> = vec![];
     let mut muzzles: Vec<(usize, Entity)> = vec![];
@@ -411,7 +412,8 @@ fn on_model_ready(
         if let Ok(name) = names.get(d) {
             let n = name.as_str();
             if n.starts_with("Engine_") {
-                let (col, core) = if hostile { ([1.0, 0.3, 0.1], [1.0, 0.8, 0.5]) } else { ([0.3, 0.6, 1.0], [0.85, 0.95, 1.0]) };
+                let side = view::palette::side::of(hostile);
+                let (col, core) = (side.engine, side.engine_core);
                 // Capital-ship drives read as broad glowing banks, not kilometre-long torches.
                 // (length, width, gain, style): fighters burn a short torch; big hulls a long, slender ion wake.
                 let (len, width, gain, style) = match ship.class {
@@ -495,8 +497,37 @@ fn update_ship_fx(
     // Touching a material asset re-uploads its bind group, so only write values that changed.
     let dt = time.delta_secs();
     let Some(latest) = s.latest() else { return };
+    let viewer = view::relation::Viewer { me: s.me, player: s.player_id, fleet: s.fleet, alliance: s.my_alliance, alliances: &s.alliances, tier: shared::galaxy::system(s.system).tier };
     for mut v in &mut ships {
         let Some(st) = latest.ents.get(&v.id) else { continue };
+        // A captain who becomes hostile (PvP space, a declared war) turns red like a pirate, and back.
+        let hostile = matches!(viewer.relation(st), view::relation::Relation::Hostile);
+        if hostile != v.hostile {
+            v.hostile = hostile;
+            let side = view::palette::side::of(hostile);
+            v.glow = side.glow;
+            let rgb = |c: [f32; 3], w: f32| Vec4::new(c[0], c[1], c[2], w);
+            for h in &v.hull_mats {
+                if let Some(mut m) = hull_mats.get_mut(h) {
+                    m.extension.p.glow = rgb(side.glow, m.extension.p.glow.w);
+                }
+            }
+            for h in &v.plumes {
+                if let Some(mut m) = engine_mats.get_mut(h) {
+                    (m.p.color, m.p.core) = (rgb(side.engine, m.p.color.w), rgb(side.engine_core, m.p.core.w));
+                }
+            }
+            if let Some((h, _)) = &v.nozzle_glow
+                && let Some(mut m) = flare_mats.get_mut(h)
+            {
+                m.p.color = rgb(side.engine, m.p.color.w);
+            }
+            if let Some(h) = &v.shield
+                && let Some(mut m) = shield_mats.get_mut(h)
+            {
+                m.p.color = rgb(side.shield, 1.0);
+            }
+        }
         v.hit_flash = (v.hit_flash - dt * 4.0).max(0.0);
         if v.hit_age < 3.0 {
             v.hit_age += dt;

@@ -25,7 +25,7 @@ pub struct ArtifactPrices {
 /// The station window's mineral specimens: each catalogue mineral held with its rarity, best
 /// properties and price, and one button to sell them all (docked only). True when it was clicked.
 pub fn specimens(ui: &mut egui::Ui, held: &std::collections::BTreeMap<shared::minerals::MineralId, u32>, docked: bool) -> bool {
-    use shared::minerals::{self, Property, Rarity};
+    use shared::minerals::{self, Property};
     let t = shared::tuning::get();
     ui.label(RichText::new("광물 표본").strong());
     if held.is_empty() {
@@ -40,11 +40,7 @@ pub fn specimens(ui: &mut egui::Ui, held: &std::collections::BTreeMap<shared::mi
         let mut best: Vec<Property> = Property::ALL.to_vec();
         best.sort_by_key(|p| std::cmp::Reverse(m.prop(*p)));
         let traits: Vec<String> = best.iter().take(2).map(|p| format!("{} {}", p.label(), m.prop(*p))).collect();
-        let col = match m.rarity {
-            Rarity::Legendary => GOLD,
-            Rarity::Exotic => Color32::from_rgb(200, 140, 255),
-            _ => Color32::from_rgb(120, 190, 255),
-        };
+        let col = crate::palette::rarity_color(m.rarity);
         ui.horizontal_wrapped(|ui| {
             ui.label(RichText::new(format!("{} × {n}", m.label())).color(col));
             ui.label(RichText::new(format!("{} · {each} CR/점", traits.join(", "))).size(11.0).color(DIM));

@@ -12,7 +12,7 @@ use crate::state::{INTERP_DELAY, Session};
 use bevy::prelude::Vec3;
 use bevy_egui::egui;
 use egui::{Align2, Color32, FontId, Pos2, Rect, RichText, Stroke, Vec2 as EVec2};
-use shared::galaxy::{self, PoiKind, RiskTier, SystemId, coords};
+use shared::galaxy::{self, PoiKind, SystemId, coords};
 use shared::protocol::*;
 pub use view::mapview::Level;
 use view::mapview::{nice_step, system_extent};
@@ -23,15 +23,7 @@ const BG: Color32 = Color32::from_rgb(4, 7, 13);
 const GRID: Color32 = Color32::from_rgb(22, 34, 52);
 const GRID_TEXT: Color32 = Color32::from_rgb(70, 95, 130);
 
-fn tier_color(t: RiskTier) -> Color32 {
-    match t {
-        RiskTier::Core => GREEN,
-        RiskTier::Frontier => Color32::from_rgb(255, 210, 90),
-        RiskTier::Wild => Color32::from_rgb(255, 140, 60),
-        RiskTier::WarZone => RED,
-        RiskTier::Deep => Color32::from_rgb(190, 120, 255),
-    }
-}
+use view::palette::tier_color;
 
 fn rgb(c: [f32; 3]) -> Color32 {
     Color32::from_rgb((c[0].clamp(0.0, 1.0) * 255.0) as u8, (c[1].clamp(0.0, 1.0) * 255.0) as u8, (c[2].clamp(0.0, 1.0) * 255.0) as u8)
@@ -324,7 +316,7 @@ fn system_chart(_ui: &mut egui::Ui, p: &egui::Painter, map: Rect, resp: &egui::R
                 // Rare deposits stand out; every rock names its mineral on hover.
                 if let Some(m) = shared::minerals::mineral(a.mineral) {
                     if m.rarity >= shared::minerals::Rarity::Rare {
-                        let c = if m.rarity == shared::minerals::Rarity::Rare { Color32::from_rgb(120, 190, 255) } else { Color32::from_rgb(200, 140, 255) };
+                        let c = view::palette::rarity_color(m.rarity);
                         stem(p, a.pos, c);
                         p.circle_stroke(ap, ar + 3.0, Stroke::new(1.2, c));
                     }

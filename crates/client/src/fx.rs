@@ -9,7 +9,7 @@ use crate::state::{Screen, Session};
 use bevy::light::NotShadowCaster;
 use bevy::prelude::*;
 use crate::audio::{Sfx, SfxQueue};
-use shared::protocol::{EntityKind, Fx};
+use shared::protocol::Fx;
 use shared::ships::WeaponKind;
 
 pub struct FxPlugin;
@@ -97,13 +97,8 @@ fn spawn_fx(
                 }
                 let Some(&fe) = vis.map.get(&from) else { continue };
                 let Ok((sv, stf)) = ships.get(fe) else { continue };
-                // Colour by relation to me: friends blue/amber, enemies red.
-                let me = s.latest().and_then(|l| l.ents.get(&s.me.unwrap_or(0))).cloned();
-                let shooter = s.latest().and_then(|l| l.ents.get(&from)).cloned();
-                let friendly = match (&me, &shooter) {
-                    (Some(m), Some(sh)) => sh.owner.is_some() && (sh.owner == m.owner || (m.fleet.is_some() && sh.fleet == m.fleet) || (m.alliance.is_some() && sh.alliance == m.alliance)),
-                    _ => !matches!(sv.kind, EntityKind::Npc(_)),
-                };
+                // Shots take the shooter's side colours (palette::side): whoever is hostile to me fires red.
+                let side = view::palette::side::of(sv.hostile);
                 let target_pos = vis.map.get(&to).and_then(|e| ships.get(*e).ok()).map(|(_, t)| t.translation);
                 let fwd = stf.rotation * Vec3::NEG_Z;
                 let pick = |list: &Vec<Entity>, k: usize| list.get(k % list.len().max(1)).and_then(|e| gt.get(*e).ok()).map(|g| g.translation());
@@ -112,7 +107,7 @@ fn spawn_fx(
                         *muzzle_toggle += 1;
                         let start = pick(&sv.muzzles, *muzzle_toggle).unwrap_or(stf.translation + fwd * sv.radius);
                         let end = target_pos.unwrap_or(start + fwd * 650.0);
-                        let col = if friendly { [0.25, 0.75, 1.0] } else { [1.0, 0.25, 0.12] };
+                        let col = side.laser;
                         spawn_beam(&mut commands, &assets, &mut beams, &mut pool, t, start, end, col, 1.8, 0.14);
                         if hit && to != 0 {
                             spawn_boom(&mut commands, &assets, &mut booms, &mut pool, t, end + (start - end).normalize_or_zero() * 4.0, 0.15, 0.35);
@@ -127,7 +122,7 @@ fn spawn_fx(
                             stf.translation + stf.rotation * Vec3::new(a.cos() * sv.radius * 0.25, sv.radius * 0.12, (k as f32 / 8.0 - 0.5) * sv.radius * 1.4)
                         });
                         let Some(end) = target_pos else { continue };
-                        let col = if friendly { [1.0, 0.75, 0.3] } else { [1.0, 0.3, 0.15] };
+                        let col = side.pulse;
                         let w = (sv.radius * 0.012).clamp(2.0, 6.0);
                         spawn_beam(&mut commands, &assets, &mut beams, &mut pool, t, start, end, col, w, 0.12);
                         spawn_boom(&mut commands, &assets, &mut booms, &mut pool, t, end + (start - end).normalize_or_zero() * 6.0, 0.25, 0.4);
@@ -143,7 +138,7 @@ fn spawn_fx(
                         let w = (sv.radius * 0.05).clamp(5.0, 26.0);
                         for (i, p) in ports.iter().enumerate() {
                             let end = target_pos.map(|t| t + (*p - ports[0]) * 0.3).unwrap_or(*p + fwd * reach);
-                            let col = if friendly { [0.55, 0.8, 1.0] } else { [1.0, 0.45, 0.3] };
+                            let col = side.beam;
                             spawn_beam(&mut commands, &assets, &mut beams, &mut pool, t, *p, end, col, w, 0.75);
                             spawn_boom(&mut commands, &assets, &mut booms, &mut pool, t, *p + fwd * w, w * 0.04, 0.5);
                             if hit && i == 0 {

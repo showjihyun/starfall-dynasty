@@ -90,7 +90,8 @@ pub fn hull_color(hull: f32, pulse: f32) -> Color32 {
 
 /// Shield gauge colour: blue, blinking below 25%.
 pub fn shield_color(shield: f32, pulse: f32) -> Color32 {
-    if shield > 0.25 { Color32::from_rgb(80, 160, 255) } else { Color32::from_rgba_unmultiplied(80, 160, 255, (255.0 * pulse) as u8) }
+    let [r, g, b, _] = crate::palette::SHIELD.to_array();
+    if shield > 0.25 { crate::palette::SHIELD } else { Color32::from_rgba_unmultiplied(r, g, b, (255.0 * pulse) as u8) }
 }
 
 /// Combat gauges hugging the crosshair: shield on the left, hull on the right. Both fill from the
@@ -145,7 +146,7 @@ pub fn ship_status(ui: &mut egui::Ui, ship: &Ship, cargo_used: u32, me: Option<&
         .color(GOLD),
     );
     if let Some(m) = me {
-        bar_with_loss(ui, m.shield, lag[0], Color32::from_rgb(60, 140, 255), format!("에너지 실드 {:.0}/{:.0}", m.shield * st.max_shield, st.max_shield), STATUS_BAR_W, 22.0);
+        bar_with_loss(ui, m.shield, lag[0], crate::palette::SHIELD, format!("에너지 실드 {:.0}/{:.0}", m.shield * st.max_shield, st.max_shield), STATUS_BAR_W, 22.0);
         bar_with_loss(ui, m.hull, lag[1], if m.hull > 0.35 { Color32::from_rgb(70, 190, 110) } else { RED }, format!("선체 내구도 {:.0}/{:.0}", m.hull * st.max_hull, st.max_hull), STATUS_BAR_W, 22.0);
         let speed = Vec3::from(m.vel).length();
         ui.label(RichText::new(format!("속도 {:.0} u/s{} · 화물 {}/{:.0} · 워프 {:.2} ly{}", speed, if m.boosting { " ⚡" } else { "" }, cargo_used, st.cargo, st.warp_range, if m.docked { " · 도킹 중" } else { "" })).size(12.0));
