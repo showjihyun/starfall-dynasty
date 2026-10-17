@@ -80,13 +80,13 @@ fn top_bar(ui: &mut egui::Ui, map: Rect, s: &mut Session, env: &Env) {
             if ui.button(" − ").clicked() {
                 s.map.zoom_by(1.0 / 1.5);
             }
-            if s.map.level == Level::System && ui.button(if s.map.is_3d() { "평면" } else { "입체" }).clicked() {
+            if ui.button(if s.map.is_3d() { "평면" } else { "입체" }).clicked() {
                 s.map.toggle_3d();
             }
             if ui.button("닫기 (M)").clicked() {
                 s.ui.map = false;
             }
-            let hint = if s.map.level == Level::System { "휠: 확대/축소 · 드래그: 이동 · 우클릭 드래그: 회전·기울이기 · 함선 클릭: 목표 지정" } else { "휠: 확대/축소 · 드래그: 이동 · 함선 클릭: 목표 지정" };
+            let hint = if s.map.level == Level::System { "휠: 확대/축소 · 드래그: 이동 · 우클릭 드래그: 회전·기울이기 · 함선 클릭: 목표 지정" } else { "휠: 확대/축소 · 드래그: 이동 · 우클릭 드래그: 회전·기울이기 · 성계 클릭: 선택" };
             ui.label(RichText::new(hint).size(11.0).color(DIM));
         });
     });
@@ -95,22 +95,26 @@ fn top_bar(ui: &mut egui::Ui, map: Rect, s: &mut Session, env: &Env) {
 #[allow(clippy::too_many_arguments)]
 fn galaxy_chart(_ui: &mut egui::Ui, p: &egui::Painter, map: Rect, resp: &egui::Response, scroll: f32, hover: Option<Pos2>, s: &mut Session, env: &Env, now: f64) {
     // Zooming in past the limit dives into the current system.
-    if s.map.galaxy_input(map, resp.dragged().then(|| resp.drag_delta()), scroll, hover, system_extent(env.layout.as_ref())) {
+    if resp.dragged_by(egui::PointerButton::Secondary) {
+        s.map.rotate(resp.drag_delta());
+    }
+    let pan = resp.dragged_by(egui::PointerButton::Primary).then(|| resp.drag_delta());
+    if s.map.galaxy_input(map, pan, scroll, hover, system_extent(env.layout.as_ref())) {
         return;
     }
     let v = s.map.clone();
     let sc = v.g_scale;
     let to = |mp: [f32; 3]| v.galaxy_to_screen(map, mp);
-    // Sector grid.
+    // Sector grid on the galactic plane (y = 0).
     let (x0, x1, z0, z1) = v.galaxy_bounds(map);
+    let (z0, z1) = (z0.floor(), z1.ceil());
     for xi in (x0 - coords::SECTOR_ORIGIN_X).floor() as i32..=(x1 - coords::SECTOR_ORIGIN_X).ceil() as i32 {
         let x = coords::SECTOR_ORIGIN_X + xi as f32;
-        let a = to([x, 0.0, z0]);
-        p.line_segment([Pos2::new(a.x, map.top()), Pos2::new(a.x, map.bottom())], Stroke::new(1.0, GRID));
+        p.line_segment([to([x, 0.0, z0]), to([x, 0.0, z1])], Stroke::new(1.0, GRID));
     }
-    for zi in z0.floor() as i32..=z1.ceil() as i32 {
-        let a = to([x0, 0.0, zi as f32]);
-        p.line_segment([Pos2::new(map.left(), a.y), Pos2::new(map.right(), a.y)], Stroke::new(1.0, GRID));
+    for zi in z0 as i32..=z1 as i32 {
+        let (xa, xb) = (coords::SECTOR_ORIGIN_X + ((x0 - coords::SECTOR_ORIGIN_X).floor()), coords::SECTOR_ORIGIN_X + ((x1 - coords::SECTOR_ORIGIN_X).ceil()));
+        p.line_segment([to([xa, 0.0, zi as f32]), to([xb, 0.0, zi as f32])], Stroke::new(1.0, GRID));
     }
     for xi in (x0 - coords::SECTOR_ORIGIN_X).floor() as i32..(x1 - coords::SECTOR_ORIGIN_X).ceil() as i32 {
         // Only charted sectors are named (columns A–Z from the origin, rows from 1).
@@ -141,6 +145,14 @@ fn galaxy_chart(_ui: &mut egui::Ui, p: &egui::Painter, map: Rect, resp: &egui::R
     for sys in galaxy::systems() {
         let sp = to(sys.map_pos);
         let r = (sc * 0.05).clamp(5.0, 14.0);
+        // Height stem down (or up) to the galactic plane.
+        if v.is_3d() {
+            let foot = to([sys.map_pos[0], 0.0, sys.map_pos[2]]);
+            if foot.distance(sp) > 2.0 {
+                p.line_segment([sp, foot], Stroke::new(1.0, DIM.gamma_multiply(0.45)));
+                p.line_segment([foot - EVec2::new(3.0, 0.0), foot + EVec2::new(3.0, 0.0)], Stroke::new(1.0, DIM.gamma_multiply(0.6)));
+            }
+        }
         if !view::mapview::known(sys.id, &s.charted, s.system) {
             // Uncharted: a faint point, no name, tier or star colour until someone gets there.
             p.circle_stroke(sp, r * 0.7, Stroke::new(1.0, DIM));

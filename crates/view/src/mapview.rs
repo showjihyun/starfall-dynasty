@@ -1,5 +1,7 @@
 //! Star map (M) view state: projection, zoom and pan, and the continuous zoom between the two charts.
-//! - Galaxy chart: light-years on the x/z plane, +z up the screen; scale in px per ly.
+//! - Galaxy chart: light-years, +z (rimward) up the screen when flat; scale in px per ly. It shares
+//!   the system chart's 3D camera (`yaw`, `tilt`): systems sit at their true height above or below
+//!   the galactic plane (y = 0), with stems down to it.
 //! - System chart: a 3D tactical view (main goal "3D freedom"). An orthographic camera turned by
 //!   `yaw` about the vertical and tipped by `tilt` from straight down (0 = the flat top-down chart,
 //!   +z south down the screen) looks at a reference plane at `s_height` (my ship's height while
@@ -99,32 +101,61 @@ impl MapView {
         self.was_open = open;
     }
 
-    /// Galaxy chart position (ly) → screen.
-    pub fn galaxy_to_screen(&self, map: Rect, mp: [f32; 3]) -> Pos2 {
-        let (c, sc) = (self.g_center, self.g_scale);
-        Pos2::new(map.center().x + (mp[0] - c.x) * sc, map.center().y - (mp[2] - c.y) * sc)
+    /// Camera-space offset (units) → screen offset (units, +y down): turn by `yaw`, tip by `tilt`.
+    fn rot_proj(&self, rel: Vec3) -> EVec2 {
+        let (sy, cy) = self.yaw.sin_cos();
+        let (st, ct) = self.tilt.sin_cos();
+        let (xr, zr) = (rel.x * cy - rel.z * sy, rel.x * sy + rel.z * cy);
+        EVec2::new(xr, zr * ct - rel.y * st)
     }
 
-    /// Visible galaxy area: (x0, x1, z0, z1) in light-years.
+    /// Screen offset (units) → the matching (x, z) move on the reference plane.
+    fn rot_unproj(&self, off: EVec2) -> Vec2 {
+        let (sy, cy) = self.yaw.sin_cos();
+        let (xr, zr) = (off.x, off.y / self.tilt.cos().max(0.05));
+        Vec2::new(xr * cy + zr * sy, -xr * sy + zr * cy)
+    }
+
+    /// Galaxy chart position (ly) → screen. North (+z) is up the screen, so z is flipped before the
+    /// shared camera turns and tips it.
+    pub fn galaxy_to_screen(&self, map: Rect, mp: [f32; 3]) -> Pos2 {
+        let c = self.g_center;
+        map.center() + self.rot_proj(Vec3::new(mp[0] - c.x, mp[1], -(mp[2] - c.y))) * self.g_scale
+    }
+
+    /// Screen → galaxy chart position (ly) on the galactic plane (y = 0).
+    pub fn galaxy_from_screen(&self, map: Rect, sp: Pos2) -> [f32; 3] {
+        let d = self.rot_unproj((sp - map.center()) / self.g_scale);
+        [self.g_center.x + d.x, 0.0, self.g_center.y - d.y]
+    }
+
+    /// Visible galaxy area on the plane: (x0, x1, z0, z1) in light-years (bounding box of the
+    /// screen corners, so a tilted chart's far side is included).
     pub fn galaxy_bounds(&self, map: Rect) -> (f32, f32, f32, f32) {
-        let (c, sc) = (self.g_center, self.g_scale);
-        (c.x - map.width() / 2.0 / sc, c.x + map.width() / 2.0 / sc, c.y - map.height() / 2.0 / sc, c.y + map.height() / 2.0 / sc)
+        let corners = [map.min, map.max, Pos2::new(map.min.x, map.max.y), Pos2::new(map.max.x, map.min.y)].map(|c| self.galaxy_from_screen(map, c));
+        let (mut x0, mut x1, mut z0, mut z1) = (f32::MAX, f32::MIN, f32::MAX, f32::MIN);
+        for c in corners {
+            (x0, x1, z0, z1) = (x0.min(c[0]), x1.max(c[0]), z0.min(c[2]), z1.max(c[2]));
+        }
+        (x0, x1, z0, z1)
     }
 
     /// Drag and wheel on the galaxy chart. Zooming past the limit dives into the current system
     /// (framing all of it) and returns true.
     pub fn galaxy_input(&mut self, map: Rect, drag: Option<EVec2>, scroll: f32, hover: Option<Pos2>, extent: f32) -> bool {
         if let Some(d) = drag {
-            self.g_center -= Vec2::new(d.x, -d.y) / self.g_scale;
+            let m = self.rot_unproj(d / self.g_scale);
+            self.g_center -= Vec2::new(m.x, -m.y);
         }
         if scroll != 0.0 {
             let k = (scroll * WHEEL).exp();
             let new = (self.g_scale * k).clamp(G_MIN, G_MAX);
-            // Zoom about the cursor.
+            // Zoom about the cursor: the point under it stays under it.
             if let Some(h) = hover {
-                let before = Vec2::new(h.x - map.center().x, -(h.y - map.center().y)) / self.g_scale;
-                let after = Vec2::new(h.x - map.center().x, -(h.y - map.center().y)) / new;
-                self.g_center += before - after;
+                let before = self.galaxy_from_screen(map, h);
+                self.g_scale = new;
+                let after = self.galaxy_from_screen(map, h);
+                self.g_center += Vec2::new(before[0] - after[0], before[2] - after[2]);
             }
             self.g_scale = new;
             if k > 1.0 && self.g_scale >= G_MAX {
@@ -137,12 +168,8 @@ impl MapView {
 
     /// System chart position (m) → screen. Higher objects appear higher up the screen once tilted.
     pub fn system_to_screen(&self, map: Rect, w: Vec3) -> Pos2 {
-        let (c, sc) = (self.s_center, self.s_scale);
-        let (sy, cy) = self.yaw.sin_cos();
-        let (st, ct) = self.tilt.sin_cos();
-        let (x, y, z) = (w.x - c.x, w.y - self.s_height, w.z - c.y);
-        let (xr, zr) = (x * cy - z * sy, x * sy + z * cy);
-        Pos2::new(map.center().x + xr * sc, map.center().y + (zr * ct - y * st) * sc)
+        let c = self.s_center;
+        map.center() + self.rot_proj(Vec3::new(w.x - c.x, w.y - self.s_height, w.z - c.y)) * self.s_scale
     }
 
     /// Screen → system chart position (m) on the reference plane.
@@ -153,9 +180,7 @@ impl MapView {
 
     /// A screen offset (px) at scale `sc` → the matching move on the reference plane (m, x/z).
     fn plane_offset(&self, off: EVec2, sc: f32) -> Vec2 {
-        let (sy, cy) = self.yaw.sin_cos();
-        let (xr, zr) = (off.x / sc, off.y / (sc * self.tilt.cos().max(0.05)));
-        Vec2::new(xr * cy + zr * sy, -xr * sy + zr * cy)
+        self.rot_unproj(off / sc)
     }
 
     /// The point on the reference plane under `w` (where its height stem ends).
@@ -344,8 +369,31 @@ mod tests {
     }
 
     #[test]
+    fn galaxy_chart_is_3d_too() {
+        let m = map();
+        let v = MapView { level: Level::Galaxy, g_center: Vec2::new(1.0, 3.0), g_scale: 150.0, yaw: 0.4, tilt: TILT_DEFAULT, ..Default::default() };
+        // A system 0.6 ly above the plane is drawn above its foot; the stem is vertical on screen.
+        let (foot, star) = (v.galaxy_to_screen(m, [2.0, 0.0, 4.0]), v.galaxy_to_screen(m, [2.0, 0.6, 4.0]));
+        assert!(star.y < foot.y - 30.0 && (star.x - foot.x).abs() < 1e-3, "{foot:?} {star:?}");
+        // Clicks land on the plane under the cursor; panning drags the plane.
+        for p in [[2.0, 0.0, 4.0], [-1.5, 0.0, 7.25]] {
+            let back = v.galaxy_from_screen(m, v.galaxy_to_screen(m, p));
+            assert!((back[0] - p[0]).abs() < 1e-3 && (back[2] - p[2]).abs() < 1e-3);
+        }
+        let mut w = v.clone();
+        let grab = Pos2::new(500.0, 300.0);
+        let under = w.galaxy_from_screen(m, grab);
+        w.galaxy_input(m, Some(EVec2::new(40.0, -25.0)), 0.0, None, 12_000.0);
+        let now = w.galaxy_from_screen(m, grab + EVec2::new(40.0, -25.0));
+        assert!((now[0] - under[0]).abs() < 1e-3 && (now[2] - under[2]).abs() < 1e-3);
+        // Flat (tilt 0): north up, exactly the old chart.
+        let flat = MapView { tilt: 0.0, yaw: 0.0, ..v.clone() };
+        assert!(flat.galaxy_to_screen(m, [1.0, 0.0, 4.0]).y < flat.galaxy_to_screen(m, [1.0, 0.0, 3.0]).y);
+    }
+
+    #[test]
     fn galaxy_zoom_keeps_the_point_under_the_cursor() {
-        let mut v = MapView { level: Level::Galaxy, g_scale: 200.0, ..Default::default() };
+        let mut v = MapView { level: Level::Galaxy, g_scale: 200.0, tilt: 0.0, ..Default::default() };
         let m = map();
         let h = Pos2::new(700.0, 200.0);
         let under = |v: &MapView| {
