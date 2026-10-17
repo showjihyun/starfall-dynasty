@@ -277,6 +277,7 @@ fn hud(ctx: &egui::Context, s: &mut Session, net: &Net, env: &Env, vis: &Visuals
     if let Ok((camera, cgt)) = cam.single() {
         let project = |p: Vec3| camera.world_to_viewport(cgt, p).ok().map(|v| Pos2::new(v.x, v.y));
         let my_pos = me.as_ref().map(|m| Vec3::from(m.pos)).unwrap_or(cgt.translation());
+        let (cam_pos, cam_rot) = (cgt.translation(), cgt.compute_transform().rotation);
         let viewer = Viewer { me: s.me, player: s.player_id, fleet: s.fleet, alliance: s.my_alliance, alliances: &s.alliances, tier: def.tier };
         if let Some(latest) = s.latest() {
             for e in latest.ents.values() {
@@ -288,10 +289,25 @@ fn hud(ctx: &egui::Context, s: &mut Session, net: &Net, env: &Env, vis: &Visuals
                 if d > 9000.0 {
                     continue;
                 }
-                let Some(sp) = project(vt) else { continue };
                 let col = viewer.relation(e).color();
-                let r = (e.radius * 900.0 / d.max(1.0)).clamp(10.0, 80.0);
                 let is_target = s.target == Some(e.id);
+                let projected = project(vt).filter(|_| (cam_rot.inverse() * (vt - cam_pos)).z < 0.0);
+                // Off screen or behind: an arrow on the screen edge for the target and nearby hostiles.
+                if let Some((at, dir)) = view::hud::offscreen_marker(screen, cam_rot.inverse() * (vt - cam_pos), projected, 46.0) {
+                    let hostile = matches!(viewer.relation(e), view::relation::Relation::Hostile);
+                    if is_target || (hostile && d < 3000.0) {
+                        let side = EVec2::new(-dir.y, dir.x);
+                        let size = if is_target { 13.0 } else { 9.0 };
+                        let pts = vec![at + dir * size, at - dir * size * 0.5 + side * size * 0.7, at - dir * size * 0.5 - side * size * 0.7];
+                        painter.add(egui::Shape::convex_polygon(pts, col, Stroke::NONE));
+                        if is_target {
+                            painter.text(at - dir * 22.0, Align2::CENTER_CENTER, format!("{:.0}u  {}", d, view::hud::elevation_text(my_pos, vt)), FontId::proportional(11.0), col);
+                        }
+                    }
+                    continue;
+                }
+                let Some(sp) = projected else { continue };
+                let r = (e.radius * 900.0 / d.max(1.0)).clamp(10.0, 80.0);
                 let st = Stroke::new(if is_target { 2.0 } else { 1.0 }, col);
                 for (sx, sy) in [(-1.0, -1.0), (1.0, -1.0), (-1.0, 1.0), (1.0, 1.0)] {
                     let c = sp + EVec2::new(sx * r, sy * r);
@@ -300,6 +316,9 @@ fn hud(ctx: &egui::Context, s: &mut Session, net: &Net, env: &Env, vis: &Visuals
                 }
                 let label = if e.wanted { format!("☠ {} [수배]", e.name) } else { e.name.clone() };
                 painter.text(sp + EVec2::new(0.0, r + 4.0), Align2::CENTER_TOP, format!("{label}  {:.0}u", d), FontId::proportional(11.0), col);
+                if is_target {
+                    painter.text(sp + EVec2::new(0.0, r + 18.0), Align2::CENTER_TOP, view::hud::elevation_text(my_pos, vt), FontId::proportional(11.0), col);
+                }
                 if e.kind != EntityKind::Wreck && (is_target || d < 1500.0) {
                     let w = r * 1.6;
                     let base = sp + EVec2::new(-w / 2.0, -r - 9.0);
@@ -451,7 +470,7 @@ fn hud(ctx: &egui::Context, s: &mut Session, net: &Net, env: &Env, vis: &Visuals
 
     // Key hints.
     egui::Area::new("keys".into()).anchor(Align2::CENTER_BOTTOM, EVec2::new(0.0, -6.0)).show(ctx, |ui| {
-        ui.label(RichText::new("W/S 추진 · A/D 선회 · R/F 상하 · Q/E 롤 · 우클릭 조종 · Shift 부스트 · Space 사격/주포 · T 목표 · X 미사일 · B 호위공격 · Y 호위복귀 · C 1/3인칭 · I 함교 화면 · G 도킹 · N 채굴 · V 스캔 · M 지도 · U 정거장 · J 미션 · O 계약 · H 연대기 · K 함대 · L 동맹 · F1").size(11.0).color(DIM));
+        ui.label(RichText::new("W/S 추진 · A/D 선회 · R/F 상하 · Q/E 롤 · Z/Ctrl 상승·하강 · Alt+A/D 좌우 평행이동 · 우클릭 조종 · Shift 부스트 · Space 사격/주포 · T 목표 · X 미사일 · B 호위공격 · Y 호위복귀 · C 1/3인칭 · I 함교 화면 · G 도킹 · N 채굴 · V 스캔 · M 지도 · U 정거장 · J 미션 · O 계약 · H 연대기 · K 함대 · L 동맹 · F1").size(11.0).color(DIM));
     });
 
     if let Some(killer) = s.dead.clone() {

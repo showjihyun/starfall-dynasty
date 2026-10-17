@@ -163,10 +163,15 @@ fn flight_input(
     if !typing && s.me.is_some() {
         let k = |code: KeyCode| if keys.pressed(code) { 1.0 } else { 0.0 };
         c.thrust = k(KeyCode::KeyW) - k(KeyCode::KeyS);
-        c.yaw = k(KeyCode::KeyD) - k(KeyCode::KeyA) + k(KeyCode::ArrowRight) - k(KeyCode::ArrowLeft);
+        // Alt + A/D slides sideways instead of turning (6DOF: strafe on all three axes).
+        let alt = keys.pressed(KeyCode::AltLeft) || keys.pressed(KeyCode::AltRight);
+        let ad = k(KeyCode::KeyD) - k(KeyCode::KeyA);
+        c.yaw = if alt { 0.0 } else { ad } + k(KeyCode::ArrowRight) - k(KeyCode::ArrowLeft);
+        c.strafe_x = if alt { ad } else { 0.0 };
         c.pitch = k(KeyCode::ArrowUp) - k(KeyCode::ArrowDown) + k(KeyCode::KeyR) - k(KeyCode::KeyF);
         c.roll = k(KeyCode::KeyE) - k(KeyCode::KeyQ);
-        c.strafe_y = k(KeyCode::KeyZ) - k(KeyCode::KeyC) * 0.0;
+        // Z rises, Ctrl sinks (C is the camera toggle).
+        c.strafe_y = k(KeyCode::KeyZ) - k(KeyCode::ControlLeft);
         c.boost = keys.pressed(KeyCode::ShiftLeft);
         c.fire = keys.pressed(KeyCode::Space) || (mouse.pressed(MouseButton::Left) && !over_ui);
         // Mouse steering: hold the right button, steer toward the cursor.

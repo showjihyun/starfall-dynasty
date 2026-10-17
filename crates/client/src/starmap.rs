@@ -88,10 +88,14 @@ fn top_bar(ui: &mut egui::Ui, map: Rect, s: &mut Session, env: &Env) {
             if ui.button(" − ").clicked() {
                 s.map.zoom_by(1.0 / 1.5);
             }
+            if s.map.level == Level::System && ui.button(if s.map.is_3d() { "평면" } else { "입체" }).clicked() {
+                s.map.toggle_3d();
+            }
             if ui.button("닫기 (M)").clicked() {
                 s.ui.map = false;
             }
-            ui.label(RichText::new("휠: 확대/축소 · 드래그: 이동 · 함선 클릭: 목표 지정").size(11.0).color(DIM));
+            let hint = if s.map.level == Level::System { "휠: 확대/축소 · 드래그: 이동 · 우클릭 드래그: 회전·기울이기 · 함선 클릭: 목표 지정" } else { "휠: 확대/축소 · 드래그: 이동 · 함선 클릭: 목표 지정" };
+            ui.label(RichText::new(hint).size(11.0).color(DIM));
         });
     });
 }
@@ -203,33 +207,65 @@ fn system_chart(_ui: &mut egui::Ui, p: &egui::Painter, map: Rect, resp: &egui::R
     let t = now - INTERP_DELAY;
     let me_pose = s.me.and_then(|m| s.sample(m, t)).map(|(pos, rot, st)| (pos, rot, st.clone()));
     // Zooming out of the fully framed system pulls back to the galaxy chart.
-    if s.map.system_input(map, resp.dragged().then(|| resp.drag_delta()), scroll, hover, system_extent(env.layout.as_ref()), s.system, me_pose.as_ref().map(|m| m.0)) {
+    if resp.dragged_by(egui::PointerButton::Secondary) {
+        s.map.rotate(resp.drag_delta());
+    }
+    let pan = resp.dragged_by(egui::PointerButton::Primary).then(|| resp.drag_delta());
+    if s.map.system_input(map, pan, scroll, hover, system_extent(env.layout.as_ref()), s.system, me_pose.as_ref().map(|m| m.0)) {
         return;
     }
     let v = s.map.clone();
     let sc = v.s_scale;
     let to = |w: Vec3| v.system_to_screen(map, w);
     let from = |sp: Pos2| v.system_from_screen(map, sp);
+    // Height stem from an object down (or up) to the reference plane, with a tick at its foot.
+    let stem = |p: &egui::Painter, w: Vec3, col: Color32| {
+        if !v.is_3d() {
+            return;
+        }
+        let (top, foot) = (to(w), to(v.foot(w)));
+        if top.distance(foot) < 2.0 {
+            return;
+        }
+        p.line_segment([top, foot], Stroke::new(1.0, col.gamma_multiply(0.45)));
+        p.line_segment([foot - EVec2::new(3.0, 0.0), foot + EVec2::new(3.0, 0.0)], Stroke::new(1.0, col.gamma_multiply(0.6)));
+    };
+    // A horizontal circle on the plane through `c` (orbits, rings), projected.
+    let ring = |p: &egui::Painter, c: Vec3, r: f32, stroke: Stroke| {
+        let pts: Vec<Pos2> = (0..=64).map(|i| {
+            let a = i as f32 / 64.0 * std::f32::consts::TAU;
+            to(c + Vec3::new(a.cos() * r, 0.0, a.sin() * r))
+        }).collect();
+        p.add(egui::Shape::line(pts, stroke));
+    };
 
-    // Coordinate grid in km with edge labels.
+    // Coordinate grid in km on the reference plane (labels on the flat chart only).
     let step = nice_step(sc, 90.0);
-    let tl = from(map.min);
-    let br = from(map.max);
-    let mut x = (tl.x / step).floor() * step;
-    while x <= br.x {
-        let sx = to(Vec3::new(x, 0.0, 0.0)).x;
-        let strong = (x / step).round() as i64 % 5 == 0;
-        p.line_segment([Pos2::new(sx, map.top()), Pos2::new(sx, map.bottom())], Stroke::new(1.0, if strong { GRID.gamma_multiply(1.6) } else { GRID }));
-        p.text(Pos2::new(sx + 3.0, map.bottom() - 16.0), Align2::LEFT_TOP, format!("{:+.1}", x / 1000.0), FontId::monospace(10.0), GRID_TEXT);
+    let corners = [from(map.min), from(map.max), from(Pos2::new(map.min.x, map.max.y)), from(Pos2::new(map.max.x, map.min.y))];
+    let (mut x0, mut x1, mut z0, mut z1) = (f32::MAX, f32::MIN, f32::MAX, f32::MIN);
+    for c in corners {
+        (x0, x1, z0, z1) = (x0.min(c.x), x1.max(c.x), z0.min(c.z), z1.max(c.z));
+    }
+    let h = v.s_height;
+    let grid_stroke = |k: f32| Stroke::new(1.0, if (k / step).round() as i64 % 5 == 0 { GRID.gamma_multiply(1.6) } else { GRID });
+    let mut x = (x0 / step).floor() * step;
+    while x <= x1 {
+        p.line_segment([to(Vec3::new(x, h, z0)), to(Vec3::new(x, h, z1))], grid_stroke(x));
+        if !v.is_3d() {
+            p.text(Pos2::new(to(Vec3::new(x, h, 0.0)).x + 3.0, map.bottom() - 16.0), Align2::LEFT_TOP, format!("{:+.1}", x / 1000.0), FontId::monospace(10.0), GRID_TEXT);
+        }
         x += step;
     }
-    let mut z = (tl.z / step).floor() * step;
-    while z <= br.z {
-        let sy = to(Vec3::new(0.0, 0.0, z)).y;
-        let strong = (z / step).round() as i64 % 5 == 0;
-        p.line_segment([Pos2::new(map.left(), sy), Pos2::new(map.right(), sy)], Stroke::new(1.0, if strong { GRID.gamma_multiply(1.6) } else { GRID }));
-        p.text(Pos2::new(map.left() + 4.0, sy + 2.0), Align2::LEFT_TOP, format!("{:+.1}", z / 1000.0), FontId::monospace(10.0), GRID_TEXT);
+    let mut z = (z0 / step).floor() * step;
+    while z <= z1 {
+        p.line_segment([to(Vec3::new(x0, h, z)), to(Vec3::new(x1, h, z))], grid_stroke(z));
+        if !v.is_3d() {
+            p.text(Pos2::new(map.left() + 4.0, to(Vec3::new(0.0, h, z)).y + 2.0), Align2::LEFT_TOP, format!("{:+.1}", z / 1000.0), FontId::monospace(10.0), GRID_TEXT);
+        }
         z += step;
+    }
+    if v.is_3d() {
+        p.text(Pos2::new(map.left() + 24.0, map.bottom() - 84.0), Align2::LEFT_TOP, format!("기준면 고도 {:+.2} km · 격자 {}", h / 1000.0, if step >= 1000.0 { format!("{:.0} km", step / 1000.0) } else { format!("{step:.0} m") }), FontId::proportional(11.0), DIM);
     }
     // Scale bar and north arrow.
     let bar_px = step * sc;
@@ -237,8 +273,9 @@ fn system_chart(_ui: &mut egui::Ui, p: &egui::Painter, map: Rect, resp: &egui::R
     p.line_segment([b0, b0 + EVec2::new(bar_px, 0.0)], Stroke::new(2.0, DIM));
     p.text(b0 + EVec2::new(bar_px / 2.0, -4.0), Align2::CENTER_BOTTOM, if step >= 1000.0 { format!("{:.0} km", step / 1000.0) } else { format!("{step:.0} m") }, FontId::proportional(11.0), DIM);
     let n0 = Pos2::new(map.right() - 34.0, map.top() + 80.0);
-    p.line_segment([n0 + EVec2::new(0.0, 16.0), n0 - EVec2::new(0.0, 16.0)], Stroke::new(2.0, DIM));
-    p.text(n0 - EVec2::new(0.0, 18.0), Align2::CENTER_BOTTOM, "N (-Z)", FontId::proportional(11.0), DIM);
+    let nd = (to(Vec3::new(v.s_center.x, h, v.s_center.y - 1000.0)) - to(Vec3::new(v.s_center.x, h, v.s_center.y))).normalized();
+    p.line_segment([n0 - nd * 16.0, n0 + nd * 16.0], Stroke::new(2.0, DIM));
+    p.text(n0 + nd * 18.0, Align2::CENTER_CENTER, "N", FontId::proportional(11.0), DIM);
 
     let mut tips: Vec<(f32, Vec<String>, Option<EntityId>)> = vec![];
     let mut placed: Vec<Rect> = vec![];
@@ -271,8 +308,9 @@ fn system_chart(_ui: &mut egui::Ui, p: &egui::Painter, map: Rect, resp: &egui::R
         consider(sp, r, vec![format!("항성 {}", def.name), "L(0, 0, 0) — 성계 기준점".into()], None);
         for (i, pl) in lay.planets.iter().enumerate() {
             let pp = to(pl.pos);
-            // Orbit ring around the star.
-            p.circle_stroke(sp, pp.distance(sp), Stroke::new(1.0, Color32::from_rgba_unmultiplied(80, 110, 160, 40)));
+            // Orbit ring around the star (in the star's plane).
+            ring(p, Vec3::ZERO, EVec2::new(pl.pos.x, pl.pos.z).length(), Stroke::new(1.0, Color32::from_rgba_unmultiplied(80, 110, 160, 40)));
+            stem(p, pl.pos, Color32::from_rgb(170, 180, 210));
             let pr = (pl.radius * sc).max(4.0);
             p.circle_filled(pp, pr, Color32::from_rgb(110, 120, 150));
             p.circle_stroke(pp, pr, Stroke::new(1.0, Color32::from_rgb(170, 180, 210)));
@@ -287,6 +325,7 @@ fn system_chart(_ui: &mut egui::Ui, p: &egui::Painter, map: Rect, resp: &egui::R
                 if let Some(m) = shared::minerals::mineral(a.mineral) {
                     if m.rarity >= shared::minerals::Rarity::Rare {
                         let c = if m.rarity == shared::minerals::Rarity::Rare { Color32::from_rgb(120, 190, 255) } else { Color32::from_rgb(200, 140, 255) };
+                        stem(p, a.pos, c);
                         p.circle_stroke(ap, ar + 3.0, Stroke::new(1.2, c));
                     }
                     consider(ap, ar.max(5.0), vec![m.label(), loc(a.pos) + &dist_txt(a.pos)], None);
@@ -316,6 +355,7 @@ fn system_chart(_ui: &mut egui::Ui, p: &egui::Painter, map: Rect, resp: &egui::R
                 PoiKind::Signal => "◉",
                 PoiKind::AncientGate => "○",
             };
+            stem(p, poi.pos, col);
             p.text(pp, Align2::CENTER_CENTER, icon, FontId::proportional(15.0), col);
             if sc > 0.02 {
                 label(p, pp + EVec2::new(10.0, -6.0), &poi.name, col, false);
@@ -343,7 +383,10 @@ fn system_chart(_ui: &mut egui::Ui, p: &egui::Painter, map: Rect, resp: &egui::R
         let mine = Some(id) == s.me;
         let col = viewer.relation(&st).color();
         let fwd = rot * Vec3::NEG_Z;
-        let dir = EVec2::new(fwd.x, fwd.z).normalized();
+        stem(p, pos, col);
+        // Heading as seen by the chart camera (straight at the camera: point up the screen).
+        let dir = (to(pos + fwd * 100.0) - sp).normalized();
+        let dir = if dir.length() > 0.5 { dir } else { EVec2::new(0.0, -1.0) };
         let size = if mine { 11.0 } else { (st.radius * sc).clamp(4.0, 9.0) + if matches!(st.class, Some(shared::ships::SizeClass::Capital)) { 3.0 } else { 0.0 } };
         if st.kind == EntityKind::Wreck {
             p.text(sp, Align2::CENTER_CENTER, "✕", FontId::proportional(12.0), col);
@@ -377,9 +420,13 @@ fn system_chart(_ui: &mut egui::Ui, p: &egui::Painter, map: Rect, resp: &egui::R
             label(p, sp + EVec2::new(size + 4.0, -6.0), &st.name, col, mine);
         }
         let (b, el) = coords::bearing(fwd);
+        let above = my_pos.filter(|_| !mine).map(|m| {
+            let dy = pos.y - m.y;
+            format!(" · {} {:.2} km", if dy >= 0.0 { "▲" } else { "▼" }, dy.abs() / 1000.0)
+        });
         let mut lines = vec![
             format!("{}{}", st.name, if st.wanted { " [수배]" } else { "" }),
-            loc(pos) + &dist_txt(pos),
+            loc(pos) + &dist_txt(pos) + &above.unwrap_or_default(),
             format!("방위 {b:03.0}° · 고도각 {el:+.0}° · 속도 {:.0} m/s", Vec3::from(st.vel).length()),
         ];
         if st.kind != EntityKind::Wreck {

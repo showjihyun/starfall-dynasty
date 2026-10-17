@@ -1,6 +1,9 @@
 //! Star map (M) view state: projection, zoom and pan, and the continuous zoom between the two charts.
 //! - Galaxy chart: light-years on the x/z plane, +z up the screen; scale in px per ly.
-//! - System chart: metres on the x/z plane, +z (south) down the screen; scale in px per m.
+//! - System chart: a 3D tactical view (main goal "3D freedom"). An orthographic camera turned by
+//!   `yaw` about the vertical and tipped by `tilt` from straight down (0 = the flat top-down chart,
+//!   +z south down the screen) looks at a reference plane at `s_height` (my ship's height while
+//!   following); scale in px per m. Objects off the plane get a stem down (or up) to it.
 //! Zooming in past the galaxy limit dives into the current system; zooming out of a fully framed
 //! system returns to the galaxy, centred on that system.
 
@@ -18,6 +21,11 @@ pub const S_OPEN_RADIUS: f32 = 2_500.0;
 pub const S_MAX: f32 = 2.0;
 /// Mouse-wheel delta → zoom factor exponent.
 const WHEEL: f32 = 0.0025;
+/// System chart tilt (radians from straight down): the default 3D view and the most it tips over.
+pub const TILT_DEFAULT: f32 = 0.9;
+pub const TILT_MAX: f32 = 1.35;
+/// Right-drag pixels → radians of yaw and tilt.
+const ROTATE: f32 = 0.008;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
 pub enum Level {
@@ -35,6 +43,11 @@ pub struct MapView {
     /// System chart centre (m, x/z) and scale (px per m).
     pub s_center: Vec2,
     pub s_scale: f32,
+    /// System chart camera: turn about the vertical, tip from straight down (radians), and the
+    /// height (m) of the reference plane.
+    pub yaw: f32,
+    pub tilt: f32,
+    pub s_height: f32,
     /// Keep my ship centred on the system chart (cleared by dragging).
     pub follow: bool,
     pub was_open: bool,
@@ -43,7 +56,7 @@ pub struct MapView {
 
 impl Default for MapView {
     fn default() -> Self {
-        MapView { level: Level::System, g_center: Vec2::new(0.4, 2.8), g_scale: 120.0, s_center: Vec2::ZERO, s_scale: 0.03, follow: true, was_open: false, selected: None }
+        MapView { level: Level::System, g_center: Vec2::new(0.4, 2.8), g_scale: 120.0, s_center: Vec2::ZERO, s_scale: 0.03, yaw: 0.0, tilt: TILT_DEFAULT, s_height: 0.0, follow: true, was_open: false, selected: None }
     }
 }
 
@@ -122,16 +135,53 @@ impl MapView {
         false
     }
 
-    /// System chart position (m) → screen (height is ignored: the chart looks straight down).
+    /// System chart position (m) → screen. Higher objects appear higher up the screen once tilted.
     pub fn system_to_screen(&self, map: Rect, w: Vec3) -> Pos2 {
         let (c, sc) = (self.s_center, self.s_scale);
-        Pos2::new(map.center().x + (w.x - c.x) * sc, map.center().y + (w.z - c.y) * sc)
+        let (sy, cy) = self.yaw.sin_cos();
+        let (st, ct) = self.tilt.sin_cos();
+        let (x, y, z) = (w.x - c.x, w.y - self.s_height, w.z - c.y);
+        let (xr, zr) = (x * cy - z * sy, x * sy + z * cy);
+        Pos2::new(map.center().x + xr * sc, map.center().y + (zr * ct - y * st) * sc)
     }
 
-    /// Screen → system chart position (m, on the y = 0 plane).
+    /// Screen → system chart position (m) on the reference plane.
     pub fn system_from_screen(&self, map: Rect, sp: Pos2) -> Vec3 {
-        let (c, sc) = (self.s_center, self.s_scale);
-        Vec3::new(c.x + (sp.x - map.center().x) / sc, 0.0, c.y + (sp.y - map.center().y) / sc)
+        let d = self.plane_offset(sp - map.center(), self.s_scale);
+        Vec3::new(self.s_center.x + d.x, self.s_height, self.s_center.y + d.y)
+    }
+
+    /// A screen offset (px) at scale `sc` → the matching move on the reference plane (m, x/z).
+    fn plane_offset(&self, off: EVec2, sc: f32) -> Vec2 {
+        let (sy, cy) = self.yaw.sin_cos();
+        let (xr, zr) = (off.x / sc, off.y / (sc * self.tilt.cos().max(0.05)));
+        Vec2::new(xr * cy + zr * sy, -xr * sy + zr * cy)
+    }
+
+    /// The point on the reference plane under `w` (where its height stem ends).
+    pub fn foot(&self, w: Vec3) -> Vec3 {
+        Vec3::new(w.x, self.s_height, w.z)
+    }
+
+    /// Whether the chart is tipped enough for height to show.
+    pub fn is_3d(&self) -> bool {
+        self.tilt > 0.05
+    }
+
+    /// Right-drag: turn the camera about the vertical and tip it toward the horizon.
+    pub fn rotate(&mut self, drag: EVec2) {
+        self.yaw += drag.x * ROTATE;
+        self.tilt = (self.tilt + drag.y * ROTATE).clamp(0.0, TILT_MAX);
+    }
+
+    /// "평면"/"입체": flat top-down chart ↔ the default 3D view (north up again).
+    pub fn toggle_3d(&mut self) {
+        if self.is_3d() {
+            self.tilt = 0.0;
+            self.yaw = 0.0;
+        } else {
+            self.tilt = TILT_DEFAULT;
+        }
     }
 
     /// Drag and wheel on the system chart, then follow my ship if still following. Zooming out of a
@@ -139,7 +189,7 @@ impl MapView {
     pub fn system_input(&mut self, map: Rect, drag: Option<EVec2>, scroll: f32, hover: Option<Pos2>, extent: f32, here: SystemId, my_pos: Option<Vec3>) -> bool {
         let fit_min = system_fit(map, extent);
         if let Some(d) = drag {
-            self.s_center -= Vec2::new(d.x, d.y) / self.s_scale;
+            self.s_center -= self.plane_offset(d, self.s_scale);
             self.follow = false;
         }
         if scroll != 0.0 {
@@ -153,8 +203,8 @@ impl MapView {
             }
             let new = (self.s_scale * k).clamp(fit_min, S_MAX);
             if let (Some(h), false) = (hover, self.follow) {
-                let off = Vec2::new(h.x - map.center().x, h.y - map.center().y);
-                self.s_center += off / self.s_scale - off / new;
+                let off = h - map.center();
+                self.s_center += self.plane_offset(off, self.s_scale) - self.plane_offset(off, new);
             }
             self.s_scale = new;
         }
@@ -162,6 +212,7 @@ impl MapView {
             && let Some(pos) = my_pos
         {
             self.s_center = Vec2::new(pos.x, pos.z);
+            self.s_height = pos.y;
         }
         false
     }
@@ -235,7 +286,7 @@ mod tests {
 
     #[test]
     fn system_projection_round_trips_and_keeps_north_up() {
-        let v = MapView { s_center: Vec2::new(1200.0, -300.0), s_scale: 0.07, ..Default::default() };
+        let v = MapView { s_center: Vec2::new(1200.0, -300.0), s_scale: 0.07, tilt: 0.0, ..Default::default() };
         let m = map();
         assert_eq!(v.system_to_screen(m, Vec3::new(1200.0, 55.0, -300.0)), m.center(), "centre maps to the middle, height ignored");
         let north = v.system_to_screen(m, Vec3::new(1200.0, 0.0, -1300.0));
@@ -243,6 +294,53 @@ mod tests {
         for w in [Vec3::new(-8000.0, 0.0, 4000.0), Vec3::new(3.5, 0.0, -9.25)] {
             assert!(v.system_from_screen(m, v.system_to_screen(m, w)).distance(w) < 0.05);
         }
+    }
+
+    #[test]
+    fn tilted_chart_shows_height() {
+        let m = map();
+        let v = MapView { s_center: Vec2::new(200.0, 100.0), s_scale: 0.05, yaw: 0.7, tilt: TILT_DEFAULT, s_height: 40.0, ..Default::default() };
+        let base = Vec3::new(1500.0, 40.0, -900.0);
+        let above = base + Vec3::Y * 2000.0;
+        let (pb, pa) = (v.system_to_screen(m, base), v.system_to_screen(m, above));
+        assert!(pa.y < pb.y - 50.0, "a ship 2 km above the plane is drawn well above its foot: {pb:?} {pa:?}");
+        assert!((pa.x - pb.x).abs() < 1e-3, "the stem is vertical on screen");
+        assert_eq!(v.foot(above), base);
+        // Clicks land on the plane, under the cursor, at any yaw and tilt.
+        for w in [base, Vec3::new(-7000.0, 40.0, 3000.0)] {
+            assert!(v.system_from_screen(m, v.system_to_screen(m, w)).distance(w) < 0.05);
+        }
+        // An orthographic view: a sphere of radius r stays inside r × scale on screen (range rings).
+        let c = v.system_to_screen(m, base);
+        for d in [Vec3::X, Vec3::Y, Vec3::Z, Vec3::new(1.0, 1.0, -1.0).normalize()] {
+            assert!(v.system_to_screen(m, base + d * 1000.0).distance(c) <= 1000.0 * 0.05 + 1e-3);
+        }
+    }
+
+    #[test]
+    fn right_drag_rotates_and_toggle_flattens() {
+        let mut v = MapView::default();
+        assert!(v.is_3d(), "the system chart opens in 3D");
+        v.rotate(EVec2::new(100.0, -1000.0));
+        assert!((v.yaw - 0.8).abs() < 1e-5);
+        assert_eq!(v.tilt, 0.0, "never tips past straight down");
+        v.rotate(EVec2::new(0.0, 10_000.0));
+        assert_eq!(v.tilt, TILT_MAX, "nor past the horizon limit");
+        v.toggle_3d();
+        assert_eq!((v.tilt, v.yaw), (0.0, 0.0));
+        v.toggle_3d();
+        assert_eq!(v.tilt, TILT_DEFAULT);
+    }
+
+    #[test]
+    fn panning_a_tilted_chart_drags_the_plane() {
+        let m = map();
+        let mut v = MapView { s_scale: 0.05, yaw: 1.1, tilt: 1.0, follow: false, ..Default::default() };
+        let grab = Pos2::new(600.0, 300.0);
+        let under = v.system_from_screen(m, grab);
+        v.system_input(m, Some(EVec2::new(-35.0, 22.0)), 0.0, None, 12_000.0, 1, None);
+        let moved = grab + EVec2::new(-35.0, 22.0);
+        assert!(v.system_from_screen(m, moved).distance(under) < 0.05, "the point grabbed stays under the cursor");
     }
 
     #[test]
@@ -288,7 +386,7 @@ mod tests {
         v.set_open(true, m);
         assert!(v.follow && v.level == Level::System);
         v.system_input(m, None, 0.0, None, 12_000.0, 1, Some(Vec3::new(500.0, 9.0, -40.0)));
-        assert_eq!(v.s_center, Vec2::new(500.0, -40.0));
+        assert_eq!((v.s_center, v.s_height), (Vec2::new(500.0, -40.0), 9.0), "the plane follows my height too");
         v.system_input(m, Some(EVec2::new(30.0, 0.0)), 0.0, None, 12_000.0, 1, Some(Vec3::new(900.0, 0.0, 0.0)));
         assert!(!v.follow);
         assert!(v.s_center.x < 500.0, "dragging right moves the view west");

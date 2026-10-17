@@ -16,6 +16,32 @@ pub const CROSSHAIR_SPAN: f32 = std::f32::consts::PI * 0.55;
 /// Width of the shield and hull bars in the ship status panel.
 pub const STATUS_BAR_W: f32 = 420.0;
 
+/// Where to point at something the camera cannot show (off screen or behind): a spot on an inset
+/// ring around the screen and the direction to turn. `local` is the object in camera space (−z ahead,
+/// +y up); `projected` is where it lands on screen, if in front. None when it is on screen.
+pub fn offscreen_marker(screen: egui::Rect, local: Vec3, projected: Option<Pos2>, inset: f32) -> Option<(Pos2, EVec2)> {
+    let inner = screen.shrink(inset);
+    if local.z < 0.0 && projected.is_some_and(|p| inner.contains(p)) {
+        return None;
+    }
+    // Screen-space direction: right is +x, up the screen is −y. Straight behind: point down.
+    let dir = EVec2::new(local.x, -local.y);
+    let dir = if dir.length() < 1e-4 { EVec2::new(0.0, 1.0) } else { dir.normalized() };
+    let half = inner.size() / 2.0;
+    // Scale the direction until it touches the inner rectangle.
+    let k = (half.x / dir.x.abs().max(1e-6)).min(half.y / dir.y.abs().max(1e-6));
+    Some((inner.center() + dir * k, dir))
+}
+
+/// "▲ 0.42 km · +23°": how far above (▲) or below (▼) me something is, and at what elevation angle.
+pub fn elevation_text(me: Vec3, it: Vec3) -> String {
+    let d = it - me;
+    let dist = d.length().max(1e-3);
+    let angle = (d.y / dist).clamp(-1.0, 1.0).asin().to_degrees();
+    let arrow = if d.y >= 0.0 { "▲" } else { "▼" };
+    if d.y.abs() >= 1000.0 { format!("{arrow} {:.2} km · {angle:+.0}°", d.y.abs() / 1000.0) } else { format!("{arrow} {:.0} m · {angle:+.0}°", d.y.abs()) }
+}
+
 pub fn bar(ui: &mut egui::Ui, frac: f32, color: Color32, label: String, w: f32) {
     bar_with_loss(ui, frac, frac, color, label, w, 16.0);
 }

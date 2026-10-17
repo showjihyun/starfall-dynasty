@@ -172,3 +172,32 @@ fn ship_status_panel_reads_the_real_numbers_and_fits() {
     assert!(d.text("Rank").is_none());
     assert!(d.text("에너지 실드").is_none(), "no bars without a ship in space");
 }
+
+// ---- 3D cues: edge arrows and elevation
+
+#[test]
+fn offscreen_marker_points_the_way() {
+    use shared::glam::Vec3;
+    let screen = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1600.0, 900.0));
+    let mid = screen.center();
+    // On screen, ahead: no arrow.
+    assert!(view::hud::offscreen_marker(screen, Vec3::new(0.0, 0.0, -100.0), Some(mid), 40.0).is_none());
+    // Ahead but projected off the right edge: arrow on the right edge, pointing right.
+    let (at, dir) = view::hud::offscreen_marker(screen, Vec3::new(500.0, 0.0, -100.0), Some(egui::pos2(2400.0, 450.0)), 40.0).unwrap();
+    assert!((at.x - (1600.0 - 40.0)).abs() < 0.5 && dir.x > 0.99);
+    // Straight above and behind: arrow at the top edge (up the screen is −y).
+    let (at, dir) = view::hud::offscreen_marker(screen, Vec3::new(0.0, 300.0, 50.0), None, 40.0).unwrap();
+    assert!((at.y - 40.0).abs() < 0.5 && dir.y < -0.99, "{at:?} {dir:?}");
+    // Every arrow stays on the inset ring.
+    for l in [Vec3::new(-3.0, -1.0, 2.0), Vec3::new(1.0, 5.0, -0.1), Vec3::new(0.0, 0.0, 9.0)] {
+        let (at, _) = view::hud::offscreen_marker(screen, l, None, 40.0).unwrap();
+        assert!(screen.shrink(39.0).contains(at), "{at:?}");
+    }
+}
+
+#[test]
+fn elevation_text_reads_above_and_below() {
+    use shared::glam::Vec3;
+    assert_eq!(view::hud::elevation_text(Vec3::ZERO, Vec3::new(1000.0, 1000.0, 0.0)), "▲ 1.00 km · +45°");
+    assert_eq!(view::hud::elevation_text(Vec3::new(0.0, 500.0, 0.0), Vec3::new(0.0, 200.0, 300.0)), "▼ 300 m · -45°");
+}

@@ -973,7 +973,7 @@ impl Game {
                     self.send_influence(pid);
                 }
             }
-            // QA: `/tp station|wreck|poi:<Kind>` — jump next to it in your system (undocked, at rest).
+            // QA: `/tp station|wreck|npc|poi:<Kind>` — jump next to it in your system (undocked, at rest).
             Some("/tp") => {
                 let what = it.next().unwrap_or("station").to_string();
                 let Some((sys, eid)) = self.player_entity(pid) else { return };
@@ -982,6 +982,7 @@ impl Game {
                 let target = match what.as_str() {
                     "station" => Some(self.systems[&sys].layout.station),
                     "wreck" => self.systems[&sys].ents.values().filter(|e| e.kind == EntityKind::Wreck).map(|e| e.pos).min_by(|a, b| near(*a).total_cmp(&near(*b))),
+                    "npc" => self.systems[&sys].ents.values().filter(|e| matches!(e.kind, EntityKind::Npc(_)) && !e.dead).map(|e| e.pos + Vec3::new(0.0, 0.0, 480.0)).min_by(|a, b| near(*a).total_cmp(&near(*b))),
                     k => {
                         let kind = k.trim_start_matches("poi:");
                         let skip = self.store.profile(pid).map(|p| p.scanned.clone()).unwrap_or_default();
@@ -1001,7 +1002,7 @@ impl Game {
                     None => self.toast(pid, format!("[dev] /tp: {what} 없음")),
                 }
             }
-            _ => self.toast(pid, "[dev] /grow N, /cash, /influence N [SYS], /tp station|wreck|poi:Kind"),
+            _ => self.toast(pid, "[dev] /grow N, /cash, /influence N [SYS], /tp station|wreck|npc|poi:Kind"),
         }
     }
 
