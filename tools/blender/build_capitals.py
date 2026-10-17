@@ -1813,6 +1813,7 @@ def run(name, bake=True, preview=True, tex=None):
     ship = cl.Capital(name, mats)
     ship.target_len = opts.get('length')
     builder(ship)
+    bs.species_kits(ship, big=True)
     objs = ship.finalize()
     tris, per = ship.tri_count()
     log(name, "triangles", tris, per, "build %.1fs" % (time.time() - t0))

@@ -118,6 +118,10 @@ fn chase_camera(
         _ => {
             // Docked or dead: slow orbit around the station (or a showroom point of interest).
             let look = args.look.as_deref().and_then(|k| {
+                if k == "ship" {
+                    // Showroom art check of one model (`--class`): orbit the captain's ship (the only one with a species).
+                    return ships.iter().find(|(sv, _)| sv.species_of.is_some()).map(|(sv, t)| (t.translation, sv.radius.max(8.0) * 2.0));
+                }
                 let l = env.layout.as_ref()?;
                 let kind = match k {
                     "gate" => shared::galaxy::PoiKind::AncientGate,

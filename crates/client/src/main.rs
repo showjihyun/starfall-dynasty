@@ -148,16 +148,34 @@ fn showroom(s: &mut Session, args: &Args) {
     let face = Quat::from_rotation_y(0.35);
     // `--species human|veyr|kharz` dresses the whole showroom fleet in one species' style.
     let only_species = std::env::args().skip_while(|a| a != "--species").nth(1).and_then(|s| shared::galaxy::Species::ALL.into_iter().find(|x| format!("{x:?}").eq_ignore_ascii_case(&s)));
+    // `--class cruiser|capital` (with `--hull`): only that hull, grown to the class (art checks of the big models).
+    let only_class = std::env::args().skip_while(|a| a != "--class").nth(1).and_then(|s| [shared::ships::SizeClass::Cruiser, shared::ships::SizeClass::Capital].into_iter().find(|x| format!("{x:?}").eq_ignore_ascii_case(&s)));
     for (i, h) in HullClass::ALL.into_iter().enumerate() {
+        if only_class.is_some() && args.hull != Some(h) {
+            continue;
+        }
         let mut ship = Ship::new(format!("{h:?}"), h, (i % 7) as u8);
-        if i % 2 == 1 {
+        if let Some(class) = only_class {
+            'grow: for _ in 0..20 {
+                for m in shared::ships::Module::ALL {
+                    if ship.size_class() == class {
+                        break 'grow;
+                    }
+                    *ship.modules.entry(m).or_insert(1) += 1;
+                }
+            }
+        } else if i % 2 == 1 {
             for m in shared::ships::Module::ALL {
                 ship.modules.insert(m, 8);
             }
         }
         let st = ship.stats();
         let id = 100 + i as u32;
-        let pos = base + Vec3::new((i as f32 - 2.0) * 70.0, (i as f32 * 1.3).sin() * 12.0, -(i as f32 % 2.0) * 50.0 - 120.0);
+        let pos = if only_class.is_some() {
+            layout.station + Vec3::new(0.0, 500.0, 2600.0)
+        } else {
+            base + Vec3::new((i as f32 - 2.0) * 70.0, (i as f32 * 1.3).sin() * 12.0, -(i as f32 % 2.0) * 50.0 - 120.0)
+        };
         ents.insert(
             id,
             EntityState {
@@ -191,7 +209,7 @@ fn showroom(s: &mut Session, args: &Args) {
         200,
         EntityState { id: 200, kind: EntityKind::Npc(shared::missions::NpcArchetype::Raider), name: "Raider".into(), hull_class: None, rank: 1, livery: 7, pos: (base + Vec3::new(40.0, 40.0, -320.0)).to_array(), rot: Quat::from_rotation_y(2.5).to_array(), vel: [0.0; 3], hull: 0.7, shield: 0.5, radius: 9.0, fleet: None, wanted: false, boosting: true, mining: None, docked: false, owner: None, alliance: None, class: None, species: None },
     );
-    s.me = args.hull.map(|hc| 100 + shared::ships::HullClass::ALL.iter().position(|h| *h == hc).unwrap() as u32);
+    s.me = if args.look.is_some() { None } else { args.hull }.map(|hc| 100 + shared::ships::HullClass::ALL.iter().position(|h| *h == hc).unwrap() as u32);
     s.profile = None;
     s.snaps.push_back(state::Snap { at: 0.0, ents });
 }

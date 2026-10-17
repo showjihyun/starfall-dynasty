@@ -37,6 +37,7 @@ SCENES = {
     'human': (['--showroom', '7', '--species', 'human', '--shot-at', '20'], 'Human: worn-industrial hulls, masts, radiators, hatch'),
     'veyr': (['--showroom', '7', '--species', 'veyr', '--shot-at', '20'], 'Veyr: dark-teal nacre, violet veins, hoop ribs'),
     'kharz': (['--showroom', '7', '--species', 'kharz', '--shot-at', '20'], 'Kharz: blackened iron, amber heat seams, bow horns, patch armour'),
+    'capital': (['--showroom', '7', '--hull', 'bastion', '--class', 'capital', '--look', 'ship', '--species', 'veyr'], 'Bastion capital, Veyr: section-hugging hoop ribs on a boxy hull'),
 }
 
 

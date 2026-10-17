@@ -1189,10 +1189,18 @@ def _hit(ship, origin, direction):
     return None if best is None else (best[1], best[2])
 
 
-def species_kits(ship):
+def species_kits(ship, big=False):
+    """big: cruiser/capital hulls — parts at half the relative size, repeated along the hull."""
     lo, hi = _body_bounds(ship)
     length = hi.y - lo.y
-    u = length / 30.0  # ~1 m on a 30 m hull
+    u = length / (60.0 if big else 30.0)  # ~1 m on a 30 m hull
+    st = dict(
+        masts=((0.32, 3.2), (0.4, 2.0), (0.56, 2.6), (0.62, 1.6)) if big else ((0.32, 3.2), (0.4, 2.0)),
+        hatch=(0.66, 0.24) if big else (0.66,),
+        fins=(0.3, 0.45, 0.6) if big else (0.45,),
+        ribs=(0.3, 0.4, 0.5, 0.6, 0.7) if big else (0.36, 0.5, 0.64),
+        plates=(0.22, 0.32, 0.42, 0.52, 0.62) if big else (0.3, 0.44, 0.58),
+    )
     zc = (lo.z + hi.z) / 2
     yat = lambda f: lo.y + f * length  # f: 0 stern .. 1 nose (+Y)
 
@@ -1200,24 +1208,42 @@ def species_kits(ship):
         h = _hit(ship, (x, yat(f), hi.z + 10 * u), (0, 0, -1))
         return h[0] if h else None
 
+    def seat(p, hx, hy):
+        """Where a plate centred over p (half-extents hx, hy) rests: on small hulls p itself; on big
+        ones sunk to its lowest corner so it hugs a rounded back, or None when a corner drops off a
+        tower's or a turret roof's edge (it would hang in the air)."""
+        if not big or p is None:
+            return p
+        zs = []
+        for dx, dy in ((-hx, -hy), (hx, -hy), (-hx, hy), (hx, hy)):
+            q = top(p.x + dx, (p.y + dy - lo.y) / length)
+            if q is None:
+                return None
+            zs.append(q.z)
+        if p.z - min(zs) > 2.0 * max(hx, hy):
+            return None
+        return Vector((p.x, p.y, min(p.z, min(zs) + 0.3 * u)))
+
     def side(f, z=None):
         h = _hit(ship, (hi.x + 10 * u, yat(f), zc if z is None else z), (-1, 0, 0))
         return h[0] if h else None
 
     # --- Human: industrial — antenna masts with running lights, side radiator fins, a top hatch.
     def human_top(bm):
-        for f, hgt in ((0.32, 3.2), (0.4, 2.0)):
+        for f, hgt in st['masts']:
             p = top(0.0, f)
             if p:
                 antenna(bm, p - Vector((0, 0, 0.1 * u)), hgt * u, r=0.07 * u)
-        p = top(0.0, 0.66)
-        if p:
-            box(bm, p + Vector((0, 0, 0.05 * u)), (1.7 * u, 1.7 * u, 0.16 * u))
-            box(bm, p + Vector((0, 0, 0.16 * u)), (1.1 * u, 1.1 * u, 0.1 * u), mat=L)
+        for f in st['hatch']:
+            p = next((q for q in (seat(top(0.0, f + d), 0.85 * u, 0.85 * u) for d in (0, 0.03, -0.03, 0.06)) if q), None)
+            if p:
+                box(bm, p + Vector((0, 0, 0.05 * u)), (1.7 * u, 1.7 * u, 0.16 * u))
+                box(bm, p + Vector((0, 0, 0.16 * u)), (1.1 * u, 1.1 * u, 0.1 * u), mat=L)
 
     def human_side(bm):
-        p = side(0.45)
-        if p:
+        for p in (side(f) for f in st['fins']):
+            if not p:
+                continue
             for k in range(3):
                 c = p + Vector((0.5 * u, (k - 1) * 0.9 * u, 0))
                 box(bm, c, (1.0 * u, 0.12 * u, 1.3 * u))
@@ -1227,9 +1253,50 @@ def species_kits(ship):
     ship.part(human_side, group="Species_Human_Kit", bevel=0.01, segs=1, mirror=True)
 
     # --- Veyr: bio-tech — hoop ribs following the fuselage section, a glowing spine vein.
-    def veyr(bm):
+    def section(f, n=24, win=7):
+        """The hull's outer cross-section at f: n points cast in from all round (towers and
+        turrets that poke out are smoothed away by a circular median), or None."""
+        t = top(0.0, f)
+        b = _hit(ship, (0, yat(f), lo.z - 10 * u), (0, 0, 1))
+        if not (t and b):
+            return None
+        c = Vector((0, yat(f), (t.z + b[0].z) / 2))
+        far = (hi - lo).length
+        rs = []
+        for k in range(n):
+            a = 2 * math.pi * k / n
+            d = Vector((math.cos(a), 0, math.sin(a)))
+            h = _hit(ship, c + d * far, -d)
+            rs.append((h[0] - c).length if h else None)
+        known = [r for r in rs if r is not None]
+        if len(known) < n // 2:
+            return None
+        rs = [r if r is not None else min(known) for r in rs]
+        sm = [sorted(rs[(k + j) % n] for j in range(-(win // 2), win // 2 + 1))[win // 2] for k in range(n)]
+        return [c + Vector((math.cos(2 * math.pi * k / n), 0, math.sin(2 * math.pi * k / n))) * sm[k] for k in range(n)]
+
+    def veyr_big(bm):
         tops = []
-        for f in (0.36, 0.5, 0.64):
+        for f in st['ribs']:
+            pts = section(f)
+            if not pts:
+                continue
+            c = sum(pts, Vector()) / len(pts)
+            pts = [p + (p - c).normalized() * 0.35 * u for p in pts]
+            for p0, p1 in zip(pts, pts[1:] + pts[:1]):
+                prism(bm, p0, p1, 0.4 * u, 0.3 * u, chamfer=0.4, up=(0, 1, 0))
+            tops.append(pts[len(pts) // 4] + Vector((0, 0, 0.15 * u)))
+        for p0, p1 in zip(tops, tops[1:]):
+            # only where the deck between two ribs stays under the vein (no tower in the way)
+            clear = all((lambda q: q is None or q.z < p0.z + (p1.z - p0.z) * s + 0.1 * u)(top(0.0, (p0.y + (p1.y - p0.y) * s - lo.y) / length)) for s in (0.25, 0.5, 0.75))
+            if clear and abs(p1.z - p0.z) < 1.0 * u:
+                strip(bm, p0, p1, w=0.22 * u, h=0.12 * u, mat=G)
+
+    def veyr(bm):
+        if big:
+            return veyr_big(bm)
+        tops = []
+        for f in st['ribs']:
             t, s = top(0.0, f), side(f)
             b = _hit(ship, (0, yat(f), lo.z - 10 * u), (0, 0, 1))
             if not (t and s and b):
@@ -1244,7 +1311,7 @@ def species_kits(ship):
         for p0, p1 in zip(tops, tops[1:]):
             strip(bm, p0, p1, w=0.09 * u, h=0.05 * u, mat=G)
 
-    ship.part(veyr, group="Species_Veyr_Kit", bevel=0, subsurf=1, angle=60, weighted=False)
+    ship.part(veyr, group="Species_Veyr_Kit", bevel=0, subsurf=0 if big else 1, angle=60, weighted=False)
 
     # --- Kharz: forged war hull — forward horns at the bow, riveted patch armour on the back.
     def kharz_horns(bm):
@@ -1256,15 +1323,16 @@ def species_kits(ship):
             cyl(bm, base - Vector((0, 0.3 * u, 0)), base + Vector((0, 0.5 * u, 0)), 0.6 * u, 0.6 * u, n=10)
 
     def kharz_plates(bm):
-        for f in (0.3, 0.44, 0.58):
-            p = top(0.0, f)
+        for f in st['plates']:
+            k = 1.8 if big else 1.0
+            p = next((q for q in (seat(top(0.0, f + d), 1.2 * k * u, 0.85 * k * u) for d in (0, 0.03, -0.03, 0.06)) if q), None)
             if not p:
                 continue
-            c = p + Vector((0, 0, 0.06 * u))
-            box(bm, c, (2.4 * u, 1.7 * u, 0.18 * u))
+            c = p + Vector((0, 0, 0.06 * k * u))
+            box(bm, c, (2.4 * k * u, 1.7 * k * u, 0.18 * k * u))
             for sx in (-1, 1):
                 for sy in (-1, 1):
-                    box(bm, c + Vector((sx * 1.0 * u, sy * 0.65 * u, 0.12 * u)), (0.16 * u, 0.16 * u, 0.12 * u))
+                    box(bm, c + Vector((sx * 1.0 * k * u, sy * 0.65 * k * u, 0.12 * k * u)), (0.16 * k * u, 0.16 * k * u, 0.12 * k * u))
 
     ship.part(kharz_horns, group="Species_Kharz_Kit", bevel=0.015, segs=1, mirror=True)
     ship.part(kharz_plates, group="Species_Kharz_Kit", bevel=0.01, segs=1)

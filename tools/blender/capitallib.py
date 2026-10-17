@@ -939,7 +939,8 @@ def cap_preview(name, ship, mats, previews, build, closeup=None, hero_dir=(1.0, 
     cam = shiplib.setup_preview_scene()
     allo = list(ship.objects.values()) + ship.turret_objs
     ranks = [o for n_, o in ship.objects.items() if n_.startswith("Rank")]
-    for o in ranks:
+    kits = {n_: o for n_, o in ship.objects.items() if n_.startswith("Species_")}
+    for o in ranks + list(kits.values()):
         o.hide_render = True
     shiplib.frame(cam, allo, hero_dir, margin=1.06)
     cam.data.clip_end = 50000
@@ -972,3 +973,18 @@ def cap_preview(name, ship, mats, previews, build, closeup=None, hero_dir=(1.0, 
         shiplib.render(p, 640, 360, 40)
         views.append(p)
     shiplib.compose_sheet(views, os.path.join(previews, "cap_%s_sheet.png" % name), cols=3)
+    # Species kits: one render each, same angle (docs/ART_DIRECTION.md §4).
+    for o in ranks:
+        o.hide_render = True
+    kviews = []
+    for kname in ("Species_Human_Kit", "Species_Veyr_Kit", "Species_Kharz_Kit"):
+        for n_, o in kits.items():
+            o.hide_render = n_ != kname
+        p = os.path.join(tmp, "%s_%s.png" % (name, kname))
+        shiplib.frame(cam, allo, hero_dir, margin=1.06)
+        cam.data.clip_end = 50000
+        shiplib.render(p, 640, 360, 40)
+        kviews.append(p)
+    for o in kits.values():
+        o.hide_render = True
+    shiplib.compose_sheet(kviews, os.path.join(previews, "cap_%s_species.png" % name), cols=3)
