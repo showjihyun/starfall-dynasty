@@ -805,6 +805,11 @@ impl Game {
     /// Information warfare (design doc §22): destroying a captain's ship copies part of their archive.
     pub(super) fn seize_intel(&mut self, killer: PlayerId, victim: PlayerId, sys: SystemId) {
         let max = self.tuning.history.seize_max as usize;
+        // No seizure between allies: same alliance or same fleet (would let friends launder records).
+        let same = |a: Option<u32>, b: Option<u32>| a.is_some() && a == b;
+        if same(self.alliance_of(killer), self.alliance_of(victim)) || same(self.fleet_of(killer), self.fleet_of(victim)) {
+            return;
+        }
         let (Some(k), Some(v)) = (self.store.profile(killer).cloned(), self.store.profile(victim).cloned()) else { return };
         let taken: Vec<u64> = v.archive.iter().rev().filter(|id| !k.archive.contains(id)).take(max).copied().collect();
         if taken.is_empty() {

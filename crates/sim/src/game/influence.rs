@@ -120,13 +120,16 @@ impl Game {
         if let Some(x) = self.store.data.alliances.iter_mut().find(|x| x.id == aid) {
             x.treasury -= share * n;
         }
+        let mut names = vec![];
         for m in &a.members {
             if let Some(p) = self.store.profile_mut(*m) {
                 p.wallet.credits += share;
+                names.push(p.name.clone());
             }
             self.toast(*m, format!("[{}] 금고 배당: +{share} CR", a.tag));
             self.push_profile(*m);
         }
+        self.history.record(self.unix, DomainEvent::DividendPaid { alliance: format!("[{}] {}", a.tag, a.name), share, members: names });
         self.store.dirty = true;
         let online: Vec<PlayerId> = self.conn_of.keys().copied().collect();
         for p in online {
@@ -151,6 +154,10 @@ impl Game {
     }
 
     fn set_controller(&mut self, sys: SystemId, new: Option<AllianceId>) {
+        self.change_controller(sys, new, None);
+    }
+
+    fn change_controller(&mut self, sys: SystemId, new: Option<AllianceId>, reason: Option<&str>) {
         let name_of = |g: &Game, a: Option<AllianceId>| a.and_then(|a| g.alliance(a)).map(|a| format!("[{}] {}", a.tag, a.name));
         let previous = name_of(self, self.controller(sys));
         match new {
@@ -162,7 +169,7 @@ impl Game {
             }
         }
         self.store.dirty = true;
-        self.history.record(self.unix, DomainEvent::SystemControlChanged { system: sys, alliance: name_of(self, new), previous: previous.clone() });
+        self.history.record(self.unix, DomainEvent::SystemControlChanged { system: sys, alliance: name_of(self, new), previous: previous.clone(), reason: reason.map(str::to_string) });
         let sys_name = galaxy::system(sys).name;
         let text = match (name_of(self, new), previous) {
             (Some(n), Some(p)) => format!("{sys_name}의 패권이 {p}에서 {n}(으)로 넘어갔습니다"),
@@ -216,7 +223,7 @@ impl Game {
             if let Some(v) = self.store.data.influence.get_mut(&weakest).and_then(|m| m.get_mut(&a)) {
                 *v *= 0.5;
             }
-            self.set_controller(weakest, None);
+            self.change_controller(weakest, None, Some("금고 부족"));
             self.update_control(weakest);
             self.toast(leader, format!("[{tag}] 금고가 바닥나 유지비 {cost} CR을 내지 못해 {}에서 철수했습니다", galaxy::system(weakest).name));
         }

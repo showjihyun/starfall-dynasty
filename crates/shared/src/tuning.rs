@@ -241,6 +241,8 @@ pub struct HistoryTuning {
     pub seize_max: u32,
     pub leak_reputation: i32,
     pub scoop_bonus: u64,
+    pub herald_articles: u32,
+    pub herald_kind_cap: u32,
 }
 
 /// Artifact names, values and station services (`artifacts.ron`).

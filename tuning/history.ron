@@ -18,4 +18,8 @@
     seize_max: 3,               // evidence copied from a captain's archive when you destroy their ship
     leak_reputation: 2,         // making a held record public
     scoop_bonus: 500,           // the first journalist to write up an event: [단독] and this many credits
+
+    // Galactic Herald front page.
+    herald_articles: 3,         // journalists' articles (corrections included) lead the page, newest first
+    herald_kind_cap: 2,         // at most this many automatic headlines of one kind (exposés, control changes, …)
 )

@@ -58,8 +58,17 @@ pub enum DomainEvent {
     ContractFulfilled { contract_id: u64, employer: String, contractor: String, terms: String, reward: u64, system: SystemId },
     /// `betrayer` turned on `betrayed` while their contract stood.
     ContractBetrayed { contract_id: u64, betrayer: String, betrayed: String, terms: String, system: SystemId },
-    /// Control of a system passed to `alliance` (none: nobody holds it any more).
-    SystemControlChanged { system: SystemId, alliance: Option<String>, previous: Option<String> },
+    /// Control of a system passed to `alliance` (none: nobody holds it any more). `reason` explains a
+    /// forced change, e.g. a withdrawal because the treasury could not pay upkeep.
+    SystemControlChanged {
+        system: SystemId,
+        alliance: Option<String>,
+        previous: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        reason: Option<String>,
+    },
+    /// An alliance paid its treasury out; each member got `share` credits.
+    DividendPaid { alliance: String, share: u64, members: Vec<String> },
     InstituteFounded { institute_id: u64, name: String, founder: String, system: SystemId },
     /// `by` destroyed `from`'s ship and copied these records from their archive.
     IntelSeized { by: String, from: String, evidence: Vec<u64>, system: SystemId },
@@ -256,10 +265,17 @@ impl HistoryEngine {
                 self.bio(&donor, unix, format!("{artifact}을(를) 「{institute}」에 기증했다."), Some(id));
                 Some(id)
             }
-            DomainEvent::SystemControlChanged { system, alliance, previous } => {
+            DomainEvent::DividendPaid { alliance, share, members } => {
+                for m in &members {
+                    self.bio(m, unix, format!("{alliance} 금고에서 배당 {share} CR을 받았다."), None);
+                }
+                None
+            }
+            DomainEvent::SystemControlChanged { system, alliance, previous, reason } => {
                 let sys = galaxy::system(system).name;
                 let causes: Vec<EventId> = self.events.iter().rev().find(|e| e.kind == "SYSTEM_CONTROL" && e.system == system).map(|e| e.id).into_iter().collect();
                 let (title, summary, imp) = match (&alliance, &previous) {
+                    (None, Some(p)) if reason.is_some() => (format!("{p}, {sys}에서 철수 — {}", reason.as_deref().unwrap_or_default()), format!("{p}이(가) 영토 유지비를 감당하지 못해 {sys}에서 물러났다({}). 주인 없는 성계가 되었다.", reason.as_deref().unwrap_or_default()), Importance::Notable),
                     (Some(a), Some(p)) => (format!("{sys} 패권 교체"), format!("{a}이(가) {p}을(를) 밀어내고 {sys} 성계의 패권을 쥐었다."), Importance::Historic),
                     (Some(a), None) => (format!("{a}, {sys} 장악"), format!("{a}이(가) {sys} 성계에서 누구도 무시할 수 없는 세력이 되었다."), Importance::Major),
                     (None, Some(p)) => (format!("{p}, {sys}에서 물러나다"), format!("{p}의 영향력이 사그라들어 {sys}에는 주인이 없게 되었다."), Importance::Notable),
@@ -688,32 +704,44 @@ impl HistoryEngine {
     }
 
     /// Galactic Herald: template-generated news from simulation facts (never invents events).
-    /// The Galactic Herald: journalists' articles (corrections included) and, for events nobody has
-    /// written up, the automatic headline — newest first.
+    /// The Galactic Herald's front page (tuning `history.ron`): up to `herald_articles` journalists'
+    /// articles lead (corrections included, newest first); automatic headlines for events nobody has
+    /// written up fill the rest, newest first, with at most `herald_kind_cap` of any one kind.
     pub fn herald(&self, limit: usize) -> Vec<Headline> {
+        let t = shared::tuning::get();
+        let lead = (t.history.herald_articles as usize).min(limit);
         let covered: HashSet<EventId> = self.stories.iter().filter(|s| !s.retracted).map(|s| s.event).collect();
-        let mut dated: Vec<(u64, usize, Headline)> = self.auto_headlines(limit, &covered).into_iter().enumerate().map(|(i, (u, h))| (u, i, h)).collect();
-        for s in self.stories.iter().rev().take(limit) {
-            let headline = match (s.retracted, s.scoop) {
-                (true, _) => format!("[정정] {}", s.headline),
-                (false, true) => format!("[단독] {}", s.headline),
-                (false, false) => s.headline.clone(),
-            };
-            let body = if s.retracted {
-                format!("이 기사가 근거로 삼은 증거는 위조로 판명되었다. 원문: {}", s.body)
-            } else {
-                format!("{} (근거 신뢰도 {:.0}%)", s.body, s.reliability * 100.0)
-            };
-            // Articles sort ahead of automatic headlines from the same moment.
-            dated.push((s.unix, usize::MAX - s.id as usize, Headline { date: s.date.clone(), headline, body, by: Some(s.reporter.clone()), story: Some(s.id) }));
-        }
-        dated.sort_by(|a, b| b.0.cmp(&a.0).then(b.1.cmp(&a.1)));
-        dated.into_iter().take(limit).map(|d| d.2).collect()
+        let mut page: Vec<Headline> = self.stories.iter().rev().take(lead).map(|s| self.article(s)).collect();
+        page.extend(self.auto_headlines(limit - page.len(), &covered, t.history.herald_kind_cap as usize));
+        page
     }
 
-    fn auto_headlines(&self, limit: usize, covered: &HashSet<EventId>) -> Vec<(u64, Headline)> {
+    fn article(&self, s: &Story) -> Headline {
+        let headline = match (s.retracted, s.scoop) {
+            (true, _) => format!("[정정] {}", s.headline),
+            (false, true) => format!("[단독] {}", s.headline),
+            (false, false) => s.headline.clone(),
+        };
+        let body = if s.retracted {
+            format!("이 기사가 근거로 삼은 증거는 위조로 판명되었다. 원문: {}", s.body)
+        } else {
+            format!("{} (근거 신뢰도 {:.0}%)", s.body, s.reliability * 100.0)
+        };
+        Headline { date: s.date.clone(), headline, body, by: Some(s.reporter.clone()), story: Some(s.id) }
+    }
+
+    fn auto_headlines(&self, limit: usize, covered: &HashSet<EventId>, kind_cap: usize) -> Vec<Headline> {
         let mut out = Vec::new();
-        for e in self.events.iter().rev().filter(|e| e.importance >= Importance::Notable && !covered.contains(&e.id)).take(limit) {
+        let mut per_kind: HashMap<&str, usize> = HashMap::new();
+        for e in self.events.iter().rev().filter(|e| e.importance >= Importance::Notable && !covered.contains(&e.id)) {
+            if out.len() >= limit {
+                break;
+            }
+            let n = per_kind.entry(e.kind.as_str()).or_default();
+            if *n >= kind_cap {
+                continue;
+            }
+            *n += 1;
             let sys = galaxy::system(e.system).name.to_uppercase();
             let headline = match e.kind.as_str() {
                 "BATTLE" => format!("{} — 포연이 걷히다", e.title.to_uppercase()),
@@ -745,7 +773,7 @@ impl HistoryEngine {
             if let Some(r) = e.research.iter().filter(|r| !r.discredited).max_by(|a, b| a.confidence.total_cmp(&b.confidence)) {
                 body.push_str(&format!(" 역사가 {}는 \"{}\"라고 주장한다(신뢰도 {:.0}%).", r.author, r.thesis, r.confidence * 100.0));
             }
-            out.push((e.unix, Headline { date: e.date.clone(), headline, body, by: None, story: None }));
+            out.push(Headline { date: e.date.clone(), headline, body, by: None, story: None });
         }
         out
     }
@@ -919,6 +947,37 @@ mod tests {
         assert!(h.herald(8).iter().any(|n| n.headline == "[정정] B 선제 발포"));
         assert!(h.biography("Clark").iter().any(|b| b.text.contains("정정")));
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Front page: articles lead (up to 3, corrections included), automatic headlines fill the rest
+    /// with at most 2 of any kind, so a burst of one kind of news cannot take over the page.
+    #[test]
+    fn herald_front_page_follows_editorial_rules() {
+        let mut h = HistoryEngine::new();
+        let mut destroyed = vec![];
+        for i in 0..5 {
+            destroyed.push(h.apply(100 + i, destroyed_ev(&format!("V{i}"), "K")).unwrap());
+        }
+        for i in 0..4u64 {
+            let log = h.evidence.iter().find(|e| e.event == destroyed[i as usize]).unwrap().id;
+            h.apply(200 + i, DomainEvent::EvidenceLeaked { by: "Leaker".into(), evidence: log });
+        }
+        let page = h.herald(8);
+        let leaks = page.iter().filter(|p| p.headline.starts_with("폭로")).count();
+        let losses = page.iter().filter(|p| p.headline.contains("또 하나의 함선")).count();
+        assert_eq!((leaks, losses), (2, 2), "{page:?}");
+        // Articles go first, newest first, up to three — even when older than the automatic news.
+        for i in 0..4u64 {
+            h.apply(50 + i, DomainEvent::StoryFiled { reporter: format!("R{i}"), event: destroyed[i as usize], headline: format!("기사 {i}"), body: "본문 열 글자 이상입니다.".into(), cited: vec![] });
+        }
+        let page = h.herald(8);
+        let bylines: Vec<Option<&str>> = page.iter().map(|p| p.by.as_deref()).collect();
+        assert_eq!(&bylines[..4], &[Some("R3"), Some("R2"), Some("R1"), None], "{page:?}");
+        assert!(page.len() <= 8);
+    }
+
+    fn destroyed_ev(victim: &str, killer: &str) -> DomainEvent {
+        destroyed(victim, killer, true)
     }
 
     /// Lost Artifact Hunt: unearthed → lost with the ship → recovered from the wreck, each entry

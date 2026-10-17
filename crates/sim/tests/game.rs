@@ -1136,3 +1136,47 @@ fn leaks_unseal_records_and_first_story_is_the_scoop() {
     assert!(herald.iter().any(|h| h.headline == "[단독] 첫 보도"));
     assert!(herald.iter().any(|h| h.headline == "후속 보도"));
 }
+
+#[test]
+fn withdrawal_news_dividend_records_and_no_seizure_between_allies() {
+    let mut g = game();
+    g.dev_mode = true;
+    let lord = join(&mut g, 1, "Lord", Species::Human, HullClass::Bastion, Profession::CombatPilot);
+    let ally = join(&mut g, 2, "Ally", Species::Human, HullClass::Wren, Profession::CombatPilot);
+    g.store.profile_mut(lord).unwrap().wallet.credits = 5000;
+    g.handle(1, ClientMsg::AllianceCreate { name: "Grand Empire".into(), tag: "EMP".into() });
+    let emp = g.alliance_of(lord).unwrap();
+    g.handle(1, ClientMsg::AllianceInvite { name: "Ally".into() });
+    g.handle(2, ClientMsg::AllianceAccept { alliance: emp });
+    // Two systems, an empty treasury: the first hourly upkeep forces a withdrawal, reported as such.
+    g.spawn_player(lord, 3, false);
+    for sys in [3, 4] {
+        g.handle(1, ClientMsg::Chat { text: format!("/influence 100 {sys}") });
+    }
+    let hour = 3600 * 20;
+    g.tick = (g.tick / hour + 1) * hour - 1;
+    g.tick(DT, T0);
+    let w = g.history.events.iter().rev().find(|e| e.kind == "SYSTEM_CONTROL").unwrap();
+    assert!(w.title.contains("철수") && w.title.contains("금고 부족"), "{}", w.title);
+    // Dividends go into the members' biographies.
+    g.store.data.alliances.iter_mut().find(|a| a.id == emp).unwrap().treasury = 1000;
+    g.handle(1, ClientMsg::AllianceDividend);
+    assert!(g.history.biography("Ally").iter().any(|b| b.text.contains("배당 500 CR")));
+    // Allies cannot launder records by shooting each other down.
+    g.store.profile_mut(ally).unwrap().archive.extend([1, 2]);
+    for c in [1, 2] {
+        move_to_system(&mut g, c, 7);
+    }
+    clear_npcs(&mut g, 7);
+    let (_, el) = ent_of(&g, 1);
+    let (_, ea) = ent_of(&g, 2);
+    let before = g.store.profile(lord).unwrap().archive.len();
+    // (Alliance members cannot damage each other; drop the ally's hull directly to make the kill.)
+    g.ent_mut(7, ea).unwrap().hull = 0.0;
+    let now = g.now;
+    g.ent_mut(7, ea).unwrap().attackers.push((el, Some(lord), now));
+    g.tick(DT, T0);
+    assert!(g.sessions[&2].dead);
+    assert_eq!(g.store.profile(lord).unwrap().archive.len(), before, "no seizure between allies");
+    assert!(!g.history.events.iter().any(|e| e.kind == "INTEL_SEIZED"));
+}
