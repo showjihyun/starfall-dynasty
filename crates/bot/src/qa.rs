@@ -254,6 +254,27 @@ pub async fn run(url: &str, a_name: &str, b_name: &str) -> Result<Report, String
     let held: Vec<u16> = standings.iter().filter(|s| s.controller.as_ref().is_some_and(|c| c.1 == "QAP")).map(|s| s.system).collect();
     let pts: Vec<f32> = standings.iter().filter(|s| held.contains(&s.system)).filter_map(|s| s.standings.first().map(|x| x.2)).collect();
     r.check("6-2", "영향력 → 두 성계 지배(100, 80)", held == vec![3, 4] && pts.iter().any(|p| (*p - 80.0).abs() < 0.5), format!("지배 {held:?}, 영향력 {pts:?}"));
+    // 7. Institutions: B founds one in Hollow Crown and shows the artifact it recovered; A visits.
+    let docked_b = dock(&mut b).await;
+    b.send(ClientMsg::FoundInstitute { name: "QA 역사 연구소".into() }).await;
+    let founded = b.until(5.0, |m| matches!(m, ServerMsg::Institutes { list } if list.iter().any(|v| v.institute.name == "QA 역사 연구소"))).await;
+    let inst = match &founded {
+        Some(ServerMsg::Institutes { list }) => list.iter().find(|v| v.institute.name == "QA 역사 연구소").map(|v| v.institute.id),
+        _ => None,
+    };
+    r.check("7-1", "정거장에서 기관 설립", docked_b && inst.is_some(), format!("도킹 {docked_b}, 기관 {inst:?}"));
+    if let (Some(i), Some(x)) = (inst, artifacts(&b).first()) {
+        b.send(ClientMsg::DonateToInstitute { artifact: x.id, institute: i }).await;
+    }
+    let shown = b.until(5.0, |m| matches!(m, ServerMsg::Institutes { list } if list.iter().any(|v| Some(v.institute.id) == inst && !v.exhibits.is_empty()))).await.is_some();
+    r.check("7-2", "회수한 유물을 전시(내력 포함)", shown && artifacts(&b).is_empty(), format!("전시 {shown}, B 보유 {}", artifacts(&b).len()));
+    chat(&mut a, "/grow 9").await;
+    a.warp_to(6).await?;
+    let b_before = credits(&b);
+    let a_docked = dock(&mut a).await;
+    a.pump(0.5).await;
+    b.pump(0.8).await;
+    r.check("7-3", "다른 함장이 도킹 → 관람, 설립자 수입", a_docked && credits(&b) > b_before && toasts(&a).iter().any(|t| t.contains("관람")), format!("{b_before} → {}", credits(&b)));
     r.tokens = [(&a, a_name), (&b, b_name)].into_iter().filter_map(|(bot, n)| Some((n.to_string(), bot.token.clone()?))).collect();
     Ok(r)
 }

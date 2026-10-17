@@ -1,0 +1,32 @@
+{
+  "name": "institute_exhibits_and_visitors",
+  "description": "(9500 CR + 유적 스캔 보상 750 − 설립 5000 = 5250, 관람 1회 +30) 고고학자가 Hollow Crown 정거장에 연구소를 세우고 발굴한 유물을 전시하면, 도킹해 들른 함장이 관람객이 되어 설립자에게 수입이 생긴다",
+  "dev": true,
+  "captains": [
+    { "name": "Indy", "hull": "Seer", "profession": "Archaeologist", "level": 1, "system": 6, "near_poi": "Ruin", "offset": [0, 0, 120], "credits": 8000 },
+    { "name": "Tourist", "hull": "Wren", "level": 1, "system": 6, "credits": 0 }
+  ],
+  "script": [
+    { "at": 0.5, "captain": "Indy", "fill_nearest": "poi:Ruin", "msg": { "Scan": { "poi": 0 } } },
+    { "at": 6.0, "captain": "Indy", "msg": { "Chat": { "text": "/tp station" } } },
+    { "at": 6.2, "captain": "Indy", "msg": "Dock" },
+    { "at": 6.5, "captain": "Indy", "msg": { "FoundInstitute": { "name": "Hollow Crown 왕관 연구소" } } },
+    { "at": 7.0, "captain": "Indy", "fill_nearest": "artifact,institute", "msg": { "DonateToInstitute": { "artifact": 0, "institute": 0 } } },
+    { "at": 9.0, "captain": "Tourist", "msg": { "Chat": { "text": "/tp station" } } },
+    { "at": 9.2, "captain": "Tourist", "msg": "Dock" },
+    { "at": 10.0, "captain": "Tourist", "msg": "Undock" },
+    { "at": 11.0, "captain": "Tourist", "msg": "Dock" }
+  ],
+  "run_secs": 12,
+  "expect": [
+    { "at": 6.4, "check": "artifacts", "captain": "Indy", "min": 1 },
+    { "at": 6.8, "check": "history", "kind": "INSTITUTE_FOUNDED", "min": 1 },
+    { "at": 6.8, "check": "credits", "captain": "Indy", "min": 5250, "max": 5250 },
+    { "at": 7.5, "check": "institute", "name": "Hollow Crown 왕관 연구소", "exhibits_min": 1 },
+    { "at": 7.5, "check": "artifacts", "captain": "Indy", "max": 0 },
+    { "at": 7.5, "check": "history", "kind": "EXHIBIT_ACQUIRED", "min": 1 },
+    { "at": 7.5, "check": "reputation", "captain": "Indy", "min": 15 },
+    { "check": "institute", "name": "Hollow Crown 왕관 연구소", "visitors_min": 1, "visitors_max": 1 },
+    { "check": "credits", "captain": "Indy", "min": 5280, "max": 5280 }
+  ]
+}

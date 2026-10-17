@@ -41,6 +41,8 @@ pub struct UiFlags {
     pub stories_filed: HashSet<u64>,
     /// The contract board's "new contract" form.
     pub contract_form: view::panels::ContractForm,
+    /// Name typed for a new institute.
+    pub institute_name: String,
     pub bio_query: String,
 }
 
@@ -89,6 +91,8 @@ pub struct Session {
     pub artifacts: Vec<shared::artifacts::Artifact>,
     /// The contract board (server-sent).
     pub contracts: Vec<shared::contracts::Contract>,
+    /// Player institutions (server-sent).
+    pub institutes: Vec<shared::institutes::InstituteView>,
     /// Alliance influence and control per system (server-sent), and the control threshold.
     pub influence: Vec<SystemStanding>,
     pub influence_threshold: f32,
@@ -228,6 +232,7 @@ fn apply(s: &mut Session, m: ServerMsg, now: f64, next: &mut NextState<Screen>) 
         }
         ServerMsg::Artifacts { held } => s.artifacts = held,
         ServerMsg::Contracts { list } => s.contracts = list,
+        ServerMsg::Institutes { list } => s.institutes = list,
         ServerMsg::Influence { systems, threshold } => {
             s.influence = systems;
             s.influence_threshold = threshold;

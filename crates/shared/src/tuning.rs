@@ -209,6 +209,10 @@ pub struct SocialTuning {
     pub free_systems: u32,
     pub upkeep_base: u64,
     pub upkeep_exponent: f32,
+    pub institute_cost: u64,
+    pub visit_base: u64,
+    pub visit_per_exhibit: u64,
+    pub exhibit_reputation: i32,
 }
 
 impl SocialTuning {

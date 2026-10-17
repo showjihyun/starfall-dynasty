@@ -128,6 +128,11 @@ pub enum ClientMsg {
     RequestContracts,
     /// Alliance leader: pay the treasury out to the members in equal shares.
     AllianceDividend,
+    /// Found a research institute / museum at the station you are docked at (one per captain).
+    FoundInstitute { name: String },
+    /// Put an artifact you hold on display at an institute in this system (docked).
+    DonateToInstitute { artifact: ArtifactId, institute: crate::institutes::InstituteId },
+    RequestInstitutes,
     Ping { t: f64 },
 }
 
@@ -252,6 +257,8 @@ pub struct FleetMember {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum ServerMsg {
+    /// Every player institution with its exhibits.
+    Institutes { list: Vec<crate::institutes::InstituteView> },
     /// Alliance influence and control per system (`threshold`: influence needed to take control).
     Influence { systems: Vec<SystemStanding>, threshold: f32 },
     /// The contract board: every open contract plus the ones this captain is party to.

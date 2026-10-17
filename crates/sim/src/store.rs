@@ -65,6 +65,14 @@ pub struct StoreData {
     /// System → controlling alliance.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub controllers: BTreeMap<SystemId, u32>,
+    /// Player institutions (research institutes / museums).
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub institutes: BTreeMap<u64, shared::institutes::Institute>,
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub next_institute: u64,
+    /// Institute → (visitor, day) visits of the current day.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub institute_visits: BTreeMap<u64, Vec<(PlayerId, u32)>>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

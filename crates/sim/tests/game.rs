@@ -1015,3 +1015,70 @@ fn upkeep_is_paid_from_the_treasury_while_it_lasts() {
     run_hour(&mut g);
     assert_eq!(g.held_by(emp).len(), 1, "the home system costs nothing");
 }
+
+#[test]
+fn institutes_one_per_captain_paid_by_daily_visitors() {
+    use shared::artifacts::Holder;
+    let mut g = game();
+    let founder = join(&mut g, 1, "Curator", Species::Human, HullClass::Seer, Profession::Archaeologist);
+    let visitor = join(&mut g, 2, "Visitor", Species::Veyr, HullClass::Wren, Profession::Explorer);
+    g.store.profile_mut(founder).unwrap().wallet.credits = 20_000;
+    // Found at a docked station; one per captain; names are unique.
+    g.spawn_player(founder, 6, false);
+    g.handle(1, ClientMsg::FoundInstitute { name: "Crown Institute".into() });
+    assert!(g.store.data.institutes.is_empty(), "must be docked");
+    g.spawn_player(founder, 6, true);
+    g.handle(1, ClientMsg::FoundInstitute { name: "Crown Institute".into() });
+    assert_eq!(g.store.data.institutes.len(), 1);
+    assert_eq!(g.store.profile(founder).unwrap().wallet.credits, 15_000);
+    g.out.clear();
+    g.handle(1, ClientMsg::FoundInstitute { name: "Second".into() });
+    assert!(errors(&g, 1).iter().any(|e| e.contains("하나만")));
+    let inst = *g.store.data.institutes.keys().next().unwrap();
+    // An empty institute draws no paying visitors.
+    let fee_before = g.store.profile(founder).unwrap().wallet.credits;
+    g.spawn_player(visitor, 6, false);
+    g.handle(2, ClientMsg::Dock);
+    let (s, e) = ent_of(&g, 2);
+    let st = g.systems[&s].layout.station;
+    g.ent_mut(s, e).unwrap().pos = st + Vec3::new(0.0, 0.0, 100.0);
+    g.handle(2, ClientMsg::Dock);
+    assert_eq!(g.store.profile(founder).unwrap().wallet.credits, fee_before);
+    // Give the curator an artifact; donating from another system fails, here it works.
+    g.store.data.next_artifact += 1;
+    let aid = g.store.data.next_artifact;
+    let art = shared::artifacts::excavate(aid, 6, "고대 유적 Alpha", PoiKind::Ruin, 1, 1, founder, T0);
+    g.store.data.artifacts.insert(aid, art);
+    g.spawn_player(founder, 3, true);
+    g.out.clear();
+    g.handle(1, ClientMsg::DonateToInstitute { artifact: aid, institute: inst });
+    assert!(errors(&g, 1).iter().any(|e| e.contains("정거장에 있습니다")));
+    g.spawn_player(founder, 6, true);
+    g.handle(1, ClientMsg::DonateToInstitute { artifact: aid, institute: inst });
+    assert_eq!(g.store.data.artifacts[&aid].holder, Holder::Institute(inst));
+    assert_eq!(g.store.data.institutes[&inst].exhibits, vec![aid]);
+    // Visits: once per captain per day, the founder's own docking doesn't count.
+    // (Undocking pushes the ship out; fly it back next to the station before docking again.)
+    let dock_again = |g: &mut Game| {
+        g.handle(2, ClientMsg::Undock);
+        let (s, e) = ent_of(g, 2);
+        let st = g.systems[&s].layout.station;
+        g.ent_mut(s, e).unwrap().pos = st + Vec3::new(0.0, 0.0, 100.0);
+        g.handle(2, ClientMsg::Dock);
+    };
+    let before = g.store.profile(founder).unwrap().wallet.credits;
+    dock_again(&mut g);
+    dock_again(&mut g);
+    g.handle(1, ClientMsg::Undock);
+    g.handle(1, ClientMsg::Dock);
+    assert_eq!(g.store.data.institutes[&inst].visitors, 1);
+    assert_eq!(g.store.profile(founder).unwrap().wallet.credits, before + 30);
+    g.unix += 86_400;
+    dock_again(&mut g);
+    assert_eq!(g.store.data.institutes[&inst].visitors, 2, "a new day, a new visit");
+    // The story is in the chronicle and survives a save.
+    assert!(g.history.events.iter().any(|e| e.kind == "INSTITUTE_FOUNDED"));
+    let js = serde_json::to_string(&g.store.data).unwrap();
+    let back: sim::store::StoreData = serde_json::from_str(&js).unwrap();
+    assert_eq!(back.institutes, g.store.data.institutes);
+}

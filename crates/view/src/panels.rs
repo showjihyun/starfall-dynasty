@@ -207,3 +207,57 @@ pub fn influence(ui: &mut egui::Ui, systems: &[SystemStanding], mine: Option<&st
         }
     });
 }
+
+// ---- Institutes ---------------------------------------------------------------------------------
+
+use shared::institutes::{InstituteId, InstituteView};
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum InstituteRequest {
+    Found(String),
+    Donate { artifact: u64, institute: InstituteId },
+}
+
+/// The station's institutions: what is on display here (with each artifact's provenance), buttons to
+/// donate the artifacts I hold, and a form to found one if I have none yet.
+pub fn institutes(ui: &mut egui::Ui, list: &[InstituteView], here: SystemId, held: &[Artifact], me: u64, credits: u64, docked: bool, cost: u64, name: &mut String) -> Option<InstituteRequest> {
+    let mut out = None;
+    let local: Vec<&InstituteView> = list.iter().filter(|v| v.institute.system == here).collect();
+    ui.label(RichText::new(format!("연구소·박물관 {}곳", local.len())).strong());
+    if local.is_empty() {
+        ui.label(RichText::new("이 정거장에는 아직 기관이 없습니다. 기관을 세우고 유물을 전시하면, 이 성계에 도킹하는 함장들이 관람객이 되어 수입이 생깁니다.").size(11.0).color(DIM));
+    }
+    for v in &local {
+        let i = &v.institute;
+        ui.group(|ui| {
+            ui.label(RichText::new(&i.name).color(GOLD).strong());
+            ui.label(RichText::new(format!("설립 {} · 전시 {}점 · 관람 {}회", i.founder_name, i.exhibits.len(), i.visitors)).size(11.0).color(DIM));
+            for a in &v.exhibits {
+                ui.collapsing(format!("{} — {}", a.label(), a.culture.name()), |ui| {
+                    for p in &a.provenance {
+                        ui.label(RichText::new(format!("{}  {}", p.date, p.text)).size(11.0));
+                    }
+                });
+            }
+            for a in held {
+                if ui.add_enabled(docked, egui::Button::new(format!("{} 기증", a.label()))).clicked() {
+                    out = Some(InstituteRequest::Donate { artifact: a.id, institute: i.id });
+                }
+            }
+        });
+    }
+    let others = list.len() - local.len();
+    if others > 0 {
+        ui.label(RichText::new(format!("다른 성계의 기관 {others}곳")).size(11.0).color(DIM));
+    }
+    if !list.iter().any(|v| v.institute.founder == me) {
+        ui.horizontal(|ui| {
+            ui.add(egui::TextEdit::singleline(name).hint_text("기관 이름").desired_width(220.0));
+            let ok = docked && credits >= cost && name.trim().chars().count() >= 2;
+            if ui.add_enabled(ok, egui::Button::new(format!("설립 ({cost} CR)"))).clicked() {
+                out = Some(InstituteRequest::Found(name.trim().to_string()));
+            }
+        });
+    }
+    out
+}

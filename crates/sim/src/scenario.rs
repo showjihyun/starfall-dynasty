@@ -188,6 +188,16 @@ pub enum Check {
     Controller { system: SystemId, #[serde(default)] tag: Option<String> },
     /// Credits in the treasury of the alliance with this tag.
     Treasury { tag: String, #[serde(default)] min: Option<u64>, #[serde(default)] max: Option<u64> },
+    /// An institute by name: how many exhibits and distinct visits it has.
+    Institute {
+        name: String,
+        #[serde(default)]
+        exhibits_min: Option<u32>,
+        #[serde(default)]
+        visitors_min: Option<u32>,
+        #[serde(default)]
+        visitors_max: Option<u32>,
+    },
 }
 
 /// Outcome of one scenario.
@@ -330,6 +340,14 @@ fn evaluate(run: &Run, c: &Check) -> (bool, String) {
             let (ok, s) = range((v * 10.0).round() / 10.0, *min, *max);
             (ok, format!("system {system} influence of [{tag}] {s}"))
         }
+        Check::Institute { name, exhibits_min, visitors_min, visitors_max } => match g.institute_by_name(name) {
+            Some(i) => {
+                let ex = i.exhibits.len() as u32;
+                let ok = exhibits_min.is_none_or(|m| ex >= m) && visitors_min.is_none_or(|m| i.visitors >= m) && visitors_max.is_none_or(|m| i.visitors <= m);
+                (ok, format!("institute 「{name}」 exhibits {ex}, visitors {} (want exhibits >= {exhibits_min:?}, visitors {visitors_min:?}..={visitors_max:?})", i.visitors))
+            }
+            None => (false, format!("institute 「{name}」 does not exist")),
+        },
         Check::Treasury { tag, min, max } => {
             let v = g.store.data.alliances.iter().find(|a| a.tag == *tag).map(|a| a.treasury).unwrap_or(0);
             let (ok, s) = range(v, *min, *max);
@@ -468,12 +486,21 @@ pub fn run_opts(sc: &Scenario, trace_every: Option<f32>, metrics: bool) -> Repor
                 run.g.handle(conn, ClientMsg::SetTarget(best));
             }
             let mut msg = st.msg.clone();
-            if let Some(what) = &st.fill_nearest
-                && let Some(me) = run.flagship(&st.captain).map(|e| e.pos)
-                && let Some((sys, _)) = run.pid(&st.captain).and_then(|p| run.g.player_entity(p))
-            {
+            for what in st.fill_nearest.iter().flat_map(|w| w.split(',')).map(str::trim).collect::<Vec<_>>() {
+                let Some(me) = run.flagship(&st.captain).map(|e| e.pos) else { continue };
+                let Some((pid, sys)) = run.pid(&st.captain).and_then(|p| run.g.player_entity(p).map(|(s, _)| (p, s))) else { continue };
                 let dist = |p: Vec3| p.distance(me);
                 match (&mut msg, what.strip_prefix("poi:")) {
+                    (ClientMsg::DonateToInstitute { artifact, .. }, None) if what == "artifact" => {
+                        if let Some(a) = run.g.artifacts_of(pid).first() {
+                            *artifact = a.id;
+                        }
+                    }
+                    (ClientMsg::DonateToInstitute { institute, .. }, None) if what == "institute" => {
+                        if let Some(i) = run.g.store.data.institutes.values().rev().find(|i| i.system == sys) {
+                            *institute = i.id;
+                        }
+                    }
                     (ClientMsg::Scan { poi }, Some(kind)) => {
                         let best = run.g.systems[&sys].layout.pois.iter().filter(|p| format!("{:?}", p.kind) == kind).min_by(|a, b| dist(a.pos).total_cmp(&dist(b.pos)));
                         if let Some(p) = best {

@@ -44,6 +44,8 @@ pub enum Holder {
     Museum(SystemId),
     /// Sold to collectors at a station market.
     Sold(SystemId),
+    /// On display at a player institution.
+    Institute(u64),
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

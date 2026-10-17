@@ -178,3 +178,35 @@ fn influence_table_lists_contested_systems_only() {
     }, None);
     assert!(t.iter().any(|s| s.starts_with("아직 어느 성계에도")));
 }
+
+// ---- institutes
+
+#[test]
+fn institutes_show_exhibits_and_offer_donation_and_founding() {
+    use shared::institutes::{Institute, InstituteView};
+    use view::panels::InstituteRequest;
+    let inst = |id: u64, founder: u64, system: u16, exhibits: Vec<Artifact>| InstituteView {
+        institute: Institute { id, name: format!("기관{id}"), founder, founder_name: format!("P{founder}"), system, founded_unix: 0, exhibits: exhibits.iter().map(|a| a.id).collect(), visitors: 3 },
+        exhibits,
+    };
+    let list = vec![inst(1, 2, 6, vec![artifact(9, true)]), inst(2, 3, 4, vec![])];
+    let held = vec![artifact(7, false)];
+    let draw = |click, docked, credits| {
+        let mut name = "새 연구소".to_string();
+        frame(|ui| panels::institutes(ui, &list, 6, &held, 1, credits, docked, 5000, &mut name), click)
+    };
+    let (t, _) = draw(None, true, 9000);
+    assert!(t.iter().any(|s| s == "연구소·박물관 1곳"), "{t:?}");
+    assert!(t.iter().any(|s| s == "설립 P2 · 전시 1점 · 관람 3회"));
+    assert!(t.iter().any(|s| s == "Hollow Crown의 잃어버린 왕관 — 인류"), "exhibits with their names");
+    assert!(t.iter().any(|s| s == "다른 성계의 기관 1곳"));
+    assert_eq!(draw(Some("미감정 유물"), true, 9000).1, Some(InstituteRequest::Donate { artifact: 7, institute: 1 }));
+    assert_eq!(draw(Some("설립 ("), true, 9000).1, Some(InstituteRequest::Found("새 연구소".into())));
+    assert_eq!(draw(Some("설립 ("), true, 100).1, None, "cannot afford");
+    assert_eq!(draw(Some("미감정 유물"), false, 9000).1, None, "docked only");
+    // A founder sees no founding form.
+    let mine = vec![inst(1, 1, 6, vec![])];
+    let mut name = String::new();
+    let (t, _) = frame(|ui| panels::institutes(ui, &mine, 6, &[], 1, 9000, true, 5000, &mut name), None);
+    assert!(!t.iter().any(|s| s.starts_with("설립 (")));
+}

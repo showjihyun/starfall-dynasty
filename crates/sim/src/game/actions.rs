@@ -109,6 +109,9 @@ impl Game {
             ClientMsg::DeliverContract { id } => self.deliver_contract(conn, pid, sys, eid, id),
             ClientMsg::RequestContracts => self.send_contracts(pid),
             ClientMsg::AllianceDividend => self.alliance_dividend(pid),
+            ClientMsg::FoundInstitute { name } => self.found_institute(conn, pid, sys, eid, name),
+            ClientMsg::DonateToInstitute { artifact, institute } => self.donate_to_institute(conn, pid, sys, eid, artifact, institute),
+            ClientMsg::RequestInstitutes => self.send_institutes(pid),
             ClientMsg::DisputeResearch { event, author } => {
                 let me = self.store.profile(pid).unwrap();
                 let name = me.name.clone();
@@ -272,6 +275,7 @@ impl Game {
         e.shield = e.stats.max_shield;
         self.despawn_escorts(pid);
         self.toast(pid, "도킹 완료 — 수리 및 재충전되었습니다");
+        self.visit_institutes(pid, sys);
     }
 
     fn mine(&mut self, pid: PlayerId, sys: SystemId, eid: Option<EntityId>, asteroid: Option<u32>) {

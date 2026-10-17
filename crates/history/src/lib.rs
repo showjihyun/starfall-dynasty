@@ -60,6 +60,9 @@ pub enum DomainEvent {
     ContractBetrayed { contract_id: u64, betrayer: String, betrayed: String, terms: String, system: SystemId },
     /// Control of a system passed to `alliance` (none: nobody holds it any more).
     SystemControlChanged { system: SystemId, alliance: Option<String>, previous: Option<String> },
+    InstituteFounded { institute_id: u64, name: String, founder: String, system: SystemId },
+    /// An artifact went on display at an institute.
+    ExhibitAcquired { institute_id: u64, institute: String, artifact_id: u64, artifact: String, donor: String, system: SystemId },
 }
 
 #[derive(Serialize, Deserialize)]
@@ -83,6 +86,8 @@ pub struct HistoryEngine {
     artifact_last: HashMap<u64, EventId>,
     /// Forged evidence id → (original id, forger). Only the engine knows until it is examined.
     forgeries: HashMap<u64, (u64, String)>,
+    /// Institute id → its founding entry.
+    institute_founded: HashMap<u64, EventId>,
     /// Contract id → its signing entry, the cause of fulfilment or betrayal.
     contract_signed: HashMap<u64, EventId>,
     log: Option<File>,
@@ -195,6 +200,22 @@ impl HistoryEngine {
                 self.attach(id, vec![e]);
                 self.bio(&betrayer, unix, format!("{betrayed}과(와)의 계약을 깨고 그에게 총을 겨눴다."), Some(id));
                 self.bio(&betrayed, unix, format!("계약 상대 {betrayer}에게 배신당했다."), Some(id));
+                Some(id)
+            }
+            DomainEvent::InstituteFounded { institute_id, name, founder, system } => {
+                let sys = galaxy::system(system).name;
+                let id = self.push_event(unix, system, "INSTITUTE_FOUNDED", format!("{name} 개관"), format!("{founder}이(가) {sys} 정거장에 「{name}」을(를) 세웠다. 유물과 기록을 모아 누구나 볼 수 있게 하겠다고 한다."), vec![founder.clone()], vec![], Importance::Notable, vec![]);
+                let e = self.add_evidence(id, EvidenceKind::ArchiveRecord, &format!("{sys} 정거장 시설 등록부"), format!("「{name}」 개관. 설립자 {founder}."), 0.95);
+                self.attach(id, vec![e]);
+                self.institute_founded.insert(institute_id, id);
+                self.bio(&founder, unix, format!("{sys}에 「{name}」을(를) 세웠다."), Some(id));
+                Some(id)
+            }
+            DomainEvent::ExhibitAcquired { institute_id, institute, artifact_id, artifact, donor, system } => {
+                let causes: Vec<EventId> = [self.artifact_last.get(&artifact_id).copied(), self.institute_founded.get(&institute_id).copied()].into_iter().flatten().collect();
+                let id = self.push_event(unix, system, "EXHIBIT_ACQUIRED", format!("{artifact}, 「{institute}」에 전시"), format!("{donor}이(가) {artifact}을(를) 「{institute}」에 기증했다. 이제 누구나 그 유물과 내력을 볼 수 있다."), vec![donor.clone()], vec![], Importance::Notable, causes);
+                self.artifact_last.insert(artifact_id, id);
+                self.bio(&donor, unix, format!("{artifact}을(를) 「{institute}」에 기증했다."), Some(id));
                 Some(id)
             }
             DomainEvent::SystemControlChanged { system, alliance, previous } => {
@@ -667,6 +688,8 @@ impl HistoryEngine {
                 "FORGERY_EXPOSED" => format!("위조 스캔들: {}", e.title),
                 "BETRAYAL" => format!("배신 — {}", e.title),
                 "SYSTEM_CONTROL" => format!("세력 판도: {}", e.title),
+                "INSTITUTE_FOUNDED" => format!("새 연구 기관: {}", e.title),
+                "EXHIBIT_ACQUIRED" => format!("전시 소식: {}", e.title),
                 "CONTRACT_FULFILLED" => format!("약속은 지켜졌다: {}", e.title),
                 "ARTIFACT_LOST" => format!("사라진 유물 — {}", e.title),
                 "ARTIFACT_RECOVERED" => format!("돌아온 유물: {}", e.title),

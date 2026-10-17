@@ -24,4 +24,10 @@
     free_systems: 1,            // systems held without upkeep (the home base)
     upkeep_base: 150,           // hourly treasury upkeep = upkeep_base × (held − free_systems)^upkeep_exponent;
     upkeep_exponent: 1.5,       // unpaid → the weakest held system is abandoned
+
+    // Player institutions (research institutes / museums).
+    institute_cost: 5000,       // credits to found one (one per captain)
+    visit_base: 20,             // founder's income per distinct visitor per day…
+    visit_per_exhibit: 10,      // …plus this per exhibit on display
+    exhibit_reputation: 15,     // donor, per artifact put on display
 )

@@ -4,6 +4,7 @@ pub mod artifacts;
 pub mod chronicle;
 pub mod contracts;
 pub mod galaxy;
+pub mod institutes;
 pub mod missions;
 pub mod prof;
 pub mod protocol;

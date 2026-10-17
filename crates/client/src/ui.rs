@@ -543,7 +543,7 @@ fn windows(ctx: &egui::Context, s: &mut Session, net: &Net, env: &Env) {
     s.ui.help = open;
 }
 
-fn station(ui: &mut egui::Ui, s: &Session, net: &Net, prof: &Profile, env: &Env) {
+fn station(ui: &mut egui::Ui, s: &mut Session, net: &Net, prof: &Profile, env: &Env) {
     let docked = s.my_state().is_some_and(|m| m.docked);
     if !docked {
         let d = s.my_state().zip(env.layout.as_ref()).map(|(m, l)| Vec3::from(m.pos).distance(l.station)).unwrap_or(0.0);
@@ -613,7 +613,16 @@ fn station(ui: &mut egui::Ui, s: &Session, net: &Net, prof: &Profile, env: &Env)
         Some(ArtifactRequest::Sell(id)) => net.send(ClientMsg::SellArtifact { id }),
         Some(ArtifactRequest::Donate(id)) => net.send(ClientMsg::DonateArtifact { id }),
         None => {}
+    }    ui.separator();
+    let cost = t.social.institute_cost;
+    use view::panels::InstituteRequest;
+    let mut name = s.ui.institute_name.clone();
+    match view::panels::institutes(ui, &s.institutes, s.system, &s.artifacts, prof.player_id, prof.wallet.credits, docked, cost, &mut name) {
+        Some(InstituteRequest::Found(n)) => net.send(ClientMsg::FoundInstitute { name: n }),
+        Some(InstituteRequest::Donate { artifact, institute }) => net.send(ClientMsg::DonateToInstitute { artifact, institute }),
+        None => {}
     }
+    s.ui.institute_name = name;
 }
 
 fn missions(ui: &mut egui::Ui, net: &Net, prof: &Profile) {
