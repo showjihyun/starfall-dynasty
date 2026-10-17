@@ -482,8 +482,9 @@ impl Game {
     fn price(&self, sys: SystemId, ore: Ore, trader: bool) -> f32 {
         let tier = galaxy::system(sys).tier;
         let supply = self.store.supply(sys, ore);
-        let scarcity = 1.0 / (1.0 + supply / 250.0);
-        ore.base_price() * (0.8 + 0.25 * tier.pirate_level() as f32) * scarcity * if trader { 1.2 } else { 1.0 }
+        let m = &self.tuning.economy;
+        let scarcity = 1.0 / (1.0 + supply / m.scarcity_supply);
+        m.ore_prices[&ore] * (m.tier_base + m.tier_step * tier.pirate_level() as f32) * scarcity * if trader { m.trader_bonus } else { 1.0 }
     }
 
     fn sell(&mut self, pid: PlayerId, sys: SystemId, eid: Option<EntityId>, ore: Ore, units: u32) {

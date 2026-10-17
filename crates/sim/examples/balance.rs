@@ -103,6 +103,7 @@ fn main() {
     out += "\n";
     out += &numbers;
     out += &territory();
+    out += &social_economy();
     print!("{out}");
     eprintln!("{} duels simulated in {:.2} s", HullClass::ALL.len() * 3 * enc.len(), t0.elapsed().as_secs_f64());
     if let Some(path) = write {
@@ -137,4 +138,134 @@ fn territory() -> String {
 ", t.control_threshold / mult, (upkeep as f32 / t.tax_rate).round());
     }
     out
+}
+
+/// Phase 2–3 economy (docs/HARNESS.md): what each way of earning pays, measured in the simulation
+/// where the game decides it (hunting, mining) and from the rules where it is a formula.
+fn social_economy() -> String {
+    use shared::galaxy::{self, PoiKind, RiskTier};
+    let t = shared::tuning::get();
+    let mut out = String::new();
+    out += "\n## 사회 경제\n\n";
+    out += "Phase 2·3 수입원을 한 표로 모았다. 사냥·채굴은 시뮬레이션으로 측정한 값이고(아래 조건), 나머지는 `tuning/*.ron` 규칙으로 계산한 값이다. 비교 기준: 모듈 Lv4→5 업그레이드 한 번에 약 3,500 CR, Lv8→9에 약 11,000 CR.\n\n";
+
+    // Hunting: 15 minutes in a pirate system with ambient spawning, flying at and shooting the nearest pirate.
+    out += "### 해적 사냥 (15분 시뮬레이션)\n\n성계 기본 해적 출현(18초마다 보충)을 켠 채, 가장 가까운 해적에게 다가가며 조준 사격한다. 격침되면 그 시점까지로 계산한다.\n\n| 함선 | Lv | 성계 | 격파 | 현상금 합계 | 시간당 CR | 생존 |\n|---|---|---|---|---|---|---|\n";
+    for (sys, label) in [(3u16, "Orion Drift (Frontier)"), (6, "Hollow Crown (Wild)")] {
+        for level in [1u8, 5, 9] {
+            let sc = Scenario {
+                name: format!("hunt {sys} {level}"),
+                description: String::new(),
+                unix: 1_800_000_000,
+                dev: false,
+                ambient_pirates: true,
+                captains: vec![Captain { name: "Hunter".into(), hull: HullClass::Talon, species: Species::Human, profession: Profession::CombatPilot, level, system: sys, pos: None, near_poi: None, offset: None, heading: 0.0, undocked: true, credits: 0, cargo: Default::default() }],
+                npcs: vec![],
+                script: vec![Step { at: 0.2, captain: "Hunter".into(), msg: ClientMsg::Controls(Controls { thrust: 0.7, fire: true, ..Default::default() }), repeat_every: Some(0.1), until: None, target_nearest: Some("npc".into()), aim: true, fill_nearest: None, target_captain: None }],
+                run_secs: 900.0,
+                expect: vec![],
+                digest: None,
+            };
+            let r = run(&sc, None);
+            let tot = r.totals.first().map(|x| x.1.clone()).unwrap_or_default();
+            let alive_for = r.down_at.first().map(|d| d.1).unwrap_or(900.0).max(1.0);
+            out += &format!(
+                "| Talon | {level} | {label} | {} | {} CR | {:.0} | {} |\n",
+                tot.kills,
+                tot.credits_earned,
+                tot.credits_earned as f32 / alive_for * 3600.0,
+                r.down_at.first().map(|d| format!("{:.0}초에 격침", d.1)).unwrap_or_else(|| "끝까지".into())
+            );
+        }
+    }
+
+    // Mining: fill the hold at the asteroid nearest the station, fly back, sell.
+    out += "\n### 채굴·판매 (시뮬레이션)\n\n광부(+40%)가 정거장에서 가장 가까운 소행성에서 화물칸을 채운 뒤 왕복해 판다. 시간당 CR = 판매액 ÷ (채굴 시간 + 왕복 비행 시간).\n\n| 함선 | Lv | 성계 | 광석 | 화물 | 채굴 시간 | 판매액 | 시간당 CR |\n|---|---|---|---|---|---|---|---|\n";
+    for (sys, label) in [(0u16, "Sol Haven (Core)"), (3, "Orion Drift (Frontier)"), (6, "Hollow Crown (Wild)")] {
+        for level in [1u8, 5] {
+            let (ore, units, secs, value, cycle) = mining(sys, level);
+            out += &format!("| Mule | {level} | {label} | {ore} | {units} | {secs:.0}초 | {value} CR | {:.0} |\n", value as f32 / cycle * 3600.0);
+        }
+    }
+
+    // Archaeology: every ruin and gate, 60 days of finds, appraised value.
+    out += "\n### 고고학 (60일 표본)\n\n유적·고대 게이트마다 하루 한 점. 평균 감정가(미감정 판매는 그 40%), 성계 위험도 배율 반영. 「하루 최대」는 그 등급 성계의 모든 유적을 하루에 도는 경우.\n\n| 위험도 | 유적·게이트 수 | 한 점 평균 감정가 | 하루 최대 |\n|---|---|---|---|\n";
+    for tier in [RiskTier::Core, RiskTier::Frontier, RiskTier::Wild, RiskTier::WarZone, RiskTier::Deep] {
+        let mut values = vec![];
+        let mut sites = 0;
+        for s in galaxy::SYSTEMS.iter().filter(|s| s.tier == tier) {
+            for p in galaxy::system_layout(s.id).pois.iter().filter(|p| matches!(p.kind, PoiKind::Ruin | PoiKind::AncientGate)) {
+                sites += 1;
+                for day in 0..60 {
+                    values.push(shared::artifacts::excavate(1, s.id, &p.name, p.kind, p.id, day, 1, 0).value);
+                }
+            }
+        }
+        if sites == 0 {
+            continue;
+        }
+        let avg = values.iter().sum::<u64>() as f64 / values.len() as f64;
+        out += &format!("| {} | {sites} | {avg:.0} CR | {:.0} CR |\n", tier.label(), avg * sites as f64);
+    }
+
+    // Rule-based sources.
+    let h = &t.history;
+    let so = &t.social;
+    let a = &t.artifacts;
+    out += "\n### 규칙으로 정해지는 수입·비용\n\n| 활동 | 수입 | 비용·위험 |\n|---|---|---|\n";
+    out += &format!(
+        "| 기자: 기사 한 편 | 송고 {} + 특종 {} + 독자 {}명 × {} = 최대 {} CR | 근거가 위조로 드러나면 평판 {} |\n",
+        h.story_fee,
+        h.scoop_bonus,
+        h.story_reader_cap,
+        h.story_per_reader,
+        h.story_fee + h.scoop_bonus + h.story_reader_cap as u64 * h.story_per_reader,
+        h.retraction_reputation
+    );
+    for n in [1u64, 3, 5] {
+        let per = so.visit_base + so.visit_per_exhibit * n;
+        out += &format!("| 기관(전시 {n}점): 관람 1회 | {per} CR | 설립 {} CR → 손익분기 관람 {}회 |\n", so.institute_cost, so.institute_cost.div_ceil(per));
+    }
+    out += &format!("| 유물 기증(정거장 박물관) | 감정가의 {:.0}% + 평판 {} | 유물을 판매(감정가 100%)하지 않는 기회비용 |\n", a.donation_share * 100.0, a.donation_reputation);
+    out += &format!("| 위조 감정(폭로 성공) | {} CR + 평판 {} | 감정비 {} CR(역사학자 무료) |\n", h.examiner_reward, h.examiner_reputation, h.authenticate_cost);
+    out += &format!("| 위조 | (연구·기사 신뢰) | {} CR, 폭로 시 평판 {} |\n", h.forge_cost, h.forger_reputation);
+    out += &format!("| 계약 | 의뢰 보상(이전), 완수 평판 +{} | 배신 시 평판 {} |\n", so.fulfil_reputation, so.betrayal_reputation);
+    out
+}
+
+/// One mining cycle: (ore, units, seconds to fill, sale value, cycle seconds incl. the round trip).
+fn mining(sys: u16, level: u8) -> (String, u32, f32, u64, f32) {
+    use shared::ships::Module;
+    let mut g = sim::game::Game::new(sim::store::Store::memory(), history::HistoryEngine::new(), 1_800_000_000);
+    g.handle(1, ClientMsg::Hello { version: shared::protocol::PROTOCOL_VERSION, name: "Miner".into(), token: None });
+    g.handle(1, ClientMsg::CreateCharacter { species: Species::Human, profession: Profession::Miner, hull: HullClass::Mule, ship_name: "Digger".into(), livery: 0 });
+    let pid = g.sessions[&1].player.unwrap();
+    for m in Module::ALL {
+        g.store.profile_mut(pid).unwrap().ship.modules.insert(m, level);
+    }
+    for s in g.systems.values_mut() {
+        s.pirate_cd = f32::INFINITY;
+    }
+    g.spawn_player(pid, sys, false);
+    let layout = shared::galaxy::system_layout(sys);
+    let station = layout.station;
+    let a = layout.asteroids.iter().min_by(|x, y| x.pos.distance(station).total_cmp(&y.pos.distance(station))).unwrap().clone();
+    let (s, e) = g.player_entity(pid).unwrap();
+    let ent = g.ent_mut(s, e).unwrap();
+    ent.pos = a.pos + shared::glam::Vec3::new(0.0, 0.0, a.radius + 60.0);
+    let (speed, cap) = (ent.stats.speed, ent.stats.cargo as u32);
+    g.handle(1, ClientMsg::Mine { asteroid: Some(a.id) });
+    let mut ticks = 0u32;
+    while g.store.profile(pid).unwrap().cargo_used() < cap && ticks < 20 * 3600 {
+        g.tick(0.05, 1_800_000_000);
+        ticks += 1;
+    }
+    let units = g.store.profile(pid).unwrap().cargo_used();
+    let secs = ticks as f32 / 20.0;
+    g.spawn_player(pid, sys, true);
+    let before = g.store.profile(pid).unwrap().wallet.credits;
+    g.handle(1, ClientMsg::Sell { ore: a.ore, units });
+    let value = g.store.profile(pid).unwrap().wallet.credits - before;
+    let trip = 2.0 * a.pos.distance(station) / speed.max(1.0);
+    (a.ore.name().to_string(), units, secs, value, secs + trip)
 }

@@ -21,7 +21,7 @@ use std::sync::{Arc, RwLock};
 
 pub const DIR_ENV: &str = "STARFALL_TUNING";
 pub const DIR_NAME: &str = "tuning";
-pub const FILES: [&str; 6] = ["ships.ron", "npcs.ron", "combat.ron", "artifacts.ron", "history.ron", "social.ron"];
+pub const FILES: [&str; 7] = ["ships.ron", "npcs.ron", "combat.ron", "artifacts.ron", "history.ron", "social.ron", "economy.ron"];
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Tuning {
@@ -31,6 +31,7 @@ pub struct Tuning {
     pub artifacts: ArtifactTuning,
     pub history: HistoryTuning,
     pub social: SocialTuning,
+    pub economy: EconomyTuning,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -185,6 +186,18 @@ pub struct NpcDef {
     pub bounty: Materials,
 }
 
+/// Ore market (`economy.ron`).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct EconomyTuning {
+    pub ore_prices: BTreeMap<crate::galaxy::Ore, f32>,
+    pub tier_base: f32,
+    pub tier_step: f32,
+    pub scarcity_supply: f32,
+    pub trader_bonus: f32,
+    pub miner_bonus: f32,
+}
+
 /// Player contracts (`social.ron`).
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -299,7 +312,7 @@ impl Tuning {
             let text = std::fs::read_to_string(&path).map_err(|e| format!("{}: {e}", path.display()))?;
             ron::from_str(&text).map_err(|e| format!("{}:{e}", path.display()))
         }
-        let t = Tuning { ships: read(dir, fallback, FILES[0])?, npcs: read(dir, fallback, FILES[1])?, combat: read(dir, fallback, FILES[2])?, artifacts: read(dir, fallback, FILES[3])?, history: read(dir, fallback, FILES[4])?, social: read(dir, fallback, FILES[5])? };
+        let t = Tuning { ships: read(dir, fallback, FILES[0])?, npcs: read(dir, fallback, FILES[1])?, combat: read(dir, fallback, FILES[2])?, artifacts: read(dir, fallback, FILES[3])?, history: read(dir, fallback, FILES[4])?, social: read(dir, fallback, FILES[5])?, economy: read(dir, fallback, FILES[6])? };
         t.validate().map_err(|e| format!("{}: {e}", dir.display()))?;
         Ok(t)
     }
@@ -321,6 +334,9 @@ impl Tuning {
         }
         for a in NpcArchetype::ALL {
             self.npcs.archetypes.get(&a).ok_or(format!("npcs.ron: archetypes has no {a:?}"))?;
+        }
+        for o in crate::galaxy::Ore::ALL {
+            self.economy.ore_prices.get(&o).ok_or(format!("economy.ron: ore_prices has no {o:?}"))?;
         }
         for c in Culture::ALL {
             let d = self.artifacts.cultures.get(&c).ok_or(format!("artifacts.ron: cultures has no {c:?}"))?;

@@ -181,7 +181,9 @@ impl Game {
         if tier != RiskTier::Core && has_players {
             let s = self.systems.get_mut(&sys).unwrap();
             s.pirate_cd -= dt;
-            let pop = s.ents.values().filter(|e| e.ai.as_ref().is_some_and(|a| a.scenario_owner.is_none())).count();
+            // Only free-roaming pirates count (not scenario waves, and not players' escorts, which also
+            // carry an AI — counting them used to stop pirates spawning around big fleets).
+            let pop = s.ents.values().filter(|e| matches!(e.kind, EntityKind::Npc(_)) && !e.dead && e.ai.as_ref().is_some_and(|a| a.scenario_owner.is_none())).count();
             let target = 2 + 2 * tier.pirate_level() as usize;
             if s.pirate_cd <= 0.0 && pop < target {
                 s.pirate_cd = 18.0;
@@ -428,7 +430,7 @@ impl Game {
             self.toast(pid, "화물칸이 가득 찼습니다 — 정거장에서 판매/정제하세요");
             return;
         }
-        let rate = e.stats.mine_rate * if prof.profession == Profession::Miner { 1.4 } else { 1.0 };
+        let rate = e.stats.mine_rate * if prof.profession == Profession::Miner { self.tuning.economy.miner_bonus } else { 1.0 };
         let e = self.ent_mut(sys, id).unwrap();
         e.mine_acc += rate * dt;
         if e.mine_acc >= 1.0 {

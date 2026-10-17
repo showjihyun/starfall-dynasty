@@ -1,0 +1,11 @@
+// Ore market (crates/sim/src/game/actions.rs `price`, sim.rs mining). Read at run time.
+// Price per unit = base × (tier_base + tier_step × pirate level of the system) × scarcity × (trader bonus)
+// scarcity = 1 / (1 + recent supply sold here ÷ scarcity_supply); supply decays over time.
+(
+    ore_prices: { Ferrite: 6.0, Lumen: 14.0, Xenite: 48.0 },
+    tier_base: 0.8,
+    tier_step: 0.25,
+    scarcity_supply: 250.0,
+    trader_bonus: 1.2,          // Trader profession: sale price ×
+    miner_bonus: 1.4,           // Miner profession: mining rate ×
+)

@@ -1180,3 +1180,21 @@ fn withdrawal_news_dividend_records_and_no_seizure_between_allies() {
     assert_eq!(g.store.profile(lord).unwrap().archive.len(), before, "no seizure between allies");
     assert!(!g.history.events.iter().any(|e| e.kind == "INTEL_SEIZED"));
 }
+
+#[test]
+fn escorts_do_not_count_as_pirates() {
+    // A capital ship's escorts carry an AI too; they must not fill the pirate quota of a system.
+    let mut g = game();
+    let lord = join(&mut g, 1, "Lord", Species::Human, HullClass::Bastion, Profession::CombatPilot);
+    for m in Module::ALL {
+        g.store.profile_mut(lord).unwrap().ship.modules.insert(m, 9);
+    }
+    g.spawn_player(lord, 3, false);
+    g.spawn_escorts(lord);
+    clear_npcs(&mut g, 3);
+    let escorts = g.systems[&3].ents.values().filter(|e| e.kind == EntityKind::Escort).count();
+    assert!(escorts >= 3, "capital has escorts: {escorts}");
+    run(&mut g, 60.0);
+    let pirates = g.systems[&3].ents.values().filter(|e| matches!(e.kind, EntityKind::Npc(_))).count();
+    assert!(pirates > 0, "pirates still show up around a big fleet");
+}

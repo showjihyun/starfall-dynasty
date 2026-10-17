@@ -168,7 +168,7 @@ pub struct Planet {
     pub ring: bool,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum Ore {
     Ferrite,
     Lumen,
@@ -182,13 +182,6 @@ impl Ore {
             Ore::Ferrite => "Ferrite",
             Ore::Lumen => "Lumen",
             Ore::Xenite => "Xenite",
-        }
-    }
-    pub fn base_price(self) -> f32 {
-        match self {
-            Ore::Ferrite => 6.0,
-            Ore::Lumen => 14.0,
-            Ore::Xenite => 48.0,
         }
     }
 }
