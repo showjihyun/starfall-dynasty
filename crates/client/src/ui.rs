@@ -502,7 +502,7 @@ fn windows(ctx: &egui::Context, s: &mut Session, net: &Net, env: &Env) {
                 net.send(ClientMsg::RequestContracts);
             }
             use view::panels::ContractRequest;
-            match view::panels::contracts(ui, &s.contracts, prof.player_id, prof.wallet.credits, &mut s.ui.contract_form) {
+            match view::panels::contracts(ui, &s.contracts, prof.player_id, prof.wallet.credits, &s.charted, s.system, &mut s.ui.contract_form) {
                 Some(ContractRequest::Post { kind, reward, hours }) => net.send(ClientMsg::PostContract { kind, reward, hours }),
                 Some(ContractRequest::Accept(id)) => net.send(ClientMsg::AcceptContract { id }),
                 Some(ContractRequest::Cancel(id)) => net.send(ClientMsg::CancelContract { id }),

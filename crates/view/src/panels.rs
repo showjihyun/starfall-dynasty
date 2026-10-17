@@ -105,9 +105,15 @@ fn state_label(c: &Contract) -> (String, Color32) {
     }
 }
 
+/// Systems a delivery can be posted to: the ones the map names (no leaking uncharted names).
+pub fn delivery_destinations(charted: &std::collections::BTreeSet<shared::galaxy::SystemId>, here: shared::galaxy::SystemId) -> Vec<&'static shared::galaxy::SystemDef> {
+    shared::galaxy::systems().iter().filter(|s| crate::mapview::known(s.id, charted, here)).collect()
+}
+
 /// The contract board: open jobs to take, your own contracts, and a form to post one.
-/// `me` is the viewer's player id; `credits` decides whether the post button is enabled.
-pub fn contracts(ui: &mut egui::Ui, list: &[Contract], me: u64, credits: u64, form: &mut ContractForm) -> Option<ContractRequest> {
+/// `me` is the viewer's player id; `credits` decides whether the post button is enabled; delivery
+/// destinations are the systems the map names (`charted` generated ones, see `mapview::known`).
+pub fn contracts(ui: &mut egui::Ui, list: &[Contract], me: u64, credits: u64, charted: &std::collections::BTreeSet<shared::galaxy::SystemId>, here: shared::galaxy::SystemId, form: &mut ContractForm) -> Option<ContractRequest> {
     let mut out = None;
     ui.label(RichText::new("계약 게시판").strong());
     ui.label(RichText::new("보상은 공증인이 보관합니다. 계약 중에 상대에게 총을 겨누면 배신 — 보상은 피해자에게, 배신은 연대기에.").size(11.0).color(DIM));
@@ -162,7 +168,7 @@ pub fn contracts(ui: &mut egui::Ui, list: &[Contract], me: u64, credits: u64, fo
             });
             ui.add(egui::DragValue::new(&mut form.units).range(1..=500).suffix(" 단위"));
             egui::ComboBox::from_id_salt("dest").selected_text(shared::galaxy::system(form.system).name).show_ui(ui, |ui| {
-                for s in shared::galaxy::systems() {
+                for s in delivery_destinations(charted, here) {
                     ui.selectable_value(&mut form.system, s.id, s.name);
                 }
             });

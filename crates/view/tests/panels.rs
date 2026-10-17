@@ -126,7 +126,7 @@ fn board_offers_the_right_action_per_contract() {
     ];
     let board = |click| {
         let mut form = ContractForm::default();
-        frame(|ui| panels::contracts(ui, &list, 1, 5000, &mut form), click)
+        frame(|ui| panels::contracts(ui, &list, 1, 5000, &Default::default(), 0, &mut form), click)
     };
     let (t, _) = board(None);
     assert!(t.iter().any(|s| s == "#1 Mark의 함선 격침"), "{t:?}");
@@ -145,12 +145,22 @@ fn board_offers_the_right_action_per_contract() {
 fn posting_needs_a_target_and_the_reward_in_hand() {
     let post = |form: ContractForm, credits| {
         let mut form = form;
-        frame(|ui| panels::contracts(ui, &[], 1, credits, &mut form), Some("게시 (")).1
+        frame(|ui| panels::contracts(ui, &[], 1, credits, &Default::default(), 0, &mut form), Some("게시 (")).1
     };
     let with_target = ContractForm { target: "Mark".into(), reward: 2000, ..Default::default() };
     assert_eq!(post(with_target.clone(), 5000), Some(ContractRequest::Post { kind: hunt("Mark"), reward: 2000, hours: 24 }));
     assert_eq!(post(with_target, 1000), None, "cannot escrow what you lack");
     assert_eq!(post(ContractForm { reward: 500, ..Default::default() }, 5000), None, "a hunt needs a target");
+}
+
+#[test]
+fn delivery_destinations_hide_uncharted_systems() {
+    let core = shared::galaxy::CORE.len();
+    let mut charted = std::collections::BTreeSet::new();
+    let ids = |c: &std::collections::BTreeSet<u16>, here| panels::delivery_destinations(c, here).iter().map(|s| s.id as usize).collect::<Vec<_>>();
+    assert_eq!(ids(&charted, 0), (0..core).collect::<Vec<_>>(), "only the core before anyone explores");
+    charted.insert(core as u16 + 3);
+    assert_eq!(ids(&charted, core as u16 + 7).len(), core + 2, "plus charted systems and the one you are in");
 }
 
 // ---- influence
