@@ -1,0 +1,19 @@
+{
+  "name": "mineral_specimens",
+  "description": "희귀 이상 광맥(Hollow Crown, Wild — 정거장에서 가장 가까운 것은 이색)을 캐면 그 광물의 표본이 가끔 나오고(단위당 2~3%), 그 광물의 첫 표본은 신광물 발견(MINERAL) 사건 1건과 평판(희귀 +2, 이색 +5). 같은 광맥을 함께 캔 두 번째 광부도 표본은 얻지만 발견 사건은 늘지 않는다. 일반 광석은 그대로 화물칸에 쌓인다",
+  "captains": [
+    { "name": "Prospector", "hull": "Mule", "profession": "Miner", "level": 5, "system": 6, "near_deposit": "Rare", "undocked": true },
+    { "name": "Latecomer", "hull": "Mule", "profession": "Miner", "level": 5, "system": 6, "near_deposit": "Rare", "offset": [80, 0, 0], "undocked": true }
+  ],
+  "script": [
+    { "at": 0.5, "captain": "Prospector", "fill_nearest": "asteroid", "msg": { "Mine": { "asteroid": null } } },
+    { "at": 0.5, "captain": "Latecomer", "fill_nearest": "asteroid", "msg": { "Mine": { "asteroid": null } } }
+  ],
+  "run_secs": 900,
+  "expect": [
+    { "check": "specimens", "captain": "Prospector", "min": 1 },
+    { "check": "specimens", "captain": "Latecomer", "min": 1 },
+    { "check": "history", "kind": "MINERAL", "min": 1, "max": 1 },
+    { "check": "reputation", "captain": "Prospector", "min": 2 }
+  ]
+}

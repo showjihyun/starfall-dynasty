@@ -61,6 +61,7 @@ impl Game {
             ClientMsg::InvestigateWreck { wreck } => self.investigate(pid, sys, eid, wreck),
             ClientMsg::Upgrade { module } => self.upgrade(pid, sys, eid, module),
             ClientMsg::Sell { ore, units } => self.sell(pid, sys, eid, ore, units),
+            ClientMsg::SellSpecimens => self.sell_specimens(pid, sys, eid),
             ClientMsg::Refine { ore, units } => self.refine(pid, sys, eid, ore, units),
             ClientMsg::ClaimDaily { index } => self.claim_daily(pid, index),
             ClientMsg::StartScenario { id } => self.start_scenario(pid, id),
@@ -485,6 +486,23 @@ impl Game {
         let m = &self.tuning.economy;
         let scarcity = 1.0 / (1.0 + supply / m.scarcity_supply);
         m.ore_prices[&ore] * (m.tier_base + m.tier_step * tier.pirate_level() as f32) * scarcity * if trader { m.trader_bonus } else { 1.0 }
+    }
+
+    /// Specimens go to the station's assay office at their catalogue price.
+    fn sell_specimens(&mut self, pid: PlayerId, sys: SystemId, eid: Option<EntityId>) {
+        if !self.require_docked(pid, sys, eid) {
+            return;
+        }
+        let held = std::mem::take(&mut self.store.profile_mut(pid).unwrap().specimens);
+        if held.is_empty() {
+            return self.toast(pid, "판매할 광물 표본이 없습니다");
+        }
+        let t = &self.tuning.minerals;
+        let total: u64 = held.iter().filter_map(|(id, n)| Some(shared::minerals::mineral_in(t, *id)?.specimen_value(t) * *n as u64)).sum();
+        let count: u32 = held.values().sum();
+        self.store.profile_mut(pid).unwrap().wallet.credits += total;
+        self.toast(pid, format!("광물 표본 {count}점 판매: +{total} CR"));
+        self.push_profile(pid);
     }
 
     fn sell(&mut self, pid: PlayerId, sys: SystemId, eid: Option<EntityId>, ore: Ore, units: u32) {

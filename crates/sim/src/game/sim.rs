@@ -467,7 +467,40 @@ impl Game {
                 *pm.cargo.entry(a.ore.name().to_string()).or_default() += n;
             }
             self.progress(pid, Progress::Mined(n));
+            self.find_specimens(pid, sys, &a, n);
         }
+    }
+
+    /// Rare deposits sometimes give up a specimen of their exact mineral (tuning `minerals.ron`); the
+    /// first specimen of a mineral anywhere is a discovery for the chronicle.
+    fn find_specimens(&mut self, pid: PlayerId, sys: SystemId, a: &galaxy::Asteroid, units: u32) {
+        let t = self.tuning.clone();
+        let t = &t.minerals;
+        let Some(m) = shared::minerals::mineral_in(t, a.mineral) else { return };
+        let chance = t.specimen_chance.get(&m.rarity).copied().unwrap_or(0.0);
+        if chance <= 0.0 {
+            return;
+        }
+        let mut r = shared::rng::Rng::from_parts(&[0x5BEC_1E, self.tick, pid as u64, a.id as u64]);
+        let found = (0..units).filter(|_| r.f32() < chance).count() as u32;
+        if found == 0 {
+            return;
+        }
+        let rep = t.discovery_reputation.get(&m.rarity).copied().unwrap_or(0);
+        let value = m.specimen_value(t);
+        let Some(prof) = self.store.profile_mut(pid) else { return };
+        *prof.specimens.entry(m.id).or_default() += found;
+        let (name, ship) = (prof.name.clone(), prof.ship.name.clone());
+        let event = DomainEvent::MineralDiscovered { player: name, ship, system: sys, mineral: m.id, name: m.name.clone(), rarity: m.rarity.label().into(), legendary: m.rarity == shared::minerals::Rarity::Legendary };
+        if self.history.record(self.unix, event).is_some() {
+            if let Some(p) = self.store.profile_mut(pid) {
+                p.reputation += rep;
+            }
+            self.toast(pid, format!("신광물 발견! {} — 광물학회에 발견자로 등록되었습니다 (평판 +{rep}, 표본 시세 {value} CR)", m.label()));
+        } else {
+            self.toast(pid, format!("표본 확보: {} ×{found} (정거장 시세 {value} CR)", m.label()));
+        }
+        self.push_profile(pid);
     }
 
     pub fn apply_damage(&mut self, sys: SystemId, from: EntityId, to: EntityId, dmg: f32) {

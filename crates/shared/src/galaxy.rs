@@ -289,6 +289,8 @@ pub struct Asteroid {
     pub radius: f32,
     pub ore: Ore,
     pub seed: u32,
+    /// The exact mineral (`minerals::deposit`).
+    pub mineral: crate::minerals::MineralId,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -365,6 +367,7 @@ pub fn system_layout(id: SystemId) -> Layout {
     }
 
     let mut asteroids = Vec::new();
+    let tuning = crate::tuning::get();
     let belts = if def.tier == RiskTier::Core { 1 } else { 2 };
     let mut aid = 1;
     for b in 0..belts {
@@ -374,7 +377,8 @@ pub fn system_layout(id: SystemId) -> Layout {
             let p = center + r.in_sphere() * Vec3::new(520., 140., 520.);
             let roll = r.f32() * (1.0 + def.tier.pirate_level() as f32 * 0.15);
             let ore = if roll > 1.0 { Ore::Xenite } else if roll > 0.62 { Ore::Lumen } else { Ore::Ferrite };
-            asteroids.push(Asteroid { id: aid, pos: p, radius: r.range(10., 42.), ore, seed: r.below(1_000_000) });
+            let mineral = crate::minerals::deposit(&tuning.minerals, id, def.star, def.tier, b, aid, ore);
+            asteroids.push(Asteroid { id: aid, pos: p, radius: r.range(10., 42.), ore, seed: r.below(1_000_000), mineral });
             aid += 1;
         }
     }

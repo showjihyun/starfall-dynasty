@@ -34,7 +34,7 @@ fn cell(hull: HullClass, level: u8, arch: NpcArchetype, npc_level: u8, count: u3
         unix: 1_800_000_000,
         dev: false,
         ambient_pirates: false,
-        captains: vec![Captain { name: "Cap".into(), hull, species: Species::Human, profession: Profession::Explorer, level, system: 7, pos: Some([0.0, 0.0, 6000.0]), near_poi: None, offset: None, heading: 0.0, undocked: true, credits: 0, cargo: Default::default() }],
+        captains: vec![Captain { name: "Cap".into(), hull, species: Species::Human, profession: Profession::Explorer, level, system: 7, pos: Some([0.0, 0.0, 6000.0]), near_poi: None, near_deposit: None, offset: None, heading: 0.0, undocked: true, credits: 0, cargo: Default::default() }],
         npcs: vec![NpcGroup { archetype: arch, level: npc_level, system: 7, pos: [0.0, 0.0, 5450.0], count, spacing: 80.0 }],
         script: vec![Step { at: 0.2, captain: "Cap".into(), msg: ClientMsg::Controls(Controls { thrust: 0.2, fire: true, ..Default::default() }), repeat_every: Some(0.1), until: None, target_nearest: Some("npc".into()), aim: true, fill_nearest: None, target_captain: None }],
         run_secs: LIMIT,
@@ -105,6 +105,7 @@ fn main() {
     out += &territory();
     out += &social_economy();
     out += &galaxy_sheet();
+    out += &mineral_sheet();
     print!("{out}");
     eprintln!("{} duels simulated in {:.2} s", HullClass::ALL.len() * 3 * enc.len(), t0.elapsed().as_secs_f64());
     if let Some(path) = write {
@@ -113,7 +114,48 @@ fn main() {
     }
 }
 
-/// Territory economy (tuning/social.ron): what holding n systems costs and how hard the next one is.
+/// Phase 4-2: the mineral catalogue, what the galaxy's asteroids hold, and what specimens add to mining.
+fn mineral_sheet() -> String {
+    use shared::galaxy::{self, Ore, RiskTier};
+    use shared::minerals::{self, Rarity};
+    let t = shared::tuning::get();
+    let m = &t.minerals;
+    let mut out = String::from("\n## 광물\n\n");
+    out += &format!("`tuning/minerals.ron`(seed {})의 광물 {}종. 광석 계열 × 등급마다 수가 정해져 있고 이름·속성 9개는 id로 정해진다. 덩어리 광석은 계열 시세로 팔리고, 희귀 이상 광맥은 캘 때마다 그 광물의 표본이 확률로 나온다.\n\n", m.seed, minerals::catalogue_size(m));
+    out += "| 등급 | 계열당 종 수 | 속성 평균 | 표본 확률(단위당) | 표본 평균 시세 | 첫 발견 평판 |\n|---|---|---|---|---|---|\n";
+    let avg_value = |r: Rarity| {
+        let ids: Vec<u32> = Ore::ALL.iter().flat_map(|o| minerals::bucket(m, *o, r)).collect();
+        ids.iter().map(|id| minerals::mineral_in(m, *id).unwrap().specimen_value(m)).sum::<u64>() as f64 / ids.len().max(1) as f64
+    };
+    for r in Rarity::ALL {
+        let chance = m.specimen_chance.get(&r).copied().unwrap_or(0.0);
+        out += &format!(
+            "| {} | {} | {} | {} | {:.0} CR | {} |\n",
+            r.label(),
+            m.counts.get(&r).copied().unwrap_or(0),
+            m.property_mean.get(&r).copied().unwrap_or(0),
+            if chance > 0.0 { format!("{:.1}%", chance * 100.0) } else { "—".into() },
+            avg_value(r),
+            m.discovery_reputation.get(&r).map(|v| format!("+{v}")).unwrap_or_else(|| "—".into())
+        );
+    }
+    out += "\n은하 전체 소행성의 광맥 등급(실제 배치)과, 무작위 소행성 1,000단위를 캘 때 표본으로 더 버는 기대값:\n\n| 위험도 | 소행성 | 일반 | 고급 | 희귀 | 이색 | 전설 | 1,000단위당 표본 기대 수입 |\n|---|---|---|---|---|---|---|---|\n";
+    for tier in [RiskTier::Core, RiskTier::Frontier, RiskTier::Wild, RiskTier::WarZone, RiskTier::Deep] {
+        let mut n = [0u32; 5];
+        let mut expect = 0.0;
+        for s in galaxy::systems().iter().filter(|s| s.tier == tier) {
+            for a in galaxy::system_layout(s.id).asteroids {
+                let min = minerals::mineral_in(m, a.mineral).unwrap();
+                n[min.rarity as usize] += 1;
+                expect += m.specimen_chance.get(&min.rarity).copied().unwrap_or(0.0) as f64 * min.specimen_value(m) as f64;
+            }
+        }
+        let total: u32 = n.iter().sum();
+        out += &format!("| {} | {total} | {} | {} | {} | {} | {} | {:.0} CR |\n", tier.label(), n[0], n[1], n[2], n[3], n[4], expect / total.max(1) as f64 * 1000.0);
+    }
+    out
+}
+
 /// Phase 4-1: the procedural galaxy around the core, by tier, and how far a warp core gets you.
 fn galaxy_sheet() -> String {
     use shared::galaxy::{self, PoiKind, RiskTier};
@@ -168,6 +210,7 @@ fn galaxy_sheet() -> String {
     out
 }
 
+/// Territory economy (tuning/social.ron): what holding n systems costs and how hard the next one is.
 fn territory() -> String {
     let g = sim::game::Game::new(sim::store::Store::memory(), history::HistoryEngine::new(), 1_800_000_000);
     let t = g.tuning.social;
@@ -214,7 +257,7 @@ fn social_economy() -> String {
                 unix: 1_800_000_000,
                 dev: false,
                 ambient_pirates: true,
-                captains: vec![Captain { name: "Hunter".into(), hull: HullClass::Talon, species: Species::Human, profession: Profession::CombatPilot, level, system: sys, pos: None, near_poi: None, offset: None, heading: 0.0, undocked: true, credits: 0, cargo: Default::default() }],
+                captains: vec![Captain { name: "Hunter".into(), hull: HullClass::Talon, species: Species::Human, profession: Profession::CombatPilot, level, system: sys, pos: None, near_poi: None, near_deposit: None, offset: None, heading: 0.0, undocked: true, credits: 0, cargo: Default::default() }],
                 npcs: vec![],
                 script: vec![Step { at: 0.2, captain: "Hunter".into(), msg: ClientMsg::Controls(Controls { thrust: 0.7, fire: true, ..Default::default() }), repeat_every: Some(0.1), until: None, target_nearest: Some("npc".into()), aim: true, fill_nearest: None, target_captain: None }],
                 run_secs: 900.0,

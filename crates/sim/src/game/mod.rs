@@ -533,6 +533,7 @@ impl Game {
             archive: vec![],
             last_system: home,
             scanned: vec![],
+            specimens: Default::default(),
         };
         self.store.set_profile(pid, profile.clone());
         self.history.record(self.unix, history::DomainEvent::PlayerFounded { player: name, species: species.name().into(), ship: ship_name, hull: hull.name().into() });

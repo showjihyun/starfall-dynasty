@@ -12,6 +12,7 @@
 //! the HUD shows the server's numbers; a recording keeps a copy so replays use the same numbers.
 
 use crate::artifacts::Culture;
+use crate::minerals::{Property, Rarity};
 use crate::missions::NpcArchetype;
 use crate::ships::{BaseStats, HullClass, Materials, Module, SizeClass};
 use serde::{Deserialize, Serialize};
@@ -21,7 +22,7 @@ use std::sync::{Arc, RwLock};
 
 pub const DIR_ENV: &str = "STARFALL_TUNING";
 pub const DIR_NAME: &str = "tuning";
-pub const FILES: [&str; 8] = ["ships.ron", "npcs.ron", "combat.ron", "artifacts.ron", "history.ron", "social.ron", "economy.ron", "galaxy.ron"];
+pub const FILES: [&str; 9] = ["ships.ron", "npcs.ron", "combat.ron", "artifacts.ron", "history.ron", "social.ron", "economy.ron", "galaxy.ron", "minerals.ron"];
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Tuning {
@@ -33,6 +34,7 @@ pub struct Tuning {
     pub social: SocialTuning,
     pub economy: EconomyTuning,
     pub galaxy: GalaxyTuning,
+    pub minerals: MineralTuning,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -225,6 +227,29 @@ pub struct GalaxyTuning {
     pub chart_reward: u64,
 }
 
+/// The mineral catalogue and deposits (`minerals.ron`, see `minerals`).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct MineralTuning {
+    pub seed: u64,
+    /// Minerals per family of each rarity.
+    pub counts: BTreeMap<Rarity, u32>,
+    pub property_mean: BTreeMap<Rarity, u32>,
+    pub spread: u32,
+    pub affinity_bonus: u32,
+    pub family_affinity: BTreeMap<crate::galaxy::Ore, Vec<Property>>,
+    pub star_affinity: BTreeMap<crate::galaxy::StarKind, Property>,
+    /// Rarity weights of an asteroid's deposit, per system tier.
+    pub deposit: BTreeMap<crate::galaxy::RiskTier, BTreeMap<Rarity, u32>>,
+    pub candidates: u32,
+    /// Chance per ore unit mined of also getting a specimen (rarities not listed: never).
+    pub specimen_chance: BTreeMap<Rarity, f32>,
+    pub specimen_value: BTreeMap<Rarity, u64>,
+    pub discovery_reputation: BTreeMap<Rarity, i32>,
+    pub syllables: Vec<String>,
+    pub endings: BTreeMap<crate::galaxy::Ore, Vec<String>>,
+}
+
 /// Player contracts (`social.ron`).
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -339,7 +364,7 @@ impl Tuning {
             let text = std::fs::read_to_string(&path).map_err(|e| format!("{}: {e}", path.display()))?;
             ron::from_str(&text).map_err(|e| format!("{}:{e}", path.display()))
         }
-        let t = Tuning { ships: read(dir, fallback, FILES[0])?, npcs: read(dir, fallback, FILES[1])?, combat: read(dir, fallback, FILES[2])?, artifacts: read(dir, fallback, FILES[3])?, history: read(dir, fallback, FILES[4])?, social: read(dir, fallback, FILES[5])?, economy: read(dir, fallback, FILES[6])?, galaxy: read(dir, fallback, FILES[7])? };
+        let t = Tuning { ships: read(dir, fallback, FILES[0])?, npcs: read(dir, fallback, FILES[1])?, combat: read(dir, fallback, FILES[2])?, artifacts: read(dir, fallback, FILES[3])?, history: read(dir, fallback, FILES[4])?, social: read(dir, fallback, FILES[5])?, economy: read(dir, fallback, FILES[6])?, galaxy: read(dir, fallback, FILES[7])?, minerals: read(dir, fallback, FILES[8])? };
         t.validate().map_err(|e| format!("{}: {e}", dir.display()))?;
         Ok(t)
     }
@@ -380,6 +405,19 @@ impl Tuning {
         }
         if g.hop.0 <= 0.0 || g.hop.0 > g.hop.1 || g.min_spacing > g.hop.1 {
             return Err("galaxy.ron: need 0 < hop.0 <= hop.1 and min_spacing <= hop.1".into());
+        }
+        let m = &self.minerals;
+        let family: u32 = m.counts.values().sum();
+        for o in crate::galaxy::Ore::ALL {
+            let n = m.endings.get(&o).map(|e| e.len()).unwrap_or(0);
+            if n == 0 || (m.syllables.len() * m.syllables.len() * n) < family as usize {
+                return Err(format!("minerals.ron: {o:?} needs endings, and syllables² × endings ≥ {family} (unique names)"));
+            }
+        }
+        for t in [crate::galaxy::RiskTier::Core, crate::galaxy::RiskTier::Frontier, crate::galaxy::RiskTier::Wild, crate::galaxy::RiskTier::WarZone, crate::galaxy::RiskTier::Deep] {
+            if m.deposit.get(&t).is_none_or(|w| w.values().sum::<u32>() == 0) {
+                return Err(format!("minerals.ron: deposit has no weights for {t:?}"));
+            }
         }
         for c in Culture::ALL {
             let d = self.artifacts.cultures.get(&c).ok_or(format!("artifacts.ron: cultures has no {c:?}"))?;

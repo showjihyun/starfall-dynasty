@@ -1,0 +1,45 @@
+// Procedural mineral catalogue (crates/shared/src/minerals.rs). Read at run time. Design doc §7.1–7.2.
+// Every ore family (Ferrite, Lumen, Xenite) has `counts` minerals of each rarity — 3 × 3,340 = 10,020.
+// A mineral's name and properties follow from `seed` and its id; nothing is stored.
+// Bulk ore still sells by family (economy.ron). Mining a Rare or better deposit sometimes also yields a
+// specimen of that exact mineral; the first specimen of a mineral anywhere is a discovery.
+(
+    seed: 71001,
+    counts: { Common: 1500, Uncommon: 1000, Rare: 600, Exotic: 200, Legendary: 40 },
+
+    // Properties (1–100): rarity sets the mean, ± `spread`; the family's and the star's favoured
+    // properties get `affinity_bonus` / are what a deposit picks for.
+    property_mean: { Common: 30, Uncommon: 42, Rare: 55, Exotic: 68, Legendary: 82 },
+    spread: 22,
+    affinity_bonus: 12,
+    family_affinity: { Ferrite: [Density, Hardness], Lumen: [Energy, Conductivity], Xenite: [Warp, Radiation] },
+    star_affinity: { YellowDwarf: Conductivity, RedGiant: Thermal, BlueGiant: Energy, WhiteDwarf: Density, Neutron: Radiation },
+
+    // Deposits: each asteroid rolls a rarity by its system's tier; the mineral is the best of
+    // `candidates` of that rarity for the star (`star_affinity`), shared by the whole belt.
+    deposit: {
+        Core:     { Common: 80, Uncommon: 20 },
+        Frontier: { Common: 62, Uncommon: 28, Rare: 10 },
+        Wild:     { Common: 45, Uncommon: 32, Rare: 18, Exotic: 5 },
+        WarZone:  { Common: 42, Uncommon: 32, Rare: 19, Exotic: 6, Legendary: 1 },
+        Deep:     { Common: 20, Uncommon: 30, Rare: 30, Exotic: 15, Legendary: 5 },
+    },
+    candidates: 16,
+
+    // Specimens: chance per unit of ore mined, and the station price (× 0.5 + market value / 100).
+    specimen_chance: { Rare: 0.02, Exotic: 0.025, Legendary: 0.03 },
+    specimen_value: { Rare: 250, Exotic: 1000, Legendary: 4000 },
+    // First specimen of a mineral anywhere: chronicle discovery and this much reputation.
+    discovery_reputation: { Rare: 2, Exotic: 5, Legendary: 15 },
+
+    // Names: two syllables + a family ending, e.g. "Karvelite".
+    syllables: [
+        "Ka", "Ver", "Mor", "Tal", "Zen", "Qua", "Bri", "Dov", "Esk", "Fal", "Gor", "Hel", "Ith", "Jor", "Kel",
+        "Lum", "Nar", "Oss", "Pyr", "Rho", "Sel", "Tor", "Ul", "Vex", "Wyn", "Xan", "Yr", "Zor", "Cal", "Dra",
+    ],
+    endings: {
+        Ferrite: ["ite", "ane", "orn", "ast"],
+        Lumen: ["ine", "eon", "ael", "ium"],
+        Xenite: ["yx", "oth", "eth", "ion"],
+    },
+)

@@ -70,6 +70,9 @@ pub struct Captain {
     /// Place the captain at the system's first point of interest of this kind (e.g. `"Ruin"`)…
     #[serde(default)]
     pub near_poi: Option<shared::galaxy::PoiKind>,
+    /// Start next to the asteroid nearest the station whose deposit is at least this rare.
+    #[serde(default)]
+    pub near_deposit: Option<shared::minerals::Rarity>,
     /// …plus this offset (metres).
     #[serde(default)]
     pub offset: Option<[f32; 3]>,
@@ -181,6 +184,8 @@ pub enum Check {
     Ttk { captain: String, #[serde(default)] min: Option<f32>, #[serde(default)] max: Option<f32> },
     /// Artifacts the captain holds.
     Artifacts { captain: String, #[serde(default)] min: Option<u32>, #[serde(default)] max: Option<u32> },
+    /// Mineral specimens the captain holds.
+    Specimens { captain: String, #[serde(default)] min: Option<u32>, #[serde(default)] max: Option<u32> },
     Reputation { captain: String, #[serde(default)] min: Option<i32>, #[serde(default)] max: Option<i32> },
     /// Influence of the alliance with this tag in a system.
     Influence { system: SystemId, tag: String, #[serde(default)] min: Option<f32>, #[serde(default)] max: Option<f32> },
@@ -369,6 +374,11 @@ fn evaluate(run: &Run, c: &Check) -> (bool, String) {
             let (ok, s) = range(v, *min, *max);
             (ok, format!("{captain} reputation {s}"))
         }
+        Check::Specimens { captain, min, max } => {
+            let v = run.pid(captain).and_then(|p| g.store.profile(p)).map(|p| p.specimens.values().sum::<u32>()).unwrap_or(0);
+            let (ok, s) = range(v, *min, *max);
+            (ok, format!("{captain} specimens {s}"))
+        }
         Check::Artifacts { captain, min, max } => {
             let v = run.pid(captain).map(|p| g.artifacts_of(p).len() as u32).unwrap_or(0);
             let (ok, s) = range(v, *min, *max);
@@ -437,6 +447,13 @@ pub fn run_opts(sc: &Scenario, trace_every: Option<f32>, metrics: bool) -> Repor
                 && let Some(poi) = galaxy::system_layout(c.system).pois.iter().find(|p| p.kind == kind)
             {
                 e.pos = poi.pos + Vec3::from(c.offset.unwrap_or_default());
+            }
+            if let Some(min) = c.near_deposit {
+                let layout = galaxy::system_layout(c.system);
+                let rare = layout.asteroids.iter().filter(|a| shared::minerals::mineral(a.mineral).is_some_and(|m| m.rarity >= min)).min_by(|a, b| a.pos.distance(layout.station).total_cmp(&b.pos.distance(layout.station)));
+                if let Some(a) = rare {
+                    e.pos = a.pos + Vec3::new(0.0, 0.0, a.radius + 60.0) + Vec3::from(c.offset.unwrap_or_default());
+                }
             }
             e.rot = Quat::from_rotation_y(-c.heading.to_radians());
         }
@@ -517,6 +534,12 @@ pub fn run_opts(sc: &Scenario, trace_every: Option<f32>, metrics: bool) -> Repor
                         let best = run.g.systems[&sys].layout.pois.iter().filter(|p| format!("{:?}", p.kind) == kind).min_by(|a, b| dist(a.pos).total_cmp(&dist(b.pos)));
                         if let Some(p) = best {
                             *poi = p.id;
+                        }
+                    }
+                    (ClientMsg::Mine { asteroid }, None) if what == "asteroid" => {
+                        let best = run.g.systems[&sys].layout.asteroids.iter().min_by(|a, b| dist(a.pos).total_cmp(&dist(b.pos)));
+                        if let Some(a) = best {
+                            *asteroid = Some(a.id);
                         }
                     }
                     (ClientMsg::InvestigateWreck { wreck }, None) if what == "wreck" => {

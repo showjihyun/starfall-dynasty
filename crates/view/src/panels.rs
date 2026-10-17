@@ -22,6 +22,37 @@ pub struct ArtifactPrices {
     pub donation_reputation: i32,
 }
 
+/// The station window's mineral specimens: each catalogue mineral held with its rarity, best
+/// properties and price, and one button to sell them all (docked only). True when it was clicked.
+pub fn specimens(ui: &mut egui::Ui, held: &std::collections::BTreeMap<shared::minerals::MineralId, u32>, docked: bool) -> bool {
+    use shared::minerals::{self, Property, Rarity};
+    let t = shared::tuning::get();
+    ui.label(RichText::new("광물 표본").strong());
+    if held.is_empty() {
+        ui.label(RichText::new("표본 없음 — 희귀 이상 광맥을 캐면 가끔 그 광물의 표본이 나옵니다. 처음 캐낸 광물은 연대기에 발견자로 남습니다.").size(11.0).color(DIM));
+        return false;
+    }
+    let mut total = 0;
+    for (id, n) in held {
+        let Some(m) = minerals::mineral(*id) else { continue };
+        let each = m.specimen_value(&t.minerals);
+        total += each * *n as u64;
+        let mut best: Vec<Property> = Property::ALL.to_vec();
+        best.sort_by_key(|p| std::cmp::Reverse(m.prop(*p)));
+        let traits: Vec<String> = best.iter().take(2).map(|p| format!("{} {}", p.label(), m.prop(*p))).collect();
+        let col = match m.rarity {
+            Rarity::Legendary => GOLD,
+            Rarity::Exotic => Color32::from_rgb(200, 140, 255),
+            _ => Color32::from_rgb(120, 190, 255),
+        };
+        ui.horizontal_wrapped(|ui| {
+            ui.label(RichText::new(format!("{} × {n}", m.label())).color(col));
+            ui.label(RichText::new(format!("{} · {each} CR/점", traits.join(", "))).size(11.0).color(DIM));
+        });
+    }
+    ui.add_enabled(docked, egui::Button::new(format!("표본 전량 판매 (+{total} CR)"))).clicked()
+}
+
 /// The station window's artifact section: each held artifact with its provenance and the three
 /// services. Buttons work only while docked.
 pub fn artifacts(ui: &mut egui::Ui, held: &[Artifact], docked: bool, prices: &ArtifactPrices) -> Option<ArtifactRequest> {

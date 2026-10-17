@@ -281,9 +281,20 @@ fn system_chart(_ui: &mut egui::Ui, p: &egui::Painter, map: Rect, resp: &egui::R
         for a in &lay.asteroids {
             let ap = to(a.pos);
             if map.contains(ap) {
-                p.circle_filled(ap, (a.radius * sc).clamp(1.5, 18.0), Color32::from_rgb(90, 80, 72));
+                let ar = (a.radius * sc).clamp(1.5, 18.0);
+                p.circle_filled(ap, ar, Color32::from_rgb(90, 80, 72));
+                // Rare deposits stand out; every rock names its mineral on hover.
+                if let Some(m) = shared::minerals::mineral(a.mineral) {
+                    if m.rarity >= shared::minerals::Rarity::Rare {
+                        let c = if m.rarity == shared::minerals::Rarity::Rare { Color32::from_rgb(120, 190, 255) } else { Color32::from_rgb(200, 140, 255) };
+                        p.circle_stroke(ap, ar + 3.0, Stroke::new(1.2, c));
+                    }
+                    consider(ap, ar.max(5.0), vec![m.label(), loc(a.pos) + &dist_txt(a.pos)], None);
+                }
             }
         }
+        stem(p, lay.station, GREEN);
+        stem(p, lay.jump_point, ACCENT);
         let st = to(lay.station);
         let half = (90.0 * sc).max(6.0);
         p.rect_stroke(Rect::from_center_size(st, EVec2::splat(half * 2.0)), 2.0, Stroke::new(2.0, GREEN), egui::StrokeKind::Middle);

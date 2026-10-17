@@ -88,6 +88,8 @@ pub enum ClientMsg {
     InvestigateWreck { wreck: EntityId },
     Upgrade { module: Module },
     Sell { ore: Ore, units: u32 },
+    /// Sell every mineral specimen held (docked).
+    SellSpecimens,
     Refine { ore: Ore, units: u32 },
     ClaimDaily { index: usize },
     StartScenario { id: u32 },
@@ -171,6 +173,9 @@ pub struct Profile {
     /// (system, poi) scanned today — reset with the dailies.
     #[serde(default)]
     pub scanned: Vec<(SystemId, u32)>,
+    /// Mineral specimens held (mineral id → count); they take no cargo space.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub specimens: BTreeMap<crate::minerals::MineralId, u32>,
 }
 
 impl Profile {

@@ -27,6 +27,8 @@ pub enum DomainEvent {
     ShipDestroyed { victim: String, victim_ship: String, victim_rank: String, killer: String, killer_ship: Option<String>, system: SystemId, witnesses: Vec<String>, cargo_lost: u32, pvp: bool, victim_bounty: u64 },
     BossDestroyed { boss: String, system: SystemId, killers: Vec<String> },
     Discovery { player: String, ship: String, system: SystemId, site: String, kind: String },
+    /// The first specimen of a catalogue mineral anyone has taken (design doc §7.1).
+    MineralDiscovered { player: String, ship: String, system: SystemId, mineral: u32, name: String, rarity: String, legendary: bool },
     EngagementConcluded { system: SystemId, sides: Vec<Side>, winner: Option<String>, seconds: u32 },
     ScenarioCompleted { player: String, ship: String, chapter: u32, title: String },
     ShipAscended { player: String, ship: String, designation: String },
@@ -93,6 +95,7 @@ pub struct HistoryEngine {
     bios: HashMap<String, Vec<BioEntry>>,
     ship_bios: HashMap<String, Vec<BioEntry>>,
     discovered_sites: HashSet<(SystemId, String)>,
+    discovered_minerals: HashSet<u32>,
     open_bounties: HashMap<String, EventId>,
     battles_in: HashMap<SystemId, u32>,
     /// Latest chronicle entry about each artifact, so its story links cause to effect.
@@ -361,6 +364,19 @@ impl HistoryEngine {
                 for k in &killers {
                     self.bio(k, unix, format!("{sys}에서 {boss} 격파에 참여했다."), Some(id));
                 }
+                Some(id)
+            }
+            DomainEvent::MineralDiscovered { player, ship, system, mineral, name, rarity, legendary } => {
+                if !self.discovered_minerals.insert(mineral) {
+                    return None;
+                }
+                let sys = galaxy::system(system).name;
+                let imp = if legendary { Importance::Historic } else if rarity == "이색" { Importance::Major } else { Importance::Notable };
+                let id = self.push_event(unix, system, "MINERAL", format!("신광물 발견: {name}"), format!("{player}이(가) 「{ship}」으로 {sys}의 소행성대에서 {rarity} 광물 {name}을(를) 처음 채취했다. 광물학회 목록에 발견자로 이름이 올랐다."), vec![player.clone()], vec![ship.clone()], imp, vec![]);
+                let e = self.add_evidence(id, EvidenceKind::ArchiveRecord, "광물학회 등록부", format!("{name}({rarity}) 표본 접수. 채취지 {sys}, 발견자 {player}."), 0.9);
+                self.attach(id, vec![e]);
+                self.bio(&player, unix, format!("{sys}에서 {rarity} 광물 {name}을(를) 처음 채취했다."), Some(id));
+                self.ship_bio(ship_key(&player, &ship), unix, format!("{name} 최초 채취."), Some(id));
                 Some(id)
             }
             DomainEvent::Discovery { player, ship, system, site, kind } => {

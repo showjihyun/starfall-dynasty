@@ -163,6 +163,20 @@ fn delivery_destinations_hide_uncharted_systems() {
     assert_eq!(ids(&charted, core as u16 + 7).len(), core + 2, "plus charted systems and the one you are in");
 }
 
+#[test]
+fn specimens_list_and_sell() {
+    let t = shared::tuning::get();
+    let id = shared::minerals::bucket(&t.minerals, shared::galaxy::Ore::Xenite, shared::minerals::Rarity::Rare).start;
+    let m = shared::minerals::mineral(id).unwrap();
+    let held = std::collections::BTreeMap::from([(id, 3u32)]);
+    let price = m.specimen_value(&t.minerals) * 3;
+    let (seen, sold) = frame(|ui| panels::specimens(ui, &held, true).then_some(()), Some("표본 전량 판매"));
+    assert!(seen.iter().any(|s| s == &format!("{} × 3", m.label())), "{seen:?}");
+    assert!(seen.iter().any(|s| s == &format!("표본 전량 판매 (+{price} CR)")), "{seen:?}");
+    assert_eq!(sold, Some(()));
+    assert_eq!(frame(|ui| panels::specimens(ui, &held, false).then_some(()), Some("표본 전량 판매")).1, None, "docked only");
+}
+
 // ---- influence
 
 #[test]

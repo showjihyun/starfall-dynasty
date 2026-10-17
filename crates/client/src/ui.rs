@@ -600,6 +600,10 @@ fn station(ui: &mut egui::Ui, s: &mut Session, net: &Net, prof: &Profile, env: &
         ui.label(RichText::new("화물 없음 — 소행성대에서 채굴(N)하세요. 위험한 성계일수록 비싸게 팔립니다.").color(DIM).size(12.0));
     }
     ui.separator();
+    if view::panels::specimens(ui, &prof.specimens, docked) {
+        net.send(ClientMsg::SellSpecimens);
+    }
+    ui.separator();
     let t = shared::tuning::get();
     let prices = view::panels::ArtifactPrices {
         appraisal: if prof.profession == Profession::Archaeologist { 0 } else { t.artifacts.appraisal_cost },

@@ -291,7 +291,12 @@ fn action_keys(keys: Res<ButtonInput<KeyCode>>, wants: Option<Res<EguiWantsInput
         } else {
             let a = layout.asteroids.iter().min_by(|a, b| a.pos.distance(my_pos).total_cmp(&b.pos.distance(my_pos)));
             match a {
-                Some(a) if a.pos.distance(my_pos) < MINE_RANGE + a.radius + me.radius => net.send(ClientMsg::Mine { asteroid: Some(a.id) }),
+                Some(a) if a.pos.distance(my_pos) < MINE_RANGE + a.radius + me.radius => {
+                    net.send(ClientMsg::Mine { asteroid: Some(a.id) });
+                    if let Some(m) = shared::minerals::mineral(a.mineral) {
+                        s.toast(format!("채굴: {}", m.label()), now);
+                    }
+                }
                 Some(a) => s.toast(format!("가장 가까운 소행성까지 {:.0}u — 채굴 사거리 {:.0}u", a.pos.distance(my_pos), MINE_RANGE), now),
                 None => s.toast("이 성계엔 소행성이 없습니다", now),
             }
