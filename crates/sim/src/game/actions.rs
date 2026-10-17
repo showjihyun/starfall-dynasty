@@ -243,7 +243,7 @@ impl Game {
 
     fn start_warp(&mut self, conn: ConnId, pid: PlayerId, sys: SystemId, eid: Option<EntityId>, target: SystemId) {
         let Some(e) = eid.and_then(|e| self.ent(sys, e)) else { return };
-        if target as usize >= galaxy::SYSTEMS.len() || target == sys {
+        if target as usize >= galaxy::systems().len() || target == sys {
             return self.error(conn, "잘못된 워프 목적지");
         }
         if e.docked {

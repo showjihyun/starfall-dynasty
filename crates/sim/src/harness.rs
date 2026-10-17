@@ -87,6 +87,11 @@ pub fn digest(g: &Game) -> String {
     let mut h = Fnv::new();
     h.u64(g.tick);
     for (sys, s) in &g.systems {
+        // A generated system nobody has entered adds nothing, so growing the galaxy keeps the
+        // fingerprints of runs (and recordings) that never left the core.
+        if s.ents.is_empty() && shared::galaxy::is_generated(*sys) {
+            continue;
+        }
         h.u64(*sys as u64);
         for e in s.ents.values() {
             h.u64(e.id as u64);

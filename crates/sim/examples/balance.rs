@@ -104,6 +104,7 @@ fn main() {
     out += &numbers;
     out += &territory();
     out += &social_economy();
+    out += &galaxy_sheet();
     print!("{out}");
     eprintln!("{} duels simulated in {:.2} s", HullClass::ALL.len() * 3 * enc.len(), t0.elapsed().as_secs_f64());
     if let Some(path) = write {
@@ -113,6 +114,60 @@ fn main() {
 }
 
 /// Territory economy (tuning/social.ron): what holding n systems costs and how hard the next one is.
+/// Phase 4-1: the procedural galaxy around the core, by tier, and how far a warp core gets you.
+fn galaxy_sheet() -> String {
+    use shared::galaxy::{self, PoiKind, RiskTier};
+    let t = shared::tuning::get();
+    let all = galaxy::systems();
+    let mut out = String::from("
+## 은하
+
+");
+    out += &format!(
+        "수작업 핵심 성계 {}개에 `tuning/galaxy.ron`(seed {})으로 {}개를 더 생성한다. 생성 성계에 처음 도달한 함장은 최초 도달 사건과 등록 보상 {} CR × 위험도 배율을 받는다.
+
+| 위험도 | 핵심 | 생성 | 유적·고대 게이트 | 최초 도달 보상 |
+|---|---|---|---|---|
+",
+        galaxy::CORE.len(),
+        t.galaxy.seed,
+        all.len() - galaxy::CORE.len(),
+        t.galaxy.chart_reward
+    );
+    for tier in [RiskTier::Core, RiskTier::Frontier, RiskTier::Wild, RiskTier::WarZone, RiskTier::Deep] {
+        let of: Vec<_> = all.iter().filter(|s| s.tier == tier).collect();
+        let core = of.iter().filter(|s| !galaxy::is_generated(s.id)).count();
+        let ruins: usize = of.iter().map(|s| galaxy::system_layout(s.id).pois.iter().filter(|p| matches!(p.kind, PoiKind::Ruin | PoiKind::AncientGate)).count()).sum();
+        let reward = if of.iter().any(|s| galaxy::is_generated(s.id)) { format!("{:.0} CR", t.galaxy.chart_reward as f32 * t.economy.risk_reward[&tier]) } else { "—".into() };
+        out += &format!("| {} | {core} | {} | {ruins} | {reward} |
+", tier.label(), of.len() - core);
+    }
+    out += "
+워프 사거리별로 Sol Haven에서 (중간 성계를 거쳐) 닿는 성계 수:
+
+| 워프 사거리 | 닿는 성계 | 못 닿는 성계 |
+|---|---|---|
+";
+    for range in [1.0f32, 1.5, 2.0, 2.5] {
+        let mut seen = vec![false; all.len()];
+        let mut stack = vec![0usize];
+        seen[0] = true;
+        while let Some(i) = stack.pop() {
+            for j in 0..all.len() {
+                if !seen[j] && galaxy::distance_ly(i as u16, j as u16) <= range {
+                    seen[j] = true;
+                    stack.push(j);
+                }
+            }
+        }
+        let missing: Vec<&str> = all.iter().filter(|s| !seen[s.id as usize]).map(|s| s.name).collect();
+        let shown = if missing.len() > 4 { format!("{} 외 {}개", missing[..4].join(", "), missing.len() - 4) } else { missing.join(", ") };
+        out += &format!("| {range:.1} ly | {} / {} | {shown} |
+", seen.iter().filter(|s| **s).count(), all.len());
+    }
+    out
+}
+
 fn territory() -> String {
     let g = sim::game::Game::new(sim::store::Store::memory(), history::HistoryEngine::new(), 1_800_000_000);
     let t = g.tuning.social;
@@ -193,7 +248,7 @@ fn social_economy() -> String {
     for tier in [RiskTier::Core, RiskTier::Frontier, RiskTier::Wild, RiskTier::WarZone, RiskTier::Deep] {
         let mut values = vec![];
         let mut sites = 0;
-        for s in galaxy::SYSTEMS.iter().filter(|s| s.tier == tier) {
+        for s in galaxy::systems().iter().filter(|s| s.tier == tier) {
             for p in galaxy::system_layout(s.id).pois.iter().filter(|p| matches!(p.kind, PoiKind::Ruin | PoiKind::AncientGate)) {
                 sites += 1;
                 for day in 0..60 {

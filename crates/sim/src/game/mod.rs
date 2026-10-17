@@ -294,7 +294,7 @@ impl Game {
             tuning: shared::tuning::get(),
             metrics: None,
         };
-        for def in galaxy::SYSTEMS {
+        for def in galaxy::systems() {
             g.systems.insert(def.id, Sys { id: def.id, layout: galaxy::system_layout(def.id), ents: BTreeMap::new(), pirate_cd: 1.0, engagement: None, wrecks: HashMap::new(), sent_infos: HashMap::new(), grid: Default::default(), slots: Default::default() });
         }
         // Restore persisted wrecks (expired ones are dropped).
@@ -487,6 +487,7 @@ impl Game {
         self.ensure_dailies(pid, day);
         let acc = self.store.account(pid).unwrap().clone();
         self.send(conn, ServerMsg::Welcome { player_id: pid, token: acc.token.clone(), profile: acc.profile.clone(), server_unix: self.unix, tuning: Some(Box::new((*self.tuning).clone())) });
+        self.send(conn, ServerMsg::Charted { systems: self.history.charted_systems() });
         if let Some(p) = acc.profile {
             self.spawn_player(pid, p.last_system, true);
             self.broadcast_fleet(pid);

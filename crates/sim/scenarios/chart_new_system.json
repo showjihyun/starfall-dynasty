@@ -1,0 +1,21 @@
+{
+  "name": "chart_new_system",
+  "description": "생성 성계(Isolde Expanse, id 11, Frontier)에 처음 도달한 함장이 항로를 연다: 최초 도달 사건 1건과 등록 보상(600 × Frontier 위험도 1.0 = 600 CR, 시작 자금 1500). 뒤따라 온 함장은 사건도 보상도 없다",
+  "captains": [
+    { "name": "Pioneer", "hull": "Wren", "level": 1, "system": 4 },
+    { "name": "Follower", "hull": "Wren", "level": 1, "system": 4 }
+  ],
+  "script": [
+    { "at": 0.5, "captain": "Pioneer", "msg": { "Warp": { "system": 11 } } },
+    { "at": 12.0, "captain": "Follower", "msg": { "Warp": { "system": 11 } } }
+  ],
+  "run_secs": 25,
+  "expect": [
+    { "at": 11.0, "check": "in_system", "captain": "Pioneer", "system": 11 },
+    { "at": 11.0, "check": "history", "kind": "DISCOVERY", "min": 1, "max": 1 },
+    { "at": 11.0, "check": "credits", "captain": "Pioneer", "min": 2100, "max": 2100 },
+    { "check": "in_system", "captain": "Follower", "system": 11 },
+    { "check": "history", "kind": "DISCOVERY", "min": 1, "max": 1 },
+    { "check": "credits", "captain": "Follower", "max": 1500 }
+  ]
+}

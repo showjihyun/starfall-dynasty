@@ -96,6 +96,8 @@ pub struct Session {
     /// Alliance influence and control per system (server-sent), and the control threshold.
     pub influence: Vec<SystemStanding>,
     pub influence_threshold: f32,
+    /// Generated systems someone has charted (server-sent); others show as unknown on the map.
+    pub charted: std::collections::BTreeSet<SystemId>,
 }
 
 impl Session {
@@ -233,6 +235,7 @@ fn apply(s: &mut Session, m: ServerMsg, now: f64, next: &mut NextState<Screen>) 
         ServerMsg::Artifacts { held } => s.artifacts = held,
         ServerMsg::Contracts { list } => s.contracts = list,
         ServerMsg::Institutes { list } => s.institutes = list,
+        ServerMsg::Charted { systems } => s.charted = systems.into_iter().collect(),
         ServerMsg::Influence { systems, threshold } => {
             s.influence = systems;
             s.influence_threshold = threshold;

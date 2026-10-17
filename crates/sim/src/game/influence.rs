@@ -231,7 +231,7 @@ impl Game {
 
     /// Standings per system for the alliance window and the map.
     pub fn standings(&self) -> Vec<SystemStanding> {
-        galaxy::SYSTEMS
+        galaxy::systems()
             .iter()
             .map(|s| {
                 let tag = |a: AllianceId| self.alliance(a).map(|x| x.tag.clone());

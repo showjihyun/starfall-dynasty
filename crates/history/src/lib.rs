@@ -367,8 +367,19 @@ impl HistoryEngine {
                 let sys = galaxy::system(system).name;
                 let first = self.discovered_sites.insert((system, site.clone()));
                 if !first {
-                    self.bio(&player, unix, format!("{sys}의 {site}을(를) 조사했다."), None);
+                    if kind != "System" {
+                        self.bio(&player, unix, format!("{sys}의 {site}을(를) 조사했다."), None);
+                    }
                     return None;
+                }
+                // Reaching a generated system first charts it.
+                if kind == "System" {
+                    let id = self.push_event(unix, system, "DISCOVERY", format!("미답 성계 {sys} 최초 도달"), format!("{player}이(가) 「{ship}」으로 아무도 가 본 적 없는 {sys}에 처음 도달해 항로를 열었다."), vec![player.clone()], vec![ship.clone()], Importance::Major, vec![]);
+                    let e = self.add_evidence(id, EvidenceKind::ArchiveRecord, "항로국 등록부", format!("{sys} 항로 등록. 최초 도달 {player}, 「{ship}」."), 0.9);
+                    self.attach(id, vec![e]);
+                    self.bio(&player, unix, format!("미답 성계 {sys}에 처음 도달했다."), Some(id));
+                    self.ship_bio(ship_key(&player, &ship), unix, format!("{sys} 최초 도달."), Some(id));
+                    return Some(id);
                 }
                 let imp = if kind == "Ruin" || kind == "AncientGate" { Importance::Major } else { Importance::Notable };
                 let id = self.push_event(unix, system, "DISCOVERY", format!("{site} 최초 발견"), format!("{player}이(가) 「{ship}」으로 {sys}의 {site}을(를) 최초로 기록했다."), vec![player.clone()], vec![ship.clone()], imp, vec![]);
@@ -704,6 +715,12 @@ impl HistoryEngine {
     }
 
     /// Galactic Herald: template-generated news from simulation facts (never invents events).
+    /// Generated systems someone has reached first (charted), in id order.
+    pub fn charted_systems(&self) -> Vec<SystemId> {
+        let set: std::collections::BTreeSet<SystemId> = self.discovered_sites.iter().filter(|(s, site)| galaxy::is_generated(*s) && galaxy::system(*s).name == site).map(|(s, _)| *s).collect();
+        set.into_iter().collect()
+    }
+
     /// The Galactic Herald's front page (tuning `history.ron`): up to `herald_articles` journalists'
     /// articles lead (corrections included, newest first); automatic headlines for events nobody has
     /// written up fill the rest, newest first, with at most `herald_kind_cap` of any one kind.

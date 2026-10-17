@@ -130,9 +130,10 @@ fn galaxy_chart(_ui: &mut egui::Ui, p: &egui::Painter, map: Rect, resp: &egui::R
     // Lanes, warp range, systems.
     let cur = galaxy::system(s.system);
     let range = s.profile.as_ref().map(|p| p.ship.stats().warp_range).unwrap_or(0.0);
-    for a in galaxy::SYSTEMS {
-        for b in galaxy::SYSTEMS {
-            if a.id < b.id && galaxy::distance_ly(a.id, b.id) <= 1.8 {
+    for a in galaxy::systems() {
+        for b in galaxy::systems() {
+            // Lanes join neighbours one short hop apart (every system but The Deep has one).
+            if a.id < b.id && galaxy::distance_ly(a.id, b.id) <= 1.5 {
                 p.line_segment([to(a.map_pos), to(b.map_pos)], Stroke::new(1.0, Color32::from_rgb(34, 52, 80)));
             }
         }
@@ -141,10 +142,23 @@ fn galaxy_chart(_ui: &mut egui::Ui, p: &egui::Painter, map: Rect, resp: &egui::R
     p.circle_stroke(cp, range * sc, Stroke::new(1.0, Color32::from_rgba_unmultiplied(110, 190, 255, 70)));
     p.text(cp + EVec2::new(0.0, -range * sc - 4.0), Align2::CENTER_BOTTOM, format!("워프 사거리 {range:.2} ly"), FontId::proportional(11.0), Color32::from_rgba_unmultiplied(110, 190, 255, 140));
     let mut hovered: Option<SystemId> = None;
-    for sys in galaxy::SYSTEMS {
+    for sys in galaxy::systems() {
         let sp = to(sys.map_pos);
-        let star = rgb(sys.star.color());
         let r = (sc * 0.05).clamp(5.0, 14.0);
+        if !view::mapview::known(sys.id, &s.charted, s.system) {
+            // Uncharted: a faint point, no name, tier or star colour until someone gets there.
+            p.circle_stroke(sp, r * 0.7, Stroke::new(1.0, DIM));
+            if hover.is_some_and(|h| h.distance(sp) < r + 8.0) {
+                hovered = Some(sys.id);
+            }
+            if s.map.selected == Some(sys.id) {
+                p.circle_stroke(sp, r + 7.0, Stroke::new(1.5, GOLD));
+            }
+            p.text(sp + EVec2::new(r + 6.0, -8.0), Align2::LEFT_TOP, view::mapview::UNKNOWN_SYSTEM, FontId::proportional(12.0), DIM);
+            p.text(sp + EVec2::new(r + 6.0, 7.0), Align2::LEFT_TOP, coords::sector_of(sys.map_pos), FontId::proportional(10.0), DIM);
+            continue;
+        }
+        let star = rgb(sys.star.color());
         p.circle_filled(sp, r * 2.2, star.gamma_multiply(0.12));
         p.circle_filled(sp, r, star);
         if hover.is_some_and(|h| h.distance(sp) < r + 8.0) {
@@ -168,7 +182,13 @@ fn galaxy_chart(_ui: &mut egui::Ui, p: &egui::Painter, map: Rect, resp: &egui::R
     if let Some(id) = hovered {
         let sys = galaxy::system(id);
         let d = galaxy::distance_ly(s.system, id);
-        tooltip(p, hover.unwrap(), &[format!("{} ({})", sys.name, sys.tier.label()), format!("섹터 {} · G({:+.2}, {:+.2}, {:+.2}) ly", coords::sector_of(sys.map_pos), sys.map_pos[0], sys.map_pos[1], sys.map_pos[2]), format!("거리 {d:.2} ly{}", if d <= range { " · 워프 가능" } else { "" }), sys.lore.to_string()]);
+        let place = format!("섹터 {} · G({:+.2}, {:+.2}, {:+.2}) ly", coords::sector_of(sys.map_pos), sys.map_pos[0], sys.map_pos[1], sys.map_pos[2]);
+        let dist = format!("거리 {d:.2} ly{}", if d <= range { " · 워프 가능" } else { "" });
+        if view::mapview::known(id, &s.charted, s.system) {
+            tooltip(p, hover.unwrap(), &[format!("{} ({})", sys.name, sys.tier.label()), place, dist, sys.lore.to_string()]);
+        } else {
+            tooltip(p, hover.unwrap(), &[view::mapview::UNKNOWN_SYSTEM.to_string(), place, dist, "항로국 기록 없음 — 처음 도달한 함장이 이름을 올린다.".into()]);
+        }
         if resp.clicked() {
             s.map.selected = Some(id);
         }
@@ -429,14 +449,17 @@ fn side_panel(ui: &mut egui::Ui, rect: Rect, s: &mut Session, net: &Net, now: f6
         let range = s.profile.as_ref().map(|p| p.ship.stats().warp_range).unwrap_or(0.0);
         ui.label(RichText::new(format!("워프 (사거리 {range:.2} ly)")).strong());
         egui::ScrollArea::vertical().max_height(rect.height() * 0.45).show(ui, |ui| {
-            for sys in galaxy::SYSTEMS {
-                if sys.id == s.system {
-                    continue;
-                }
-                let d = galaxy::distance_ly(s.system, sys.id);
+            // Nearest first: with fifty systems the ones in range are what matters.
+            let mut near: Vec<(&galaxy::SystemDef, f32)> = galaxy::systems().iter().filter(|o| o.id != s.system).map(|o| (o, galaxy::distance_ly(s.system, o.id))).collect();
+            near.sort_by(|a, b| a.1.total_cmp(&b.1).then(a.0.id.cmp(&b.0.id)));
+            for (sys, d) in near {
                 ui.horizontal(|ui| {
                     let sel = s.map.selected == Some(sys.id);
-                    let name = RichText::new(format!("{}{}", if sel { "▶ " } else { "" }, sys.name)).color(tier_color(sys.tier));
+                    let name = if view::mapview::known(sys.id, &s.charted, s.system) {
+                        RichText::new(format!("{}{}", if sel { "▶ " } else { "" }, sys.name)).color(tier_color(sys.tier))
+                    } else {
+                        RichText::new(format!("{}{}", if sel { "▶ " } else { "" }, view::mapview::UNKNOWN_SYSTEM)).color(DIM)
+                    };
                     if ui.add(egui::Label::new(name).sense(egui::Sense::click())).clicked() {
                         s.map.show_system(sys.id);
                     }

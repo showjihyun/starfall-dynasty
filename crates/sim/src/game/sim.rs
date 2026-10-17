@@ -172,6 +172,31 @@ impl Game {
         let name = galaxy::system(to).name;
         let tier = galaxy::system(to).tier.label();
         self.toast(pid, format!("{name} 도착 — {tier}"));
+        if galaxy::is_generated(to) {
+            self.chart_system(pid, to);
+        }
+    }
+
+    /// The first captain to reach a generated system charts it: a discovery for the chronicle and a
+    /// reward scaled by the system's risk (tuning `galaxy.ron`).
+    fn chart_system(&mut self, pid: PlayerId, sys: SystemId) {
+        let Some(prof) = self.store.profile(pid).cloned() else { return };
+        let def = galaxy::system(sys);
+        let event = DomainEvent::Discovery { player: prof.name.clone(), ship: prof.ship.name.clone(), system: sys, site: def.name.to_string(), kind: "System".into() };
+        if self.history.record(self.unix, event).is_none() {
+            return;
+        }
+        let credits = (self.tuning.galaxy.chart_reward as f32 * self.tuning.economy.risk_reward[&def.tier]) as u64;
+        if let Some(p) = self.store.profile_mut(pid) {
+            p.wallet.credits += credits;
+        }
+        self.toast(pid, format!("미답 성계 {} 최초 도달 — 항로국에 등록되었습니다 (+{credits} CR)", def.name));
+        self.push_profile(pid);
+        let charted = ServerMsg::Charted { systems: self.history.charted_systems() };
+        let conns: Vec<ConnId> = self.conn_of.values().copied().collect();
+        for c in conns {
+            self.send(c, charted.clone());
+        }
     }
 
     fn tick_system(&mut self, sys: SystemId, dt: f32) {

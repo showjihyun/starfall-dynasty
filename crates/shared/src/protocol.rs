@@ -261,6 +261,9 @@ pub struct FleetMember {
 pub enum ServerMsg {
     /// Every player institution with its exhibits.
     Institutes { list: Vec<crate::institutes::InstituteView> },
+    /// Generated systems someone has reached (charted); the rest show as unknown on the map. Sent on
+    /// login and to everyone whenever a system is charted. Core systems are always known.
+    Charted { systems: Vec<SystemId> },
     /// Alliance influence and control per system (`threshold`: influence needed to take control).
     Influence { systems: Vec<SystemStanding>, threshold: f32 },
     /// The contract board: every open contract plus the ones this captain is party to.

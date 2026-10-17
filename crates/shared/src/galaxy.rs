@@ -1,6 +1,7 @@
-//! The galaxy: hand-placed star systems whose contents (planets, belts, stations,
-//! anomalies, ruins, palettes) are generated deterministically from the system seed.
-//! Server and client both call [`system_layout`] and get identical worlds.
+//! The galaxy: ten hand-placed star systems (the historical core, [`CORE`]) and more grown around
+//! them from `tuning/galaxy.ron`; every system's contents (planets, belts, stations, anomalies,
+//! ruins, palettes) are generated deterministically from its id. Server and client both call
+//! [`systems`] and [`system_layout`] with the same tuning and get identical worlds.
 
 use crate::rng::Rng;
 use glam::Vec3;
@@ -97,7 +98,7 @@ impl Species {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum StarKind {
     YellowDwarf,
     RedGiant,
@@ -118,6 +119,7 @@ impl StarKind {
     }
 }
 
+#[derive(Clone, Copy, Debug)]
 pub struct SystemDef {
     pub id: SystemId,
     pub name: &'static str,
@@ -128,7 +130,8 @@ pub struct SystemDef {
     pub lore: &'static str,
 }
 
-pub const SYSTEMS: &[SystemDef] = &[
+/// The hand-made historical core, ids 0–9. Generated systems follow from id `CORE.len()`.
+pub const CORE: &[SystemDef] = &[
     SystemDef { id: 0, name: "Sol Haven", tier: RiskTier::Core, map_pos: [0.0, 0.0, 0.0], star: StarKind::YellowDwarf, lore: "인류 연합의 수도 성계. 제국 기록보관소가 있다." },
     SystemDef { id: 1, name: "Lumen Reach", tier: RiskTier::Core, map_pos: [-1.3, 0.2, 0.7], star: StarKind::BlueGiant, lore: "Veyr 기억의 집들이 공명하는 청색 성운." },
     SystemDef { id: 2, name: "Kharz Forge", tier: RiskTier::Core, map_pos: [1.2, -0.1, 0.8], star: StarKind::RedGiant, lore: "Kharz 전사 가문들의 조선소. 계약 길드 본부." },
@@ -142,7 +145,100 @@ pub const SYSTEMS: &[SystemDef] = &[
 ];
 
 pub fn system(id: SystemId) -> &'static SystemDef {
-    &SYSTEMS[id as usize % SYSTEMS.len()]
+    let all = systems();
+    &all[id as usize % all.len()]
+}
+
+/// Every system: the core, then the generated ones (ids are indices).
+pub fn systems() -> &'static [SystemDef] {
+    if let Some(s) = GALAXY.read().unwrap().current {
+        return s;
+    }
+    let t = crate::tuning::get();
+    let mut w = GALAXY.write().unwrap();
+    // Reinstalling the same numbers keeps the galaxy (and does not leak another copy).
+    let s = match &w.built {
+        Some((g, s)) if *g == t.galaxy => *s,
+        _ => {
+            let s: &'static [SystemDef] = Box::leak(generate(&t.galaxy).into_boxed_slice());
+            w.built = Some((t.galaxy.clone(), s));
+            s
+        }
+    };
+    w.current = Some(s);
+    s
+}
+
+struct Galaxy {
+    current: Option<&'static [SystemDef]>,
+    built: Option<(crate::tuning::GalaxyTuning, &'static [SystemDef])>,
+}
+
+static GALAXY: std::sync::RwLock<Galaxy> = std::sync::RwLock::new(Galaxy { current: None, built: None });
+
+/// New numbers were installed: the next `systems` call checks whether the galaxy changed.
+pub(crate) fn tuning_changed() {
+    GALAXY.write().unwrap().current = None;
+}
+
+/// Grows `g.generated` systems outwards from the core, each a hop from one already placed.
+fn generate(g: &crate::tuning::GalaxyTuning) -> Vec<SystemDef> {
+    let mut out: Vec<SystemDef> = CORE.to_vec();
+    let deep = Vec3::from(CORE[9].map_pos);
+    let mut r = Rng::from_parts(&[0x6A1A_C7, g.seed]);
+    let stars: Vec<(StarKind, u32)> = g.stars.iter().map(|(k, w)| (*k, *w)).collect();
+    let total: u32 = stars.iter().map(|s| s.1).sum();
+    let (x0, x1, z0, z1) = g.bounds;
+    let mut names: std::collections::BTreeSet<String> = CORE.iter().map(|s| s.name.to_string()).collect();
+    let mut firsts: Vec<String> = Vec::new();
+    let mut tries = 0;
+    while out.len() < CORE.len() + g.generated as usize && tries < 100_000 {
+        tries += 1;
+        // Grow from any placed system but The Deep.
+        let from = loop {
+            let i = r.below(out.len() as u32) as usize;
+            if i != 9 {
+                break Vec3::from(out[i].map_pos);
+            }
+        };
+        let ang = r.range(0.0, std::f32::consts::TAU);
+        let d = r.range(g.hop.0, g.hop.1);
+        let p = Vec3::new(from.x + ang.cos() * d, r.range(-0.4, 0.6), from.z + ang.sin() * d);
+        if p.x < x0 || p.x > x1 || p.z < z0 || p.z > z1 || p.distance(deep) < g.deep_clearance {
+            continue;
+        }
+        if out.iter().any(|s| Vec3::from(s.map_pos).distance(p) < if is_generated(s.id) { g.min_spacing } else { g.core_clearance }) {
+            continue;
+        }
+        let from_sol = Vec3::new(p.x, 0.0, p.z).length();
+        let tier = g.tiers.iter().find(|(d, _)| from_sol <= *d).unwrap_or(g.tiers.last().unwrap()).1;
+        let mut roll = r.below(total);
+        let star = stars.iter().find(|(_, w)| if roll < *w { true } else { roll -= w; false }).unwrap().0;
+        if firsts.is_empty() {
+            firsts = g.names_first.clone();
+        }
+        let first = firsts.remove(r.below(firsts.len() as u32) as usize);
+        let mut name = format!("{first} {}", r.pick(&g.names_second));
+        let base = name.clone();
+        let mut n = 2;
+        while names.contains(&name) {
+            name = format!("{base} {}", roman(n));
+            n += 1;
+        }
+        names.insert(name.clone());
+        let lore = r.pick(&g.lore[&tier]).clone();
+        out.push(SystemDef { id: out.len() as SystemId, name: Box::leak(name.into_boxed_str()), tier, map_pos: p.into(), star, lore: Box::leak(lore.into_boxed_str()) });
+    }
+    out
+}
+
+fn roman(n: u32) -> &'static str {
+    ["", "I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X"].get(n as usize).copied().unwrap_or("X+")
+}
+
+/// A system grown by the generator rather than placed by hand.
+pub fn is_generated(id: SystemId) -> bool {
+    id as usize >= CORE.len()
 }
 
 pub fn distance_ly(a: SystemId, b: SystemId) -> f32 {
@@ -369,7 +465,7 @@ mod tests {
 
     #[test]
     fn layouts_are_deterministic() {
-        for s in SYSTEMS {
+        for s in systems() {
             let a = system_layout(s.id);
             let b = system_layout(s.id);
             assert_eq!(a.asteroids.len(), b.asteroids.len());
@@ -381,13 +477,30 @@ mod tests {
     #[test]
     fn deep_needs_upgraded_warp() {
         // The Deep is far from every other system: a fresh ship cannot reach it.
-        let nearest = SYSTEMS.iter().filter(|s| s.id != 9).map(|s| distance_ly(s.id, 9)).fold(f32::MAX, f32::min);
+        let nearest = systems().iter().filter(|s| s.id != 9).map(|s| distance_ly(s.id, 9)).fold(f32::MAX, f32::min);
         assert!(nearest > 2.3, "nearest {nearest}");
         // …but every system is reachable from some neighbour with a level-1 Wren (2.0 ly) except The Deep.
-        for s in SYSTEMS.iter().filter(|s| s.id != 9) {
-            let n = SYSTEMS.iter().filter(|o| o.id != s.id).map(|o| distance_ly(s.id, o.id)).fold(f32::MAX, f32::min);
+        for s in systems().iter().filter(|s| s.id != 9) {
+            let n = systems().iter().filter(|o| o.id != s.id).map(|o| distance_ly(s.id, o.id)).fold(f32::MAX, f32::min);
             assert!(n <= 1.5, "{} isolated ({n})", s.name);
         }
+    }
+
+    #[test]
+    fn generated_galaxy() {
+        let all = systems();
+        let g = &crate::tuning::get().galaxy;
+        assert_eq!(all.len(), CORE.len() + g.generated as usize, "every generated system found room");
+        for (i, s) in all.iter().enumerate() {
+            assert_eq!(s.id as usize, i);
+        }
+        // The core is untouched and names are unique.
+        assert_eq!((all[9].name, all[9].map_pos), (CORE[9].name, CORE[9].map_pos));
+        let names: std::collections::BTreeSet<&str> = all.iter().map(|s| s.name).collect();
+        assert_eq!(names.len(), all.len());
+        assert!(all[CORE.len()..].iter().all(|s| s.tier != RiskTier::Core && s.tier != RiskTier::Deep));
+        // Same numbers, same galaxy.
+        assert_eq!(generate(g).iter().map(|s| (s.name, s.map_pos)).collect::<Vec<_>>(), all.iter().map(|s| (s.name, s.map_pos)).collect::<Vec<_>>());
     }
 
     #[test]
@@ -407,7 +520,7 @@ mod tests {
         let b = coords::sector_bounds("D1").unwrap();
         assert!(b[0] <= 0.0 && 0.0 < b[2] && b[1] <= 0.0 && 0.0 < b[3]);
         // Every system lies inside its own sector square.
-        for s in SYSTEMS {
+        for s in systems() {
             let b = coords::sector_bounds(&coords::sector_of(s.map_pos)).unwrap();
             assert!(b[0] <= s.map_pos[0] && s.map_pos[0] < b[2] && b[1] <= s.map_pos[2] && s.map_pos[2] < b[3], "{}", s.name);
         }

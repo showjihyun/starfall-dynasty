@@ -56,7 +56,7 @@ impl Game {
                 }
             }
             ContractKind::Delivery { units, system, .. } => {
-                if *units == 0 || galaxy::SYSTEMS.iter().all(|s| s.id != *system) {
+                if *units == 0 || galaxy::systems().iter().all(|s| s.id != *system) {
                     return self.error(conn, "운송 조건이 올바르지 않습니다");
                 }
             }

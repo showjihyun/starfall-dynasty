@@ -162,7 +162,7 @@ pub fn contracts(ui: &mut egui::Ui, list: &[Contract], me: u64, credits: u64, fo
             });
             ui.add(egui::DragValue::new(&mut form.units).range(1..=500).suffix(" 단위"));
             egui::ComboBox::from_id_salt("dest").selected_text(shared::galaxy::system(form.system).name).show_ui(ui, |ui| {
-                for s in shared::galaxy::SYSTEMS {
+                for s in shared::galaxy::systems() {
                     ui.selectable_value(&mut form.system, s.id, s.name);
                 }
             });

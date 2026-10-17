@@ -21,7 +21,7 @@ use std::sync::{Arc, RwLock};
 
 pub const DIR_ENV: &str = "STARFALL_TUNING";
 pub const DIR_NAME: &str = "tuning";
-pub const FILES: [&str; 7] = ["ships.ron", "npcs.ron", "combat.ron", "artifacts.ron", "history.ron", "social.ron", "economy.ron"];
+pub const FILES: [&str; 8] = ["ships.ron", "npcs.ron", "combat.ron", "artifacts.ron", "history.ron", "social.ron", "economy.ron", "galaxy.ron"];
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Tuning {
@@ -32,6 +32,7 @@ pub struct Tuning {
     pub history: HistoryTuning,
     pub social: SocialTuning,
     pub economy: EconomyTuning,
+    pub galaxy: GalaxyTuning,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -202,6 +203,28 @@ pub struct EconomyTuning {
     pub bounty_risk: BTreeMap<crate::galaxy::RiskTier, f32>,
 }
 
+/// The procedural galaxy around the hand-made core (`galaxy.ron`, see `galaxy::systems`).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct GalaxyTuning {
+    pub seed: u64,
+    pub generated: u32,
+    /// x min, x max, z min, z max (ly).
+    pub bounds: (f32, f32, f32, f32),
+    /// Distance range (ly) from the system a new one grows from.
+    pub hop: (f32, f32),
+    pub min_spacing: f32,
+    pub core_clearance: f32,
+    pub deep_clearance: f32,
+    /// (up to this many ly from Sol Haven, tier), nearest first.
+    pub tiers: Vec<(f32, crate::galaxy::RiskTier)>,
+    pub stars: BTreeMap<crate::galaxy::StarKind, u32>,
+    pub names_first: Vec<String>,
+    pub names_second: Vec<String>,
+    pub lore: BTreeMap<crate::galaxy::RiskTier, Vec<String>>,
+    pub chart_reward: u64,
+}
+
 /// Player contracts (`social.ron`).
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -316,7 +339,7 @@ impl Tuning {
             let text = std::fs::read_to_string(&path).map_err(|e| format!("{}: {e}", path.display()))?;
             ron::from_str(&text).map_err(|e| format!("{}:{e}", path.display()))
         }
-        let t = Tuning { ships: read(dir, fallback, FILES[0])?, npcs: read(dir, fallback, FILES[1])?, combat: read(dir, fallback, FILES[2])?, artifacts: read(dir, fallback, FILES[3])?, history: read(dir, fallback, FILES[4])?, social: read(dir, fallback, FILES[5])?, economy: read(dir, fallback, FILES[6])? };
+        let t = Tuning { ships: read(dir, fallback, FILES[0])?, npcs: read(dir, fallback, FILES[1])?, combat: read(dir, fallback, FILES[2])?, artifacts: read(dir, fallback, FILES[3])?, history: read(dir, fallback, FILES[4])?, social: read(dir, fallback, FILES[5])?, economy: read(dir, fallback, FILES[6])?, galaxy: read(dir, fallback, FILES[7])? };
         t.validate().map_err(|e| format!("{}: {e}", dir.display()))?;
         Ok(t)
     }
@@ -345,6 +368,18 @@ impl Tuning {
         }
         for o in crate::galaxy::Ore::ALL {
             self.economy.ore_prices.get(&o).ok_or(format!("economy.ron: ore_prices has no {o:?}"))?;
+        }
+        let g = &self.galaxy;
+        if g.tiers.is_empty() || g.stars.values().sum::<u32>() == 0 || g.names_first.is_empty() || g.names_second.is_empty() {
+            return Err("galaxy.ron: tiers, stars, names_first and names_second must not be empty".into());
+        }
+        for (_, t) in &g.tiers {
+            if g.lore.get(t).is_none_or(|l| l.is_empty()) {
+                return Err(format!("galaxy.ron: lore has no {t:?}"));
+            }
+        }
+        if g.hop.0 <= 0.0 || g.hop.0 > g.hop.1 || g.min_spacing > g.hop.1 {
+            return Err("galaxy.ron: need 0 < hop.0 <= hop.1 and min_spacing <= hop.1".into());
         }
         for c in Culture::ALL {
             let d = self.artifacts.cultures.get(&c).ok_or(format!("artifacts.ron: cultures has no {c:?}"))?;
@@ -395,6 +430,7 @@ pub fn get() -> Arc<Tuning> {
 /// Replaces the numbers in force (a client adopting the server's, a replay adopting a recording's).
 pub fn install(t: Tuning) {
     *CURRENT.write().unwrap() = Some(Arc::new(t));
+    crate::galaxy::tuning_changed();
 }
 
 #[cfg(test)]

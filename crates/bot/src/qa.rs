@@ -285,6 +285,36 @@ pub async fn run(url: &str, a_name: &str, b_name: &str) -> Result<Report, String
     a.pump(0.5).await;
     b.pump(0.8).await;
     r.check("7-3", "다른 함장이 도킹 → 관람, 설립자 수입", a_docked && credits(&b) > b_before && toasts(&a).iter().any(|t| t.contains("관람")), format!("{b_before} → {}", credits(&b)));
+
+    // 9. Phase 4-1: the procedural galaxy. The first captain into a generated system charts it.
+    use shared::galaxy;
+    let here = a.system;
+    let target = galaxy::systems().iter().filter(|s| galaxy::is_generated(s.id)).min_by(|x, y| galaxy::distance_ly(here, x.id).total_cmp(&galaxy::distance_ly(here, y.id))).map(|s| s.id).unwrap_or(10);
+    let a_before = credits(&a);
+    a.warp_to(target).await?;
+    a.pump(0.5).await;
+    let charted = toasts(&a).iter().any(|t| t.contains("최초 도달"));
+    let events9 = chronicle(&mut a).await.map(|c| c.0).unwrap_or_default();
+    let name = galaxy::system(target).name;
+    let logged = events9.iter().any(|e| e.kind == "DISCOVERY" && e.title.contains(name));
+    r.check("9-1", "생성 성계 최초 도달 → 발견 사건·등록 보상", charted && logged && credits(&a) > a_before, format!("{name}(#{target}): 알림 {charted}, 연대기 {logged}, {a_before} → {} CR", credits(&a)));
+    // Everyone online learns the system's name: the map stops showing it as unknown.
+    b.pump(0.3).await;
+    let told = b.log.iter().rev().find_map(|m| if let ServerMsg::Charted { systems } = m { Some(systems.clone()) } else { None }).unwrap_or_default();
+    r.check("9-3", "다른 함장 지도에도 항로 등록(미확인 → 이름)", told.contains(&target), format!("B가 받은 등록 성계 {told:?}"));
+    chat(&mut b, "/grow 9").await;
+    if b.system != here && b.system != target {
+        b.warp_to(here).await?;
+    }
+    let b_toasts = toasts(&b).len();
+    if b.system != target {
+        b.warp_to(target).await?;
+    }
+    b.pump(0.5).await;
+    let again = toasts(&b)[b_toasts..].iter().any(|t| t.contains("최초 도달"));
+    let events9b = chronicle(&mut b).await.map(|c| c.0).unwrap_or_default();
+    let n = events9b.iter().filter(|e| e.kind == "DISCOVERY" && e.title.contains(name)).count();
+    r.check("9-2", "뒤따라 온 함장은 발견도 보상도 없음", b.system == target && !again && n == 1, format!("B 위치 #{}, 최초 도달 알림 {again}, 발견 사건 {n}건", b.system));
     r.tokens = [(&a, a_name), (&b, b_name)].into_iter().filter_map(|(bot, n)| Some((n.to_string(), bot.token.clone()?))).collect();
     Ok(r)
 }

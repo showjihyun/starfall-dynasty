@@ -205,6 +205,15 @@ impl MapView {
     }
 }
 
+/// Whether the map may name a system: the core always, a generated one once someone has charted it
+/// (or while you are in it).
+pub fn known(id: SystemId, charted: &std::collections::BTreeSet<SystemId>, here: SystemId) -> bool {
+    !galaxy::is_generated(id) || id == here || charted.contains(&id)
+}
+
+/// What the map calls a system nobody has reached.
+pub const UNKNOWN_SYSTEM: &str = "미확인 성계";
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -322,8 +331,18 @@ mod tests {
     }
 
     #[test]
+    fn unknown_until_charted() {
+        let mut charted = std::collections::BTreeSet::new();
+        assert!(known(9, &charted, 0), "the core is always known");
+        assert!(!known(12, &charted, 0));
+        assert!(known(12, &charted, 12), "you know where you are");
+        charted.insert(12);
+        assert!(known(12, &charted, 0));
+    }
+
+    #[test]
     fn extent_covers_every_body() {
-        for id in 0..galaxy::SYSTEMS.len() as SystemId {
+        for id in 0..galaxy::systems().len() as SystemId {
             let l = galaxy::system_layout(id);
             let e = system_extent(Some(&l));
             assert!(e >= l.station.length() && e >= l.jump_point.length());

@@ -1,0 +1,51 @@
+// Procedural galaxy (crates/shared/src/galaxy.rs `systems`). Read at run time.
+// The ten hand-made systems (ids 0–9, the "historical core") never change; `generated` more are grown
+// from `seed` around them, each one hop (`hop` ly) from a system already placed, so every system has a
+// neighbour a level-1 warp core reaches, and at least `core_clearance` ly from every core system so the
+// map grows outwards instead of filling the core in. The Deep (id 9) stays out of reach: nothing is
+// placed within `deep_clearance` ly of it. Risk rises with distance from Sol Haven (`tiers`: up to that many ly).
+// Changing anything here regenerates systems 10+ (names, positions, contents) — a new galaxy.
+(
+    seed: 20261017,
+    generated: 40,
+    bounds: (-2.9, 5.9, 0.05, 9.5),    // x min, x max, z min, z max in ly (sector A1 is at -3, 0)
+    hop: (0.8, 1.4),
+    min_spacing: 0.75,
+    core_clearance: 1.0,
+    deep_clearance: 2.4,
+    tiers: [(4.0, Frontier), (7.0, Wild), (99.0, WarZone)],
+    stars: { YellowDwarf: 4, RedGiant: 3, BlueGiant: 2, WhiteDwarf: 2, Neutron: 1 },
+
+    names_first: [
+        "Ardent", "Brannoc", "Calyx", "Dusk", "Ember", "Ferro", "Gallow", "Halcyon", "Ilex", "Jasper",
+        "Kestrel", "Lantern", "Morrow", "Nadir", "Obsidian", "Pallas", "Quill", "Rook", "Saffron", "Thistle",
+        "Umber", "Vigil", "Wraith", "Xyra", "Yarrow", "Zenith", "Corvid", "Marrow", "Solace", "Tamsin",
+        "Aster", "Briar", "Cobalt", "Drover", "Eidolon", "Fallow", "Garnet", "Heron", "Isolde", "Juniper",
+        "Kiln", "Lattice",
+    ],   // drawn without replacement until every one has been used
+    names_second: [
+        "Reach", "Drift", "Hollow", "Verge", "Spire", "Basin", "Crossing", "Shoal", "Cradle", "Rift",
+        "Anchorage", "Wake", "Expanse", "Fold", "Watch", "Bastion",
+    ],
+    lore: {
+        Frontier: [
+            "측량선이 마지막으로 표지를 남긴 변경 성계. 항로국 등록부에는 좌표뿐이다.",
+            "광부 조합이 한때 채굴권을 주장했다가 버린 성계.",
+            "호송선단이 쉬어 가던 정박지. 지금은 해적이 먼저 온다.",
+        ],
+        Wild: [
+            "법이 닿지 않는 성계. 누가 먼저 왔는지가 곧 소유권이다.",
+            "사라진 정착지의 신호가 아직도 반복 송출되는 성계.",
+            "현상금 사냥꾼들이 서로의 이름을 새겨 둔 표류 암초가 있다.",
+        ],
+        WarZone: [
+            "옛 전쟁의 함대가 서로를 끝까지 쫓다 함께 침묵한 성계.",
+            "군벌들이 번갈아 깃발을 꽂았다 뽑는 접경 성계.",
+            "아무도 지키지 않지만 모두가 노리는 전략 요충.",
+        ],
+    },
+
+    // A captain who reaches a generated system before anyone else charts it (history: DISCOVERY) and
+    // gets this many credits × the system's risk_reward (economy.ron).
+    chart_reward: 600,
+)
