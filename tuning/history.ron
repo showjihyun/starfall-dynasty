@@ -8,16 +8,16 @@
     examiner_reward: 600,       // credits for exposing a forgery
     discredit: 0.3,             // research citing exposed forgeries keeps this share of its confidence
 
-    // Journalists (Herald articles).
+    // Journalists (Herald articles). Rebalance v1 (2026-10-17): per reader 60 → 150, cap 20 → 30, scoop 500 → 1500.
     story_fee: 200,             // credits on filing
-    story_per_reader: 60,       // credits per distinct reader of the article…
-    story_reader_cap: 20,       // …up to this many readers
+    story_per_reader: 150,       // credits per distinct reader of the article…
+    story_reader_cap: 30,       // …up to this many readers
     retraction_reputation: -10, // when an article's evidence is exposed as forged
 
     // Information warfare.
     seize_max: 3,               // evidence copied from a captain's archive when you destroy their ship
     leak_reputation: 2,         // making a held record public
-    scoop_bonus: 500,           // the first journalist to write up an event: [단독] and this many credits
+    scoop_bonus: 1500,           // the first journalist to write up an event: [단독] and this many credits
 
     // Galactic Herald front page.
     herald_articles: 3,         // journalists' articles (corrections included) lead the page, newest first

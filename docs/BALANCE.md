@@ -67,12 +67,12 @@ Phase 2·3 수입원을 한 표로 모았다. 사냥·채굴은 시뮬레이션�
 
 | 함선 | Lv | 성계 | 격파 | 현상금 합계 | 시간당 CR | 생존 |
 |---|---|---|---|---|---|---|
-| Talon | 1 | Orion Drift (Frontier) | 7 | 1631 CR | 57452 | 102초에 격침 |
-| Talon | 5 | Orion Drift (Frontier) | 70 | 16310 CR | 65240 | 끝까지 |
-| Talon | 9 | Orion Drift (Frontier) | 70 | 16310 CR | 65240 | 끝까지 |
-| Talon | 1 | Hollow Crown (Wild) | 3 | 1578 CR | 105788 | 54초에 격침 |
-| Talon | 5 | Hollow Crown (Wild) | 83 | 59114 CR | 236456 | 끝까지 |
-| Talon | 9 | Hollow Crown (Wild) | 83 | 59114 CR | 236456 | 끝까지 |
+| Talon | 1 | Orion Drift (Frontier) | 7 | 980 CR | 34521 | 102초에 격침 |
+| Talon | 5 | Orion Drift (Frontier) | 70 | 9800 CR | 39200 | 끝까지 |
+| Talon | 9 | Orion Drift (Frontier) | 70 | 9800 CR | 39200 | 끝까지 |
+| Talon | 1 | Hollow Crown (Wild) | 3 | 945 CR | 63352 | 54초에 격침 |
+| Talon | 5 | Hollow Crown (Wild) | 83 | 35433 CR | 141732 | 끝까지 |
+| Talon | 9 | Hollow Crown (Wild) | 83 | 35433 CR | 141732 | 끝까지 |
 
 ### 채굴·판매 (시뮬레이션)
 
@@ -80,12 +80,12 @@ Phase 2·3 수입원을 한 표로 모았다. 사냥·채굴은 시뮬레이션�
 
 | 함선 | Lv | 성계 | 광석 | 화물 | 채굴 시간 | 판매액 | 시간당 CR |
 |---|---|---|---|---|---|---|---|
-| Mule | 1 | Sol Haven (Core) | Lumen | 90 | 27초 | 862 CR | 67345 |
-| Mule | 5 | Sol Haven (Core) | Lumen | 331 | 38초 | 2364 CR | 143953 |
-| Mule | 1 | Orion Drift (Frontier) | Xenite | 90 | 27초 | 3881 CR | 296816 |
-| Mule | 5 | Orion Drift (Frontier) | Xenite | 331 | 38초 | 10640 CR | 636321 |
-| Mule | 1 | Hollow Crown (Wild) | Xenite | 90 | 27초 | 4805 CR | 382707 |
-| Mule | 5 | Hollow Crown (Wild) | Xenite | 331 | 38초 | 13173 CR | 815325 |
+| Mule | 1 | Sol Haven (Core) | Lumen | 90 | 134초 | 377 CR | 8857 |
+| Mule | 5 | Sol Haven (Core) | Lumen | 331 | 191초 | 892 CR | 15164 |
+| Mule | 1 | Orion Drift (Frontier) | Xenite | 90 | 134초 | 1415 CR | 33030 |
+| Mule | 5 | Orion Drift (Frontier) | Xenite | 331 | 191초 | 3344 CR | 56559 |
+| Mule | 1 | Hollow Crown (Wild) | Xenite | 90 | 134초 | 1752 CR | 41400 |
+| Mule | 5 | Hollow Crown (Wild) | Xenite | 331 | 191초 | 4140 CR | 70697 |
 
 ### 고고학 (60일 표본)
 
@@ -102,10 +102,10 @@ Phase 2·3 수입원을 한 표로 모았다. 사냥·채굴은 시뮬레이션�
 
 | 활동 | 수입 | 비용·위험 |
 |---|---|---|
-| 기자: 기사 한 편 | 송고 200 + 특종 500 + 독자 20명 × 60 = 최대 1900 CR | 근거가 위조로 드러나면 평판 -10 |
-| 기관(전시 1점): 관람 1회 | 30 CR | 설립 5000 CR → 손익분기 관람 167회 |
-| 기관(전시 3점): 관람 1회 | 50 CR | 설립 5000 CR → 손익분기 관람 100회 |
-| 기관(전시 5점): 관람 1회 | 70 CR | 설립 5000 CR → 손익분기 관람 72회 |
+| 기자: 기사 한 편 | 송고 200 + 특종 1500 + 독자 30명 × 150 = 최대 6200 CR | 근거가 위조로 드러나면 평판 -10 |
+| 기관(전시 1점): 관람 1회 | 90 CR | 설립 5000 CR → 손익분기 관람 56회 |
+| 기관(전시 3점): 관람 1회 | 150 CR | 설립 5000 CR → 손익분기 관람 34회 |
+| 기관(전시 5점): 관람 1회 | 210 CR | 설립 5000 CR → 손익분기 관람 24회 |
 | 유물 기증(정거장 박물관) | 감정가의 25% + 평판 10 | 유물을 판매(감정가 100%)하지 않는 기회비용 |
 | 위조 감정(폭로 성공) | 600 CR + 평판 5 | 감정비 300 CR(역사학자 무료) |
 | 위조 | (연구·기사 신뢰) | 800 CR, 폭로 시 평판 -20 |

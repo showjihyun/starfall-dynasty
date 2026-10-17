@@ -2,10 +2,11 @@
 // Price per unit = base × (tier_base + tier_step × pirate level of the system) × scarcity × (trader bonus)
 // scarcity = 1 / (1 + recent supply sold here ÷ scarcity_supply); supply decays over time.
 (
-    ore_prices: { Ferrite: 6.0, Lumen: 14.0, Xenite: 48.0 },
+    // Economy rebalance v1 (2026-10-17, docs/BALANCE.md 「사회 경제」): prices 6/14/48 → 3/7/20, scarcity 250 → 120.
+    ore_prices: { Ferrite: 3.0, Lumen: 7.0, Xenite: 20.0 },
     tier_base: 0.8,
     tier_step: 0.25,
-    scarcity_supply: 250.0,
+    scarcity_supply: 120.0,
     trader_bonus: 1.2,          // Trader profession: sale price ×
     miner_bonus: 1.4,           // Miner profession: mining rate ×
 )

@@ -303,9 +303,11 @@ fn mining_selling_and_market_prices() {
     let ast = g.systems[&3].layout.asteroids.iter().find(|a| a.ore == Ore::Ferrite).unwrap().clone();
     place(&mut g, 1, ast.pos + Vec3::Y * (ast.radius + 60.0), ast.pos);
     g.handle(1, ClientMsg::Mine { asteroid: Some(ast.id) });
-    run(&mut g, 12.0);
+    // Long enough for 20 units at whatever rate tuning/ships.ron sets (miner bonus included).
+    let rate = g.store.profile(pid).unwrap().ship.stats().mine_rate * g.tuning.economy.miner_bonus;
+    run(&mut g, 22.0 / rate);
     let mined = *g.store.profile(pid).unwrap().cargo.get("Ferrite").unwrap_or(&0);
-    assert!(mined >= 20, "mined {mined}");
+    assert!(mined >= 20, "mined {mined} at {rate}/s");
     // Dock and sell: price falls as supply rises.
     let station = g.systems[&3].layout.station;
     place(&mut g, 1, station + Vec3::X * 50.0, station);
@@ -1072,7 +1074,8 @@ fn institutes_one_per_captain_paid_by_daily_visitors() {
     g.handle(1, ClientMsg::Undock);
     g.handle(1, ClientMsg::Dock);
     assert_eq!(g.store.data.institutes[&inst].visitors, 1);
-    assert_eq!(g.store.profile(founder).unwrap().wallet.credits, before + 30);
+    let fee = g.tuning.social.visit_base + g.tuning.social.visit_per_exhibit;
+    assert_eq!(g.store.profile(founder).unwrap().wallet.credits, before + fee);
     g.unix += 86_400;
     dock_again(&mut g);
     assert_eq!(g.store.data.institutes[&inst].visitors, 2, "a new day, a new visit");
@@ -1131,7 +1134,7 @@ fn leaks_unseal_records_and_first_story_is_the_scoop() {
     let first = pay(&mut g, 3, lois, "첫 보도");
     g.store.profile_mut(clark).unwrap().archive.push(log);
     let second = pay(&mut g, 4, clark, "후속 보도");
-    assert_eq!(first, second + 500, "{first} vs {second}");
+    assert_eq!(first, second + g.tuning.history.scoop_bonus, "{first} vs {second}");
     let herald = g.history.herald(10);
     assert!(herald.iter().any(|h| h.headline == "[단독] 첫 보도"));
     assert!(herald.iter().any(|h| h.headline == "후속 보도"));

@@ -5,12 +5,13 @@
 // Unknown or missing fields are errors.
 (
     // Level-1 stats of each hull, before size-class scaling. warp is in light-years.
+    // Economy rebalance v1 (2026-10-17): mine_rate ×0.2 (Mule 2.4 → 0.48) — a full hold took 27–38 s.
     hulls: {
-        Wren:    (hull: 260.0, shield: 180.0, speed: 130.0, accel: 95.0, turn: 2.6, warp: 2.2, damage: 14.0, fire_interval: 0.30, weapon_range: 520.0, missile_damage: 70.0,  scan_range: 900.0,  mine_rate: 1.2, cargo: 30.0, radius: 9.0),
-        Talon:   (hull: 360.0, shield: 220.0, speed: 115.0, accel: 85.0, turn: 2.3, warp: 1.7, damage: 19.0, fire_interval: 0.24, weapon_range: 560.0, missile_damage: 95.0,  scan_range: 600.0,  mine_rate: 1.0, cargo: 25.0, radius: 11.0),
-        Bastion: (hull: 620.0, shield: 300.0, speed: 80.0,  accel: 50.0, turn: 1.4, warp: 1.6, damage: 30.0, fire_interval: 0.42, weapon_range: 640.0, missile_damage: 140.0, scan_range: 600.0,  mine_rate: 1.0, cargo: 40.0, radius: 16.0),
-        Mule:    (hull: 440.0, shield: 200.0, speed: 90.0,  accel: 60.0, turn: 1.7, warp: 1.7, damage: 15.0, fire_interval: 0.34, weapon_range: 500.0, missile_damage: 80.0,  scan_range: 700.0,  mine_rate: 2.4, cargo: 90.0, radius: 14.0),
-        Seer:    (hull: 320.0, shield: 340.0, speed: 105.0, accel: 75.0, turn: 2.0, warp: 2.0, damage: 16.0, fire_interval: 0.28, weapon_range: 600.0, missile_damage: 85.0,  scan_range: 1400.0, mine_rate: 1.3, cargo: 35.0, radius: 12.0),
+        Wren:    (hull: 260.0, shield: 180.0, speed: 130.0, accel: 95.0, turn: 2.6, warp: 2.2, damage: 14.0, fire_interval: 0.30, weapon_range: 520.0, missile_damage: 70.0,  scan_range: 900.0,  mine_rate: 0.24, cargo: 30.0, radius: 9.0),
+        Talon:   (hull: 360.0, shield: 220.0, speed: 115.0, accel: 85.0, turn: 2.3, warp: 1.7, damage: 19.0, fire_interval: 0.24, weapon_range: 560.0, missile_damage: 95.0,  scan_range: 600.0,  mine_rate: 0.2, cargo: 25.0, radius: 11.0),
+        Bastion: (hull: 620.0, shield: 300.0, speed: 80.0,  accel: 50.0, turn: 1.4, warp: 1.6, damage: 30.0, fire_interval: 0.42, weapon_range: 640.0, missile_damage: 140.0, scan_range: 600.0,  mine_rate: 0.2, cargo: 40.0, radius: 16.0),
+        Mule:    (hull: 440.0, shield: 200.0, speed: 90.0,  accel: 60.0, turn: 1.7, warp: 1.7, damage: 15.0, fire_interval: 0.34, weapon_range: 500.0, missile_damage: 80.0,  scan_range: 700.0,  mine_rate: 0.48, cargo: 90.0, radius: 14.0),
+        Seer:    (hull: 320.0, shield: 340.0, speed: 105.0, accel: 75.0, turn: 2.0, warp: 2.0, damage: 16.0, fire_interval: 0.28, weapon_range: 600.0, missile_damage: 85.0,  scan_range: 1400.0, mine_rate: 0.26, cargo: 35.0, radius: 12.0),
     },
 
     // What each module level above 1 adds, as a share of the base value (warp_ly is added light-years).
