@@ -140,6 +140,10 @@ pub struct Step {
     /// reaches it (a capital captain's answer to an attacker diving from above or below).
     #[serde(default)]
     pub broadside: bool,
+    /// For `Controls`: strafe and thrust to stay on the target's own up/down axis at the current range
+    /// (the side it is already on), so a rolling capital keeps only half its batteries on you.
+    #[serde(default)]
+    pub hold_over: bool,
     /// Fill the message's id with the nearest `"wreck"` (`InvestigateWreck`), `"poi:<Kind>"`
     /// (`Scan`) or the newest open `"contract"` (`AcceptContract`, …), so a spec needs no ids.
     #[serde(default)]
@@ -586,16 +590,31 @@ pub fn run_opts(sc: &Scenario, trace_every: Option<f32>, metrics: bool) -> Repor
                     c.yaw = if local.x >= 0.0 { 1.0 } else { -1.0 };
                 }
             }
+            if st.hold_over
+                && let ClientMsg::Controls(c) = &mut msg
+                && let Some((pid, me)) = run.pid(&st.captain).and_then(|p| run.flagship(&st.captain).map(|e| (p, (e.pos, e.rot, e.target))))
+                && let Some((sys, _)) = run.g.player_entity(pid)
+                && let Some((tp, tr)) = me.2.and_then(|t| run.g.ent(sys, t)).map(|t| (t.pos, t.rot))
+            {
+                // The point straight over (or under) the target's hull at this range; fly there in my frame.
+                let t_up = tr * Vec3::Y;
+                let side = if (me.0 - tp).dot(t_up) >= 0.0 { 1.0 } else { -1.0 };
+                let want = tp + t_up * side * me.0.distance(tp);
+                let local = me.1.inverse() * (want - me.0) / 150.0;
+                c.strafe_x = local.x.clamp(-1.0, 1.0);
+                c.strafe_y = local.y.clamp(-1.0, 1.0);
+                c.thrust = (-local.z).clamp(-1.0, 1.0);
+            }
             if st.broadside
                 && let ClientMsg::Controls(c) = &mut msg
                 && let Some((pid, me)) = run.pid(&st.captain).and_then(|p| run.flagship(&st.captain).map(|e| (p, (e.pos, e.rot, e.target))))
                 && let Some((sys, _)) = run.g.player_entity(pid)
                 && let Some(t) = me.2.and_then(|t| run.g.ent(sys, t)).map(|t| t.pos)
             {
-                // Roll the target's bearing into the hull's plane (toward whichever side it already leans).
+                // Roll the target's bearing down into the hull's plane (toward whichever side it already leans).
                 let local = me.1.inverse() * (t - me.0).normalize_or_zero();
                 let side = if local.x >= 0.0 { 1.0 } else { -1.0 };
-                c.roll = (local.y * side * 4.0).clamp(-1.0, 1.0);
+                c.roll = (-local.y * side * 4.0).clamp(-1.0, 1.0);
             }
             run.g.handle(conn, msg);
         }

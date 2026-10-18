@@ -1,28 +1,35 @@
 {
   "name": "pvp_dive_halves_return_fire",
-  "description": "3D 대인전(최종 목표): 같은 주력함 둘을 같은 기체가 공격한다. 수평에서 쏜 쪽은 포탑 전부의 반격을, 바로 위에서 쏜 쪽은 등쪽 포대(절반)의 반격만 받는다(combat.ron turret_arc_overlap) — 대인전에서도 위·아래로 파고들 이유가 있다. 세 번째 주력함은 굴러서(broadside) 공격자를 선체 옆으로 돌려 포대를 다시 모두 겨눈다 — 파고든 쪽의 이득은 구르는 동안만 남는다",
+  "description": "3D 대인전(최종 목표): 같은 주력함 둘을 같은 기체가 공격한다. 수평에서 쏜 쪽은 포탑 전부의 반격을, 바로 위에서 쏜 쪽은 등쪽 포대(절반)의 반격만 받는다(combat.ron turret_arc_overlap). 주력함은 모두 공격자를 목표로 잡는다. 세 번째 주력함은 굴러서(broadside) 공격자를 선체 옆으로 돌려 포대를 다시 모두 겨누고, 네 번째 공격자는 그 주력함의 위 축을 따라 움직여(hold_over) 일부를 되찾는다 — 파고들기·구르기·따라붙기 어느 하나가 정답이 아니다",
   "captains": [
-    { "name": "AdmiralLevel", "hull": "Bastion", "level": 9, "system": 5, "pos": [0, 0, 6000] },
-    { "name": "Level", "hull": "Talon", "level": 9, "system": 5, "pos": [500, 0, 6000] },
-    { "name": "AdmiralDive", "hull": "Bastion", "level": 9, "system": 5, "pos": [20000, 0, 6000] },
-    { "name": "Diver", "hull": "Talon", "level": 9, "system": 5, "pos": [20000, 500, 6000] },
-    { "name": "AdmiralRoll", "hull": "Bastion", "level": 9, "system": 5, "pos": [40000, 0, 6000] },
-    { "name": "DiverVsRoll", "hull": "Talon", "level": 9, "system": 5, "pos": [40000, 500, 6000] }
+    { "name": "AdmiralLevel", "hull": "Bastion", "level": 9, "system": 5, "pos": [-12000, 0, 6000] },
+    { "name": "Level", "hull": "Talon", "level": 9, "system": 5, "pos": [-11500, 0, 6000] },
+    { "name": "AdmiralDive", "hull": "Bastion", "level": 9, "system": 5, "pos": [-4000, 0, 6000] },
+    { "name": "Diver", "hull": "Talon", "level": 9, "system": 5, "pos": [-4000, 500, 6000] },
+    { "name": "AdmiralRoll", "hull": "Bastion", "level": 9, "system": 5, "pos": [4000, 0, 6000] },
+    { "name": "DiverVsRoll", "hull": "Talon", "level": 9, "system": 5, "pos": [4000, 500, 6000] },
+    { "name": "AdmiralDuel", "hull": "Bastion", "level": 9, "system": 5, "pos": [12000, 0, 6000] },
+    { "name": "Shadow", "hull": "Talon", "level": 9, "system": 5, "pos": [12000, 500, 6000] }
   ],
   "script": [
     { "at": 0.5, "captain": "Level", "target_captain": "AdmiralLevel", "aim": true, "msg": { "Controls": { "fire": true } }, "repeat_every": 0.1, "until": 10 },
     { "at": 0.5, "captain": "Diver", "target_captain": "AdmiralDive", "aim": true, "msg": { "Controls": { "fire": true } }, "repeat_every": 0.1, "until": 10 },
+    { "at": 0.5, "captain": "AdmiralLevel", "target_captain": "Level", "msg": { "Controls": {} }, "repeat_every": 0.1, "until": 10 },
+    { "at": 0.5, "captain": "AdmiralDive", "target_captain": "Diver", "msg": { "Controls": {} }, "repeat_every": 0.1, "until": 10 },
     { "at": 0.5, "captain": "DiverVsRoll", "target_captain": "AdmiralRoll", "aim": true, "msg": { "Controls": { "fire": true } }, "repeat_every": 0.1, "until": 10 },
-    { "at": 0.5, "captain": "AdmiralRoll", "target_captain": "DiverVsRoll", "broadside": true, "msg": { "Controls": {} }, "repeat_every": 0.1, "until": 10 }
+    { "at": 0.5, "captain": "AdmiralRoll", "target_captain": "DiverVsRoll", "broadside": true, "msg": { "Controls": {} }, "repeat_every": 0.1, "until": 10 },
+    { "at": 0.5, "captain": "Shadow", "target_captain": "AdmiralDuel", "aim": true, "hold_over": true, "msg": { "Controls": { "fire": true } }, "repeat_every": 0.1, "until": 10 },
+    { "at": 0.5, "captain": "AdmiralDuel", "target_captain": "Shadow", "broadside": true, "msg": { "Controls": {} }, "repeat_every": 0.1, "until": 10 }
   ],
   "run_secs": 10,
   "expect": [
     { "check": "deaths", "captain": "Level", "max": 0 },
     { "check": "deaths", "captain": "Diver", "max": 0 },
-    { "check": "hull", "captain": "Level", "max": 0.65 },
-    { "check": "hull", "captain": "Diver", "min": 0.85 },
+    { "check": "hull", "captain": "Level", "max": 0.3 },
+    { "check": "hull", "captain": "Diver", "min": 0.5 },
     { "check": "vertical", "captain": "Level", "max": 0.1 },
     { "check": "vertical", "captain": "Diver", "min": 0.9 },
-    { "check": "hull", "captain": "DiverVsRoll", "min": 0.55, "max": 0.8 }
+    { "check": "hull", "captain": "DiverVsRoll", "max": 0.35 },
+    { "check": "hull", "captain": "Shadow", "min": 0.38 }
   ]
 }

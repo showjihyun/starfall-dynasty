@@ -154,7 +154,7 @@ python tools/imgdiff.py --stats after.png --crop 380,90,220,200    # 영역의 �
 - **npcs**: `archetype`, `level`, `system`, `pos`, `count`, `spacing`을 정한다. `ambient_pirates: true`면 배경 해적 생성을 켠다(기본은 꺼져 있다).
 - **script**: `at`초에 `captain`이 `msg`(임의의 `ClientMsg` JSON)를 보낸다.
   - `repeat_every`와 `until`로 반복 입력을 보낸다.
-  - `target_nearest`(`npc`/`player`)로 가장 가까운 대상을 지정하고, `aim`으로 그 대상을 향해 조종한다. `broadside`는 대신 구르기로 그 대상을 선체 옆(포대가 모두 닿는 평면)에 둔다.
+  - `target_nearest`(`npc`/`player`)로 가장 가까운 대상을 지정하고, `aim`으로 그 대상을 향해 조종한다. `broadside`는 대신 구르기로 그 대상을 선체 옆(포대가 모두 닿는 평면)에 둔다. `hold_over`는 대상의 위(또는 아래) 축 위에 머물도록 평행이동·추진한다.
   - `target_captain`은 이름으로 목표를 지정한다. 그 함장이 격침되면 이 단계는 건너뛴다.
   - `fill_nearest`는 메시지의 id를 가장 가까운 대상으로 채운다: `"poi:Ruin"`(→ `Scan`), `"wreck"`(→ `InvestigateWreck`), `"contract"`(가장 최근의 열린·진행 계약 → `AcceptContract`·`CancelContract`·`DeliverContract`). 사양에 엔티티·지점 id를 적지 않아도 된다.
 - **expect**: `at`초에 검사한다(생략하면 끝에서). 검사 종류: `alive`, `hull`, `credits`, `kills`, `deaths`, `count`(`npc`/`player`/`escort`/`wreck`), `in_system`, `history`(연대기 종류, 대소문자 무시), `engagement`, `dealt`·`taken`(가한·받은 피해), `dps`, `ttk`(평균 격파 시간), `artifacts`(보유 유물 수), `reputation`, `influence`(`system`·`tag`), `controller`(`system`, `tag` 생략 시 무주지), `treasury`(`tag`), `institute`(`name`, `exhibits_min`, `visitors_min`/`max`), `archive`(보유 기록 수). `fill_nearest`에 `"evidence"`(가장 최근 확보한 기록 → `LeakEvidence`). `fill_nearest`는 쉼표로 여러 개(`"artifact,institute"`)를 채울 수 있다. 함장에 `cargo`(광석 이름 → 단위)로 시작 화물을 줄 수 있다.
