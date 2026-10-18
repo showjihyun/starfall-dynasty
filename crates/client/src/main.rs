@@ -184,7 +184,7 @@ fn showroom(s: &mut Session, args: &Args) {
                 name: format!("{h:?}"),
                 hull_class: Some(h),
                 rank: ship.rank(),
-                livery: (i % 7) as u8,
+                livery: only_species.map(view::palette::species_livery).unwrap_or((i % 7) as u8),
                 pos: pos.to_array(),
                 rot: face.to_array(),
                 vel: (face * Vec3::NEG_Z * 40.0).to_array(),

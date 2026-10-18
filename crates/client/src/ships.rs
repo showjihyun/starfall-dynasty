@@ -89,16 +89,7 @@ pub struct RankPart(pub u8);
 #[derive(Component)]
 struct ModelRoot(Entity);
 
-pub const LIVERIES: [[f32; 3]; 8] = [
-    [0.85, 0.85, 0.88], // titanium
-    [0.15, 0.45, 0.95], // navy blue
-    [0.95, 0.55, 0.1],  // amber
-    [0.1, 0.75, 0.55],  // jade
-    [0.75, 0.15, 0.2],  // crimson
-    [0.55, 0.3, 0.9],   // violet
-    [0.95, 0.85, 0.2],  // gold
-    [0.8, 0.12, 0.1],   // hostile red
-];
+pub use view::palette::LIVERIES;
 
 /// Dedicated enemy model (name, nominal length) if the archetype has one.
 pub fn npc_model(kind: EntityKind) -> Option<(&'static str, f32)> {
@@ -283,7 +274,7 @@ fn spawn_visual(
     engine_mats: &mut Assets<EngineMat>,
 ) -> Entity {
     let hostile = matches!(st.kind, EntityKind::Npc(_));
-    let livery = if hostile { LIVERIES[7] } else { LIVERIES[st.livery as usize % 8] };
+    let livery = if hostile { LIVERIES[view::palette::HOSTILE_LIVERY as usize] } else { LIVERIES[st.livery as usize % LIVERIES.len()] };
     let glow = view::palette::side::of(hostile).glow;
     let tf = Transform::from_translation(pos).with_rotation(rot);
     let seed = (st.id as f32 * 0.618).fract() * 10.0;

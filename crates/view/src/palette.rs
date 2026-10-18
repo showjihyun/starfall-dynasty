@@ -75,6 +75,32 @@ pub fn species_style(s: Option<shared::galaxy::Species>) -> [f32; 4] {
     }
 }
 
+/// Hull paint (linear RGB, multiplied into the livery plates; docs/ART_DIRECTION.md §3.6). The first
+/// [`PLAYER_LIVERIES`] are the captain's choice; the last is the pirates' red.
+pub const LIVERIES: [[f32; 3]; 8] = [
+    [0.85, 0.85, 0.88], // titanium
+    [0.15, 0.45, 0.95], // navy blue
+    [0.95, 0.55, 0.1],  // amber
+    [0.1, 0.75, 0.55],  // jade
+    [0.75, 0.15, 0.2],  // crimson
+    [0.55, 0.3, 0.9],   // violet
+    [0.95, 0.85, 0.2],  // gold
+    [0.8, 0.12, 0.1],   // hostile red
+];
+pub const PLAYER_LIVERIES: usize = 7;
+pub const HOSTILE_LIVERY: u8 = 7;
+
+/// Each species' default paint at character creation (§4): Human navy (gunmetal and navy), Veyr violet
+/// (its nacre and veins), Kharz gold (brass clan fittings — not red, which means hostile).
+pub fn species_livery(s: shared::galaxy::Species) -> u8 {
+    use shared::galaxy::Species;
+    match s {
+        Species::Human => 1,
+        Species::Veyr => 5,
+        Species::Kharz => 6,
+    }
+}
+
 /// The ancient civilisation's light (gates, ruins, glyphs; docs/ART_DIRECTION.md §4): teal-cyan, linear
 /// RGB, and the emissive strength that keeps its hue instead of blowing out to white.
 pub const ANCIENT: [f32; 3] = [0.2, 0.9, 0.8];

@@ -21,13 +21,15 @@ pub struct Form {
     pub hull: HullClass,
     pub ship_name: String,
     pub livery: u8,
+    /// The captain picked a paint by hand; until then it follows the species' default.
+    pub livery_picked: bool,
     pub fonts_ready: bool,
     pub sent_hello: bool,
 }
 
 impl Default for Form {
     fn default() -> Self {
-        Form { name: String::new(), species: Species::Human, profession: Profession::Explorer, hull: HullClass::Talon, ship_name: String::new(), livery: 1, fonts_ready: false, sent_hello: false }
+        Form { name: String::new(), species: Species::Human, profession: Profession::Explorer, hull: HullClass::Talon, ship_name: String::new(), livery: view::palette::species_livery(Species::Human), livery_picked: false, fonts_ready: false, sent_hello: false }
     }
 }
 
@@ -231,17 +233,25 @@ fn create(ctx: &egui::Context, form: &mut Form, s: &Session, net: &Net, args: &A
             cols[2].add_space(8.0);
             cols[2].label("함선 이름");
             cols[2].add(egui::TextEdit::singleline(&mut form.ship_name).desired_width(240.0));
-            cols[2].label("도색");
+            if !form.livery_picked {
+                form.livery = view::palette::species_livery(form.species);
+            }
+            let native = view::palette::species_livery(form.species);
+            cols[2].label(format!("도색 — 점은 {} 기본색", form.species.name()));
             cols[2].horizontal(|ui| {
-                for (i, c) in LIVERIES.iter().enumerate().take(7) {
+                for (i, c) in LIVERIES.iter().enumerate().take(view::palette::PLAYER_LIVERIES) {
                     let col = Color32::from_rgb((c[0] * 255.0) as u8, (c[1] * 255.0) as u8, (c[2] * 255.0) as u8);
                     let (rect, r) = ui.allocate_exact_size(EVec2::splat(24.0), egui::Sense::click());
                     ui.painter().rect_filled(rect, 4.0, col);
                     if form.livery == i as u8 {
                         ui.painter().rect_stroke(rect, 4.0, Stroke::new(2.0, Color32::WHITE), egui::StrokeKind::Outside);
                     }
+                    if native == i as u8 {
+                        ui.painter().circle_filled(rect.center(), 3.0, Color32::from_rgb(10, 12, 18));
+                    }
                     if r.clicked() {
                         form.livery = i as u8;
+                        form.livery_picked = true;
                     }
                 }
             });
