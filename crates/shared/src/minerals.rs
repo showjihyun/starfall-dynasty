@@ -165,8 +165,12 @@ fn gcd(a: u64, b: u64) -> u64 {
 }
 
 /// The mineral in asteroid `asteroid` of belt `belt` in system `sys` (ore family `ore`).
-pub fn deposit(t: &MineralTuning, sys: SystemId, star: StarKind, tier: RiskTier, belt: u32, asteroid: u32, ore: Ore) -> MineralId {
-    let weights: Vec<(Rarity, u32)> = t.deposit.get(&tier).map(|w| w.iter().map(|(r, n)| (*r, *n)).collect()).unwrap_or_default();
+/// `elev_deg`: the asteroid's climb from the station (`galaxy::route_elevations`); steep ones are richer
+/// (`height_bonus`).
+#[allow(clippy::too_many_arguments)]
+pub fn deposit(t: &MineralTuning, sys: SystemId, star: StarKind, tier: RiskTier, belt: u32, asteroid: u32, ore: Ore, elev_deg: f32) -> MineralId {
+    let lift = t.height_bonus.factor(elev_deg);
+    let weights: Vec<(Rarity, u32)> = t.deposit.get(&tier).map(|w| w.iter().map(|(r, n)| (*r, if *r < Rarity::Rare { *n } else { (*n as f32 * lift).round() as u32 })).collect()).unwrap_or_default();
     let total: u32 = weights.iter().map(|w| w.1).sum();
     let mut r = Rng::from_parts(&[0xDE90_5175, t.seed, sys as u64, asteroid as u64]);
     let mut roll = r.below(total.max(1));
@@ -218,14 +222,14 @@ mod tests {
     fn deposits_follow_risk_and_star() {
         let t = &crate::tuning::get().minerals;
         let rarity = |tier| {
-            (0..400).map(|a| mineral_in(t, deposit(t, 3, StarKind::Neutron, tier, a % 2, a, Ore::Xenite)).unwrap().rarity).collect::<Vec<_>>()
+            (0..400).map(|a| mineral_in(t, deposit(t, 3, StarKind::Neutron, tier, a % 2, a, Ore::Xenite, 0.0)).unwrap().rarity).collect::<Vec<_>>()
         };
         let core = rarity(RiskTier::Core);
         assert!(core.iter().all(|r| *r <= Rarity::Uncommon), "the core has no rare deposits");
         let deep = rarity(RiskTier::Deep);
         assert!(deep.iter().filter(|r| **r >= Rarity::Rare).count() > core.len() / 3);
         // A belt's rare Xenite is one mineral, rich in what a neutron star favours.
-        let rare: std::collections::BTreeSet<MineralId> = (0..400).map(|a| deposit(t, 3, StarKind::Neutron, RiskTier::Deep, 0, a, Ore::Xenite)).filter(|id| mineral_in(t, *id).unwrap().rarity == Rarity::Rare).collect();
+        let rare: std::collections::BTreeSet<MineralId> = (0..400).map(|a| deposit(t, 3, StarKind::Neutron, RiskTier::Deep, 0, a, Ore::Xenite, 0.0)).filter(|id| mineral_in(t, *id).unwrap().rarity == Rarity::Rare).collect();
         assert_eq!(rare.len(), 1);
         let m = mineral_in(t, *rare.first().unwrap()).unwrap();
         assert!(m.prop(Property::Radiation) as u32 > t.property_mean[&Rarity::Rare], "{m:?}");

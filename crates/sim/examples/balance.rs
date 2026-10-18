@@ -222,6 +222,26 @@ fn mineral_sheet() -> String {
         let total: u32 = n.iter().sum();
         out += &format!("| {} | {total} | {} | {} | {} | {} | {} | {:.0} CR |\n", tier.label(), n[0], n[1], n[2], n[3], n[4], expect / total.max(1) as f64 * 1000.0);
     }
+    let hb = m.height_bonus;
+    out += &format!("\n높이 보너스(`height_bonus`): 정거장에서 {:.0}° 넘게 오르내리는 소행성은 희귀 이상 가중치가 최대 ×{:.1}({:.0}°에서). 평평한 소행성(< {:.0}°)과 가파른 소행성 비교:\n\n| 위험도 | 평평 / 가파름 | 희귀 이상 (평평) | 희귀 이상 (가파름) | 1,000단위당 표본 기대 수입 (평평 → 가파름) |\n|---|---|---|---|---|\n", hb.from_deg, 1.0 + hb.weight, hb.full_deg, hb.from_deg);
+    for tier in [RiskTier::Core, RiskTier::Frontier, RiskTier::Wild, RiskTier::WarZone, RiskTier::Deep] {
+        // (asteroids, rare and above, specimen income) for flat [0] and steep [1]
+        let mut c = [(0u32, 0u32, 0.0f64); 2];
+        for s in galaxy::systems().iter().filter(|s| s.tier == tier) {
+            let l = galaxy::system_layout(s.id);
+            let skip = 1 + l.pois.len();
+            for (a, e) in l.asteroids.iter().zip(galaxy::route_elevations(&l).into_iter().skip(skip)) {
+                let min = minerals::mineral_in(m, a.mineral).unwrap();
+                let k = &mut c[(e.abs() >= hb.from_deg) as usize];
+                k.0 += 1;
+                k.1 += (min.rarity >= Rarity::Rare) as u32;
+                k.2 += m.specimen_chance.get(&min.rarity).copied().unwrap_or(0.0) as f64 * min.specimen_value(m) as f64;
+            }
+        }
+        let pct = |k: (u32, u32, f64)| k.1 as f64 / k.0.max(1) as f64 * 100.0;
+        let inc = |k: (u32, u32, f64)| k.2 / k.0.max(1) as f64 * 1000.0;
+        out += &format!("| {} | {} / {} | {:.0}% | {:.0}% | {:.0} → {:.0} CR |\n", tier.label(), c[0].0, c[1].0, pct(c[0]), pct(c[1]), inc(c[0]), inc(c[1]));
+    }
     out
 }
 

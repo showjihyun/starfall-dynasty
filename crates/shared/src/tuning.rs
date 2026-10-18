@@ -295,6 +295,10 @@ pub struct MineralTuning {
     pub star_affinity: BTreeMap<crate::galaxy::StarKind, Property>,
     /// Rarity weights of an asteroid's deposit, per system tier.
     pub deposit: BTreeMap<crate::galaxy::RiskTier, BTreeMap<Rarity, u32>>,
+    /// Asteroids far above or below the station hold rarer deposits. Missing (recordings made before
+    /// it existed): no bonus.
+    #[serde(default)]
+    pub height_bonus: HeightBonus,
     pub candidates: u32,
     /// Chance per ore unit mined of also getting a specimen (rarities not listed: never).
     pub specimen_chance: BTreeMap<Rarity, f32>,
@@ -302,6 +306,31 @@ pub struct MineralTuning {
     pub discovery_reputation: BTreeMap<Rarity, i32>,
     pub syllables: Vec<String>,
     pub endings: BTreeMap<crate::galaxy::Ore, Vec<String>>,
+}
+
+/// Main goal "3D freedom": a reason to climb and dive. An asteroid whose route from the station
+/// climbs or dives more than `from_deg` gets its rare-and-above deposit weights multiplied by up to
+/// `1 + weight`, reached at `full_deg` (the tier's rarities stay the same: no new top rarity).
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct HeightBonus {
+    pub from_deg: f32,
+    pub full_deg: f32,
+    pub weight: f32,
+}
+
+impl Default for HeightBonus {
+    fn default() -> Self {
+        HeightBonus { from_deg: 20.0, full_deg: 45.0, weight: 0.0 }
+    }
+}
+
+impl HeightBonus {
+    /// Multiplier for non-common deposit weights at this elevation (degrees, either sign).
+    pub fn factor(&self, elev_deg: f32) -> f32 {
+        let k = ((elev_deg.abs() - self.from_deg) / (self.full_deg - self.from_deg).max(1e-3)).clamp(0.0, 1.0);
+        1.0 + self.weight * k
+    }
 }
 
 /// Player contracts (`social.ron`).

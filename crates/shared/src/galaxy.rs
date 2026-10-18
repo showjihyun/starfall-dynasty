@@ -378,7 +378,9 @@ pub fn system_layout(id: SystemId) -> Layout {
             let p = center + r.in_sphere() * Vec3::new(520., rel.belt_thickness, 520.);
             let roll = r.f32() * (1.0 + def.tier.pirate_level() as f32 * 0.15);
             let ore = if roll > 1.0 { Ore::Xenite } else if roll > 0.62 { Ore::Lumen } else { Ore::Ferrite };
-            let mineral = crate::minerals::deposit(&tuning.minerals, id, def.star, def.tier, b, aid, ore);
+            let d = p - station;
+            let elev = d.y.atan2(Vec3::new(d.x, 0.0, d.z).length()).to_degrees();
+            let mineral = crate::minerals::deposit(&tuning.minerals, id, def.star, def.tier, b, aid, ore, elev);
             asteroids.push(Asteroid { id: aid, pos: p, radius: r.range(10., 42.), ore, seed: r.below(1_000_000), mineral });
             aid += 1;
         }
@@ -478,6 +480,26 @@ pub fn route_elevations(l: &Layout) -> Vec<f32> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn steep_asteroids_hold_rarer_deposits() {
+        // A reason to use height: in every tier with rare deposits, asteroids 20°+ above or below the
+        // station are richer than the flat ones.
+        let m = &crate::tuning::get().minerals;
+        for tier in [RiskTier::Frontier, RiskTier::Wild, RiskTier::WarZone] {
+            let (mut flat, mut steep) = ((0u32, 0u32), (0u32, 0u32));
+            for s in systems().iter().filter(|s| s.tier == tier) {
+                let l = system_layout(s.id);
+                for (a, e) in l.asteroids.iter().zip(route_elevations(&l).into_iter().skip(1 + l.pois.len())) {
+                    let rare = crate::minerals::mineral_in(m, a.mineral).unwrap().rarity >= crate::minerals::Rarity::Rare;
+                    let c = if e.abs() >= 20.0 { &mut steep } else { &mut flat };
+                    *c = (c.0 + rare as u32, c.1 + 1);
+                }
+            }
+            let share = |c: (u32, u32)| c.0 as f32 / c.1.max(1) as f32;
+            assert!(share(steep) > share(flat) * 1.3, "{tier:?}: rare+ share steep {:.2} vs flat {:.2}", share(steep), share(flat));
+        }
+    }
 
     #[test]
     fn places_rise_out_of_the_plane() {

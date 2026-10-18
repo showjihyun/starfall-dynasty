@@ -19,11 +19,17 @@
     // `candidates` of that rarity for the star (`star_affinity`), shared by the whole belt.
     deposit: {
         Core:     { Common: 80, Uncommon: 20 },
-        Frontier: { Common: 62, Uncommon: 28, Rare: 10 },
-        Wild:     { Common: 45, Uncommon: 32, Rare: 18, Exotic: 5 },
-        WarZone:  { Common: 42, Uncommon: 32, Rare: 19, Exotic: 6, Legendary: 1 },
-        Deep:     { Common: 20, Uncommon: 30, Rare: 30, Exotic: 15, Legendary: 5 },
+        // Rare and above are lower than before height_bonus (10/18-5/19-6-1/30-15-5): the bonus moves
+        // them to steep asteroids instead of adding more to the galaxy (docs/BALANCE.md 「광물」).
+        Frontier: { Common: 62, Uncommon: 28, Rare: 8 },
+        Wild:     { Common: 45, Uncommon: 32, Rare: 13, Exotic: 4 },
+        WarZone:  { Common: 420, Uncommon: 320, Rare: 140, Exotic: 40, Legendary: 5 },   // per mille: legendary below 1%
+        Deep:     { Common: 20, Uncommon: 30, Rare: 22, Exotic: 11, Legendary: 4 },
     },
+    // A reason to climb and dive (main goal "3D freedom", docs/BALANCE.md 「광물」): asteroids whose route
+    // from the station climbs or dives past from_deg get their rare-and-above weights × up to (1 + weight),
+    // reached at full_deg. The tier's rarities stay the same (Core never gets Rare). Leave out: no bonus.
+    height_bonus: (from_deg: 20.0, full_deg: 35.0, weight: 2.0),
     candidates: 16,
 
     // Specimens: chance per unit of ore mined, and the station price (× 0.5 + market value / 100).
