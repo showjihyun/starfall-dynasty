@@ -131,9 +131,10 @@ impl Game {
         (e.rot.inverse() * (t - e.pos)).normalize_or_zero().y
     }
 
-    /// Whether battery `i` (even dorsal, odd ventral) can fire at something `up` above the hull's plane.
+    /// Whether battery `i` (even dorsal, odd ventral) can fire at something `up` above the hull's plane
+    /// (shared with the client's target panel).
     fn battery_covers(i: usize, up: f32, overlap: f32) -> bool {
-        if i % 2 == 0 { up >= -overlap } else { up <= overlap }
+        shared::ships::battery_covers(i, up, overlap)
     }
 
     /// Nearest engaged hostile in turret reach; `dorsal: Some(..)` limits it to that half's arc.

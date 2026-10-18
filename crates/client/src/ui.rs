@@ -407,6 +407,10 @@ fn hud(ctx: &egui::Context, s: &mut Session, net: &Net, env: &Env, vis: &Visuals
                 bar(ui, t.hull, view::palette::hull_color(t.hull, 1.0), "선체".into(), 280.0);
                 if let Some(m) = &me {
                     ui.label(format!("거리 {:.0}u", Vec3::from(t.pos).distance(Vec3::from(m.pos))));
+                    let total = shared::ships::turret_batteries(&t);
+                    if let Some(line) = view::hud::battery_text(shared::ships::batteries_reaching(&t, Vec3::from(m.pos)), total) {
+                        ui.label(RichText::new(line).size(12.0).color(DIM));
+                    }
                 }
             });
         }

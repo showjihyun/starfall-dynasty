@@ -202,3 +202,11 @@ fn elevation_text_reads_above_and_below() {
     assert_eq!(view::hud::elevation_text(Vec3::ZERO, Vec3::new(1000.0, 1000.0, 0.0)), "▲ 1.00 km · +45°");
     assert_eq!(view::hud::elevation_text(Vec3::new(0.0, 500.0, 0.0), Vec3::new(0.0, 200.0, 300.0)), "▼ 300 m · -45°");
 }
+
+#[test]
+fn target_panel_tells_how_many_turrets_reach_me() {
+    // 3D combat: diving above or below a capital ship halves the batteries that can answer.
+    assert_eq!(view::hud::battery_text(3, 0), None, "no turrets, no line");
+    assert_eq!(view::hud::battery_text(8, 8).unwrap(), "포탑 8문 모두 나를 겨눔 — 위·아래로 파고들면 절반");
+    assert_eq!(view::hud::battery_text(4, 8).unwrap(), "포탑 4/8문만 닿음 — 사격호 밖");
+}

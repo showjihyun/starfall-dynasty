@@ -1263,3 +1263,37 @@ fn turret_halves_engage_their_own_side() {
     assert!(a > 20 && b > 20, "dorsal half on the target above ({a}), ventral half on the one below ({b})");
     assert!((a as f32 / b as f32 - 1.0).abs() < 0.35, "the halves share the work: {a} vs {b}");
 }
+
+/// The client's target panel counts an enemy's turret batteries and how many reach me from its
+/// public state alone (`shared::ships::turret_batteries` / `batteries_reaching`). Both must match
+/// what the server actually fires with.
+#[test]
+fn target_panel_turret_count_matches_the_server() {
+    let mut g = game();
+    let mut conn = 1;
+    for h in HullClass::ALL {
+        for lv in [1u8, 5, 9] {
+            let pid = join(&mut g, conn, &format!("C{conn}"), Species::Human, h, Profession::Explorer);
+            for m in Module::ALL {
+                g.store.profile_mut(pid).unwrap().ship.modules.insert(m, lv);
+            }
+            move_to_system(&mut g, conn, 5);
+            let (sys, eid) = ent_of(&g, conn);
+            let e = g.ent(sys, eid).unwrap();
+            assert_eq!(shared::ships::turret_batteries(&e.state()) as usize, e.turret_cds.len(), "{h:?} Lv{lv}");
+            conn += 1;
+        }
+    }
+    for a in NpcArchetype::ALL {
+        let id = g.spawn_npc(5, a, 3, Vec3::new(0.0, 0.0, 9000.0), None);
+        let e = g.ent(5, id).unwrap();
+        let st = e.state();
+        assert_eq!(shared::ships::turret_batteries(&st) as usize, e.turret_cds.len(), "{a:?}");
+        // Arcs: level with it every battery reaches; straight above only the dorsal half.
+        let n = e.turret_cds.len() as u8;
+        let p = Vec3::from(st.pos);
+        let rot = Quat::from_array(st.rot);
+        assert_eq!(shared::ships::batteries_reaching(&st, p + rot * Vec3::X * 500.0), n, "{a:?} level");
+        assert_eq!(shared::ships::batteries_reaching(&st, p + rot * Vec3::Y * 500.0), n.div_ceil(2), "{a:?} above");
+    }
+}

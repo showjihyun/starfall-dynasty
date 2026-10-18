@@ -377,6 +377,33 @@ pub enum WeaponKind {
     Missile,
 }
 
+/// Turret firing arcs (`combat.ron` turret_arc_overlap): batteries alternate dorsal (even `i`) and
+/// ventral (odd). Whether battery `i` reaches something `up` above the hull's plane (the direction's
+/// y in the ship's own frame, −1..1).
+pub fn battery_covers(i: usize, up: f32, overlap: f32) -> bool {
+    if i.is_multiple_of(2) { up >= -overlap } else { up <= overlap }
+}
+
+/// Turret batteries on a ship as other captains see it (the server gives it exactly this many):
+/// players by size class and rank, NPCs by archetype; escorts, missiles and wrecks carry none.
+pub fn turret_batteries(st: &crate::protocol::EntityState) -> u8 {
+    use crate::protocol::EntityKind;
+    let t = crate::tuning::get();
+    match st.kind {
+        EntityKind::Player => st.class.and_then(|k| t.ships.classes.get(&k)).map(|c| c.turrets + c.turrets_per_rank * st.rank.saturating_sub(c.min_rank)).unwrap_or(0),
+        EntityKind::Npc(a) => t.npcs.archetypes.get(&a).map(|d| d.turrets).unwrap_or(0),
+        _ => 0,
+    }
+}
+
+/// How many of `st`'s batteries can swing onto `at` (world space), whatever the range.
+pub fn batteries_reaching(st: &crate::protocol::EntityState, at: glam::Vec3) -> u8 {
+    let rot = glam::Quat::from_array(st.rot);
+    let up = (rot.inverse() * (at - glam::Vec3::from(st.pos))).normalize_or_zero().y;
+    let overlap = crate::tuning::get().combat.turret_arc_overlap;
+    (0..turret_batteries(st) as usize).filter(|i| battery_covers(*i, up, overlap)).count() as u8
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

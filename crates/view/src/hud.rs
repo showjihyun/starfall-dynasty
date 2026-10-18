@@ -42,6 +42,15 @@ pub fn elevation_text(me: Vec3, it: Vec3) -> String {
     if d.y.abs() >= 1000.0 { format!("{arrow} {:.2} km · {angle:+.0}°", d.y.abs() / 1000.0) } else { format!("{arrow} {:.0} m · {angle:+.0}°", d.y.abs()) }
 }
 
+/// Target panel line on its turret arcs (`shared::ships::batteries_reaching`): how many of its
+/// batteries can reach me, and the hint to dive when all of them can. None: it has no turrets.
+pub fn battery_text(reach: u8, total: u8) -> Option<String> {
+    if total == 0 {
+        return None;
+    }
+    Some(if reach >= total { format!("포탑 {total}문 모두 나를 겨눔 — 위·아래로 파고들면 절반") } else { format!("포탑 {reach}/{total}문만 닿음 — 사격호 밖") })
+}
+
 pub fn bar(ui: &mut egui::Ui, frac: f32, color: Color32, label: String, w: f32) {
     bar_with_loss(ui, frac, frac, color, label, w, 16.0);
 }
