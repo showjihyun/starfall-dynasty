@@ -1,0 +1,28 @@
+{
+  "name": "pvp_two_angles_beat_roll",
+  "description": "3D 대인전(최종 목표): 구르기는 단독·같은 각도의 공격을 무력화하지만, 90° 떨어진 두 각도(위 + 옆)에서 오는 무리는 못 막는다 — 구르면 한쪽을 선체 옆으로 데려오는 대신 다른 쪽이 위·아래로 간다. Lv9 Talon 둘이 구르는 Lv9 Bastion을 공격: 같은 각도면 주력함이 오래 버티고 공격자 하나를 잡지만, 두 각도면 더 빨리 무너지고 공격자를 하나도 못 잡는다",
+  "captains": [
+    { "name": "AdmiralSame", "hull": "Bastion", "level": 9, "system": 5, "pos": [-6000, 0, 6000] },
+    { "name": "SameA", "hull": "Talon", "level": 9, "system": 5, "pos": [-5940, 500, 6000] },
+    { "name": "SameB", "hull": "Talon", "level": 9, "system": 5, "pos": [-6060, 500, 6000] },
+    { "name": "AdmiralSplit", "hull": "Bastion", "level": 9, "system": 5, "pos": [6000, 0, 6000] },
+    { "name": "SplitA", "hull": "Talon", "level": 9, "system": 5, "pos": [6000, 500, 6000] },
+    { "name": "SplitB", "hull": "Talon", "level": 9, "system": 5, "pos": [6500, 0, 6000] }
+  ],
+  "script": [
+    { "at": 0.5, "captain": "SameA", "target_captain": "AdmiralSame", "aim": true, "msg": { "Controls": { "fire": true } }, "repeat_every": 0.1 },
+    { "at": 0.5, "captain": "SameB", "target_captain": "AdmiralSame", "aim": true, "msg": { "Controls": { "fire": true } }, "repeat_every": 0.1 },
+    { "at": 0.5, "captain": "AdmiralSame", "target_captain": "SameA", "broadside": true, "msg": { "Controls": {} }, "repeat_every": 0.1 },
+    { "at": 0.5, "captain": "SplitA", "target_captain": "AdmiralSplit", "aim": true, "msg": { "Controls": { "fire": true } }, "repeat_every": 0.1 },
+    { "at": 0.5, "captain": "SplitB", "target_captain": "AdmiralSplit", "aim": true, "msg": { "Controls": { "fire": true } }, "repeat_every": 0.1 },
+    { "at": 0.5, "captain": "AdmiralSplit", "target_captain": "SplitA", "broadside": true, "msg": { "Controls": {} }, "repeat_every": 0.1 }
+  ],
+  "run_secs": 20,
+  "expect": [
+    { "at": 14, "check": "deaths", "captain": "AdmiralSplit", "min": 1 },
+    { "at": 14, "check": "deaths", "captain": "AdmiralSame", "max": 0 },
+    { "check": "deaths", "captain": "SameA", "min": 1 },
+    { "check": "deaths", "captain": "SplitA", "max": 0 },
+    { "check": "deaths", "captain": "SplitB", "max": 0 }
+  ]
+}

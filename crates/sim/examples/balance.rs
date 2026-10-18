@@ -108,6 +108,7 @@ fn main() {
     out += &mineral_sheet();
     out += &vertical_sheet();
     out += &pvp_speed_sheet();
+    out += &pvp_group_sheet();
     out += &relief_sheet();
     print!("{out}");
     eprintln!("{} duels simulated in {:.2} s", HullClass::ALL.len() * 3 * enc.len(), t0.elapsed().as_secs_f64());
@@ -232,6 +233,50 @@ fn pvp_speed_sheet() -> String {
         }
         out += "
 ";
+    }
+    out
+}
+
+/// 3D PvP with two attackers: can coming in from two angles beat the defender's roll? Two Lv9
+/// Talons attack a Lv9 Bastion that locks on to the first and answers with turrets only.
+fn pvp_group_sheet() -> String {
+    const SECS: f32 = 30.0;
+    let mut out = format!("
+대인전 2대 1(Lv9 Talon 둘이 Lv9 Bastion 주력함을 공격, 방어자는 첫 공격자를 목표로 잡고 포탑으로만 반격, {SECS:.0}초): 칸 = 두 공격자가 버틴 시간(끝까지 버티면 남은 선체), 방어자 격침 시각, 방어자에게 준 피해(호위함 포함).
+
+| 공격 각도 | 방어자 | 공격자 1 (목표) | 공격자 2 | 방어자 격침 | 방어자에게 준 피해 |
+|---|---|---|---|---|---|
+");
+    let step = |who: &str, target: &str, aim: bool, broadside: bool| Step { at: 0.5, captain: who.into(), msg: ClientMsg::Controls(Controls { fire: aim, ..Default::default() }), repeat_every: Some(0.1), until: None, target_nearest: None, aim, broadside, hold_over: false, fill_nearest: None, target_captain: Some(target.into()) };
+    let captain = |name: &str, hull, pos: [f32; 3]| Captain { name: name.into(), hull, species: Species::Human, profession: Profession::Explorer, level: 9, system: 5, pos: Some(pos), near_poi: None, near_deposit: None, offset: None, heading: 0.0, undocked: true, credits: 0, cargo: Default::default() };
+    let (z, d) = (6000.0, 500.0);
+    for (label, a1, a2, roll) in [
+        ("둘 다 수평(양옆)", [d, 0.0, z], [-d, 0.0, z], false),
+        ("둘 다 바로 위", [60.0, d, z], [-60.0, d, z], true),
+        ("위 + 옆 (90°)", [0.0, d, z], [d, 0.0, z], false),
+        ("위 + 옆 (90°)", [0.0, d, z], [d, 0.0, z], true),
+    ] {
+        let sc = Scenario {
+            name: "pvp group".into(),
+            description: String::new(),
+            unix: 1_800_000_000,
+            dev: false,
+            ambient_pirates: false,
+            captains: vec![captain("Admiral", HullClass::Bastion, [0.0, 0.0, z]), captain("A1", HullClass::Talon, a1), captain("A2", HullClass::Talon, a2)],
+            npcs: vec![],
+            script: vec![step("A1", "Admiral", true, false), step("A2", "Admiral", true, false), step("Admiral", "A1", false, roll)],
+            run_secs: SECS,
+            expect: vec![],
+            digest: None,
+        };
+        let r = run(&sc, None);
+        let lasted = |n: &str| match r.down_at.iter().find(|(name, _)| name == n) {
+            Some((_, t)) => format!("{t:.1}초"),
+            None => format!("생존 {:.0}%", r.final_hull.iter().find(|(name, _)| name == n).map(|h| h.1).unwrap_or(0.0) * 100.0),
+        };
+        let taken = r.totals.iter().find(|(n, _)| n == "Admiral").map(|t| t.1.taken).unwrap_or(0.0);
+        out += &format!("| {label} | {} | {} | {} | {} | {taken:.0} |
+", if roll { "구름" } else { "가만히" }, lasted("A1"), lasted("A2"), lasted("Admiral"));
     }
     out
 }
