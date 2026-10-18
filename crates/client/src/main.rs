@@ -137,6 +137,11 @@ fn ping(net: Option<Res<net::Net>>, time: Res<Time<Real>>, mut last: Local<f64>)
 }
 
 /// Offline scene for checking models, shaders and effects without a server.
+/// The showroom's entity id for a hull (one ship per hull class, in `HullClass::ALL` order).
+pub(crate) fn showroom_id(h: shared::ships::HullClass) -> u32 {
+    100 + shared::ships::HullClass::ALL.iter().position(|x| *x == h).unwrap_or(0) as u32
+}
+
 fn showroom(s: &mut Session, args: &Args) {
     use shared::ships::{HullClass, Ship};
     let sys: u16 = std::env::args().skip_while(|a| a != "--showroom").nth(1).and_then(|v| v.parse().ok()).unwrap_or(0);
@@ -164,13 +169,14 @@ fn showroom(s: &mut Session, args: &Args) {
                     *ship.modules.entry(m).or_insert(1) += 1;
                 }
             }
-        } else if i % 2 == 1 {
+        } else if i % 2 == 1 && only_species.is_none() {
+            // (species scenes keep all five small: their kits are the subject; big hulls have `--class`)
             for m in shared::ships::Module::ALL {
                 ship.modules.insert(m, 8);
             }
         }
         let st = ship.stats();
-        let id = 100 + i as u32;
+        let id = showroom_id(h);
         let pos = if only_class.is_some() {
             layout.station + Vec3::new(0.0, 500.0, 2600.0)
         } else {
@@ -209,7 +215,7 @@ fn showroom(s: &mut Session, args: &Args) {
         200,
         EntityState { id: 200, kind: EntityKind::Npc(shared::missions::NpcArchetype::Raider), name: "Raider".into(), hull_class: None, rank: 1, livery: 7, pos: (base + Vec3::new(40.0, 40.0, -320.0)).to_array(), rot: Quat::from_rotation_y(2.5).to_array(), vel: [0.0; 3], hull: 0.7, shield: 0.5, radius: 9.0, fleet: None, wanted: false, boosting: true, mining: None, docked: false, owner: None, alliance: None, class: None, species: None },
     );
-    s.me = if args.look.is_some() { None } else { args.hull }.map(|hc| 100 + shared::ships::HullClass::ALL.iter().position(|h| *h == hc).unwrap() as u32);
+    s.me = if args.look.is_some() { None } else { args.hull }.map(showroom_id);
     s.profile = None;
     s.snaps.push_back(state::Snap { at: 0.0, ents });
 }

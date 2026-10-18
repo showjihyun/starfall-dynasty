@@ -115,6 +115,14 @@ fn chase_camera(
             let rot = Transform::from_translation(pos).looking_at(look, t.rotation * Vec3::Y).rotation;
             (pos, rot)
         }
+        _ if args.look.as_deref() == Some("bow") => {
+            // Showroom species check: a fixed bow three-quarter view of the `--hull` ship, so its species
+            // kit (masts, ribs, horns) faces the camera instead of the engines.
+            let focus = args.hull.map(crate::showroom_id);
+            let Some((sv, t)) = ships.iter().find(|(sv, _)| Some(sv.id) == focus) else { return };
+            let pos = t.translation + t.rotation * Vec3::new(1.0, 0.5, -0.75).normalize() * sv.radius.max(8.0) * 2.3 * cs.zoom;
+            (pos, Transform::from_translation(pos).looking_at(t.translation, t.rotation * Vec3::Y).rotation)
+        }
         _ => {
             // Docked or dead: slow orbit around the station (or a showroom point of interest).
             let look = args.look.as_deref().and_then(|k| {

@@ -108,7 +108,7 @@ Core `GREEN` → Frontier (255,210,90) → Wild (255,140,60) → War Zone `RED` 
 - Human: 네이비(건메탈과 네이비).
 - Veyr: 바이올렛(진주빛 껍질과 맥).
 - Kharz: 골드(놋쇠 씨족 장식). 빨강은 적대 뜻이므로 쓰지 않는다.
-- 쇼룸 `--species X` 장면은 그 종족의 기본색을 입는다.
+- 쇼룸 `--species X` 장면은 그 종족의 기본색을 입고, 다섯 선체 모두 소형으로 둔다(큰 선체는 `--class`).
 
 ---
 
@@ -120,7 +120,7 @@ Core `GREEN` → Frontier (255,210,90) → Wild (255,140,60) → War Zone `RED` 
   - Veyr: 진주빛 어두운 청록, 숨 쉬듯 맥동하는 가는 보라 맥, 보는 각도에 따라 보라에서 청록으로 바뀌는 림.
   - Kharz: 검게 그을린 쇠(밝기 ×0.33), 금속성 0.75 이상, 천천히 식는 호박색 열 균열.
   - 맥과 균열은 노이즈 등고선을 `fwidth`로 화면상 몇 픽셀 폭으로 고정해서, 거리와 관계없이 선으로 보인다.
-  - 참고 이미지: `human.png`, `veyr.png`, `kharz.png` (`client --showroom 7 --species X`).
+  - 참고 이미지: `human.png`, `veyr.png`, `kharz.png` (`client --showroom 7 --hull talon --look bow --species X`: Talon을 뱃머리 3/4 고정 카메라로 가까이 봐서 부착물이 화면을 향한다).
 - **2단계(전 선체 완료):** `tools/blender/build_ships.py`의 `species_kits`가 다섯 소형 선체와 열 개 중·대형 선체에 종족 부착물을 만든다. 노드는 `Species_<Human|Veyr|Kharz>_Kit`이고, 클라이언트는 함장의 종족 것만 보이게 한다(NPC는 모두 숨김). 부착물은 선체 표면에 레이캐스트로 붙인다.
   - Human: 항법등 달린 안테나 마스트 두 개, 측면 방열 핀, 상부 해치.
   - Veyr: 동체 단면을 따라 감싼 고리 늑골 세 개와 척추를 따라 빛나는 맥.
@@ -282,9 +282,10 @@ cores, running lights and weapon ports.
 | `docs/art/reference/gate.png` | `--showroom 9 --look gate` | 심우주: 중성자성 보라 하늘, 고대 게이트 |
 | `docs/art/reference/ruin.png` | `--showroom 6 --look ruin` | Hollow Crown: 유적 발광, Wild 성운 |
 | `docs/art/reference/derelict.png` | `--showroom 4 --look derelict` | Vesta Corridor: 백색 왜성, 버려진 호송선 |
-| `docs/art/reference/human.png` | `--showroom 7 --species human --shot-at 20` | Human: 기준 선체, 마스트·방열 핀·해치 |
-| `docs/art/reference/veyr.png` | `--showroom 7 --species veyr --shot-at 20` | Veyr: 진주빛 청록, 보라 맥, 고리 늑골 |
-| `docs/art/reference/kharz.png` | `--showroom 7 --species kharz --shot-at 20` | Kharz: 그을린 쇠, 호박색 열 균열, 뿔, 덧댄 장갑 |
+| `docs/art/reference/human.png` | `--showroom 7 --hull talon --look bow --species human --shot-at 20` | Human: 기준 선체, 네이비, 마스트·방열 핀·해치 |
+| `docs/art/reference/veyr.png` | `--showroom 7 --hull talon --look bow --species veyr --shot-at 20` | Veyr: 진주빛 청록, 바이올렛, 보라 맥, 고리 늑골 |
+| `docs/art/reference/kharz.png` | `--showroom 7 --hull talon --look bow --species kharz --shot-at 20` | Kharz: 그을린 쇠, 골드, 호박색 열 균열, 뿔, 덧댄 장갑 |
+| `docs/art/reference/capital.png` | `--showroom 7 --hull bastion --class capital --look ship --species veyr` | 대형 선체: Bastion 주력함, 단면을 감싸는 Veyr 늑골 |
 
 - **콘셉트·모델 기준:** `tools/blender/previews/*.png`. 함선별 히어로 렌더와 시트, 대형 함선, 소품.
 - **생성 프롬프트에 붙일 이미지:** 참고 이미지 중 가장 가까운 장면 하나, 그리고 같은 계열 함선의 `previews` 시트.

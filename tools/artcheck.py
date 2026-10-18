@@ -34,9 +34,9 @@ SCENES = {
     'derelict': (['--showroom', '4', '--look', 'derelict'], 'Vesta Corridor: white dwarf, derelict convoy'),
     # Species styles (docs/ART_DIRECTION.md §4): the same fleet and camera, one species each.
     # Shot at 20 s, when the orbit frames a small hull (species kits: masts / ribs / horns).
-    'human': (['--showroom', '7', '--species', 'human', '--shot-at', '20'], 'Human: worn-industrial hulls, masts, radiators, hatch'),
-    'veyr': (['--showroom', '7', '--species', 'veyr', '--shot-at', '20'], 'Veyr: dark-teal nacre, violet veins, hoop ribs'),
-    'kharz': (['--showroom', '7', '--species', 'kharz', '--shot-at', '20'], 'Kharz: blackened iron, amber heat seams, bow horns, patch armour'),
+    'human': (['--showroom', '7', '--hull', 'talon', '--look', 'bow', '--species', 'human', '--shot-at', '20'], 'Human: worn-industrial hulls, masts, radiators, hatch'),
+    'veyr': (['--showroom', '7', '--hull', 'talon', '--look', 'bow', '--species', 'veyr', '--shot-at', '20'], 'Veyr: dark-teal nacre, violet veins, hoop ribs'),
+    'kharz': (['--showroom', '7', '--hull', 'talon', '--look', 'bow', '--species', 'kharz', '--shot-at', '20'], 'Kharz: blackened iron, amber heat seams, bow horns, patch armour'),
     'capital': (['--showroom', '7', '--hull', 'bastion', '--class', 'capital', '--look', 'ship', '--species', 'veyr'], 'Bastion capital, Veyr: section-hugging hoop ribs on a boxy hull'),
 }
 
