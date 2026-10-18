@@ -67,13 +67,13 @@ Phase 2·3 수입원을 한 표로 모았다. 사냥·채굴은 시뮬레이션�
 
 | 함선 | Lv | 성계 | 격파 | 현상금 합계 | 시간당 CR | 생존 |
 |---|---|---|---|---|---|---|
-| Talon | 1 | Orion Drift (Frontier) | 9 | 1260 CR | 39842 | 114초에 격침 |
+| Talon | 1 | Orion Drift (Frontier) | 11 | 1540 CR | 42272 | 131초에 격침 |
 | Talon | 5 | Orion Drift (Frontier) | 70 | 9800 CR | 39200 | 끝까지 |
 | Talon | 9 | Orion Drift (Frontier) | 70 | 9800 CR | 39200 | 끝까지 |
-| Talon | 1 | Hollow Crown (Wild) | 3 | 600 CR | 37961 | 57초에 격침 |
-| Talon | 5 | Hollow Crown (Wild) | 84 | 22900 CR | 91600 | 끝까지 |
-| Talon | 9 | Hollow Crown (Wild) | 85 | 23100 CR | 92400 | 끝까지 |
-| Talon | 1 | Vesta Front (War Zone) | 4 | 1683 CR | 55458 | 109초에 격침 |
+| Talon | 1 | Hollow Crown (Wild) | 0 | 0 CR | 0 | 20초에 격침 |
+| Talon | 5 | Hollow Crown (Wild) | 92 | 25232 CR | 100928 | 끝까지 |
+| Talon | 9 | Hollow Crown (Wild) | 92 | 25232 CR | 100928 | 끝까지 |
+| Talon | 1 | Vesta Front (War Zone) | 4 | 1683 CR | 55560 | 109초에 격침 |
 | Talon | 5 | Vesta Front (War Zone) | 71 | 30762 CR | 123048 | 끝까지 |
 | Talon | 9 | Vesta Front (War Zone) | 71 | 30762 CR | 123048 | 끝까지 |
 
@@ -83,12 +83,12 @@ Phase 2·3 수입원을 한 표로 모았다. 사냥·채굴은 시뮬레이션�
 
 | 함선 | Lv | 성계 | 광석 | 화물 | 채굴 시간 | 판매액 | 시간당 CR |
 |---|---|---|---|---|---|---|---|
-| Mule | 1 | Sol Haven (Core) | Lumen | 90 | 134초 | 377 CR | 8857 |
-| Mule | 5 | Sol Haven (Core) | Lumen | 331 | 191초 | 892 CR | 15164 |
-| Mule | 1 | Orion Drift (Frontier) | Xenite | 90 | 134초 | 1415 CR | 33030 |
-| Mule | 5 | Orion Drift (Frontier) | Xenite | 331 | 191초 | 3344 CR | 56559 |
-| Mule | 1 | Hollow Crown (Wild) | Xenite | 90 | 134초 | 1752 CR | 41400 |
-| Mule | 5 | Hollow Crown (Wild) | Xenite | 331 | 191초 | 4140 CR | 70697 |
+| Mule | 1 | Sol Haven (Core) | Lumen | 90 | 134초 | 377 CR | 8829 |
+| Mule | 5 | Sol Haven (Core) | Lumen | 331 | 191초 | 892 CR | 15126 |
+| Mule | 1 | Orion Drift (Frontier) | Xenite | 90 | 134초 | 1415 CR | 32980 |
+| Mule | 5 | Orion Drift (Frontier) | Xenite | 331 | 191초 | 3344 CR | 56491 |
+| Mule | 1 | Hollow Crown (Wild) | Xenite | 90 | 134초 | 1752 CR | 39641 |
+| Mule | 5 | Hollow Crown (Wild) | Xenite | 331 | 191초 | 4140 CR | 68320 |
 
 ### 고고학 (60일 표본)
 
@@ -164,9 +164,21 @@ Phase 2·3 수입원을 한 표로 모았다. 사냥·채굴은 시뮬레이션�
 
 | 전투 | 함장 | 명중 | 위·아래 명중 | 평균 고도각 |
 |---|---|---|---|---|
-| 해적 사냥 15분 (Frontier) | Hunter | 703 | 43% | 20.5° |
-| 해적 사냥 15분 (Wild) | Hunter | 1529 | 57% | 25.4° |
+| 해적 사냥 15분 (Frontier) | Hunter | 672 | 41% | 19.9° |
+| 해적 사냥 15분 (Wild) | Hunter | 1602 | 68% | 29.1° |
 | 시나리오 capital_vs_raiders | Ares | 42 | 0% | 2.3° |
 | 시나리오 fighter_duel_gunship | Wing | 31 | 55% | 18.3° |
 | 시나리오 war_shifts_control | Raider | 14 | 0% | 0.0° |
 | 시나리오 wild_crime_bounty | Rogue | 25 | 0% | 0.0° |
+
+## 성계 지형
+
+목표: 일하러 가는 길이 평면이 아니다. 정거장에서 워프 지점·탐사 지점·소행성까지 경로마다 성계 평면 기준 고도각을 잰다. 「가파른 경로」 = |고도각| ≥ 20°.
+
+| 위험도 | 성계 | 경로 | 평균 고도각 | 가파른 경로 | 위 / 아래 |
+|---|---|---|---|---|---|
+| Core | 3 | 103 | 24.9° | 69% | 34 / 37 |
+| Frontier | 12 | 828 | 17.0° | 40% | 147 / 183 |
+| Wild | 20 | 1371 | 18.6° | 45% | 322 / 296 |
+| WarZone | 14 | 983 | 19.0° | 49% | 230 / 256 |
+| Deep | 1 | 72 | 17.6° | 40% | 25 / 4 |

@@ -107,6 +107,7 @@ fn main() {
     out += &galaxy_sheet();
     out += &mineral_sheet();
     out += &vertical_sheet();
+    out += &relief_sheet();
     print!("{out}");
     eprintln!("{} duels simulated in {:.2} s", HullClass::ALL.len() * 3 * enc.len(), t0.elapsed().as_secs_f64());
     if let Some(path) = write {
@@ -152,6 +153,32 @@ fn vertical_sheet() -> String {
         let text = std::fs::read_to_string(dir.join(format!("{file}.json"))).unwrap();
         let sc: Scenario = serde_json::from_str(&text).unwrap();
         row(&format!("시나리오 {file}"), &run(&sc, None));
+    }
+    out
+}
+
+/// Main goal "3D freedom", the map side: how steeply the routes from each station climb or dive to
+/// the places captains fly to (`galaxy::route_elevations`, heights from `galaxy.ron` relief).
+fn relief_sheet() -> String {
+    use shared::galaxy::{self, RiskTier};
+    let mut out = String::from("
+## 성계 지형
+
+목표: 일하러 가는 길이 평면이 아니다. 정거장에서 워프 지점·탐사 지점·소행성까지 경로마다 성계 평면 기준 고도각을 잰다. 「가파른 경로」 = |고도각| ≥ 20°.
+
+| 위험도 | 성계 | 경로 | 평균 고도각 | 가파른 경로 | 위 / 아래 |
+|---|---|---|---|---|---|
+");
+    for tier in [RiskTier::Core, RiskTier::Frontier, RiskTier::Wild, RiskTier::WarZone, RiskTier::Deep] {
+        let sys: Vec<_> = galaxy::systems().iter().filter(|s| s.tier == tier).collect();
+        let e: Vec<f32> = sys.iter().flat_map(|s| galaxy::route_elevations(&galaxy::system_layout(s.id))).collect();
+        if e.is_empty() {
+            continue;
+        }
+        let n = e.len() as f32;
+        let (up, down) = (e.iter().filter(|a| **a >= 20.0).count(), e.iter().filter(|a| **a <= -20.0).count());
+        out += &format!("| {:?} | {} | {} | {:.1}° | {:.0}% | {} / {} |
+", tier, sys.len(), e.len(), e.iter().map(|a| a.abs()).sum::<f32>() / n, (up + down) as f32 / n * 100.0, up, down);
     }
     out
 }

@@ -344,8 +344,10 @@ pub fn system_layout(id: SystemId) -> Layout {
         _ => 260.0,
     };
 
-    let station = Vec3::new(r.range(-200., 200.), r.range(-60., 60.), 3400.0);
-    let jump_point = station + Vec3::new(r.range(-700., 700.), r.range(-120., 120.), r.range(500., 900.));
+    let tuning = crate::tuning::get();
+    let rel = tuning.galaxy.relief;
+    let station = Vec3::new(r.range(-200., 200.), r.range(-rel.station_y, rel.station_y), 3400.0);
+    let jump_point = station + Vec3::new(r.range(-700., 700.), r.range(-rel.jump_y, rel.jump_y), r.range(500., 900.));
 
     let mut planets = Vec::new();
     let n_planets = 2 + r.below(3);
@@ -367,14 +369,13 @@ pub fn system_layout(id: SystemId) -> Layout {
     }
 
     let mut asteroids = Vec::new();
-    let tuning = crate::tuning::get();
     let belts = if def.tier == RiskTier::Core { 1 } else { 2 };
     let mut aid = 1;
     for b in 0..belts {
-        let center = station + Vec3::new(if b == 0 { -1300.0 } else { 1400.0 }, r.range(-150., 150.), r.range(-500., 900.));
+        let center = station + Vec3::new(if b == 0 { -1300.0 } else { 1400.0 }, r.range(-rel.belt_y, rel.belt_y), r.range(-500., 900.));
         let count = 26 + r.below(14);
         for _ in 0..count {
-            let p = center + r.in_sphere() * Vec3::new(520., 140., 520.);
+            let p = center + r.in_sphere() * Vec3::new(520., rel.belt_thickness, 520.);
             let roll = r.f32() * (1.0 + def.tier.pirate_level() as f32 * 0.15);
             let ore = if roll > 1.0 { Ore::Xenite } else if roll > 0.62 { Ore::Lumen } else { Ore::Ferrite };
             let mineral = crate::minerals::deposit(&tuning.minerals, id, def.star, def.tier, b, aid, ore);
@@ -386,7 +387,7 @@ pub fn system_layout(id: SystemId) -> Layout {
     let mut pois = Vec::new();
     let mut pid = 1000;
     let mut push_poi = |r: &mut Rng, kind: PoiKind, name: String, near: Vec3, spread: f32| {
-        let p = near + Vec3::new(r.range(-spread, spread), r.range(-spread * 0.2, spread * 0.2), r.range(-spread, spread));
+        let p = near + Vec3::new(r.range(-spread, spread), r.range(-spread * rel.poi_rise, spread * rel.poi_rise), r.range(-spread, spread));
         pois.push(Poi { id: pid, kind, name, pos: p });
         pid += 1;
     };
@@ -463,9 +464,30 @@ pub mod coords {
     }
 }
 
+/// Climb from the station to each place a captain flies to (jump point, points of interest,
+/// asteroids): degrees above (+) or below (−) the system plane. A flat layout keeps these near 0.
+pub fn route_elevations(l: &Layout) -> Vec<f32> {
+    let dest = std::iter::once(l.jump_point).chain(l.pois.iter().map(|p| p.pos)).chain(l.asteroids.iter().map(|a| a.pos));
+    dest.map(|p| {
+        let d = p - l.station;
+        d.y.atan2(Vec3::new(d.x, 0.0, d.z).length()).to_degrees()
+    })
+    .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn places_rise_out_of_the_plane() {
+        // Main goal "3D freedom": flying to work means climbing and diving, not a flat map.
+        let e: Vec<f32> = systems().iter().flat_map(|s| route_elevations(&system_layout(s.id))).collect();
+        let steep = e.iter().filter(|a| a.abs() >= 20.0).count() as f32 / e.len() as f32;
+        let (up, down) = (e.iter().filter(|a| **a >= 20.0).count(), e.iter().filter(|a| **a <= -20.0).count());
+        assert!(steep >= 0.25, "only {:.0}% of routes climb or dive 20°+", steep * 100.0);
+        assert!(up > 0 && down > 0 && up.min(down) * 3 > up.max(down), "both above and below: {up} up, {down} down");
+    }
 
     #[test]
     fn layouts_are_deterministic() {

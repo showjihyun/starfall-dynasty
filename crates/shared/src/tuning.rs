@@ -254,6 +254,31 @@ pub struct GalaxyTuning {
     pub names_second: Vec<String>,
     pub lore: BTreeMap<crate::galaxy::RiskTier, Vec<String>>,
     pub chart_reward: u64,
+    /// How far a system's places rise out of its plane. Missing (recordings made before it existed):
+    /// the old flat layout.
+    #[serde(default)]
+    pub relief: Relief,
+}
+
+/// Height in a system's layout (main goal "3D freedom", docs/BALANCE.md 「성계 지형」): each value is a
+/// half-range in units (or a share of the horizontal spread) for the same random draw as before, so
+/// only heights change — ids, ores and minerals stay put.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Relief {
+    pub station_y: f32,
+    pub jump_y: f32,
+    /// Asteroid belt centre height, and the belt's half-thickness (its half-width is 520).
+    pub belt_y: f32,
+    pub belt_thickness: f32,
+    /// Points of interest: height spread as a share of their horizontal spread.
+    pub poi_rise: f32,
+}
+
+impl Default for Relief {
+    fn default() -> Self {
+        Relief { station_y: 60.0, jump_y: 120.0, belt_y: 150.0, belt_thickness: 140.0, poi_rise: 0.2 }
+    }
 }
 
 /// The mineral catalogue and deposits (`minerals.ron`, see `minerals`).

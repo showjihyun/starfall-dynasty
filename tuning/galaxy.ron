@@ -48,4 +48,15 @@
     // A captain who reaches a generated system before anyone else charts it (history: DISCOVERY) and
     // gets this many credits × the system's risk_reward (economy.ron).
     chart_reward: 600,
+
+    // Height in every system's layout (main goal "3D freedom", docs/BALANCE.md 「성계 지형」): half-ranges
+    // in units, poi_rise a share of the horizontal spread. Only heights move — asteroid ids, ores and
+    // minerals stay the same. Leaving this block out gives the old flat layout (60/120/150/140/0.2).
+    relief: (
+        station_y: 60.0,
+        jump_y: 600.0,
+        belt_y: 900.0,
+        belt_thickness: 320.0,
+        poi_rise: 0.6,
+    ),
 )
