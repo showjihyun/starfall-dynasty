@@ -164,13 +164,26 @@ fn gcd(a: u64, b: u64) -> u64 {
     if b == 0 { a } else { gcd(b, a % b) }
 }
 
+/// Rarity weights of a deposit in this tier at this climb from the station (`height_bonus` lifts
+/// rare and above).
+pub fn deposit_weights(t: &MineralTuning, tier: RiskTier, elev_deg: f32) -> Vec<(Rarity, u32)> {
+    let lift = t.height_bonus.factor(elev_deg);
+    t.deposit.get(&tier).map(|w| w.iter().map(|(r, n)| (*r, if *r < Rarity::Rare { *n } else { (*n as f32 * lift).round() as u32 })).collect()).unwrap_or_default()
+}
+
+/// Chance that a deposit at this climb is rare or better (what the map tells a prospector).
+pub fn rare_chance(t: &MineralTuning, tier: RiskTier, elev_deg: f32) -> f32 {
+    let w = deposit_weights(t, tier, elev_deg);
+    let total: u32 = w.iter().map(|w| w.1).sum();
+    w.iter().filter(|w| w.0 >= Rarity::Rare).map(|w| w.1).sum::<u32>() as f32 / total.max(1) as f32
+}
+
 /// The mineral in asteroid `asteroid` of belt `belt` in system `sys` (ore family `ore`).
 /// `elev_deg`: the asteroid's climb from the station (`galaxy::route_elevations`); steep ones are richer
 /// (`height_bonus`).
 #[allow(clippy::too_many_arguments)]
 pub fn deposit(t: &MineralTuning, sys: SystemId, star: StarKind, tier: RiskTier, belt: u32, asteroid: u32, ore: Ore, elev_deg: f32) -> MineralId {
-    let lift = t.height_bonus.factor(elev_deg);
-    let weights: Vec<(Rarity, u32)> = t.deposit.get(&tier).map(|w| w.iter().map(|(r, n)| (*r, if *r < Rarity::Rare { *n } else { (*n as f32 * lift).round() as u32 })).collect()).unwrap_or_default();
+    let weights = deposit_weights(t, tier, elev_deg);
     let total: u32 = weights.iter().map(|w| w.1).sum();
     let mut r = Rng::from_parts(&[0xDE90_5175, t.seed, sys as u64, asteroid as u64]);
     let mut roll = r.below(total.max(1));

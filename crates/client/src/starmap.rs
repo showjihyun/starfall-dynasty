@@ -331,7 +331,9 @@ fn system_chart(_ui: &mut egui::Ui, p: &egui::Painter, map: Rect, resp: &egui::R
                         stem(p, a.pos, c);
                         p.circle_stroke(ap, ar + 3.0, Stroke::new(1.2, c));
                     }
-                    consider(ap, ar.max(5.0), vec![m.label(), loc(a.pos) + &dist_txt(a.pos)], None);
+                    let mut tip = view::mapview::asteroid_tip(&m, def.tier, galaxy::climb_deg(lay.station, a.pos));
+                    tip.push(loc(a.pos) + &dist_txt(a.pos));
+                    consider(ap, ar.max(5.0), tip, None);
                 }
             }
         }
@@ -392,7 +394,7 @@ fn system_chart(_ui: &mut egui::Ui, p: &egui::Painter, map: Rect, resp: &egui::R
         let dir = if dir.length() > 0.5 { dir } else { EVec2::new(0.0, -1.0) };
         let size = if mine { 11.0 } else { (st.radius * sc).clamp(4.0, 9.0) + if matches!(st.class, Some(shared::ships::SizeClass::Capital)) { 3.0 } else { 0.0 } };
         if st.kind == EntityKind::Wreck {
-            p.text(sp, Align2::CENTER_CENTER, "✕", FontId::proportional(12.0), col);
+            p.text(sp, Align2::CENTER_CENTER, "×", FontId::proportional(12.0), col);
         } else {
             // Heading chevron.
             let side = EVec2::new(-dir.y, dir.x);
@@ -503,8 +505,11 @@ fn side_panel(ui: &mut egui::Ui, rect: Rect, s: &mut Session, net: &Net, now: f6
         }
         ui.separator();
         ui.label(RichText::new("범례").strong());
-        for (c, t) in [(GOLD, "▲ 내 함선 (속도 벡터·사거리 원)"), (GREEN, "▲ 아군 (함대·동맹)"), (RED, "▲ 적대 (해적·교전 대상)"), (ACCENT, "▲ 중립 함장"), (GOLD, "✕ 잔해")] {
+        for (c, t) in [(GOLD, "▲ 내 함선 (속도 벡터·사거리 원)"), (GREEN, "▲ 아군 (함대·동맹)"), (RED, "▲ 적대 (해적·교전 대상)"), (ACCENT, "▲ 중립 함장"), (GOLD, "× 잔해")] {
             ui.label(RichText::new(t).size(12.0).color(c));
+        }
+        if let Some(t) = view::mapview::deposit_legend(sys.tier) {
+            ui.label(RichText::new(t).size(12.0).color(view::palette::rarity_color(shared::minerals::Rarity::Rare)));
         }
         ui.separator();
         let range = s.profile.as_ref().map(|p| p.ship.stats().warp_range).unwrap_or(0.0);

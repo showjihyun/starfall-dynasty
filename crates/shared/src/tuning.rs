@@ -326,7 +326,7 @@ impl Default for HeightBonus {
 }
 
 impl HeightBonus {
-    /// Multiplier for non-common deposit weights at this elevation (degrees, either sign).
+    /// Multiplier for rare-and-above deposit weights at this elevation (degrees, either sign).
     pub fn factor(&self, elev_deg: f32) -> f32 {
         let k = ((elev_deg.abs() - self.from_deg) / (self.full_deg - self.from_deg).max(1e-3)).clamp(0.0, 1.0);
         1.0 + self.weight * k

@@ -290,6 +290,37 @@ pub fn known(id: SystemId, charted: &std::collections::BTreeSet<SystemId>, here:
 /// What the map calls a system nobody has reached.
 pub const UNKNOWN_SYSTEM: &str = "미확인 성계";
 
+/// The map's word on an asteroid (`minerals.ron` height_bonus): its mineral, then its climb from the
+/// station and, where rare deposits can occur, the chance of one at that height next to the flat one.
+pub fn asteroid_tip(mineral: &shared::minerals::Mineral, tier: galaxy::RiskTier, climb: f32) -> Vec<String> {
+    let t = &shared::tuning::get().minerals;
+    let (here, flat) = (shared::minerals::rare_chance(t, tier, climb), shared::minerals::rare_chance(t, tier, 0.0));
+    let mut odds = format!("정거장 기준 고도각 {climb:+.0}°");
+    if here > 0.0 {
+        odds += &format!(" · 희귀 이상 {:.0}%", here * 100.0);
+        if here > flat + 0.005 {
+            odds += &format!(" (평지 {:.0}%)", flat * 100.0);
+        }
+    }
+    vec![mineral.label(), odds]
+}
+
+/// Legend line for the rare-deposit ring, with the height rule when it is on (None: no rare deposits
+/// in this tier).
+pub fn deposit_legend(tier: galaxy::RiskTier) -> Option<String> {
+    let t = &shared::tuning::get().minerals;
+    let hb = t.height_bonus;
+    let (flat, steep) = (shared::minerals::rare_chance(t, tier, 0.0), shared::minerals::rare_chance(t, tier, hb.full_deg));
+    if steep <= 0.0 {
+        return None;
+    }
+    Some(if steep > flat + 0.005 {
+        format!("○ 희귀 이상 광맥 · 정거장에서 {:.0}° 넘게 오르내린 소행성일수록 많음 (평지 {:.0}% → {:.0}°에서 {:.0}%)", hb.from_deg, flat * 100.0, hb.full_deg, steep * 100.0)
+    } else {
+        "○ 희귀 이상 광맥".to_string()
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

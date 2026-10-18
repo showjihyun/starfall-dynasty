@@ -29,7 +29,8 @@ pub fn specimens(ui: &mut egui::Ui, held: &std::collections::BTreeMap<shared::mi
     let t = shared::tuning::get();
     ui.label(RichText::new("광물 표본").strong());
     if held.is_empty() {
-        ui.label(RichText::new("표본 없음 — 희귀 이상 광맥을 캐면 가끔 그 광물의 표본이 나옵니다. 처음 캐낸 광물은 연대기에 발견자로 남습니다.").size(11.0).color(DIM));
+        let height = if t.minerals.height_bonus.weight > 0.0 { " 희귀 광맥은 정거장에서 위아래로 멀리 오르내린 소행성에 많습니다(지도에서 소행성에 마우스를 올려 확인)." } else { "" };
+        ui.label(RichText::new(format!("표본 없음 — 희귀 이상 광맥을 캐면 가끔 그 광물의 표본이 나옵니다.{height} 처음 캐낸 광물은 연대기에 발견자로 남습니다.")).size(11.0).color(DIM));
         return false;
     }
     let mut total = 0;

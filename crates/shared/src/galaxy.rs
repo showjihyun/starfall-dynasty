@@ -378,9 +378,7 @@ pub fn system_layout(id: SystemId) -> Layout {
             let p = center + r.in_sphere() * Vec3::new(520., rel.belt_thickness, 520.);
             let roll = r.f32() * (1.0 + def.tier.pirate_level() as f32 * 0.15);
             let ore = if roll > 1.0 { Ore::Xenite } else if roll > 0.62 { Ore::Lumen } else { Ore::Ferrite };
-            let d = p - station;
-            let elev = d.y.atan2(Vec3::new(d.x, 0.0, d.z).length()).to_degrees();
-            let mineral = crate::minerals::deposit(&tuning.minerals, id, def.star, def.tier, b, aid, ore, elev);
+            let mineral = crate::minerals::deposit(&tuning.minerals, id, def.star, def.tier, b, aid, ore, climb_deg(station, p));
             asteroids.push(Asteroid { id: aid, pos: p, radius: r.range(10., 42.), ore, seed: r.below(1_000_000), mineral });
             aid += 1;
         }
@@ -470,11 +468,13 @@ pub mod coords {
 /// asteroids): degrees above (+) or below (−) the system plane. A flat layout keeps these near 0.
 pub fn route_elevations(l: &Layout) -> Vec<f32> {
     let dest = std::iter::once(l.jump_point).chain(l.pois.iter().map(|p| p.pos)).chain(l.asteroids.iter().map(|a| a.pos));
-    dest.map(|p| {
-        let d = p - l.station;
-        d.y.atan2(Vec3::new(d.x, 0.0, d.z).length()).to_degrees()
-    })
-    .collect()
+    dest.map(|p| climb_deg(l.station, p)).collect()
+}
+
+/// Degrees above (+) or below (−) the system plane of the straight route from `from` to `to`.
+pub fn climb_deg(from: Vec3, to: Vec3) -> f32 {
+    let d = to - from;
+    d.y.atan2(Vec3::new(d.x, 0.0, d.z).length()).to_degrees()
 }
 
 #[cfg(test)]

@@ -177,6 +177,29 @@ fn specimens_list_and_sell() {
     assert_eq!(frame(|ui| panels::specimens(ui, &held, false).then_some(()), Some("표본 전량 판매")).1, None, "docked only");
 }
 
+#[test]
+fn prospectors_are_told_height_pays() {
+    // The height bonus (minerals.ron) is only worth something if players can find it: the station,
+    // the map legend and each asteroid's tooltip say so, with the real odds.
+    use shared::galaxy::RiskTier;
+    let empty = std::collections::BTreeMap::new();
+    let (seen, _) = frame(|ui| panels::specimens(ui, &empty, true).then_some(()), None);
+    assert!(seen.iter().any(|s| s.contains("위아래로 멀리 오르내린 소행성")), "{seen:?}");
+
+    assert_eq!(view::mapview::deposit_legend(RiskTier::Core), None, "no rare deposits in Core: no ring to explain");
+    let legend = view::mapview::deposit_legend(RiskTier::Wild).unwrap();
+    assert!(legend.contains("20° 넘게 오르내린") && legend.contains("평지 18%"), "{legend}");
+
+    let t = shared::tuning::get();
+    let m = shared::minerals::mineral(shared::minerals::bucket(&t.minerals, shared::galaxy::Ore::Lumen, shared::minerals::Rarity::Common).start).unwrap();
+    let flat = view::mapview::asteroid_tip(&m, RiskTier::Wild, -4.0);
+    assert_eq!(flat, vec![m.label(), "정거장 기준 고도각 -4° · 희귀 이상 18%".to_string()]);
+    let steep = view::mapview::asteroid_tip(&m, RiskTier::Wild, 40.0);
+    assert!(steep[1].starts_with("정거장 기준 고도각 +40° · 희귀 이상 ") && steep[1].ends_with("(평지 18%)"), "{steep:?}");
+    let core = view::mapview::asteroid_tip(&m, RiskTier::Core, 40.0);
+    assert_eq!(core[1], "정거장 기준 고도각 +40°", "no odds where rare never occurs");
+}
+
 // ---- influence
 
 #[test]
