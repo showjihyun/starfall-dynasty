@@ -149,10 +149,23 @@ fn vertical_sheet() -> String {
         row(label, &run(&sc, None));
     }
     let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("scenarios");
+    let load = |file: &str| -> Scenario { serde_json::from_str(&std::fs::read_to_string(dir.join(format!("{file}.json"))).unwrap()).unwrap() };
     for file in ["capital_vs_raiders", "fighter_duel_gunship", "war_shifts_control", "wild_crime_bounty"] {
-        let text = std::fs::read_to_string(dir.join(format!("{file}.json"))).unwrap();
-        let sc: Scenario = serde_json::from_str(&text).unwrap();
-        row(&format!("시나리오 {file}"), &run(&sc, None));
+        row(&format!("시나리오 {file}"), &run(&load(file), None));
+    }
+    // PvP: the same attack from level and from straight above a capital ship (turret arcs, combat.ron).
+    let r = run(&load("pvp_dive_halves_return_fire"), None);
+    out += "
+대인전 위·아래 공격(시나리오 pvp_dive_halves_return_fire): Lv9 Talon이 Lv9 Bastion 주력함을 10초 공격. 주력함은 포탑으로만 반격한다(`turret_arc_overlap`).
+
+| 공격 위치 | 위·아래 명중 | 받은 피해 (호위함 포함) | 주력함 반격 DPS |
+|---|---|---|---|
+";
+    for (label, who, admiral) in [("수평", "Level", "AdmiralLevel"), ("바로 위", "Diver", "AdmiralDive")] {
+        let of = |n: &str| &r.totals.iter().find(|(name, _)| name == n).unwrap().1;
+        let (t, a) = (of(who), of(admiral));
+        out += &format!("| {label} | {:.0}% | {:.0} | {:.0} |
+", t.high_angle_share().unwrap_or(0.0) * 100.0, t.taken, a.dps());
     }
     out
 }

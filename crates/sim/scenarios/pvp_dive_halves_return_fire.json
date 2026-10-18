@@ -1,0 +1,23 @@
+{
+  "name": "pvp_dive_halves_return_fire",
+  "description": "3D 대인전(최종 목표): 같은 주력함 둘을 같은 기체가 공격한다. 수평에서 쏜 쪽은 포탑 전부의 반격을, 바로 위에서 쏜 쪽은 등쪽 포대(절반)의 반격만 받는다(combat.ron turret_arc_overlap) — 대인전에서도 위·아래로 파고들 이유가 있다",
+  "captains": [
+    { "name": "AdmiralLevel", "hull": "Bastion", "level": 9, "system": 5, "pos": [0, 0, 6000] },
+    { "name": "Level", "hull": "Talon", "level": 9, "system": 5, "pos": [500, 0, 6000] },
+    { "name": "AdmiralDive", "hull": "Bastion", "level": 9, "system": 5, "pos": [20000, 0, 6000] },
+    { "name": "Diver", "hull": "Talon", "level": 9, "system": 5, "pos": [20000, 500, 6000] }
+  ],
+  "script": [
+    { "at": 0.5, "captain": "Level", "target_captain": "AdmiralLevel", "aim": true, "msg": { "Controls": { "fire": true } }, "repeat_every": 0.1, "until": 10 },
+    { "at": 0.5, "captain": "Diver", "target_captain": "AdmiralDive", "aim": true, "msg": { "Controls": { "fire": true } }, "repeat_every": 0.1, "until": 10 }
+  ],
+  "run_secs": 10,
+  "expect": [
+    { "check": "deaths", "captain": "Level", "max": 0 },
+    { "check": "deaths", "captain": "Diver", "max": 0 },
+    { "check": "hull", "captain": "Level", "max": 0.65 },
+    { "check": "hull", "captain": "Diver", "min": 0.85 },
+    { "check": "vertical", "captain": "Level", "max": 0.1 },
+    { "check": "vertical", "captain": "Diver", "min": 0.9 }
+  ]
+}
