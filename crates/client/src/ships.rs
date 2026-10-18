@@ -88,6 +88,8 @@ pub struct ShipVis {
 }
 
 /// Boost glow ramp rates (per second): up in a third of a second, down in half.
+/// `ShipVis::sent` before anything was written to the materials.
+const UNSENT: (Vec4, Vec2, Vec4) = (Vec4::splat(-1.0), Vec2::splat(-1.0), Vec4::splat(-1.0));
 const BOOST_UP: f32 = 3.0;
 const BOOST_DOWN: f32 = 2.0;
 
@@ -314,7 +316,7 @@ fn spawn_visual(
         bridge: None,
         aim: None,
         swing: (None, 0.0, vec![]),
-        sent: (Vec4::splat(-1.0), Vec2::splat(-1.0), Vec4::splat(-1.0)),
+        sent: UNSENT,
     };
     match st.kind {
         EntityKind::Missile => {
@@ -488,6 +490,9 @@ fn on_model_ready(
     muzzles.sort_by_key(|m| m.0);
     ship.turrets = turrets.iter().map(|(_, e)| (*e, transforms.get(*e).map(|t| t.rotation).unwrap_or_default())).collect();
     ship.turret_muzzles = muzzles.into_iter().map(|(_, e)| e).collect();
+    // The new materials start from their defaults: send hull, engine and shield state again next frame,
+    // or a model that finishes loading after the state settled keeps the defaults (wrong plume/damage).
+    ship.sent = UNSENT;
     info!("model ready for {}: {} plumes, {} hull mats, {} muzzles", ship.id, ship.plumes.len(), ship.hull_mats.len(), ship.muzzles.len());
 }
 

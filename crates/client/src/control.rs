@@ -92,7 +92,9 @@ fn chase_camera(
 ) {
     let _prof = shared::prof::span("control::chase_camera");
     let Ok(mut ct) = cam.single_mut() else { return };
-    if !wants.as_ref().is_some_and(|w| w.is_pointer_over_area()) {
+    // A screenshot run ignores the real mouse wheel: scrolling over the window as it opens must not
+    // change the shot (`--shot`, docs/HARNESS.md: same command → identical image).
+    if args.shot.is_none() && !wants.as_ref().is_some_and(|w| w.is_pointer_over_area()) {
         cs.zoom = (cs.zoom * (1.0 - scroll.delta.y * 0.1)).clamp(0.45, 5.0);
     }
     let dt = time.delta_secs();
