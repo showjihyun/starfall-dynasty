@@ -60,12 +60,14 @@ pub struct ShipVis {
     /// Camera-facing glow at every nozzle exit (one material per ship).
     pub nozzle_glow: Option<(Handle<FlareMat>, f32)>,
     pub shield: Option<Handle<ShieldMat>>,
-    pub hit_flash: f32,
-    pub hit_age: f32,
+    /// When the hull was last hit with no shield left (the hull flash fades from here).
+    pub flash_at: f64,
+    /// When the shield was last hit (the ripple runs from here).
+    pub hit_at: f64,
     pub hit_dir: Vec3,
     pub muzzles: Vec<Entity>,
     pub rank: u8,
-    pub boost: f32,
+    pub boost: view::anim::Ramp,
     pub throttle: f32,
     pub last_pos: Vec3,
     pub seed: f32,
@@ -79,9 +81,15 @@ pub struct ShipVis {
     pub bridge: Option<Entity>,
     /// What the turrets are tracking (from the latest turret shots) and when.
     pub aim: Option<(EntityId, f64)>,
+    /// Turret swing: what they last turned toward, since when, and their rotations at that moment.
+    pub swing: (Option<EntityId>, f64, Vec<Quat>),
     /// Last values written to (hull, engine, shield) materials.
     pub sent: (Vec4, Vec2, Vec4),
 }
+
+/// Boost glow ramp rates (per second): up in a third of a second, down in half.
+const BOOST_UP: f32 = 3.0;
+const BOOST_DOWN: f32 = 2.0;
 
 #[derive(Component)]
 pub struct RankPart(pub u8);
@@ -217,7 +225,8 @@ fn sync_visuals(
         vis.epoch = s.system_epoch;
     }
     let Some(latest) = s.latest() else { return };
-    let t = time.elapsed_secs_f64() - INTERP_DELAY;
+    let now = time.elapsed_secs_f64();
+    let t = now - INTERP_DELAY;
     // Remove vanished entities.
     let gone: Vec<EntityId> = vis.map.keys().filter(|id| !latest.ents.contains_key(id)).copied().collect();
     for id in gone {
@@ -236,8 +245,6 @@ fn sync_visuals(
             }
             Some(e) => {
                 if let Ok((mut v, mut tf, mut visibility)) = q.get_mut(e) {
-                    let dt = time.delta_secs().max(1e-3);
-                    let speed = Vec3::from(st2.vel).length();
                     v.last_pos = pos;
                     tf.translation = pos;
                     tf.rotation = rot;
@@ -247,9 +254,10 @@ fn sync_visuals(
                     if *visibility != want {
                         *visibility = want;
                     }
-                    let max_speed = 140.0;
-                    v.throttle = v.throttle + ((speed / max_speed).clamp(0.05, 1.0) - v.throttle) * 0.1;
-                    v.boost = if st2.boosting { (v.boost + dt * 3.0).min(1.0) } else { (v.boost - dt * 2.0).max(0.0) };
+                    // Throttle: mean speed over the last 0.4 s of snapshots; boost glow ramps from its switch.
+                    let speeds: Vec<f32> = (0..5).filter_map(|k| s.sample(*id, t - k as f64 * 0.1)).map(|(_, _, e)| Vec3::from(e.vel).length()).collect();
+                    v.throttle = view::anim::throttle(&speeds, 140.0);
+                    v.boost.set(st2.boosting, now, BOOST_UP, BOOST_DOWN);
                     v.rank = st2.rank;
                 }
             }
@@ -290,12 +298,12 @@ fn spawn_visual(
         plumes: vec![],
         nozzle_glow: None,
         shield: None,
-        hit_flash: 0.0,
-        hit_age: 10.0,
+        flash_at: f64::NEG_INFINITY,
+        hit_at: f64::NEG_INFINITY,
         hit_dir: Vec3::Z,
         muzzles: vec![],
         rank: st.rank,
-        boost: 0.0,
+        boost: view::anim::Ramp::default(),
         throttle: 0.0,
         last_pos: pos,
         seed,
@@ -305,6 +313,7 @@ fn spawn_visual(
         mains: vec![],
         bridge: None,
         aim: None,
+        swing: (None, 0.0, vec![]),
         sent: (Vec4::splat(-1.0), Vec2::splat(-1.0), Vec4::splat(-1.0)),
     };
     match st.kind {
@@ -484,7 +493,7 @@ fn on_model_ready(
 
 #[allow(clippy::too_many_arguments)]
 fn update_ship_fx(
-    time: Res<Time>,
+    time: Res<Time<Real>>,
     s: Res<Session>,
     mut ships: Query<&mut ShipVis>,
     mut hull_mats: ResMut<Assets<HullMat>>,
@@ -496,7 +505,7 @@ fn update_ship_fx(
 ) {
     let _prof = shared::prof::span("ships::update_ship_fx");
     // Touching a material asset re-uploads its bind group, so only write values that changed.
-    let dt = time.delta_secs();
+    let now = time.elapsed_secs_f64();
     let Some(latest) = s.latest() else { return };
     let viewer = view::relation::Viewer { me: s.me, player: s.player_id, fleet: s.fleet, alliance: s.my_alliance, alliances: &s.alliances, tier: shared::galaxy::system(s.system).tier };
     for mut v in &mut ships {
@@ -529,12 +538,11 @@ fn update_ship_fx(
                 m.p.color = rgb(side.shield, 1.0);
             }
         }
-        v.hit_flash = (v.hit_flash - dt * 4.0).max(0.0);
-        if v.hit_age < 3.0 {
-            v.hit_age += dt;
-        }
+        let flash = view::anim::fade(now - v.flash_at, 4.0);
+        let hit_age = (now - v.hit_at).min(3.0) as f32;
+        let boost = v.boost.value(now, BOOST_UP, BOOST_DOWN);
         let q = |x: f32, step: f32| (x / step).round() * step;
-        let hull_state = Vec4::new(q(1.0 - st.hull, 0.02), q(v.hit_flash, 0.02), q(v.boost, 0.05), v.seed);
+        let hull_state = Vec4::new(q(1.0 - st.hull, 0.02), q(flash, 0.02), q(boost, 0.05), v.seed);
         if hull_state != v.sent.0 {
             v.sent.0 = hull_state;
             for h in &v.hull_mats {
@@ -543,7 +551,7 @@ fn update_ship_fx(
                 }
             }
         }
-        let engine = Vec2::new(q(v.throttle, 0.05), q(v.boost, 0.05));
+        let engine = Vec2::new(q(v.throttle, 0.05), q(boost, 0.05));
         if engine != v.sent.1 {
             v.sent.1 = engine;
             if let Some((h, gain)) = &v.nozzle_glow
@@ -558,7 +566,7 @@ fn update_ship_fx(
                 }
             }
         }
-        let shield = Vec4::new(q(st.shield, 0.02), v.hit_dir.x, v.hit_dir.y, if v.hit_age < 3.0 { v.hit_age } else { 3.0 });
+        let shield = Vec4::new(q(st.shield, 0.02), v.hit_dir.x, v.hit_dir.y, hit_age);
         if shield != v.sent.2
             && let Some(h) = &v.shield
             && let Some(mut m) = shield_mats.get_mut(h)
@@ -611,7 +619,7 @@ fn face_nozzle_glows(cam: Query<&GlobalTransform, With<crate::control::MainCamer
 fn aim_turrets(
     vis: Res<Visuals>,
     time: Res<Time<Real>>,
-    ships: Query<&ShipVis>,
+    mut ships: Query<&mut ShipVis>,
     targets: Query<&Transform, Without<TurretTag>>,
     globals: Query<&GlobalTransform>,
     parents: Query<&ChildOf>,
@@ -619,13 +627,19 @@ fn aim_turrets(
 ) {
     let _prof = shared::prof::span("ships::aim_turrets");
     let now = time.elapsed_secs_f64();
-    let dt = time.delta_secs();
-    for v in &ships {
+    for mut v in &mut ships {
         if v.turrets.is_empty() {
             continue;
         }
-        let aim = v.aim.filter(|(_, t)| now - t < 3.0).and_then(|(id, _)| vis.map.get(&id)).and_then(|e| targets.get(*e).ok()).map(|t| t.translation);
-        for (turret, rest) in &v.turrets {
+        let aim_id = v.aim.filter(|(_, t)| now - t < 3.0).map(|(id, _)| id).filter(|id| vis.map.get(id).is_some_and(|e| targets.contains(*e)));
+        let aim = aim_id.and_then(|id| vis.map.get(&id)).and_then(|e| targets.get(*e).ok()).map(|t| t.translation);
+        // A new target (or none): swing from where the turrets point now.
+        if aim_id != v.swing.0 || v.swing.2.len() != v.turrets.len() {
+            let from = v.turrets.iter().map(|(e, rest)| turret_tf.get(*e).map(|t| t.rotation).unwrap_or(*rest)).collect();
+            v.swing = (aim_id, now, from);
+        }
+        let since = now - v.swing.1;
+        for (k, (turret, rest)) in v.turrets.iter().enumerate() {
             let Ok(mut tf) = turret_tf.get_mut(*turret) else { continue };
             let desired = match (aim, parents.get(*turret).ok().and_then(|p| globals.get(p.parent()).ok())) {
                 (Some(target), Some(pg)) => {
@@ -639,7 +653,7 @@ fn aim_turrets(
                 }
                 _ => *rest,
             };
-            tf.rotation = tf.rotation.slerp(desired, (dt * 3.0).min(1.0));
+            tf.rotation = view::anim::swing(v.swing.2[k], desired, since, 1.5);
         }
     }
 }

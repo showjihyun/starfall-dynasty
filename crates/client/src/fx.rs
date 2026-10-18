@@ -27,9 +27,11 @@ struct FxAssets {
     tunnel: Handle<Mesh>,
 }
 
+/// Lifetime on the shader clock (`Time`, what the shaders see as `globals.time`): age is
+/// `(now - born) / total`, never a per-frame countdown (docs/ART_DIRECTION.md §8).
 #[derive(Component)]
 struct Ttl {
-    left: f32,
+    born: f64,
     total: f32,
 }
 
@@ -88,6 +90,7 @@ fn spawn_fx(
     let now = time.elapsed_secs_f64();
     // The clock the shaders see as `globals.time`.
     let t = shader_time.elapsed_secs_wrapped();
+    let born = shader_time.elapsed_secs_f64();
     let fx: Vec<Fx> = std::mem::take(&mut s.fx);
     for f in fx {
         match f {
@@ -108,9 +111,9 @@ fn spawn_fx(
                         let start = pick(&sv.muzzles, *muzzle_toggle).unwrap_or(stf.translation + fwd * sv.radius);
                         let end = target_pos.unwrap_or(start + fwd * 650.0);
                         let col = side.laser;
-                        spawn_beam(&mut commands, &assets, &mut beams, &mut pool, t, start, end, col, 1.8, 0.14);
+                        spawn_beam(&mut commands, &assets, &mut beams, &mut pool, (t, born), start, end, col, 1.8, 0.14);
                         if hit && to != 0 {
-                            spawn_boom(&mut commands, &assets, &mut booms, &mut pool, t, end + (start - end).normalize_or_zero() * 4.0, 0.15, 0.35);
+                            spawn_boom(&mut commands, &assets, &mut booms, &mut pool, (t, born), end + (start - end).normalize_or_zero() * 4.0, 0.15, 0.35);
                         }
                         sfx.play(Sfx::Laser, Some(start));
                     }
@@ -129,8 +132,8 @@ fn spawn_fx(
                         let Some(end) = target_pos else { continue };
                         let col = side.pulse;
                         let w = (sv.radius * 0.012).clamp(2.0, 6.0);
-                        spawn_beam(&mut commands, &assets, &mut beams, &mut pool, t, start, end, col, w, 0.12);
-                        spawn_boom(&mut commands, &assets, &mut booms, &mut pool, t, end + (start - end).normalize_or_zero() * 6.0, 0.25, 0.4);
+                        spawn_beam(&mut commands, &assets, &mut beams, &mut pool, (t, born), start, end, col, w, 0.12);
+                        spawn_boom(&mut commands, &assets, &mut booms, &mut pool, (t, born), end + (start - end).normalize_or_zero() * 6.0, 0.25, 0.4);
                         sfx.play(Sfx::Pulse, Some(start));
                         if let Ok((mut svm, _)) = ships.get_mut(fe) {
                             svm.aim = Some((to, now));
@@ -144,10 +147,10 @@ fn spawn_fx(
                         for (i, p) in ports.iter().enumerate() {
                             let end = target_pos.map(|t| t + (*p - ports[0]) * 0.3).unwrap_or(*p + fwd * reach);
                             let col = side.beam;
-                            spawn_beam(&mut commands, &assets, &mut beams, &mut pool, t, *p, end, col, w, 0.75);
-                            spawn_boom(&mut commands, &assets, &mut booms, &mut pool, t, *p + fwd * w, w * 0.04, 0.5);
+                            spawn_beam(&mut commands, &assets, &mut beams, &mut pool, (t, born), *p, end, col, w, 0.75);
+                            spawn_boom(&mut commands, &assets, &mut booms, &mut pool, (t, born), *p + fwd * w, w * 0.04, 0.5);
                             if hit && i == 0 {
-                                spawn_boom(&mut commands, &assets, &mut booms, &mut pool, t, end, (w * 0.12).max(1.0), 1.4);
+                                spawn_boom(&mut commands, &assets, &mut booms, &mut pool, (t, born), end, (w * 0.12).max(1.0), 1.4);
                             }
                         }
                         sfx.play(Sfx::MainBeam, Some(stf.translation));
@@ -158,13 +161,13 @@ fn spawn_fx(
             Fx::Explosion { pos, size } => {
                 let p = Vec3::from(pos);
                 sfx.play(if size >= 3.0 { Sfx::ExplosionBig } else { Sfx::ExplosionSmall }, Some(p));
-                spawn_boom(&mut commands, &assets, &mut booms, &mut pool, t, p, size, 1.6);
-                commands.spawn((Ttl { left: 0.9, total: 0.9 }, FlashLight(4.0e9 * size), PointLight { color: Color::srgb(1.0, 0.7, 0.4), intensity: 4.0e9 * size, range: 900.0 * size.sqrt(), ..default() }, Transform::from_translation(p)));
+                spawn_boom(&mut commands, &assets, &mut booms, &mut pool, (t, born), p, size, 1.6);
+                commands.spawn((Ttl { born, total: 0.9 }, FlashLight(4.0e9 * size), PointLight { color: Color::srgb(1.0, 0.7, 0.4), intensity: 4.0e9 * size, range: 900.0 * size.sqrt(), ..default() }, Transform::from_translation(p)));
                 // Debris ring of smaller blasts.
                 for k in 0..(3 + size as usize) {
                     let a = k as f32 * 2.4;
                     let off = Vec3::new(a.cos(), (a * 1.7).sin() * 0.5, a.sin()) * 10.0 * size;
-                    spawn_boom(&mut commands, &assets, &mut booms, &mut pool, t, p + off, size * 0.35, 1.0 + k as f32 * 0.1);
+                    spawn_boom(&mut commands, &assets, &mut booms, &mut pool, (t, born), p + off, size * 0.35, 1.0 + k as f32 * 0.1);
                 }
             }
             Fx::ShieldHit { entity, dir } => {
@@ -172,7 +175,7 @@ fn spawn_fx(
                     && let Ok((mut sv, _)) = ships.get_mut(*e)
                 {
                     sv.hit_dir = Vec3::from(dir);
-                    sv.hit_age = 0.0;
+                    sv.hit_at = now;
                     sfx.play(Sfx::ShieldHit, ships.get(*e).ok().map(|(_, t)| t.translation));
                 }
             }
@@ -182,7 +185,7 @@ fn spawn_fx(
                 sfx.play(Sfx::WarpJump, Some(t.translation));
                 let r = sv.radius * 6.0;
                 let m = glows.add(GlowMat { p: GlowParams { color: Vec4::new(0.5, 0.75, 1.0, 8.0), center: t.translation.extend(sv.radius), shape: Vec4::new(2.5, 0.0, r, 0.0) } });
-                commands.spawn((Ttl { left: 0.9, total: 0.9 }, GlowFx(m.clone(), sv.radius), NotShadowCaster, Mesh3d(assets.sphere.clone()), MeshMaterial3d(m), Transform::from_translation(t.translation).with_scale(Vec3::splat(r))));
+                commands.spawn((Ttl { born, total: 0.9 }, GlowFx(m.clone(), sv.radius), NotShadowCaster, Mesh3d(assets.sphere.clone()), MeshMaterial3d(m), Transform::from_translation(t.translation).with_scale(Vec3::splat(r))));
             }
             Fx::MissileLaunch { from, .. } => {
                 let at = vis.map.get(&from).and_then(|e| ships.get(*e).ok()).map(|(_, t)| t.translation);
@@ -194,60 +197,62 @@ fn spawn_fx(
     if let Some(latest) = s.latest() {
         for (mut sv, _) in &mut ships {
             if let Some(st) = latest.ents.get(&sv.id)
-                && sv.hit_age < 0.05
+                && sv.hit_at == now
                 && st.shield < 0.02
             {
-                sv.hit_flash = 1.0;
+                sv.flash_at = now;
             }
         }
     }
 }
 
 #[allow(clippy::too_many_arguments)]
-fn spawn_beam(commands: &mut Commands, assets: &FxAssets, beams: &mut Assets<BeamMat>, pool: &mut FxPool, now: f32, start: Vec3, end: Vec3, col: [f32; 3], width: f32, ttl: f32) {
+fn spawn_beam(commands: &mut Commands, assets: &FxAssets, beams: &mut Assets<BeamMat>, pool: &mut FxPool, clock: (f32, f64), start: Vec3, end: Vec3, col: [f32; 3], width: f32, ttl: f32) {
     let d = end - start;
     let len = d.length().max(1.0);
-    let params = BeamParams { color: v4(col, 1.0), flow: Vec4::new(0.08, 30.0, len, 0.0), life: Vec4::new(now, ttl, 0.0, 0.0) };
+    let params = BeamParams { color: v4(col, 1.0), flow: Vec4::new(0.08, 30.0, len, 0.0), life: Vec4::new(clock.0, ttl, 0.0, 0.0) };
     let tf = Transform::from_translation(start).with_rotation(Quat::from_rotation_arc(Vec3::Z, d / len)).with_scale(Vec3::new(width, width, len));
+    let life = Ttl { born: clock.1, total: ttl };
     if let Some((e, h)) = pool.beams.pop() {
         if let Some(mut m) = beams.get_mut(&h) {
             m.p = params;
         }
-        commands.entity(e).insert((Ttl { left: ttl, total: ttl }, tf, Visibility::Inherited));
+        commands.entity(e).insert((life, tf, Visibility::Inherited));
         return;
     }
     let m = beams.add(BeamMat { p: params });
-    commands.spawn((Ttl { left: ttl, total: ttl }, BeamFx(m.clone()), NotShadowCaster, Mesh3d(assets.beam.clone()), MeshMaterial3d(m), tf));
+    commands.spawn((life, BeamFx(m.clone()), NotShadowCaster, Mesh3d(assets.beam.clone()), MeshMaterial3d(m), tf));
 }
 
 #[allow(clippy::too_many_arguments)]
-fn spawn_boom(commands: &mut Commands, assets: &FxAssets, booms: &mut Assets<ExplosionMat>, pool: &mut FxPool, now: f32, p: Vec3, size: f32, ttl: f32) {
-    let params = ExplosionParams { life: Vec4::new(now, ttl, 0.0, 0.0), state: Vec4::new(0.0, p.x * 0.013 + p.z * 0.007, 1.2, 0.0) };
+fn spawn_boom(commands: &mut Commands, assets: &FxAssets, booms: &mut Assets<ExplosionMat>, pool: &mut FxPool, clock: (f32, f64), p: Vec3, size: f32, ttl: f32) {
+    let params = ExplosionParams { life: Vec4::new(clock.0, ttl, 0.0, 0.0), state: Vec4::new(0.0, p.x * 0.013 + p.z * 0.007, 1.2, 0.0) };
     let tf = Transform::from_translation(p).with_scale(Vec3::splat(size * 6.0));
+    let life = Ttl { born: clock.1, total: ttl };
     if let Some((e, h)) = pool.booms.pop() {
         if let Some(mut m) = booms.get_mut(&h) {
             m.p = params;
         }
-        commands.entity(e).insert((Ttl { left: ttl, total: ttl }, Boom { mat: h, size }, tf, Visibility::Inherited));
+        commands.entity(e).insert((life, Boom { mat: h, size }, tf, Visibility::Inherited));
         return;
     }
     let m = booms.add(ExplosionMat { p: params });
-    commands.spawn((Ttl { left: ttl, total: ttl }, Boom { mat: m.clone(), size }, NotShadowCaster, Mesh3d(assets.sphere.clone()), MeshMaterial3d(m), tf));
+    commands.spawn((life, Boom { mat: m.clone(), size }, NotShadowCaster, Mesh3d(assets.sphere.clone()), MeshMaterial3d(m), tf));
 }
 
 #[allow(clippy::type_complexity)]
 fn tick_fx(
     mut commands: Commands,
     time: Res<Time>,
-    mut q: Query<(Entity, &mut Ttl, Option<&BeamFx>, Option<&Boom>, Option<&FlashLight>, Option<&GlowFx>, &mut Transform, Option<&mut PointLight>)>,
+    mut q: Query<(Entity, &Ttl, Option<&BeamFx>, Option<&Boom>, Option<&FlashLight>, Option<&GlowFx>, &mut Transform, Option<&mut PointLight>)>,
     mut glows: ResMut<Assets<GlowMat>>,
     mut pool: ResMut<FxPool>,
 ) {
     let _prof = shared::prof::span("fx::tick_fx");
-    let dt = time.delta_secs();
-    for (e, mut ttl, beam, boom, flash, glow, mut tf, light) in &mut q {
-        ttl.left -= dt;
-        if ttl.left <= 0.0 {
+    let now = time.elapsed_secs_f64();
+    for (e, ttl, beam, boom, flash, glow, mut tf, light) in &mut q {
+        let age = ((now - ttl.born) / ttl.total as f64) as f32;
+        if age >= 1.0 {
             // Beam/fireball fades run in the shader; here they only go back to the pool.
             if let Some(b) = beam {
                 commands.entity(e).remove::<Ttl>().insert(Visibility::Hidden);
@@ -260,7 +265,6 @@ fn tick_fx(
             }
             continue;
         }
-        let age = 1.0 - ttl.left / ttl.total;
         if let Some(b) = boom {
             tf.scale = Vec3::splat(b.size * (6.0 + 30.0 * (1.0 - (1.0 - age).powf(3.0))));
         }
@@ -322,7 +326,7 @@ fn warp_tunnel(
     cam: Query<Entity, With<crate::control::MainCamera>>,
     mut tunnel: Query<(Entity, &Tunnel)>,
     mut warps: ResMut<Assets<WarpMat>>,
-    mut after: Local<f32>,
+    mut arrived: Local<Option<f64>>,
     mut last_epoch: Local<u32>,
     mut was_charging: Local<bool>,
     mut sfx: ResMut<SfxQueue>,
@@ -336,12 +340,11 @@ fn warp_tunnel(
     let charge = s.warp.map(|(_, end, total)| (1.0 - ((end - now) as f32 / total)).clamp(0.0, 1.0));
     if *last_epoch != s.system_epoch {
         *last_epoch = s.system_epoch;
-        *after = 1.2;
+        *arrived = Some(now);
     }
-    *after = (*after - time.delta_secs()).max(0.0);
     let k = match charge {
         Some(c) => c * c,
-        None => *after / 1.2,
+        None => arrived.map_or(0.0, |at| view::anim::fade(now - at, 1.0 / 1.2)),
     };
     if k <= 0.001 {
         for (e, _) in &tunnel {

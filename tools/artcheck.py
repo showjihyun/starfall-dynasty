@@ -7,8 +7,8 @@ reviewed against the art direction and approved with --update.
   python tools/artcheck.py --update        # approve: overwrite the references with fresh renders
   python tools/artcheck.py --only fleet    # one scene
 
-Scenes are deterministic showroom renders (STARFALL_FIXED_FPS=60, UI hidden, shot at 8 s). Engine
-plume flicker still varies by ~0.2% of pixels between identical runs, hence the 99.0% bar.
+Scenes are deterministic showroom renders (STARFALL_FIXED_FPS=60, UI hidden, shot at 8 s): the same
+command gives the same image. The 99.0% bar leaves room for GPU/driver differences between machines.
 """
 import argparse
 import os

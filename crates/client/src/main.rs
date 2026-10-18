@@ -235,15 +235,18 @@ fn automation(
     mut s: ResMut<Session>,
     screen: Res<State<Screen>>,
     mut cam: ResMut<control::CamState>,
+    mut prev: Local<f64>,
 ) {
     let _prof = shared::prof::span("main::automation");
     let t = time.elapsed_secs_f64();
+    // Showroom demo beats fire on the frame that crosses them, whatever the frame length.
+    let crossed = |every: f64, phase: f64| ((t - phase) / every).floor() > ((*prev - phase) / every).floor();
     if args.showroom
         && let Some(snap) = s.snaps.back_mut()
     {
         // Keep the showroom alive: refresh timestamps and fire demo effects.
         snap.at = t;
-        if (t * 2.0) as u64 % 3 == 0 && ((t - 0.016) * 2.0) as u64 % 3 != 0 {
+        if crossed(1.5, 0.0) {
             use shared::ships::WeaponKind;
             s.fx.push(Fx::Shot { from: 200, to: 101, weapon: WeaponKind::Laser, mount: 0, hit: true });
             s.fx.push(Fx::ShieldHit { entity: 101, dir: [0.3, 0.2, -1.0] });
@@ -252,11 +255,12 @@ fn automation(
             }
             s.fx.push(Fx::Shot { from: 101, to: 200, weapon: WeaponKind::MainBeam, mount: 255, hit: true });
         }
-        if (t as u64) % 5 == 2 && ((t - 0.016) as u64) % 5 != 2 {
+        if crossed(5.0, 2.0) {
             let p = Vec3::from(s.snaps.back().unwrap().ents[&200].pos) + Vec3::new(-60.0, -10.0, -80.0);
             s.fx.push(Fx::Explosion { pos: p.to_array(), size: 2.0 });
         }
     }
+    *prev = t;
     // Script runs once we're in the game.
     if *screen.get() == Screen::Playing
         && let Some(net) = &net

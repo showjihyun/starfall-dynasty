@@ -4,6 +4,7 @@
 //! in seconds (`cargo test -p view`) without compiling Bevy. The client calls into it and only
 //! moves the results onto entities and screens (docs/HARNESS.md, "클라이언트 순수 로직 분리").
 //!
+//! - [`anim`]: animation as a function of the clock (ramps, fades, turret swing, throttle).
 //! - [`interp`]: snapshot interpolation and own-ship extrapolation.
 //! - [`relation`]: mine / friend / hostile / neutral, shared by the HUD and the star map.
 //! - [`mapview`]: star map projection, zoom and pan between the galaxy and system charts.
@@ -12,6 +13,7 @@
 //! - [`hud`]: egui drawing of the gauges and the ship status panel, checked headless.
 //! - [`panels`]: window sections (station artifacts) that return what the player clicked.
 
+pub mod anim;
 pub mod dust;
 pub mod gauge;
 pub mod hud;
