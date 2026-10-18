@@ -257,3 +257,14 @@ fn institutes_show_exhibits_and_offer_donation_and_founding() {
     let (t, _) = frame(|ui| panels::institutes(ui, &mine, 6, &[], 1, 9000, true, 5000, &mut name), None);
     assert!(!t.iter().any(|s| s.starts_with("설립 (")));
 }
+
+#[test]
+fn fleet_window_teaches_split_angles() {
+    // Rolling beats a lone diver; a fleet that splits its angles beats rolling (pvp_two_angles_beat_roll).
+    let (seen, _) = frame(|ui| {
+        panels::fleet_tips(ui);
+        None::<()>
+    }, None);
+    assert!(seen.iter().any(|s| s.contains("공격 각도를 나누면") && s.contains("구르기")), "{seen:?}");
+    assert!(seen.iter().any(|s| s.contains("위·아래로 파고들어라")), "{seen:?}");
+}

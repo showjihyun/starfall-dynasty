@@ -210,3 +210,11 @@ fn target_panel_tells_how_many_turrets_reach_me() {
     assert_eq!(view::hud::battery_text(8, 8).unwrap(), "포탑 8문 모두 나를 겨눔 — 위·아래로 파고들면 절반");
     assert_eq!(view::hud::battery_text(4, 8).unwrap(), "포탑 4/8문만 닿음 — 사격호 밖");
 }
+
+#[test]
+fn a_turret_ship_is_told_to_roll() {
+    // The defender's answer to a diving attacker (docs/3D_전투_설계.md): roll it level with the hull.
+    assert_eq!(view::hud::roll_hint(8, 8), None, "every battery reaches: nothing to do");
+    assert_eq!(view::hud::roll_hint(0, 0), None, "no turrets (fighter): rolling does not help");
+    assert_eq!(view::hud::roll_hint(4, 8).unwrap(), "내 포탑 4/8문만 닿음 — Q/E로 굴러 선체 옆에 두면 8/8");
+}

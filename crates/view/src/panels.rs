@@ -22,6 +22,20 @@ pub struct ArtifactPrices {
     pub donation_reputation: i32,
 }
 
+/// 3D combat in two lines (docs/3D_전투_설계.md): what beats what. Fleet window and help (F1).
+pub const TACTICS_3D: [&str; 2] = [
+    "3D 전술: 순양함·주력함의 포탑은 바로 위·아래로는 절반만 닿는다 — 혼자라면 위·아래로 파고들어라.",
+    "방어: 구르기(Q/E)로 적을 선체 옆에 두면 포탑이 모두 닿는다. 함대는 공격 각도를 나누면(위 + 옆) 구르기를 이긴다.",
+];
+
+/// The fleet window's footer: what a fleet shares, and how to attack together in 3D.
+pub fn fleet_tips(ui: &mut egui::Ui) {
+    ui.label(RichText::new("함대원끼리는 서로 피해를 주지 않고, 격파 보상과 미션 진행을 공유합니다. War Zone에서 함대 대 함대 교전은 연대기에 전투로 기록됩니다.").size(11.0).color(DIM));
+    for t in TACTICS_3D {
+        ui.label(RichText::new(t).size(11.0).color(DIM));
+    }
+}
+
 /// The station window's mineral specimens: each catalogue mineral held with its rarity, best
 /// properties and price, and one button to sell them all (docked only). True when it was clicked.
 pub fn specimens(ui: &mut egui::Ui, held: &std::collections::BTreeMap<shared::minerals::MineralId, u32>, docked: bool) -> bool {

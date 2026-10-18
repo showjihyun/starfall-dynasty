@@ -411,6 +411,9 @@ fn hud(ctx: &egui::Context, s: &mut Session, net: &Net, env: &Env, vis: &Visuals
                     if let Some(line) = view::hud::battery_text(shared::ships::batteries_reaching(&t, Vec3::from(m.pos)), total) {
                         ui.label(RichText::new(line).size(12.0).color(DIM));
                     }
+                    if let Some(line) = view::hud::roll_hint(shared::ships::batteries_reaching(m, Vec3::from(t.pos)), shared::ships::turret_batteries(m)) {
+                        ui.label(RichText::new(line).size(12.0).color(view::palette::CAUTION));
+                    }
                 }
             });
         }
@@ -564,6 +567,10 @@ fn windows(ctx: &egui::Context, s: &mut Session, net: &Net, env: &Env) {
         ui.label("성장: Rank 0–2 소형함 → Rank 3–6 순양함(포탑·함수포·호위함) → Rank 7–10 주력함(주포 일제사·포탑 포대·호위 함대).");
         ui.label("동맹(L): 창설·초대·선전포고·강화. 전쟁 중인 동맹끼리는 CORE를 제외한 모든 성계에서 교전할 수 있습니다.");
         ui.label("격침된 함선의 잔해는 남습니다. 잔해를 조사(V)해 증거를 얻고, 연대기(H)에서 연구를 발표하거나 반박하세요.");
+        ui.separator();
+        for t in view::panels::TACTICS_3D {
+            ui.label(t);
+        }
     });
     s.ui.help = open;
 }
@@ -882,7 +889,7 @@ fn fleet(ui: &mut egui::Ui, s: &mut Session, net: &Net) {
             net.send(ClientMsg::FleetInvite { name: s.ui.invite_name.trim().to_string() });
         }
     });
-    ui.label(RichText::new("함대원끼리는 서로 피해를 주지 않고, 격파 보상과 미션 진행을 공유합니다. War Zone에서 함대 대 함대 교전은 연대기에 전투로 기록됩니다.").size(11.0).color(DIM));
+    view::panels::fleet_tips(ui);
 }
 
 fn alliance(ui: &mut egui::Ui, s: &mut Session, net: &Net) {
