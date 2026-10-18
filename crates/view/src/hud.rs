@@ -2,7 +2,7 @@
 //! the ship status panel. `tests/hud.rs` runs them in a headless egui context and checks the text
 //! and geometry they produce.
 
-use crate::palette::{ACCENT, GOLD, GREEN, LOSS, RED};
+use crate::palette::{ACCENT, GOLD, LOSS};
 use egui::{Align2, Color32, FontId, Pos2, RichText, Stroke, Vec2 as EVec2};
 use shared::glam::Vec3;
 use shared::protocol::EntityState;
@@ -50,7 +50,7 @@ pub fn bar(ui: &mut egui::Ui, frac: f32, color: Color32, label: String, w: f32) 
 pub fn bar_with_loss(ui: &mut egui::Ui, frac: f32, lag: f32, color: Color32, label: String, w: f32, h: f32) {
     let (rect, _) = ui.allocate_exact_size(EVec2::new(w, h), egui::Sense::hover());
     let p = ui.painter();
-    p.rect_filled(rect, 3.0, Color32::from_rgba_unmultiplied(20, 25, 35, 200));
+    p.rect_filled(rect, 3.0, crate::palette::chrome::TRACK);
     let (frac, lag) = (frac.clamp(0.0, 1.0), lag.clamp(0.0, 1.0));
     if lag > frac {
         let mut l = rect;
@@ -62,7 +62,7 @@ pub fn bar_with_loss(ui: &mut egui::Ui, frac: f32, lag: f32, color: Color32, lab
     p.rect_filled(f, 3.0, color);
     for k in 1..10 {
         let x = rect.left() + rect.width() * k as f32 / 10.0;
-        p.line_segment([Pos2::new(x, rect.bottom() - h * 0.35), Pos2::new(x, rect.bottom())], Stroke::new(1.0, Color32::from_rgba_unmultiplied(0, 0, 0, 90)));
+        p.line_segment([Pos2::new(x, rect.bottom() - h * 0.35), Pos2::new(x, rect.bottom())], Stroke::new(1.0, crate::palette::chrome::TICK));
     }
     p.text(rect.center(), Align2::CENTER_CENTER, label, FontId::proportional(h * 0.7), Color32::WHITE);
 }
@@ -77,21 +77,11 @@ pub fn arc(p: &egui::Painter, c: Pos2, r: f32, a0: f32, a1: f32, stroke: Stroke)
     p.add(egui::Shape::line(pts, stroke));
 }
 
-/// Hull gauge colour: green, amber below 60%, pulsing red below 30%.
-pub fn hull_color(hull: f32, pulse: f32) -> Color32 {
-    if hull > 0.6 {
-        GREEN
-    } else if hull > 0.3 {
-        Color32::from_rgb(255, 200, 80)
-    } else {
-        Color32::from_rgb(255, (70.0 * pulse) as u8, (60.0 * pulse) as u8)
-    }
-}
+pub use crate::palette::hull_color;
 
 /// Shield gauge colour: blue, blinking below 25%.
 pub fn shield_color(shield: f32, pulse: f32) -> Color32 {
-    let [r, g, b, _] = crate::palette::SHIELD.to_array();
-    if shield > 0.25 { crate::palette::SHIELD } else { Color32::from_rgba_unmultiplied(r, g, b, (255.0 * pulse) as u8) }
+    if shield > 0.25 { crate::palette::SHIELD } else { crate::palette::alpha(crate::palette::SHIELD, (255.0 * pulse) as u8) }
 }
 
 /// Combat gauges hugging the crosshair: shield on the left, hull on the right. Both fill from the
@@ -99,7 +89,7 @@ pub fn shield_color(shield: f32, pulse: f32) -> Color32 {
 pub fn crosshair_gauges(p: &egui::Painter, c: Pos2, shield: f32, hull: f32, lag: [f32; 2], now: f64) {
     use std::f32::consts::PI;
     let (r, span) = (CROSSHAIR_R, CROSSHAIR_SPAN);
-    let track = Stroke::new(CROSSHAIR_W, Color32::from_rgba_unmultiplied(15, 20, 30, 150));
+    let track = Stroke::new(CROSSHAIR_W, crate::palette::chrome::GAUGE_TRACK);
     let pulse = 0.55 + 0.45 * ((now * 8.0).sin() as f32 * 0.5 + 0.5);
     let hull_col = hull_color(hull, pulse);
     let shield_col = shield_color(shield, pulse);
@@ -147,7 +137,7 @@ pub fn ship_status(ui: &mut egui::Ui, ship: &Ship, cargo_used: u32, me: Option<&
     );
     if let Some(m) = me {
         bar_with_loss(ui, m.shield, lag[0], crate::palette::SHIELD, format!("에너지 실드 {:.0}/{:.0}", m.shield * st.max_shield, st.max_shield), STATUS_BAR_W, 22.0);
-        bar_with_loss(ui, m.hull, lag[1], if m.hull > 0.35 { Color32::from_rgb(70, 190, 110) } else { RED }, format!("선체 내구도 {:.0}/{:.0}", m.hull * st.max_hull, st.max_hull), STATUS_BAR_W, 22.0);
+        bar_with_loss(ui, m.hull, lag[1], hull_color(m.hull, 1.0), format!("선체 내구도 {:.0}/{:.0}", m.hull * st.max_hull, st.max_hull), STATUS_BAR_W, 22.0);
         let speed = Vec3::from(m.vel).length();
         ui.label(RichText::new(format!("속도 {:.0} u/s{} · 화물 {}/{:.0} · 워프 {:.2} ly{}", speed, if m.boosting { " ⚡" } else { "" }, cargo_used, st.cargo, st.warp_range, if m.docked { " · 도킹 중" } else { "" })).size(12.0));
     }

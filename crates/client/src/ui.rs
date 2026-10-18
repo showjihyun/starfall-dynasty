@@ -34,7 +34,7 @@ impl Default for Form {
 }
 
 use view::hud::{bar, crosshair_gauges};
-use view::palette::{ACCENT, DIM, GOLD, GREEN, RED};
+use view::palette::{ACCENT, DIM, GOLD, GREEN, RED, alpha, chrome};
 use view::relation::Viewer;
 
 pub use view::palette::tier_color;
@@ -53,10 +53,10 @@ fn setup_fonts(ctx: &egui::Context) {
     ctx.set_fonts(fonts);
     let mut style = (*ctx.global_style()).clone();
     style.visuals = egui::Visuals::dark();
-    style.visuals.window_fill = Color32::from_rgba_unmultiplied(12, 16, 26, 235);
-    style.visuals.panel_fill = Color32::from_rgba_unmultiplied(12, 16, 26, 220);
-    style.visuals.window_stroke = Stroke::new(1.0, Color32::from_rgb(50, 80, 120));
-    style.visuals.selection.bg_fill = Color32::from_rgb(40, 90, 150);
+    style.visuals.window_fill = chrome::WINDOW;
+    style.visuals.panel_fill = chrome::PANEL;
+    style.visuals.window_stroke = Stroke::new(1.0, chrome::BORDER);
+    style.visuals.selection.bg_fill = chrome::SELECTION;
     style.spacing.item_spacing = EVec2::new(8.0, 6.0);
     ctx.set_global_style(style);
 }
@@ -194,7 +194,7 @@ fn create(ctx: &egui::Context, form: &mut Form, s: &Session, net: &Net, args: &A
         }
         send(form);
     }
-    full_screen(ctx, Color32::from_rgba_unmultiplied(5, 8, 14, 170), |ui| {
+    full_screen(ctx, chrome::SCRIM, |ui| {
         title(ui);
         ui.columns(3, |cols| {
             cols[0].heading("1. 종족");
@@ -247,7 +247,7 @@ fn create(ctx: &egui::Context, form: &mut Form, s: &Session, net: &Net, args: &A
                         ui.painter().rect_stroke(rect, 4.0, Stroke::new(2.0, Color32::WHITE), egui::StrokeKind::Outside);
                     }
                     if native == i as u8 {
-                        ui.painter().circle_filled(rect.center(), 3.0, Color32::from_rgb(10, 12, 18));
+                        ui.painter().circle_filled(rect.center(), 3.0, chrome::DOT);
                     }
                     if r.clicked() {
                         form.livery = i as u8;
@@ -324,15 +324,15 @@ fn hud(ctx: &egui::Context, s: &mut Session, net: &Net, env: &Env, vis: &Visuals
                 if e.kind != EntityKind::Wreck && (is_target || d < 1500.0) {
                     let w = r * 1.6;
                     let base = sp + EVec2::new(-w / 2.0, -r - 9.0);
-                    painter.rect_filled(egui::Rect::from_min_size(base, EVec2::new(w, 3.0)), 0.0, Color32::from_gray(40));
-                    painter.rect_filled(egui::Rect::from_min_size(base, EVec2::new(w * e.shield, 3.0)), 0.0, ACCENT);
-                    painter.rect_filled(egui::Rect::from_min_size(base + EVec2::new(0.0, 4.0), EVec2::new(w, 3.0)), 0.0, Color32::from_gray(40));
-                    painter.rect_filled(egui::Rect::from_min_size(base + EVec2::new(0.0, 4.0), EVec2::new(w * e.hull, 3.0)), 0.0, if e.hull > 0.35 { GREEN } else { RED });
+                    painter.rect_filled(egui::Rect::from_min_size(base, EVec2::new(w, 3.0)), 0.0, chrome::MINI_TRACK);
+                    painter.rect_filled(egui::Rect::from_min_size(base, EVec2::new(w * e.shield, 3.0)), 0.0, view::palette::SHIELD);
+                    painter.rect_filled(egui::Rect::from_min_size(base + EVec2::new(0.0, 4.0), EVec2::new(w, 3.0)), 0.0, chrome::MINI_TRACK);
+                    painter.rect_filled(egui::Rect::from_min_size(base + EVec2::new(0.0, 4.0), EVec2::new(w * e.hull, 3.0)), 0.0, view::palette::hull_color(e.hull, 1.0));
                 }
             }
         }
         if let Some(layout) = &env.layout {
-            let mut marks: Vec<(Vec3, String, Color32)> = layout.pois.iter().map(|p| (p.pos, format!("{} {}", poi_icon(p.kind), p.name), if s.scanned.contains(&p.id) { DIM } else { Color32::from_rgb(130, 230, 255) })).collect();
+            let mut marks: Vec<(Vec3, String, Color32)> = layout.pois.iter().map(|p| (p.pos, format!("{} {}", poi_icon(p.kind), p.name), if s.scanned.contains(&p.id) { DIM } else { view::palette::POI })).collect();
             marks.push((layout.station, "■ 정거장 (G: 도킹)".into(), GREEN));
             marks.push((layout.jump_point, "◎ 워프 지점".into(), ACCENT));
             for (pos, name, col) in marks {
@@ -352,7 +352,7 @@ fn hud(ctx: &egui::Context, s: &mut Session, net: &Net, env: &Env, vis: &Visuals
             let a = (s.gauge.flash * 110.0) as u8;
             for k in 0..4 {
                 let w = 26.0 - k as f32 * 6.0;
-                let col = Color32::from_rgba_unmultiplied(255, 30, 20, a / (k + 1));
+                let col = alpha(chrome::WOUND, a / (k + 1));
                 painter.rect_stroke(screen.shrink(w / 2.0 + k as f32 * 6.0), 0.0, Stroke::new(w, col), egui::StrokeKind::Middle);
             }
         }
@@ -361,7 +361,7 @@ fn hud(ctx: &egui::Context, s: &mut Session, net: &Net, env: &Env, vis: &Visuals
 
     // Crosshair.
     let c = screen.center();
-    let ch = Color32::from_rgba_unmultiplied(170, 220, 255, 160);
+    let ch = chrome::CROSSHAIR;
     painter.circle_stroke(c, 14.0, Stroke::new(1.0, ch));
     for d in [EVec2::new(1.0, 0.0), EVec2::new(-1.0, 0.0), EVec2::new(0.0, 1.0), EVec2::new(0.0, -1.0)] {
         painter.line_segment([c + d * 18.0, c + d * 28.0], Stroke::new(1.5, ch));
@@ -404,7 +404,7 @@ fn hud(ctx: &egui::Context, s: &mut Session, net: &Net, env: &Env, vis: &Visuals
                 ui.label(RichText::new("목표").color(DIM).size(11.0));
                 ui.label(RichText::new(&t.name).color(RED).strong());
                 bar(ui, t.shield, view::palette::SHIELD, "실드".into(), 280.0);
-                bar(ui, t.hull, Color32::from_rgb(220, 90, 70), "선체".into(), 280.0);
+                bar(ui, t.hull, view::palette::hull_color(t.hull, 1.0), "선체".into(), 280.0);
                 if let Some(m) = &me {
                     ui.label(format!("거리 {:.0}u", Vec3::from(t.pos).distance(Vec3::from(m.pos))));
                 }
@@ -432,7 +432,7 @@ fn hud(ctx: &egui::Context, s: &mut Session, net: &Net, env: &Env, vis: &Visuals
     egui::Area::new("toasts".into()).anchor(Align2::CENTER_TOP, EVec2::new(0.0, 14.0)).show(ctx, |ui| {
         ui.set_max_width(560.0);
         if let Some(sides) = &s.engagement {
-            egui::Frame::popup(ui.style()).fill(Color32::from_rgba_unmultiplied(90, 20, 20, 220)).show(ui, |ui| {
+            egui::Frame::popup(ui.style()).fill(chrome::DANGER).show(ui, |ui| {
                 ui.label(RichText::new(format!("⚔ 함대 교전 중 — {}", sides.join("  vs  "))).color(Color32::WHITE).strong());
             });
         }
@@ -453,7 +453,7 @@ fn hud(ctx: &egui::Context, s: &mut Session, net: &Net, env: &Env, vis: &Visuals
             let age = now - at;
             if age < 6.0 {
                 let a = ((6.0 - age).min(1.0) * 255.0) as u8;
-                ui.label(RichText::new(t).color(Color32::from_rgba_unmultiplied(230, 240, 255, a)).background_color(Color32::from_rgba_unmultiplied(10, 14, 24, a / 2)));
+                ui.label(RichText::new(t).color(alpha(chrome::PAPER, a)).background_color(alpha(chrome::INK, a / 2)));
             }
         }
     });
@@ -462,7 +462,7 @@ fn hud(ctx: &egui::Context, s: &mut Session, net: &Net, env: &Env, vis: &Visuals
     egui::Area::new("chat".into()).anchor(Align2::LEFT_BOTTOM, EVec2::new(14.0, -14.0)).show(ctx, |ui| {
         ui.set_max_width(380.0);
         for (from, text) in s.chat.iter().rev().take(6).collect::<Vec<_>>().into_iter().rev() {
-            ui.label(RichText::new(format!("{from}: {text}")).size(12.0).background_color(Color32::from_rgba_unmultiplied(10, 14, 24, 140)));
+            ui.label(RichText::new(format!("{from}: {text}")).size(12.0).background_color(alpha(chrome::INK, 140)));
         }
         let r = ui.add(egui::TextEdit::singleline(&mut s.ui.chat_input).hint_text("채팅 (Enter)").desired_width(360.0));
         if r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) && !s.ui.chat_input.trim().is_empty() {
@@ -477,7 +477,7 @@ fn hud(ctx: &egui::Context, s: &mut Session, net: &Net, env: &Env, vis: &Visuals
 
     if let Some(killer) = s.dead.clone() {
         egui::Area::new("dead".into()).anchor(Align2::CENTER_CENTER, EVec2::ZERO).show(ctx, |ui| {
-            egui::Frame::popup(ui.style()).fill(Color32::from_rgba_unmultiplied(40, 5, 5, 230)).show(ui, |ui| {
+            egui::Frame::popup(ui.style()).fill(chrome::DEATH).show(ui, |ui| {
                 ui.vertical_centered(|ui| {
                     ui.label(RichText::new("함선 격침").size(30.0).color(RED).strong());
                     ui.label(format!("{killer}에게 격침당했습니다. 이 사건은 은하 연대기에 기록됩니다."));
@@ -745,7 +745,7 @@ fn chronicle(ui: &mut egui::Ui, s: &mut Session, net: &Net, prof: &Profile) {
         for e in &events {
             let col = match e.importance {
                 Importance::Historic => GOLD,
-                Importance::Major => Color32::from_rgb(255, 160, 120),
+                Importance::Major => view::palette::MAJOR,
                 _ => Color32::WHITE,
             };
             egui::CollapsingHeader::new(RichText::new(format!("[{}] {} — {} ({})", e.date, e.title, galaxy::system(e.system).name, e.importance.label())).color(col)).id_salt(e.id).show(ui, |ui| {

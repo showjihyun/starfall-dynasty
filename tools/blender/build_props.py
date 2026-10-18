@@ -272,7 +272,8 @@ def build_asteroids():
 
 # ================================================================ A. enemy ships
 
-def run_ship(key, builder, style, k=1.0, overlay=None, glow=(1.0, 0.25, 0.12), core=(1.0, 0.45, 0.2), glow_strength=None,
+# glow = palette::side::HOSTILE.glow (docs/ART_DIRECTION.md §3.4); the client re-tints it by relation anyway.
+def run_ship(key, builder, style, k=1.0, overlay=None, glow=(1.0, 0.25, 0.15), core=(1.0, 0.45, 0.2), glow_strength=None,
              hero=(1.0, 1.15, 0.55), views=None, length=None):
     S.reset_scene()
     mats, socks = S.make_materials(style)

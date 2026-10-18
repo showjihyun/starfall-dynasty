@@ -276,12 +276,12 @@ fn panel_ui(mut contexts: EguiContexts, mut it: ResMut<Interior>, s: Res<Session
     egui::Area::new("interior".into()).anchor(egui::Align2::LEFT_CENTER, egui::Vec2::new(14.0, 40.0)).show(ctx, |ui| {
         egui::Frame::popup(ui.style()).inner_margin(6.0).show(ui, |ui| {
             ui.horizontal(|ui| {
-                ui.label(egui::RichText::new(title).size(13.0).strong().color(egui::Color32::from_rgb(255, 205, 110)));
+                ui.label(egui::RichText::new(title).size(13.0).strong().color(view::palette::GOLD));
                 let alert = s.engagement.is_some() || s.gauge.flash > 0.0;
                 if alert {
-                    ui.label(egui::RichText::new("● 적색 경보").size(11.0).color(egui::Color32::from_rgb(255, 80, 70)));
+                    ui.label(egui::RichText::new("● 적색 경보").size(11.0).color(view::palette::RED));
                 }
-                ui.label(egui::RichText::new("I 숨기기").size(10.0).color(egui::Color32::from_rgb(140, 150, 170)));
+                ui.label(egui::RichText::new("I 숨기기").size(10.0).color(view::palette::DIM));
             });
             ui.add(egui::Image::new(egui::load::SizedTexture::new(tex, [w, w * PANEL_PX.y as f32 / PANEL_PX.x as f32])).corner_radius(4.0));
         });

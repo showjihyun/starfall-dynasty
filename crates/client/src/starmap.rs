@@ -19,9 +19,8 @@ use view::mapview::{nice_step, system_extent};
 use view::palette::{ACCENT, DIM, GOLD, GREEN, RED};
 use view::relation::Viewer;
 
-const BG: Color32 = Color32::from_rgb(4, 7, 13);
-const GRID: Color32 = Color32::from_rgb(22, 34, 52);
-const GRID_TEXT: Color32 = Color32::from_rgb(70, 95, 130);
+use view::palette::map::{BG, GRID, GRID_TEXT};
+use view::palette::{alpha, map};
 
 use view::palette::tier_color;
 
@@ -134,13 +133,13 @@ fn galaxy_chart(_ui: &mut egui::Ui, p: &egui::Painter, map: Rect, resp: &egui::R
         for b in galaxy::systems() {
             // Lanes join neighbours one short hop apart (every system but The Deep has one).
             if a.id < b.id && galaxy::distance_ly(a.id, b.id) <= 1.5 {
-                p.line_segment([to(a.map_pos), to(b.map_pos)], Stroke::new(1.0, Color32::from_rgb(34, 52, 80)));
+                p.line_segment([to(a.map_pos), to(b.map_pos)], Stroke::new(1.0, map::LANE));
             }
         }
     }
     let cp = to(cur.map_pos);
-    p.circle_stroke(cp, range * sc, Stroke::new(1.0, Color32::from_rgba_unmultiplied(110, 190, 255, 70)));
-    p.text(cp + EVec2::new(0.0, -range * sc - 4.0), Align2::CENTER_BOTTOM, format!("워프 사거리 {range:.2} ly"), FontId::proportional(11.0), Color32::from_rgba_unmultiplied(110, 190, 255, 140));
+    p.circle_stroke(cp, range * sc, Stroke::new(1.0, alpha(ACCENT, 70)));
+    p.text(cp + EVec2::new(0.0, -range * sc - 4.0), Align2::CENTER_BOTTOM, format!("워프 사거리 {range:.2} ly"), FontId::proportional(11.0), alpha(ACCENT, 140));
     let mut hovered: Option<SystemId> = None;
     for sys in galaxy::systems() {
         let sp = to(sys.map_pos);
@@ -185,7 +184,7 @@ fn galaxy_chart(_ui: &mut egui::Ui, p: &egui::Painter, map: Rect, resp: &egui::R
     }
     // "You are here": pulsing ring and marker.
     let pulse = ((now * 2.0).sin() * 0.5 + 0.5) as f32;
-    p.circle_stroke(cp, 18.0 + pulse * 8.0, Stroke::new(2.0, Color32::from_rgba_unmultiplied(255, 205, 110, (220.0 - pulse * 150.0) as u8)));
+    p.circle_stroke(cp, 18.0 + pulse * 8.0, Stroke::new(2.0, alpha(GOLD, (220.0 - pulse * 150.0) as u8)));
     p.text(cp + EVec2::new(0.0, 26.0), Align2::CENTER_TOP, "▲ 현재 위치", FontId::proportional(12.0), GOLD);
     if let Some(id) = hovered {
         let sys = galaxy::system(id);
@@ -313,18 +312,18 @@ fn system_chart(_ui: &mut egui::Ui, p: &egui::Painter, map: Rect, resp: &egui::R
         for (i, pl) in lay.planets.iter().enumerate() {
             let pp = to(pl.pos);
             // Orbit ring around the star (in the star's plane).
-            ring(p, Vec3::ZERO, EVec2::new(pl.pos.x, pl.pos.z).length(), Stroke::new(1.0, Color32::from_rgba_unmultiplied(80, 110, 160, 40)));
-            stem(p, pl.pos, Color32::from_rgb(170, 180, 210));
+            ring(p, Vec3::ZERO, EVec2::new(pl.pos.x, pl.pos.z).length(), Stroke::new(1.0, map::ORBIT));
+            stem(p, pl.pos, map::PLANET_RIM);
             let pr = (pl.radius * sc).max(4.0);
-            p.circle_filled(pp, pr, Color32::from_rgb(110, 120, 150));
-            p.circle_stroke(pp, pr, Stroke::new(1.0, Color32::from_rgb(170, 180, 210)));
+            p.circle_filled(pp, pr, map::PLANET);
+            p.circle_stroke(pp, pr, Stroke::new(1.0, map::PLANET_RIM));
             consider(pp, pr, vec![format!("행성 {}-{}", def.name, (b'b' + i as u8) as char), loc(pl.pos) + &dist_txt(pl.pos)], None);
         }
         for a in &lay.asteroids {
             let ap = to(a.pos);
             if map.contains(ap) {
                 let ar = (a.radius * sc).clamp(1.5, 18.0);
-                p.circle_filled(ap, ar, Color32::from_rgb(90, 80, 72));
+                p.circle_filled(ap, ar, map::ASTEROID);
                 // Rare deposits stand out; every rock names its mineral on hover.
                 if let Some(m) = shared::minerals::mineral(a.mineral) {
                     if m.rarity >= shared::minerals::Rarity::Rare {
@@ -351,7 +350,7 @@ fn system_chart(_ui: &mut egui::Ui, p: &egui::Painter, map: Rect, resp: &egui::R
         for poi in &lay.pois {
             let pp = to(poi.pos);
             let scanned = s.scanned.contains(&poi.id);
-            let col = if scanned { DIM } else { Color32::from_rgb(130, 230, 255) };
+            let col = if scanned { DIM } else { view::palette::POI };
             let icon = match poi.kind {
                 PoiKind::Anomaly => "◇",
                 PoiKind::Derelict => "▣",
@@ -410,14 +409,14 @@ fn system_chart(_ui: &mut egui::Ui, p: &egui::Painter, map: Rect, resp: &egui::R
             p.line_segment([sp, to(pos + v * 5.0)], Stroke::new(1.5, GOLD));
             if let Some(pr) = &prof {
                 let stats = pr.ship.stats();
-                p.circle_stroke(sp, stats.weapon_range * sc, Stroke::new(1.0, Color32::from_rgba_unmultiplied(255, 120, 90, 70)));
+                p.circle_stroke(sp, stats.weapon_range * sc, Stroke::new(1.0, alpha(map::WEAPON_REACH, 70)));
                 if stats.turret_range > 0.0 && stats.turrets > 0 {
-                    p.circle_stroke(sp, stats.turret_range * sc, Stroke::new(1.0, Color32::from_rgba_unmultiplied(255, 180, 90, 50)));
+                    p.circle_stroke(sp, stats.turret_range * sc, Stroke::new(1.0, alpha(map::TURRET_REACH, 50)));
                 }
-                p.circle_stroke(sp, stats.scan_range * sc, Stroke::new(1.0, Color32::from_rgba_unmultiplied(110, 190, 255, 40)));
+                p.circle_stroke(sp, stats.scan_range * sc, Stroke::new(1.0, alpha(ACCENT, 40)));
             }
             let pulse = ((now * 2.5).sin() * 0.5 + 0.5) as f32;
-            p.circle_stroke(sp, 16.0 + pulse * 6.0, Stroke::new(1.5, Color32::from_rgba_unmultiplied(255, 205, 110, (200.0 - pulse * 140.0) as u8)));
+            p.circle_stroke(sp, 16.0 + pulse * 6.0, Stroke::new(1.5, alpha(GOLD, (200.0 - pulse * 140.0) as u8)));
         }
         let near = my_pos.is_some_and(|m| m.distance(pos) < 2500.0);
         if mine || s.target == Some(id) || (sc > 0.05 && st.kind != EntityKind::Wreck) || (near && drawn < 60) {
@@ -470,8 +469,8 @@ fn tooltip(p: &egui::Painter, at: Pos2, lines: &[String]) {
         o.y = at.y + 20.0;
     }
     let r = Rect::from_min_size(o, EVec2::new(w, h));
-    p.rect_filled(r, 4.0, Color32::from_rgba_unmultiplied(8, 12, 20, 235));
-    p.rect_stroke(r, 4.0, Stroke::new(1.0, Color32::from_rgb(40, 60, 90)), egui::StrokeKind::Inside);
+    p.rect_filled(r, 4.0, map::TOOLTIP);
+    p.rect_stroke(r, 4.0, Stroke::new(1.0, map::TOOLTIP_BORDER), egui::StrokeKind::Inside);
     let mut y = o.y + 6.0;
     for g in galleys {
         let gh = g.size().y;
@@ -481,8 +480,8 @@ fn tooltip(p: &egui::Painter, at: Pos2, lines: &[String]) {
 }
 
 fn side_panel(ui: &mut egui::Ui, rect: Rect, s: &mut Session, net: &Net, now: f64) {
-    ui.painter().rect_filled(rect, 0.0, Color32::from_rgb(8, 12, 20));
-    ui.painter().line_segment([rect.left_top(), rect.left_bottom()], Stroke::new(1.0, Color32::from_rgb(30, 45, 70)));
+    ui.painter().rect_filled(rect, 0.0, map::SIDEBAR);
+    ui.painter().line_segment([rect.left_top(), rect.left_bottom()], Stroke::new(1.0, map::DIVIDER));
     ui.scope_builder(egui::UiBuilder::new().max_rect(rect.shrink(14.0)), |ui| {
         ui.label(RichText::new("현재 위치").size(16.0).strong().color(GOLD));
         let sys = galaxy::system(s.system);

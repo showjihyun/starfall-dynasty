@@ -14,6 +14,75 @@ pub const LOSS: Color32 = Color32::from_rgb(255, 170, 60);
 pub const SHIELD: Color32 = Color32::from_rgb(80, 160, 255);
 /// Points of interest not yet scanned.
 pub const POI: Color32 = Color32::from_rgb(130, 230, 255);
+/// Caution: hull between 30% and 60%.
+pub const CAUTION: Color32 = Color32::from_rgb(255, 200, 80);
+/// Major chronicle events (historic ones are `GOLD`).
+pub const MAJOR: Color32 = Color32::from_rgb(255, 160, 120);
+
+/// `c` at opacity `a` (rings, fades and pulses of a token colour).
+pub fn alpha(c: Color32, a: u8) -> Color32 {
+    Color32::from_rgba_unmultiplied(c.r(), c.g(), c.b(), a)
+}
+
+/// Hull colour, everywhere a hull is shown (crosshair gauge, status and target bars): `GREEN` above
+/// 60%, `CAUTION` above 30%, then `RED` pulsing darker with `pulse` (1 = steady).
+pub fn hull_color(hull: f32, pulse: f32) -> Color32 {
+    if hull > 0.6 {
+        GREEN
+    } else if hull > 0.3 {
+        CAUTION
+    } else {
+        Color32::from_rgb(RED.r(), (RED.g() as f32 * pulse) as u8, (RED.b() as f32 * pulse) as u8)
+    }
+}
+
+/// Interface chrome: dark navy panels and frames that carry no meaning of their own.
+pub mod chrome {
+    use egui::Color32;
+    pub const WINDOW: Color32 = Color32::from_rgba_unmultiplied_const(12, 16, 26, 235);
+    pub const PANEL: Color32 = Color32::from_rgba_unmultiplied_const(12, 16, 26, 220);
+    pub const BORDER: Color32 = Color32::from_rgb(50, 80, 120);
+    pub const SELECTION: Color32 = Color32::from_rgb(40, 90, 150);
+    /// Full-screen dimming behind character creation.
+    pub const SCRIM: Color32 = Color32::from_rgba_unmultiplied_const(5, 8, 14, 170);
+    /// Behind toasts and chat lines (alpha set per line).
+    pub const INK: Color32 = Color32::from_rgb(10, 14, 24);
+    /// Toast text.
+    pub const PAPER: Color32 = Color32::from_rgb(230, 240, 255);
+    /// Bar and gauge tracks, bar tick marks, the swatch dot.
+    pub const TRACK: Color32 = Color32::from_rgba_unmultiplied_const(20, 25, 35, 200);
+    pub const GAUGE_TRACK: Color32 = Color32::from_rgba_unmultiplied_const(15, 20, 30, 150);
+    pub const TICK: Color32 = Color32::from_rgba_unmultiplied_const(0, 0, 0, 90);
+    pub const DOT: Color32 = Color32::from_rgb(10, 12, 18);
+    /// Track behind the small shield/hull bars over ships.
+    pub const MINI_TRACK: Color32 = Color32::from_gray(40);
+    pub const CROSSHAIR: Color32 = Color32::from_rgba_unmultiplied_const(170, 220, 255, 160);
+    /// Danger popups (under attack) and the death screen.
+    pub const DANGER: Color32 = Color32::from_rgba_unmultiplied_const(90, 20, 20, 220);
+    pub const DEATH: Color32 = Color32::from_rgba_unmultiplied_const(40, 5, 5, 230);
+    /// Damage vignette at the screen edge (alpha set per ring).
+    pub const WOUND: Color32 = Color32::from_rgb(255, 30, 20);
+}
+
+/// Star map (galaxy and system charts).
+pub mod map {
+    use egui::Color32;
+    pub const BG: Color32 = Color32::from_rgb(4, 7, 13);
+    pub const GRID: Color32 = Color32::from_rgb(22, 34, 52);
+    pub const GRID_TEXT: Color32 = Color32::from_rgb(70, 95, 130);
+    pub const LANE: Color32 = Color32::from_rgb(34, 52, 80);
+    pub const ORBIT: Color32 = Color32::from_rgba_unmultiplied_const(80, 110, 160, 40);
+    pub const PLANET: Color32 = Color32::from_rgb(110, 120, 150);
+    pub const PLANET_RIM: Color32 = Color32::from_rgb(170, 180, 210);
+    pub const ASTEROID: Color32 = Color32::from_rgb(90, 80, 72);
+    /// My reach: main weapons (warm red) and turrets (amber, like turret fire).
+    pub const WEAPON_REACH: Color32 = Color32::from_rgb(255, 120, 90);
+    pub const TURRET_REACH: Color32 = Color32::from_rgb(255, 180, 90);
+    pub const SIDEBAR: Color32 = Color32::from_rgb(8, 12, 20);
+    pub const TOOLTIP: Color32 = Color32::from_rgba_unmultiplied_const(8, 12, 20, 235);
+    pub const TOOLTIP_BORDER: Color32 = Color32::from_rgb(40, 60, 90);
+    pub const DIVIDER: Color32 = Color32::from_rgb(30, 45, 70);
+}
 
 /// Risk tier, from safe green to deep-space violet.
 pub fn tier_color(t: shared::galaxy::RiskTier) -> Color32 {
