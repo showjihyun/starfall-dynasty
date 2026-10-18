@@ -430,10 +430,19 @@ pub struct CombatTuning {
     /// 1.0 = no arcs, the behaviour before arcs existed (and the default for recordings without it).
     #[serde(default = "no_arcs")]
     pub turret_arc_overlap: f32,
+    /// Roll rate as a multiple of the ship's turn rate (Q/E). With the arcs above, how fast a defender
+    /// rolls an attacker back level with its hull (docs/BALANCE.md 「대인전 함급별」). Default: 1.3,
+    /// the value before it moved here.
+    #[serde(default = "roll_rate")]
+    pub roll_rate: f32,
 }
 
 fn no_arcs() -> f32 {
     1.0
+}
+
+fn roll_rate() -> f32 {
+    1.3
 }
 
 impl Tuning {

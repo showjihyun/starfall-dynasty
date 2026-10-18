@@ -13,4 +13,7 @@
     // above the hull's plane plus this overlap band (0.25 ≈ 14° below it); ventral the mirror image.
     // So a ship level with you takes every battery, one straight above or below only half. 1.0 = no arcs.
     turret_arc_overlap: 0.25,
+    // Roll rate as a multiple of the turn rate. A rolling defender brings an attacker above or below
+    // back level with every battery; an attacker can follow only within speed ÷ roll rate (BALANCE.md).
+    roll_rate: 1.3,
 )

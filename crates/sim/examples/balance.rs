@@ -107,6 +107,7 @@ fn main() {
     out += &galaxy_sheet();
     out += &mineral_sheet();
     out += &vertical_sheet();
+    out += &pvp_speed_sheet();
     out += &relief_sheet();
     print!("{out}");
     eprintln!("{} duels simulated in {:.2} s", HullClass::ALL.len() * 3 * enc.len(), t0.elapsed().as_secs_f64());
@@ -167,6 +168,70 @@ fn vertical_sheet() -> String {
         let hull = r.final_hull.iter().find(|(n, _)| n == who).map(|(_, h)| *h).unwrap_or(0.0);
         out += &format!("| {label} | {:.0}% | {:.0}% | {:.0} | {:.0} |
 ", t.high_angle_share().unwrap_or(0.0) * 100.0, hull * 100.0, t.taken, a.dps());
+    }
+    out
+}
+
+/// 3D PvP by class: a Talon attacks a Bastion that locks on and answers with turrets only, level or
+/// from straight above, with the defender rolling (`broadside`) and the attacker following its up axis
+/// (`hold_over`). Even matchups (cruiser/cruiser, capital/capital) and one overmatched attacker.
+fn pvp_speed_sheet() -> String {
+    const SECS: f32 = 30.0;
+    let mut out = format!("
+대인전 함급별(Talon이 Bastion을 공격, 방어자는 목표를 잡고 포탑으로만 반격, {SECS:.0}초): 칸 = 공격자가 버틴 시간(끝까지 버티면 남은 선체) · 방어자에게 준 피해(호위함 포함). 「구르기」 = 방어자 구르기 속도(rad/s), 「따라붙기 한계」 = 공격자 평행이동 속도(최고 속도의 0.6) ÷ 구르기 — 이보다 멀면 공격자가 구르는 방어자의 위 축을 따라갈 수 없다. 방어자 반지름보다 작으면 사실상 불가능(시작 거리 500 m).
+
+| 공격자 → 방어자 | 공격자 속도 | 구르기 | 따라붙기 한계 / 방어자 반지름 | 수평 | 바로 위 | 바로 위 · 방어자 구름 | 바로 위 · 구름 · 따라붙음 |
+|---|---|---|---|---|---|---|---|
+");
+    let fire = |who: &str, target: &str, aim: bool, broadside: bool, hold_over: bool| Step {
+        at: 0.5,
+        captain: who.into(),
+        msg: ClientMsg::Controls(Controls { fire: aim, ..Default::default() }),
+        repeat_every: Some(0.1),
+        until: None,
+        target_nearest: None,
+        aim,
+        broadside,
+        hold_over,
+        fill_nearest: None,
+        target_captain: Some(target.into()),
+    };
+    let captain = |name: &str, hull, level, pos: [f32; 3]| Captain { name: name.into(), hull, species: Species::Human, profession: Profession::Explorer, level, system: 5, pos: Some(pos), near_poi: None, near_deposit: None, offset: None, heading: 0.0, undocked: true, credits: 0, cargo: Default::default() };
+    let grown = |hull, level| {
+        let mut ship = shared::ships::Ship::new("A".into(), hull, 0);
+        for m in shared::ships::Module::ALL {
+            ship.modules.insert(m, level);
+        }
+        ship
+    };
+    for (level, def_level) in [(5u8, 5u8), (9, 9), (5, 9)] {
+        let (a, d) = (grown(HullClass::Talon, level), grown(HullClass::Bastion, def_level));
+        let roll = d.stats().turn * shared::tuning::get().combat.roll_rate;
+        out += &format!("| Talon Lv{level} {:?} → Bastion Lv{def_level} {:?} | {:.0} m/s | {roll:.2} | {:.0} m / {:.0} m |", a.size_class(), d.size_class(), a.stats().speed, a.stats().speed * 0.6 / roll, d.stats().radius);
+        for (above, roll, follow) in [(false, false, false), (true, false, false), (true, true, false), (true, true, true)] {
+            let sc = Scenario {
+                name: format!("pvp speed {level}"),
+                description: String::new(),
+                unix: 1_800_000_000,
+                dev: false,
+                ambient_pirates: false,
+                captains: vec![captain("Admiral", HullClass::Bastion, def_level, [0.0, 0.0, 6000.0]), captain("Attacker", HullClass::Talon, level, if above { [0.0, 500.0, 6000.0] } else { [500.0, 0.0, 6000.0] })],
+                npcs: vec![],
+                script: vec![fire("Attacker", "Admiral", true, false, follow), fire("Admiral", "Attacker", false, roll, false)],
+                run_secs: SECS,
+                expect: vec![],
+                digest: None,
+            };
+            let r = run(&sc, None);
+            let of = |n: &str| r.totals.iter().find(|(name, _)| name == n).map(|t| t.1.clone()).unwrap_or_default();
+            let survived = match r.down_at.iter().find(|(n, _)| n == "Attacker") {
+                Some((_, t)) => format!("{t:.1}초"),
+                None => format!("생존 {:.0}%", r.final_hull.iter().find(|(n, _)| n == "Attacker").map(|h| h.1).unwrap_or(0.0) * 100.0),
+            };
+            out += &format!(" {survived} · {:.0} |", of("Admiral").taken);
+        }
+        out += "
+";
     }
     out
 }

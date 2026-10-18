@@ -231,6 +231,7 @@ impl Game {
 
         drop(p);
         let p = prof::span("flight");
+        let roll_rate = self.tuning.combat.roll_rate;
         for &id in &ids {
             let now = self.now;
             let Some(e) = self.systems.get_mut(&sys).unwrap().ents.get_mut(&id) else { continue };
@@ -248,7 +249,7 @@ impl Game {
             // Flight model with flight-assist.
             let c = e.controls;
             let rate = e.stats.turn * dt;
-            e.rot = (e.rot * Quat::from_rotation_y(-c.yaw * rate) * Quat::from_rotation_x(c.pitch * rate) * Quat::from_rotation_z(-c.roll * rate * 1.3)).normalize();
+            e.rot = (e.rot * Quat::from_rotation_y(-c.yaw * rate) * Quat::from_rotation_x(c.pitch * rate) * Quat::from_rotation_z(-c.roll * rate * roll_rate)).normalize();
             let (fwd, right, up) = (e.rot * Vec3::NEG_Z, e.rot * Vec3::X, e.rot * Vec3::Y);
             let boost = if c.boost { 1.7 } else { 1.0 };
             let desired = (fwd * c.thrust + right * c.strafe_x * 0.6 + up * c.strafe_y * 0.6) * e.stats.speed * boost;
