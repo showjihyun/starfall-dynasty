@@ -12,7 +12,7 @@ no feature creep, never trust untested output, keep measuring performance). Its 
 ## Verify every change (fast loop first)
 
 - Logic: `cargo test --release -p shared -p history -p sim -p view` (seconds, no engine). Client math and HUD
-  drawing live in `view` (headless egui tests in `crates/view/tests/hud.rs`); keep `client` to Bevy glue. Network: `cargo build --release -p server && cargo test --release -p bot`.
+  drawing live in `view` (headless egui tests in `crates/view/tests/hud.rs`); keep `client` to Bevy glue; that glue is tested headless too (`cargo test --release -p client`: Bevy systems on `MinimalPlugins`, no window/GPU — e.g. material state must not depend on the frame a model finished loading). Network: `cargo build --release -p server && cargo test --release -p bot`.
 - Reproduce server state: `server --dev --record DIR`, then `cargo run -p sim --release --example replay -- DIR [--twice] [--dump SYS@TICK]`.
   See it in 3D: `STARFALL_FIXED_FPS=60 client --replay DIR [--as NAME] [--from SECS] [--speed X] --shot X.png --shot-at T`
   (prints the digest verdict; same command → identical image).

@@ -87,11 +87,54 @@ pub struct ShipVis {
     pub sent: (Vec4, Vec2, Vec4),
 }
 
-/// Boost glow ramp rates (per second): up in a third of a second, down in half.
 /// `ShipVis::sent` before anything was written to the materials.
 const UNSENT: (Vec4, Vec2, Vec4) = (Vec4::splat(-1.0), Vec2::splat(-1.0), Vec4::splat(-1.0));
+/// Boost glow ramp rates (per second): up in a third of a second, down in half.
 const BOOST_UP: f32 = 3.0;
 const BOOST_DOWN: f32 = 2.0;
+
+impl ShipVis {
+    /// A ship's visual state before its model exists (materials are added as the model loads).
+    pub fn new(st: &EntityState, pos: Vec3) -> Self {
+        let hostile = matches!(st.kind, EntityKind::Npc(_));
+        ShipVis {
+            id: st.id,
+            radius: st.radius,
+            livery: if hostile { LIVERIES[view::palette::HOSTILE_LIVERY as usize] } else { LIVERIES[st.livery as usize % LIVERIES.len()] },
+            glow: view::palette::side::of(hostile).glow,
+            hostile,
+            species: view::palette::species_style(st.species),
+            species_of: st.species,
+            hull_mats: vec![],
+            plumes: vec![],
+            nozzle_glow: None,
+            shield: None,
+            flash_at: f64::NEG_INFINITY,
+            hit_at: f64::NEG_INFINITY,
+            hit_dir: Vec3::Z,
+            muzzles: vec![],
+            rank: st.rank,
+            boost: view::anim::Ramp::default(),
+            throttle: 0.0,
+            last_pos: pos,
+            seed: (st.id as f32 * 0.618).fract() * 10.0,
+            class: st.class.unwrap_or(SizeClass::Small),
+            turrets: vec![],
+            turret_muzzles: vec![],
+            mains: vec![],
+            bridge: None,
+            aim: None,
+            swing: (None, 0.0, vec![]),
+            sent: UNSENT,
+        }
+    }
+
+    /// New materials were attached (the model finished loading): they start from their defaults, so
+    /// send hull, engine and shield state again on the next frame.
+    pub fn materials_added(&mut self) {
+        self.sent = UNSENT;
+    }
+}
 
 #[derive(Component)]
 pub struct RankPart(pub u8);
@@ -283,41 +326,9 @@ fn spawn_visual(
     shield_mats: &mut Assets<ShieldMat>,
     engine_mats: &mut Assets<EngineMat>,
 ) -> Entity {
-    let hostile = matches!(st.kind, EntityKind::Npc(_));
-    let livery = if hostile { LIVERIES[view::palette::HOSTILE_LIVERY as usize] } else { LIVERIES[st.livery as usize % LIVERIES.len()] };
-    let glow = view::palette::side::of(hostile).glow;
+    let mut v = ShipVis::new(st, pos);
+    let (hostile, livery, seed) = (v.hostile, v.livery, v.seed);
     let tf = Transform::from_translation(pos).with_rotation(rot);
-    let seed = (st.id as f32 * 0.618).fract() * 10.0;
-    let mut v = ShipVis {
-        id: st.id,
-        radius: st.radius,
-        livery,
-        glow,
-        hostile,
-        species: view::palette::species_style(st.species),
-        species_of: st.species,
-        hull_mats: vec![],
-        plumes: vec![],
-        nozzle_glow: None,
-        shield: None,
-        flash_at: f64::NEG_INFINITY,
-        hit_at: f64::NEG_INFINITY,
-        hit_dir: Vec3::Z,
-        muzzles: vec![],
-        rank: st.rank,
-        boost: view::anim::Ramp::default(),
-        throttle: 0.0,
-        last_pos: pos,
-        seed,
-        class: st.class.unwrap_or(SizeClass::Small),
-        turrets: vec![],
-        turret_muzzles: vec![],
-        mains: vec![],
-        bridge: None,
-        aim: None,
-        swing: (None, 0.0, vec![]),
-        sent: UNSENT,
-    };
     match st.kind {
         EntityKind::Missile => {
             let body = std_mats.add(StandardMaterial { base_color: Color::srgb(0.6, 0.6, 0.62), metallic: 0.9, perceptual_roughness: 0.3, ..default() });
@@ -490,9 +501,8 @@ fn on_model_ready(
     muzzles.sort_by_key(|m| m.0);
     ship.turrets = turrets.iter().map(|(_, e)| (*e, transforms.get(*e).map(|t| t.rotation).unwrap_or_default())).collect();
     ship.turret_muzzles = muzzles.into_iter().map(|(_, e)| e).collect();
-    // The new materials start from their defaults: send hull, engine and shield state again next frame,
-    // or a model that finishes loading after the state settled keeps the defaults (wrong plume/damage).
-    ship.sent = UNSENT;
+    // Or a model that finishes loading after the state settled keeps the defaults (wrong plume/damage).
+    ship.materials_added();
     info!("model ready for {}: {} plumes, {} hull mats, {} muzzles", ship.id, ship.plumes.len(), ship.hull_mats.len(), ship.muzzles.len());
 }
 
@@ -665,3 +675,84 @@ fn aim_turrets(
 
 #[derive(Component)]
 pub struct TurretTag;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn ship(id: EntityId) -> EntityState {
+        EntityState { id, kind: EntityKind::Player, name: "T".into(), hull_class: Some(HullClass::Bastion), rank: 1, livery: 0, pos: [0.0; 3], rot: [0.0, 0.0, 0.0, 1.0], vel: [0.0, 0.0, -90.0], hull: 0.55, shield: 0.8, radius: 20.0, fleet: None, wanted: false, boosting: true, mining: None, docked: false, owner: None, alliance: None, class: Some(SizeClass::Capital), species: None }
+    }
+
+    /// What `on_model_ready` attaches: fresh materials at their defaults.
+    fn attach(world: &mut World, e: Entity) {
+        let plume = world.resource_mut::<Assets<EngineMat>>().add(EngineMat { p: EngineParams { color: Vec4::new(0.5, 0.7, 1.0, 0.0), core: Vec4::ONE, seed: Vec4::ZERO } });
+        let glow = world.resource_mut::<Assets<FlareMat>>().add(FlareMat { p: FlareParams { color: Vec4::ONE, shape: Vec4::ZERO } });
+        let shield = world.resource_mut::<Assets<ShieldMat>>().add(ShieldMat { p: ShieldParams { color: Vec4::ONE, hit: Vec4::Z, center: Vec4::ZERO } });
+        let hull = world.resource_mut::<Assets<HullMat>>().add(HullMat { base: StandardMaterial::default(), extension: HullExt::default() });
+        let mut v = world.get_mut::<ShipVis>(e).unwrap();
+        v.plumes.push(plume);
+        v.nozzle_glow = Some((glow, 1.0));
+        v.shield = Some(shield);
+        v.hull_mats.push(hull);
+    }
+
+    /// Everything the shaders get from one ship: (plume, nozzle glow, shield, hull state).
+    type Shown = (Vec4, Vec4, Vec4, Vec4);
+
+    fn shown(world: &World, e: Entity) -> Shown {
+        let v = world.get::<ShipVis>(e).unwrap();
+        let plume = world.resource::<Assets<EngineMat>>().get(&v.plumes[0]).unwrap().p.color;
+        let glow = world.resource::<Assets<FlareMat>>().get(&v.nozzle_glow.as_ref().unwrap().0).unwrap().p.color;
+        let shield = world.resource::<Assets<ShieldMat>>().get(v.shield.as_ref().unwrap()).unwrap().p.color;
+        let hull = world.resource::<Assets<HullMat>>().get(&v.hull_mats[0]).unwrap().extension.p.state;
+        // (hull w is the per-ship pattern seed, not state)
+        (plume, glow, shield, hull.truncate().extend(0.0))
+    }
+
+    /// Runs the real `update_ship_fx` without a window or GPU: ship 1's model is ready at once, ship 2's
+    /// at `late_frame`. Returns what each shows at 8 s.
+    fn run(late_frame: u32, announce: bool) -> (Shown, Shown) {
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, bevy::asset::AssetPlugin::default()))
+            .insert_resource(bevy::time::TimeUpdateStrategy::ManualDuration(std::time::Duration::from_secs_f64(1.0 / 60.0)))
+            .init_asset::<EngineMat>()
+            .init_asset::<FlareMat>()
+            .init_asset::<ShieldMat>()
+            .init_asset::<HullMat>()
+            .add_systems(Update, update_ship_fx);
+        let mut s = Session::default();
+        s.snaps.push_back(crate::state::Snap { at: 0.0, ents: [(1, ship(1)), (2, ship(2))].into_iter().collect() });
+        app.insert_resource(s);
+        let spawn = |app: &mut App, id| {
+            let mut v = ShipVis::new(&ship(id), Vec3::ZERO);
+            v.throttle = 0.7;
+            v.boost.set(true, 0.0, BOOST_UP, BOOST_DOWN);
+            app.world_mut().spawn(v).id()
+        };
+        let (a, b) = (spawn(&mut app, 1), spawn(&mut app, 2));
+        attach(app.world_mut(), a);
+        for frame in 0..480 {
+            if frame == late_frame {
+                attach(app.world_mut(), b);
+                if announce {
+                    app.world_mut().get_mut::<ShipVis>(b).unwrap().materials_added();
+                }
+            }
+            app.update();
+        }
+        (shown(app.world(), a), shown(app.world(), b))
+    }
+
+    #[test]
+    fn a_late_model_shows_the_same_state() {
+        // docs/HARNESS.md "same command → identical image": the capital art scene flipped between two
+        // images because a model that loaded after the engine state settled kept default plumes.
+        for late in [1, 30, 200] {
+            let (early, late_shown) = run(late, true);
+            assert_eq!(early, late_shown, "model ready at frame {late}");
+        }
+        let (early, stale) = run(200, false);
+        assert_ne!(early, stale, "without materials_added the late model keeps its defaults (the test can see the bug)");
+    }
+}

@@ -115,6 +115,7 @@ python tools/imgdiff.py --stats after.png --crop 380,90,220,200    # 영역의 �
 | 실제 접속·부하 | ✅(실행은 하지만 화면 없음) | `bot` E2E, `swarm` | 중간 |
 | 클라이언트 계산(보간·피아 식별·우주 지도 투영/확대·게이지 잔상·먼지장) | ✅ | `view` 단위 테스트 | 높음 |
 | HUD 글자·배치(조준선 게이지, 함선 상태 패널) | ✅ | `view/tests/hud.rs`(헤드리스 egui) | 높음 |
+| 클라이언트 ECS 연결(서버 상태 → 재질 값, 모델 로딩 시점과 무관) | ✅ | `cargo test -p client`(Bevy `MinimalPlugins`, 창·GPU 없음; `ships::tests`) | 높음 |
 | 화면 결과(셰이더·이펙트·3D 장면) | ◐ 고정 프레임으로 재현은 가능, 판단은 수치 | `STARFALL_FIXED_FPS` + `imgdiff` | 중간(수치 목표가 있을 때) |
 | 미감·조작감·소리 | ☐ | 사람 | 낮음 |
 
