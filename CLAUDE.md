@@ -17,6 +17,7 @@ no feature creep, never trust untested output, keep measuring performance). Its 
   See it in 3D: `STARFALL_FIXED_FPS=60 client --replay DIR [--as NAME] [--from SECS] [--speed X] --shot X.png --shot-at T`
   (prints the digest verdict; same command → identical image).
 - Visuals, by numbers: `STARFALL_FIXED_FPS=60 STARFALL_HIDE_UI=1 client --showroom 7 --shot X.png --shot-at 8` (same command → identical image), then `python tools/imgdiff.py before.png after.png [--crop X,Y,W,H]` or `--stats`.
+- 3D combat/terrain design (main goal): docs/3D_전투_설계.md — which 3D move beats which, with the numbers and scenarios behind it; rerun them after changing combat/npcs/galaxy/minerals tuning.
 - Art direction: docs/ART_DIRECTION.md is the visual style guide (prompts, palette, rules); colours come only from
   `crates/view/src/palette.rs`. After a visual change run `python tools/artcheck.py` (renders the reference scenes and
   compares them with docs/art/reference/); approve an intended new look with `--update` in the same commit.
