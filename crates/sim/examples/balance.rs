@@ -36,7 +36,7 @@ fn cell(hull: HullClass, level: u8, arch: NpcArchetype, npc_level: u8, count: u3
         ambient_pirates: false,
         captains: vec![Captain { name: "Cap".into(), hull, species: Species::Human, profession: Profession::Explorer, level, system: 7, pos: Some([0.0, 0.0, 6000.0]), near_poi: None, near_deposit: None, offset: None, heading: 0.0, undocked: true, credits: 0, cargo: Default::default() }],
         npcs: vec![NpcGroup { archetype: arch, level: npc_level, system: 7, pos: [0.0, 0.0, 5450.0], count, spacing: 80.0 }],
-        script: vec![Step { at: 0.2, captain: "Cap".into(), msg: ClientMsg::Controls(Controls { thrust: 0.2, fire: true, ..Default::default() }), repeat_every: Some(0.1), until: None, target_nearest: Some("npc".into()), aim: true, fill_nearest: None, target_captain: None }],
+        script: vec![Step { at: 0.2, captain: "Cap".into(), msg: ClientMsg::Controls(Controls { thrust: 0.2, fire: true, ..Default::default() }), repeat_every: Some(0.1), until: None, target_nearest: Some("npc".into()), aim: true, broadside: false, fill_nearest: None, target_captain: None }],
         run_secs: LIMIT,
         expect: vec![],
         digest: None,
@@ -141,7 +141,7 @@ fn vertical_sheet() -> String {
             ambient_pirates: true,
             captains: vec![Captain { name: "Hunter".into(), hull: HullClass::Talon, species: Species::Human, profession: Profession::CombatPilot, level: 5, system: sys, pos: None, near_poi: None, near_deposit: None, offset: None, heading: 0.0, undocked: true, credits: 0, cargo: Default::default() }],
             npcs: vec![],
-            script: vec![Step { at: 0.2, captain: "Hunter".into(), msg: ClientMsg::Controls(Controls { thrust: 0.7, fire: true, ..Default::default() }), repeat_every: Some(0.1), until: None, target_nearest: Some("npc".into()), aim: true, fill_nearest: None, target_captain: None }],
+            script: vec![Step { at: 0.2, captain: "Hunter".into(), msg: ClientMsg::Controls(Controls { thrust: 0.7, fire: true, ..Default::default() }), repeat_every: Some(0.1), until: None, target_nearest: Some("npc".into()), aim: true, broadside: false, fill_nearest: None, target_captain: None }],
             run_secs: 900.0,
             expect: vec![],
             digest: None,
@@ -156,16 +156,17 @@ fn vertical_sheet() -> String {
     // PvP: the same attack from level and from straight above a capital ship (turret arcs, combat.ron).
     let r = run(&load("pvp_dive_halves_return_fire"), None);
     out += "
-대인전 위·아래 공격(시나리오 pvp_dive_halves_return_fire): Lv9 Talon이 Lv9 Bastion 주력함을 10초 공격. 주력함은 포탑으로만 반격한다(`turret_arc_overlap`).
+대인전 위·아래 공격(시나리오 pvp_dive_halves_return_fire): Lv9 Talon이 Lv9 Bastion 주력함을 10초 공격. 주력함은 포탑으로만 반격한다(`turret_arc_overlap`). 「구름 대응」은 주력함이 공격자를 선체 옆으로 오게 구른다.
 
-| 공격 위치 | 위·아래 명중 | 받은 피해 (호위함 포함) | 주력함 반격 DPS |
-|---|---|---|---|
+| 공격 위치 | 위·아래 명중 | 공격자 선체 (10초) | 받은 피해 (호위함 포함) | 주력함 반격 DPS |
+|---|---|---|---|---|
 ";
-    for (label, who, admiral) in [("수평", "Level", "AdmiralLevel"), ("바로 위", "Diver", "AdmiralDive")] {
+    for (label, who, admiral) in [("수평", "Level", "AdmiralLevel"), ("바로 위", "Diver", "AdmiralDive"), ("바로 위 · 구름 대응", "DiverVsRoll", "AdmiralRoll")] {
         let of = |n: &str| &r.totals.iter().find(|(name, _)| name == n).unwrap().1;
         let (t, a) = (of(who), of(admiral));
-        out += &format!("| {label} | {:.0}% | {:.0} | {:.0} |
-", t.high_angle_share().unwrap_or(0.0) * 100.0, t.taken, a.dps());
+        let hull = r.final_hull.iter().find(|(n, _)| n == who).map(|(_, h)| *h).unwrap_or(0.0);
+        out += &format!("| {label} | {:.0}% | {:.0}% | {:.0} | {:.0} |
+", t.high_angle_share().unwrap_or(0.0) * 100.0, hull * 100.0, t.taken, a.dps());
     }
     out
 }
@@ -361,7 +362,7 @@ fn social_economy() -> String {
                 ambient_pirates: true,
                 captains: vec![Captain { name: "Hunter".into(), hull: HullClass::Talon, species: Species::Human, profession: Profession::CombatPilot, level, system: sys, pos: None, near_poi: None, near_deposit: None, offset: None, heading: 0.0, undocked: true, credits: 0, cargo: Default::default() }],
                 npcs: vec![],
-                script: vec![Step { at: 0.2, captain: "Hunter".into(), msg: ClientMsg::Controls(Controls { thrust: 0.7, fire: true, ..Default::default() }), repeat_every: Some(0.1), until: None, target_nearest: Some("npc".into()), aim: true, fill_nearest: None, target_captain: None }],
+                script: vec![Step { at: 0.2, captain: "Hunter".into(), msg: ClientMsg::Controls(Controls { thrust: 0.7, fire: true, ..Default::default() }), repeat_every: Some(0.1), until: None, target_nearest: Some("npc".into()), aim: true, broadside: false, fill_nearest: None, target_captain: None }],
                 run_secs: 900.0,
                 expect: vec![],
                 digest: None,

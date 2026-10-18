@@ -136,6 +136,10 @@ pub struct Step {
     /// For `Controls`: steer yaw/pitch toward the current target, as a pilot would (scripted aim).
     #[serde(default)]
     pub aim: bool,
+    /// For `Controls`: roll so the current target sits level with the hull, where every turret battery
+    /// reaches it (a capital captain's answer to an attacker diving from above or below).
+    #[serde(default)]
+    pub broadside: bool,
     /// Fill the message's id with the nearest `"wreck"` (`InvestigateWreck`), `"poi:<Kind>"`
     /// (`Scan`) or the newest open `"contract"` (`AcceptContract`, …), so a spec needs no ids.
     #[serde(default)]
@@ -581,6 +585,17 @@ pub fn run_opts(sc: &Scenario, trace_every: Option<f32>, metrics: bool) -> Repor
                 if local.z > 0.0 {
                     c.yaw = if local.x >= 0.0 { 1.0 } else { -1.0 };
                 }
+            }
+            if st.broadside
+                && let ClientMsg::Controls(c) = &mut msg
+                && let Some((pid, me)) = run.pid(&st.captain).and_then(|p| run.flagship(&st.captain).map(|e| (p, (e.pos, e.rot, e.target))))
+                && let Some((sys, _)) = run.g.player_entity(pid)
+                && let Some(t) = me.2.and_then(|t| run.g.ent(sys, t)).map(|t| t.pos)
+            {
+                // Roll the target's bearing into the hull's plane (toward whichever side it already leans).
+                let local = me.1.inverse() * (t - me.0).normalize_or_zero();
+                let side = if local.x >= 0.0 { 1.0 } else { -1.0 };
+                c.roll = (local.y * side * 4.0).clamp(-1.0, 1.0);
             }
             run.g.handle(conn, msg);
         }
