@@ -87,6 +87,10 @@ pub struct Captain {
     /// Cargo in the hold at the start (ore name → units).
     #[serde(default)]
     pub cargo: std::collections::BTreeMap<String, u32>,
+    /// Captains with the same label start in one fleet (invited by the first of them), as a group
+    /// would before attacking: fleet mates' turrets never pick each other.
+    #[serde(default)]
+    pub fleet: Option<String>,
 }
 
 fn human() -> Species {
@@ -148,6 +152,10 @@ pub struct Step {
     /// flagship sits level with the hull (a defender splitting its batteries between two attackers).
     #[serde(default)]
     pub roll_between: Option<String>,
+    /// For `Controls`: strafe and thrust (in whatever attitude) to hold this distance in metres from the
+    /// current target — closing in, or backing off to fight where only the longer guns reach.
+    #[serde(default)]
+    pub keep_range: Option<f32>,
     /// Fill the message's id with the nearest `"wreck"` (`InvestigateWreck`), `"poi:<Kind>"`
     /// (`Scan`) or the newest open `"contract"` (`AcceptContract`, …), so a spec needs no ids.
     #[serde(default)]
@@ -483,6 +491,24 @@ pub fn run_opts(sc: &Scenario, trace_every: Option<f32>, metrics: bool) -> Repor
         run.g.spawn_escorts(pid);
         run.conns.push((c.name.clone(), conn));
     }
+    let mut leaders: std::collections::BTreeMap<&str, (ConnId, PlayerId)> = std::collections::BTreeMap::new();
+    for c in &sc.captains {
+        let (Some(label), Some(conn), Some(pid)) = (c.fleet.as_deref(), run.conn(&c.name), run.pid(&c.name)) else { continue };
+        match leaders.get(label) {
+            None => {
+                leaders.insert(label, (conn, pid));
+            }
+            Some(&(lconn, lpid)) => {
+                run.g.handle(lconn, ClientMsg::FleetInvite { name: c.name.clone() });
+                let Some(fleet) = run.g.fleet_of(lpid) else { continue };
+                run.g.handle(conn, ClientMsg::FleetAccept { fleet });
+                if run.g.fleet_of(pid) != Some(fleet) {
+                    rep.lines.push(format!("SETUP FAIL: {} could not join fleet {label}", c.name));
+                    rep.failed += 1;
+                }
+            }
+        }
+    }
     for n in &sc.npcs {
         for k in 0..n.count {
             let off = Vec3::new((k as f32 - (n.count as f32 - 1.0) * 0.5) * n.spacing, 0.0, 0.0);
@@ -632,6 +658,18 @@ pub fn run_opts(sc: &Scenario, trace_every: Option<f32>, metrics: bool) -> Repor
                 let local = (dir(t) + dir(o)).normalize_or_zero();
                 let side = if local.x >= 0.0 { 1.0 } else { -1.0 };
                 c.roll = (-local.y * side * 4.0).clamp(-1.0, 1.0);
+            }
+            if let Some(range) = st.keep_range
+                && let ClientMsg::Controls(c) = &mut msg
+                && let Some((pid, me)) = run.pid(&st.captain).and_then(|p| run.flagship(&st.captain).map(|e| (p, (e.pos, e.rot, e.target))))
+                && let Some((sys, _)) = run.g.player_entity(pid)
+                && let Some(t) = me.2.and_then(|t| run.g.ent(sys, t)).map(|t| t.pos)
+            {
+                let want = t + (me.0 - t).normalize_or_zero() * range;
+                let local = me.1.inverse() * (want - me.0) / 150.0;
+                c.strafe_x = local.x.clamp(-1.0, 1.0);
+                c.strafe_y = local.y.clamp(-1.0, 1.0);
+                c.thrust = (-local.z).clamp(-1.0, 1.0);
             }
             run.g.handle(conn, msg);
         }
