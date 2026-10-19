@@ -144,6 +144,10 @@ pub struct Step {
     /// (the side it is already on), so a rolling capital keeps only half its batteries on you.
     #[serde(default)]
     pub hold_over: bool,
+    /// For `Controls`: roll so the bearing halfway between the current target and this captain's
+    /// flagship sits level with the hull (a defender splitting its batteries between two attackers).
+    #[serde(default)]
+    pub roll_between: Option<String>,
     /// Fill the message's id with the nearest `"wreck"` (`InvestigateWreck`), `"poi:<Kind>"`
     /// (`Scan`) or the newest open `"contract"` (`AcceptContract`, …), so a spec needs no ids.
     #[serde(default)]
@@ -613,6 +617,19 @@ pub fn run_opts(sc: &Scenario, trace_every: Option<f32>, metrics: bool) -> Repor
             {
                 // Roll the target's bearing down into the hull's plane (toward whichever side it already leans).
                 let local = me.1.inverse() * (t - me.0).normalize_or_zero();
+                let side = if local.x >= 0.0 { 1.0 } else { -1.0 };
+                c.roll = (-local.y * side * 4.0).clamp(-1.0, 1.0);
+            }
+            if let Some(other) = &st.roll_between
+                && let ClientMsg::Controls(c) = &mut msg
+                && let Some((pid, me)) = run.pid(&st.captain).and_then(|p| run.flagship(&st.captain).map(|e| (p, (e.pos, e.rot, e.target))))
+                && let Some((sys, _)) = run.g.player_entity(pid)
+                && let Some(t) = me.2.and_then(|t| run.g.ent(sys, t)).map(|t| t.pos)
+                && let Some(o) = run.flagship(other).map(|e| e.pos)
+            {
+                // Same law as `broadside`, on the bisector of the two bearings.
+                let dir = |p: Vec3| me.1.inverse() * (p - me.0).normalize_or_zero();
+                let local = (dir(t) + dir(o)).normalize_or_zero();
                 let side = if local.x >= 0.0 { 1.0 } else { -1.0 };
                 c.roll = (-local.y * side * 4.0).clamp(-1.0, 1.0);
             }

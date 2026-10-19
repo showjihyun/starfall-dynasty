@@ -36,7 +36,7 @@ fn cell(hull: HullClass, level: u8, arch: NpcArchetype, npc_level: u8, count: u3
         ambient_pirates: false,
         captains: vec![Captain { name: "Cap".into(), hull, species: Species::Human, profession: Profession::Explorer, level, system: 7, pos: Some([0.0, 0.0, 6000.0]), near_poi: None, near_deposit: None, offset: None, heading: 0.0, undocked: true, credits: 0, cargo: Default::default() }],
         npcs: vec![NpcGroup { archetype: arch, level: npc_level, system: 7, pos: [0.0, 0.0, 5450.0], count, spacing: 80.0 }],
-        script: vec![Step { at: 0.2, captain: "Cap".into(), msg: ClientMsg::Controls(Controls { thrust: 0.2, fire: true, ..Default::default() }), repeat_every: Some(0.1), until: None, target_nearest: Some("npc".into()), aim: true, broadside: false, hold_over: false, fill_nearest: None, target_captain: None }],
+        script: vec![Step { at: 0.2, captain: "Cap".into(), msg: ClientMsg::Controls(Controls { thrust: 0.2, fire: true, ..Default::default() }), repeat_every: Some(0.1), until: None, target_nearest: Some("npc".into()), aim: true, broadside: false, hold_over: false, roll_between: None, fill_nearest: None, target_captain: None }],
         run_secs: LIMIT,
         expect: vec![],
         digest: None,
@@ -143,7 +143,7 @@ fn vertical_sheet() -> String {
             ambient_pirates: true,
             captains: vec![Captain { name: "Hunter".into(), hull: HullClass::Talon, species: Species::Human, profession: Profession::CombatPilot, level: 5, system: sys, pos: None, near_poi: None, near_deposit: None, offset: None, heading: 0.0, undocked: true, credits: 0, cargo: Default::default() }],
             npcs: vec![],
-            script: vec![Step { at: 0.2, captain: "Hunter".into(), msg: ClientMsg::Controls(Controls { thrust: 0.7, fire: true, ..Default::default() }), repeat_every: Some(0.1), until: None, target_nearest: Some("npc".into()), aim: true, broadside: false, hold_over: false, fill_nearest: None, target_captain: None }],
+            script: vec![Step { at: 0.2, captain: "Hunter".into(), msg: ClientMsg::Controls(Controls { thrust: 0.7, fire: true, ..Default::default() }), repeat_every: Some(0.1), until: None, target_nearest: Some("npc".into()), aim: true, broadside: false, hold_over: false, roll_between: None, fill_nearest: None, target_captain: None }],
             run_secs: 900.0,
             expect: vec![],
             digest: None,
@@ -194,6 +194,7 @@ fn pvp_speed_sheet() -> String {
         aim,
         broadside,
         hold_over,
+        roll_between: None,
         fill_nearest: None,
         target_captain: Some(target.into()),
     };
@@ -242,20 +243,32 @@ fn pvp_speed_sheet() -> String {
 fn pvp_group_sheet() -> String {
     const SECS: f32 = 30.0;
     let mut out = format!("
-대인전 2대 1(Lv9 Talon 둘이 Lv9 Bastion 주력함을 공격, 방어자는 첫 공격자를 목표로 잡고 포탑으로만 반격, {SECS:.0}초): 칸 = 두 공격자가 버틴 시간(끝까지 버티면 남은 선체), 방어자 격침 시각, 방어자에게 준 피해(호위함 포함).
+대인전 2대 1(Lv9 Talon 둘이 Lv9 Bastion 주력함을 공격, 방어자는 첫 공격자를 목표로 잡고 포탑으로만 반격, {SECS:.0}초): 칸 = 두 공격자가 버틴 시간(끝까지 버티면 남은 선체), 방어자 격침 시각, 방어자에게 준 피해(호위함 포함). 「구름」 = 첫 공격자를 선체 옆으로(broadside), 「중간 각도로 구름」 = 두 공격자 방향의 가운데를 선체 옆으로(roll_between) — 둘 다 평면에서 45°, 포대가 반씩 나뉜다.
 
 | 공격 각도 | 방어자 | 공격자 1 (목표) | 공격자 2 | 방어자 격침 | 방어자에게 준 피해 |
 |---|---|---|---|---|---|
 ");
-    let step = |who: &str, target: &str, aim: bool, broadside: bool| Step { at: 0.5, captain: who.into(), msg: ClientMsg::Controls(Controls { fire: aim, ..Default::default() }), repeat_every: Some(0.1), until: None, target_nearest: None, aim, broadside, hold_over: false, fill_nearest: None, target_captain: Some(target.into()) };
+    let step = |who: &str, target: &str, aim: bool, broadside: bool| Step { at: 0.5, captain: who.into(), msg: ClientMsg::Controls(Controls { fire: aim, ..Default::default() }), repeat_every: Some(0.1), until: None, target_nearest: None, aim, broadside, hold_over: false, roll_between: None, fill_nearest: None, target_captain: Some(target.into()) };
+    // Defender's roll: none, the first attacker beside the hull, or halfway between the two (45° each).
+    #[derive(Clone, Copy, PartialEq)]
+    enum Roll {
+        Still,
+        Target,
+        Between,
+    }
     let captain = |name: &str, hull, pos: [f32; 3]| Captain { name: name.into(), hull, species: Species::Human, profession: Profession::Explorer, level: 9, system: 5, pos: Some(pos), near_poi: None, near_deposit: None, offset: None, heading: 0.0, undocked: true, credits: 0, cargo: Default::default() };
     let (z, d) = (6000.0, 500.0);
     for (label, a1, a2, roll) in [
-        ("둘 다 수평(양옆)", [d, 0.0, z], [-d, 0.0, z], false),
-        ("둘 다 바로 위", [60.0, d, z], [-60.0, d, z], true),
-        ("위 + 옆 (90°)", [0.0, d, z], [d, 0.0, z], false),
-        ("위 + 옆 (90°)", [0.0, d, z], [d, 0.0, z], true),
+        ("둘 다 수평(양옆)", [d, 0.0, z], [-d, 0.0, z], Roll::Still),
+        ("둘 다 바로 위", [60.0, d, z], [-60.0, d, z], Roll::Target),
+        ("위 + 옆 (90°)", [0.0, d, z], [d, 0.0, z], Roll::Still),
+        ("위 + 옆 (90°)", [0.0, d, z], [d, 0.0, z], Roll::Target),
+        ("위 + 옆 (90°)", [0.0, d, z], [d, 0.0, z], Roll::Between),
     ] {
+        let mut defend = step("Admiral", "A1", false, roll == Roll::Target);
+        if roll == Roll::Between {
+            defend.roll_between = Some("A2".into());
+        }
         let sc = Scenario {
             name: "pvp group".into(),
             description: String::new(),
@@ -264,7 +277,7 @@ fn pvp_group_sheet() -> String {
             ambient_pirates: false,
             captains: vec![captain("Admiral", HullClass::Bastion, [0.0, 0.0, z]), captain("A1", HullClass::Talon, a1), captain("A2", HullClass::Talon, a2)],
             npcs: vec![],
-            script: vec![step("A1", "Admiral", true, false), step("A2", "Admiral", true, false), step("Admiral", "A1", false, roll)],
+            script: vec![step("A1", "Admiral", true, false), step("A2", "Admiral", true, false), defend],
             run_secs: SECS,
             expect: vec![],
             digest: None,
@@ -276,7 +289,11 @@ fn pvp_group_sheet() -> String {
         };
         let taken = r.totals.iter().find(|(n, _)| n == "Admiral").map(|t| t.1.taken).unwrap_or(0.0);
         out += &format!("| {label} | {} | {} | {} | {} | {taken:.0} |
-", if roll { "구름" } else { "가만히" }, lasted("A1"), lasted("A2"), lasted("Admiral"));
+", match roll {
+            Roll::Still => "가만히",
+            Roll::Target => "구름",
+            Roll::Between => "중간 각도로 구름",
+        }, lasted("A1"), lasted("A2"), lasted("Admiral"));
     }
     out
 }
@@ -472,7 +489,7 @@ fn social_economy() -> String {
                 ambient_pirates: true,
                 captains: vec![Captain { name: "Hunter".into(), hull: HullClass::Talon, species: Species::Human, profession: Profession::CombatPilot, level, system: sys, pos: None, near_poi: None, near_deposit: None, offset: None, heading: 0.0, undocked: true, credits: 0, cargo: Default::default() }],
                 npcs: vec![],
-                script: vec![Step { at: 0.2, captain: "Hunter".into(), msg: ClientMsg::Controls(Controls { thrust: 0.7, fire: true, ..Default::default() }), repeat_every: Some(0.1), until: None, target_nearest: Some("npc".into()), aim: true, broadside: false, hold_over: false, fill_nearest: None, target_captain: None }],
+                script: vec![Step { at: 0.2, captain: "Hunter".into(), msg: ClientMsg::Controls(Controls { thrust: 0.7, fire: true, ..Default::default() }), repeat_every: Some(0.1), until: None, target_nearest: Some("npc".into()), aim: true, broadside: false, hold_over: false, roll_between: None, fill_nearest: None, target_captain: None }],
                 run_secs: 900.0,
                 expect: vec![],
                 digest: None,
