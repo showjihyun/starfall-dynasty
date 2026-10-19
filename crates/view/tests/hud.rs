@@ -218,3 +218,27 @@ fn a_turret_ship_is_told_to_roll() {
     assert_eq!(view::hud::roll_hint(0, 0), None, "no turrets (fighter): rolling does not help");
     assert_eq!(view::hud::roll_hint(4, 8).unwrap(), "내 포탑 4/8문만 닿음\nQ/E로 굴러 선체 옆에 두면 8/8문", "two lines: the 320 px target panel would orphan the count");
 }
+
+#[test]
+fn turret_ship_is_warned_about_captains_outside_its_fleet() {
+    use shared::galaxy::RiskTier;
+    use view::relation::Viewer;
+    // Two captains on one pirate in open-PvP space: holding the trigger, my spare batteries would
+    // shoot the other captain unless we fly as a fleet (docs/3D_전투_설계.md, 함대 필수).
+    let at = |id, pos: [f32; 3]| EntityState { id, owner: Some(id as u64), name: format!("Cap{id}"), pos, ..me(1.0, 1.0) };
+    let mine = at(1, [0.0; 3]);
+    let pirate = EntityState { kind: EntityKind::Npc(shared::missions::NpcArchetype::Raider), owner: None, ..at(5, [0.0, 0.0, -800.0]) };
+    let mate = at(2, [400.0, 0.0, 0.0]);
+    let far = at(3, [5000.0, 0.0, 0.0]);
+    let wild = Viewer { me: Some(1), player: Some(1), fleet: None, alliance: None, alliances: &[], tier: RiskTier::Wild };
+    let warn = |v: &Viewer, turrets, ents: &[&EntityState]| hud::stray_fire_warning(v, &mine, &pirate, turrets, 2000.0, ents.iter().copied());
+    assert_eq!(warn(&wild, 14, &[&mine, &pirate, &mate, &far]).unwrap(), "함대 아님: Cap2\n사격하면 내 포탑이 맞힐 수 있다 — K로 함대");
+    assert_eq!(warn(&wild, 14, &[&mine, &pirate, &far]), None, "out of turret reach");
+    assert_eq!(warn(&wild, 0, &[&mine, &pirate, &mate]), None, "no turrets: forward guns only hit what I aim at");
+    let fleet = Viewer { fleet: Some(9), ..wild };
+    assert_eq!(warn(&fleet, 14, &[&EntityState { fleet: Some(9), ..mate.clone() }]), None, "fleet mates are never picked");
+    let core = Viewer { tier: RiskTier::Core, ..wild };
+    assert_eq!(warn(&core, 14, &[&mate]), None, "no PvP here: turrets cannot hit captains");
+    let both = at(4, [0.0, 300.0, 0.0]);
+    assert!(warn(&wild, 14, &[&mate, &both]).unwrap().starts_with("함대 아님: Cap2 외 1척"));
+}

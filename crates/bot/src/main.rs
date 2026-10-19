@@ -1,4 +1,4 @@
-//! `bot <ws-url> <name> [system…] [--hull H] [--say "/grow 9;/tp station 0 400 0"] [--stay SECS]` — log in
+//! `bot <ws-url> <name> [system…] [--hull H] [--say "/grow 9;warp 5;/tp station 0 400 0"] [--stay SECS]` — log in
 //! as a headless captain, optionally warp along a path, say each `;`-separated line (dev commands on a
 //! `--dev` server), print every entity the server reports in that system, then stay logged in for SECS
 //! (a second captain to pose next to a scripted client screenshot).
@@ -25,6 +25,13 @@ async fn main() {
         }
     }
     for line in get("--say").iter().flat_map(|l| l.split(';')).map(str::trim).filter(|l| !l.is_empty()) {
+        // `warp N` in the list warps there (after a `/grow`, which raises the warp range).
+        if let Some(sys) = line.strip_prefix("warp ").and_then(|s| s.trim().parse::<u16>().ok()) {
+            if let Err(e) = b.warp_to(sys).await {
+                eprintln!("{e}");
+            }
+            continue;
+        }
         b.send(ClientMsg::Chat { text: line.to_string() }).await;
         b.pump(1.0).await;
     }

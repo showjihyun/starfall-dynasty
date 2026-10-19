@@ -414,6 +414,11 @@ fn hud(ctx: &egui::Context, s: &mut Session, net: &Net, env: &Env, vis: &Visuals
                     if let Some(line) = view::hud::roll_hint(shared::ships::batteries_reaching(m, Vec3::from(t.pos)), shared::ships::turret_batteries(m)) {
                         ui.label(RichText::new(line).size(12.0).color(view::palette::CAUTION));
                     }
+                    let viewer = Viewer { me: s.me, player: s.player_id, fleet: s.fleet, alliance: s.my_alliance, alliances: &s.alliances, tier: galaxy::system(s.system).tier };
+                    let ents = s.latest().map(|l| l.ents.values()).into_iter().flatten();
+                    if let Some(line) = view::hud::stray_fire_warning(&viewer, m, &t, shared::ships::turret_batteries(m), prof.ship.stats().turret_range, ents) {
+                        ui.label(RichText::new(line).size(12.0).color(view::palette::CAUTION));
+                    }
                 }
             });
         }

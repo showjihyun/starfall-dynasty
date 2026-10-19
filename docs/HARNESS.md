@@ -103,7 +103,7 @@ bot ws://127.0.0.1:7791 High --hull Bastion --say "/grow 9;/tp station 0 1200 70
 client --server ws://127.0.0.1:7791 --name Low --auto --hull Bastion --script "say /grow 9;say /tp station 0 0 700;target High;roll 3;wait 3" --shot X.png --shot-at 14
 ```
 
-`/tp 대상 X Y Z`는 대상 옆에서 X Y Z m만큼 옮겨 세운다. 스크립트의 `target NAME`은 이름에 NAME이 든 배를 목표로 잡는다.
+`/tp 대상 X Y Z`는 대상 옆에서 X Y Z m만큼 옮겨 세운다. 봇의 `--say` 목록에서 `warp N`은 그 성계로 워프한다(`/grow` 뒤에 두면 워프 거리가 늘어난다 — PvP가 되는 Wild 성계 장면: `--say "/grow 9;warp 5;/tp station 700 0 700"`, 클라이언트는 `say /grow 9;warp 5;…`). 스크립트의 `target NAME`은 이름에 NAME이 든 배를 목표로 잡는다.
 **주의**: `STARFALL_FIXED_FPS`를 켜면 클라이언트 시계가 프레임당 1/60초씩만 흐른다. 실서버는 실제 시간으로 돌기 때문에 `roll 3` 같은 조작 시간이 화면 주사율만큼 짧아진다. 조작 시간이 결과를 정하는 실서버 장면에서는 `STARFALL_FIXED_FPS`를 끈다. 픽셀까지 같아야 하는 비교는 쇼룸이나 `--replay`로 한다.
 
 ## 2단계: 게임을 실행하지 않는 결정론 개발 구조

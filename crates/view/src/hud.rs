@@ -5,7 +5,7 @@
 use crate::palette::{ACCENT, GOLD, LOSS};
 use egui::{Align2, Color32, FontId, Pos2, RichText, Stroke, Vec2 as EVec2};
 use shared::glam::Vec3;
-use shared::protocol::EntityState;
+use shared::protocol::{EntityKind, EntityState};
 use shared::ships::{Ship, SizeClass};
 
 /// Radius (px) of the crosshair gauge arcs and their width.
@@ -55,6 +55,24 @@ pub fn battery_text(reach: u8, total: u8) -> Option<String> {
 /// above or below me), how to bring them to bear. None: no turrets, or every battery already reaches.
 pub fn roll_hint(reach: u8, total: u8) -> Option<String> {
     (total > 0 && reach < total).then(|| format!("내 포탑 {reach}/{total}문만 닿음\nQ/E로 굴러 선체 옆에 두면 {total}/{total}문"))
+}
+
+/// Target panel warning (docs/3D_전투_설계.md, 함대 필수): captains the rules make hostile to me, other
+/// than my target, inside my turret reach `range` — while I hold the trigger my spare batteries shoot
+/// them too (`sim` turret_search). Usually someone fighting the same enemy outside my fleet.
+/// None: I have no turrets (`turrets`), or nobody is there.
+pub fn stray_fire_warning<'a>(viewer: &crate::relation::Viewer, me: &EntityState, target: &EntityState, turrets: u8, range: f32, ents: impl IntoIterator<Item = &'a EntityState>) -> Option<String> {
+    if turrets == 0 {
+        return None;
+    }
+    let at = Vec3::from(me.pos);
+    let near: Vec<&EntityState> = ents
+        .into_iter()
+        .filter(|e| e.kind == EntityKind::Player && e.id != target.id && !e.docked && Vec3::from(e.pos).distance(at) <= range + e.radius && viewer.relation(e) == crate::relation::Relation::Hostile)
+        .collect();
+    let first = near.iter().min_by_key(|e| e.id)?;
+    let more = if near.len() > 1 { format!(" 외 {}척", near.len() - 1) } else { String::new() };
+    Some(format!("함대 아님: {}{more}\n사격하면 내 포탑이 맞힐 수 있다 — K로 함대", first.name))
 }
 
 pub fn bar(ui: &mut egui::Ui, frac: f32, color: Color32, label: String, w: f32) {

@@ -1348,3 +1348,38 @@ fn rolling_puts_an_overhead_ship_in_every_battery() {
     assert_eq!(reach_after_roll(3.5), (14, 14));
     assert_eq!(reach_after_roll(4.5), (7, 14), "overshot: ventral batteries only");
 }
+
+/// Whether my turrets shoot a captain beside me while I hold the trigger on a pirate overhead.
+fn stray_turret_fire(same_fleet: bool) -> bool {
+    let mut g = game();
+    join(&mut g, 1, "Me", Species::Human, HullClass::Bastion, Profession::CombatPilot);
+    join(&mut g, 2, "Mate", Species::Human, HullClass::Bastion, Profession::CombatPilot);
+    for c in [1, 2] {
+        grow(&mut g, c, 9, 5);
+    }
+    if same_fleet {
+        g.handle(1, ClientMsg::FleetInvite { name: "Mate".into() });
+        let fleet = g.fleet_of(g.sessions[&1].player.unwrap()).unwrap();
+        g.handle(2, ClientMsg::FleetAccept { fleet });
+    }
+    clear_npcs(&mut g, 5);
+    let at = galaxy::system_layout(5).station + Vec3::new(0.0, 0.0, 4000.0);
+    place(&mut g, 1, at, at + Vec3::NEG_Z);
+    place(&mut g, 2, at + Vec3::X * 700.0, at + Vec3::X * 700.0 + Vec3::NEG_Z);
+    let pirate = g.spawn_npc(5, NpcArchetype::Raider, 1, at + Vec3::Y * 900.0, None);
+    let (s, me) = ent_of(&g, 1);
+    let (_, mate) = ent_of(&g, 2);
+    g.ent_mut(s, me).unwrap().target = Some(pirate);
+    g.out.clear();
+    g.handle(1, ClientMsg::Controls(Controls { fire: true, ..Default::default() }));
+    run(&mut g, 4.0);
+    g.out.iter().any(|(_, m)| matches!(m, ServerMsg::Snapshot { fx, .. } if fx.iter().any(|f| matches!(f, Fx::Shot { from, to, .. } if *from == me && *to == mate))))
+}
+
+#[test]
+fn turrets_shoot_captains_outside_the_fleet() {
+    // The target panel's warning (view::hud::stray_fire_warning): with the pirate overhead, my ventral
+    // half has nothing to shoot but the captain beside me — unless we fly as one fleet.
+    assert!(stray_turret_fire(false), "outside a fleet the spare batteries take the other captain");
+    assert!(!stray_turret_fire(true), "fleet mates are never picked");
+}
