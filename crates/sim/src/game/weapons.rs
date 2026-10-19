@@ -109,8 +109,13 @@ impl Game {
         let preferred = if e.kind == EntityKind::Player { e.target } else { e.ai.as_ref().and_then(|a| a.target) };
         let in_reach = |t: &Ent| t.pos.distance(e.pos) <= range + t.stats.radius;
         let valid = |id: EntityId| self.ent(sys, id).is_some_and(|t| !t.dead && in_reach(t)) && self.can_damage(sys, e.id, id);
+        // Selecting a captain (to read the target panel) is not an attack: a player's turrets take a
+        // selected player-side ship only with the trigger held or once it has shot at us.
+        let now = self.now;
+        let engaged = |id: EntityId| e.kind != EntityKind::Player || e.controls.fire || self.ent(sys, id).is_some_and(|t| t.side().is_none()) || e.attackers.iter().any(|(a, _, at)| *a == id && now - at < 15.0);
         if let Some(p) = preferred
             && valid(p)
+            && engaged(p)
         {
             return (Some(p), false);
         }

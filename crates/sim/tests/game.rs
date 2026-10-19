@@ -1383,3 +1383,43 @@ fn turrets_shoot_captains_outside_the_fleet() {
     assert!(stray_turret_fire(false), "outside a fleet the spare batteries take the other captain");
     assert!(!stray_turret_fire(true), "fleet mates are never picked");
 }
+
+/// Low selects Pir (another captain, directly in turret reach, open-PvP space) and then holds `fire`
+/// or not; Pir shoots Low first when `pir_attacks`. Returns (Low's turrets hit Pir, Low's bounty).
+fn select_captain(fire: bool, pir_attacks: bool) -> (bool, u64) {
+    let mut g = game();
+    let low = join(&mut g, 1, "Low", Species::Human, HullClass::Bastion, Profession::CombatPilot);
+    join(&mut g, 2, "Pir", Species::Human, HullClass::Bastion, Profession::CombatPilot);
+    for c in [1, 2] {
+        grow(&mut g, c, 9, 5);
+    }
+    clear_npcs(&mut g, 5);
+    let at = galaxy::system_layout(5).station + Vec3::new(0.0, 0.0, 4000.0);
+    place(&mut g, 1, at, at + Vec3::NEG_Z);
+    place(&mut g, 2, at + Vec3::X * 900.0, at + Vec3::X * 900.0 + Vec3::NEG_Z);
+    let (s, me) = ent_of(&g, 1);
+    let (_, pir) = ent_of(&g, 2);
+    g.handle(1, ClientMsg::SetTarget(Some(pir)));
+    if pir_attacks {
+        g.handle(2, ClientMsg::SetTarget(Some(me)));
+        g.handle(2, ClientMsg::Controls(Controls { fire: true, ..Default::default() }));
+    }
+    g.handle(1, ClientMsg::Controls(Controls { fire, ..Default::default() }));
+    g.out.clear();
+    run(&mut g, 5.0);
+    let _ = s;
+    let hit = g.out.iter().any(|(_, m)| matches!(m, ServerMsg::Snapshot { fx, .. } if fx.iter().any(|f| matches!(f, Fx::Shot { from, to, .. } if *from == me && *to == pir))));
+    (hit, g.store.profile(low).unwrap().bounty)
+}
+
+#[test]
+fn selecting_a_captain_is_not_an_attack() {
+    // Picking a captain (T, or to read the target panel) must not open fire: turrets take a selected
+    // captain only with the trigger held or in self-defence, like any other captain in reach.
+    let (hit, bounty) = select_captain(false, false);
+    assert!(!hit && bounty == 0, "selected only: no shots, no crime (hit {hit}, bounty {bounty})");
+    assert!(select_captain(true, false).0, "trigger held: the turrets take the selected captain");
+    let (hit, bounty) = select_captain(false, true);
+    assert!(hit, "shot at first: the turrets answer the attacker without the trigger");
+    assert_eq!(bounty, 0, "self-defence is no crime");
+}
