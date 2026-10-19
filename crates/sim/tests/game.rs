@@ -1297,3 +1297,54 @@ fn target_panel_turret_count_matches_the_server() {
         assert_eq!(shared::ships::batteries_reaching(&st, p + rot * Vec3::Y * 500.0), n.div_ceil(2), "{a:?} above");
     }
 }
+
+#[test]
+fn dev_teleport_poses_two_captains_a_height_apart() {
+    let mut g = game();
+    g.dev_mode = true;
+    join(&mut g, 1, "Low", Species::Human, HullClass::Bastion, Profession::Explorer);
+    join(&mut g, 2, "High", Species::Human, HullClass::Bastion, Profession::Explorer);
+    g.handle(1, ClientMsg::Chat { text: "/tp station".into() });
+    g.handle(2, ClientMsg::Chat { text: "/tp station 0 400 0".into() });
+    let pos = |g: &Game, c| {
+        let (s, e) = ent_of(g, c);
+        let e = g.ent(s, e).unwrap();
+        assert!(!e.docked);
+        e.pos
+    };
+    let d = pos(&g, 2) - pos(&g, 1);
+    assert!((d - Vec3::new(0.0, 400.0, 0.0)).length() < 1e-3, "{d}");
+}
+
+/// Holding Q/E for `secs` then letting go: how many of A's batteries reach B (directly above) once it settles.
+fn reach_after_roll(secs: f32) -> (u8, u8) {
+    let mut g = game();
+    join(&mut g, 1, "Low", Species::Human, HullClass::Bastion, Profession::CombatPilot);
+    join(&mut g, 2, "High", Species::Human, HullClass::Bastion, Profession::CombatPilot);
+    for c in [1, 2] {
+        grow(&mut g, c, 9, 3);
+    }
+    clear_npcs(&mut g, 3);
+    let at = galaxy::system_layout(3).station + Vec3::new(0.0, 0.0, 3000.0);
+    place(&mut g, 1, at, at + Vec3::NEG_Z);
+    place(&mut g, 2, at + Vec3::Y * 1200.0, at + Vec3::NEG_Z);
+    g.handle(1, ClientMsg::Controls(Controls { roll: 1.0, ..Default::default() }));
+    run(&mut g, secs);
+    g.handle(1, ClientMsg::Controls(Controls::default()));
+    run(&mut g, 3.0);
+    let (s, a) = ent_of(&g, 1);
+    let (_, b) = ent_of(&g, 2);
+    let me = g.ent(s, a).unwrap().state();
+    (shared::ships::batteries_reaching(&me, g.ent(s, b).unwrap().pos), shared::ships::turret_batteries(&me))
+}
+
+#[test]
+fn rolling_puts_an_overhead_ship_in_every_battery() {
+    // The target panel's roll hint (docs/3D_전투_설계.md) promises 14/14 once the enemy is beside the
+    // hull. A Lv9 Bastion rolls 0.51 rad/s: about 3 s of Q/E turns 90°; held longer it overshoots and
+    // the enemy is under the hull — the hint comes back, so the captain lets go when it disappears.
+    assert_eq!(reach_after_roll(0.0), (7, 14), "directly above: dorsal batteries only");
+    assert_eq!(reach_after_roll(3.0), (14, 14), "rolled level with it: every battery");
+    assert_eq!(reach_after_roll(3.5), (14, 14));
+    assert_eq!(reach_after_roll(4.5), (7, 14), "overshot: ventral batteries only");
+}

@@ -95,6 +95,17 @@ python tools/imgdiff.py --stats after.png --crop 380,90,220,200    # 영역의 �
 3. **바깥 루프 (화면에 영향이 있을 때만)**: 고정 프레임 스크린샷과 `imgdiff` 수치로 목표에 가까워졌는지 판단한다. 이미지는 마지막에 사람이 확인한다.
 4. **성능**: `sim/examples/bench N`, `client --bench`, `bot/examples/swarm`의 텍스트 수치를 이전 값과 비교한다.
 
+**두 함장을 배치해 실서버 화면 찍기** (예: 목표 패널의 포탑·구르기 줄):
+
+```
+server --dev --port 7791 --data DIR
+bot ws://127.0.0.1:7791 High --hull Bastion --say "/grow 9;/tp station 0 1200 700" --stay 60
+client --server ws://127.0.0.1:7791 --name Low --auto --hull Bastion --script "say /grow 9;say /tp station 0 0 700;target High;roll 3;wait 3" --shot X.png --shot-at 14
+```
+
+`/tp 대상 X Y Z`는 대상 옆에서 X Y Z m만큼 옮겨 세운다. 스크립트의 `target NAME`은 이름에 NAME이 든 배를 목표로 잡는다.
+**주의**: `STARFALL_FIXED_FPS`를 켜면 클라이언트 시계가 프레임당 1/60초씩만 흐른다. 실서버는 실제 시간으로 돌기 때문에 `roll 3` 같은 조작 시간이 화면 주사율만큼 짧아진다. 조작 시간이 결과를 정하는 실서버 장면에서는 `STARFALL_FIXED_FPS`를 끈다. 픽셀까지 같아야 하는 비교는 쇼룸이나 `--replay`로 한다.
+
 ## 2단계: 게임을 실행하지 않는 결정론 개발 구조
 
 목표는 **게임을 띄우지 않고도 개발과 검증이 끝나는 영역을 최대한 넓히는 것**이다. LLM에게 맡기면 효율적인 일, 즉 규칙·수치·상태 전이·네트워크 동작·좌표 계산은 이 영역으로 끌어온다. 게임을 실행해야만 판단할 수 있는 일(셰이더·모델의 느낌, 소리, 조작감)만 바깥 루프에 남긴다.

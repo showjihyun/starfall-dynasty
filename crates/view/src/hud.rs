@@ -54,7 +54,7 @@ pub fn battery_text(reach: u8, total: u8) -> Option<String> {
 /// The defender's side of the same rule: when my own batteries cannot all reach my target (it sits
 /// above or below me), how to bring them to bear. None: no turrets, or every battery already reaches.
 pub fn roll_hint(reach: u8, total: u8) -> Option<String> {
-    (total > 0 && reach < total).then(|| format!("내 포탑 {reach}/{total}문만 닿음 — Q/E로 굴러 선체 옆에 두면 {total}/{total}"))
+    (total > 0 && reach < total).then(|| format!("내 포탑 {reach}/{total}문만 닿음\nQ/E로 굴러 선체 옆에 두면 {total}/{total}문"))
 }
 
 pub fn bar(ui: &mut egui::Ui, frac: f32, color: Color32, label: String, w: f32) {

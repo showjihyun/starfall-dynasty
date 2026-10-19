@@ -2,6 +2,8 @@
 //!
 //! `client [--server ws://127.0.0.1:7777] [--name NAME] [--auto] [--hull talon]`
 //! `       [--shot out.png --shot-at 8] [--showroom [system]] [--script "undock;thrust 3;fire 2"]`
+//! script steps: undock, warp N, thrust/boost/fire/turn/roll SECS, attack SECS, target NAME, say TEXT
+//! (dev commands too: `say /grow 9`), map, galaxy, station, missions, alliance, contracts, chronicle, close, fp, tp, zoom N
 //! `client --replay DIR [--as NAME] [--from SECS] [--speed X]` — 3D replay of a recorded session
 
 mod audio;
@@ -307,6 +309,16 @@ fn automation(
                 }
             }
             "turn" => net.send(ClientMsg::Controls(Controls { yaw: 1.0, thrust: 0.5, ..default() })),
+            "roll" => net.send(ClientMsg::Controls(Controls { roll: 1.0, ..default() })),
+            // `target NAME`: select the ship whose name contains NAME (the target panel's subject).
+            "target" => {
+                let want = cmd.get(1).copied().unwrap_or("");
+                let id = s.latest().and_then(|l| l.ents.values().filter(|e| Some(e.id) != s.me && e.name.contains(want)).map(|e| e.id).min());
+                if id.is_some() && s.target != id {
+                    s.target = id;
+                    net.send(ClientMsg::SetTarget(id));
+                }
+            }
             "map" if first => s.ui.map = true,
             "galaxy" if first => s.map.level = starmap::Level::Galaxy,
             "station" if first => s.ui.station = true,

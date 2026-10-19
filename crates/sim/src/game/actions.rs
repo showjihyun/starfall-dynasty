@@ -973,9 +973,12 @@ impl Game {
                     self.send_influence(pid);
                 }
             }
-            // QA: `/tp station|wreck|npc|poi:<Kind>` — jump next to it in your system (undocked, at rest).
+            // QA: `/tp station|wreck|npc|poi:<Kind> [X Y Z]` — jump next to it in your system (undocked, at
+            // rest), shifted by X Y Z metres (two captains a set height apart: `/tp station 0 400 0`).
             Some("/tp") => {
                 let what = it.next().unwrap_or("station").to_string();
+                let shift: Vec<f32> = it.filter_map(|v| v.parse().ok()).collect();
+                let shift = if shift.len() == 3 { Vec3::new(shift[0], shift[1], shift[2]) } else { Vec3::ZERO };
                 let Some((sys, eid)) = self.player_entity(pid) else { return };
                 let Some(me) = self.ent(sys, eid).map(|e| e.pos) else { return };
                 let near = |p: Vec3| p.distance(me);
@@ -995,7 +998,7 @@ impl Game {
                     Some(t) => {
                         if let Some(e) = self.ent_mut(sys, eid) {
                             e.docked = false;
-                            e.pos = t + Vec3::new(0.0, 0.0, 120.0);
+                            e.pos = t + Vec3::new(0.0, 0.0, 120.0) + shift;
                             e.vel = Vec3::ZERO;
                         }
                     }
