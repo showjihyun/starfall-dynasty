@@ -15,6 +15,7 @@ Writes target/gate/last.json. Exit 1 if any check failed.
 """
 import json
 import os
+import shutil
 import subprocess
 import sys
 import time
@@ -59,8 +60,14 @@ def plan(files, everything, visual):
         steps.append(("client ECS tests", "client glue changed", "cargo test --release -p client", None))
     if network:
         steps.append(("network + bot tests", "server/protocol/game changed", "SERVER", None))
+    if rules or (visual and looks):
+        perf = [sys.executable, "tools/perfcheck.py"] + (["--client"] if visual and looks else [])
+        steps.append(("performance budget", "sim/rules changed: no more than 20% slower than this machine's baseline" + (" (+ client bench)" if len(perf) > 2 else ""), perf, None))
     if any_rust:
         steps.append(("clippy (no new warnings)", f"baseline {CLIPPY_BASELINE}", "cargo clippy --release --workspace --all-targets", "CLIPPY"))
+    if everything or any_in(files, "Cargo.", "crates/client/Cargo.", "deny.toml") or any(f.endswith("Cargo.toml") for f in files):
+        deny = "cargo deny check" if shutil.which("cargo-deny") else "TODO"
+        steps.append(("dependencies (cargo-deny)", "licences, RustSec advisories, sources" + ("" if deny != "TODO" else " — cargo install cargo-deny --locked"), deny, None))
     if pipeline:
         steps.append(("asset pipeline tests", "texture converter changed", "cargo test --release -p assetpipe", None))
     if assets:

@@ -1,0 +1,10 @@
+{
+ "Windows | AMD64 Family 25 Model 97 Stepping 2, AuthenticAMD | 12 threads": {
+  "metrics": {
+   "sim_tick_ms": 9.392,
+   "sim_tick_p95_ms": 16.404,
+   "client_frame_ms": 13.55,
+   "client_1pct_low_ms": 21.67
+  }
+ }
+}

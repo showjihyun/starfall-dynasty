@@ -2,6 +2,7 @@
 name = "sim"
 version = "0.1.0"
 edition = "2024"
+publish = false
 
 # The authoritative simulation as a pure, synchronous library: game state and rules, persistence,
 # record/replay, scenario specs, gameplay metrics. No network, no async runtime, no engine

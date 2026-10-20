@@ -2,6 +2,7 @@
 name = "view"
 version = "0.1.0"
 edition = "2024"
+publish = false
 
 # Client presentation logic with no engine: interpolation, star map projection, HUD gauges and
 # panels, dust field. Tested in seconds without compiling Bevy (docs/HARNESS.md, 로드맵 2).

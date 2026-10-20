@@ -28,16 +28,17 @@
 | 에셋 예산·검증 | `tools/assetcheck.py` + `tools/asset_budgets.json` | ● 2026-10-20 | VRAM 예산(`texture_gpu_mb`)까지. 예산을 낮춰 가며 최적화 |
 | 텍스처 최적화 | `crates/assetpipe`(intel_tex_2 = Intel ISPC BC7/BC5, zstd, KTX2) | ● 2026-10-20 | Blender 내보내기가 자동 실행. 아래 "텍스처 파이프라인" |
 | 탄젠트 | `crates/assetpipe`(`bevy_mikktspace` — Bevy와 같은 코드) | ● 2026-10-20 | 불러오기 CPU 약 1.4초 절약(27개 합, 정거장 269 ms), 화면 픽셀 동일 |
-| 메시 최적화 | gltf-transform(OSS, `npx @gltf-transform/cli@4.1.1`), meshoptimizer | ○ | 정거장 31만·관문 43만 삼각형: LOD(meshoptimizer simplify) 후보 |
+| 메시 LOD | `assetpipe --lod`(meshoptimizer, `meshopt` 크레이트) + `client/src/lod.rs`(Bevy `VisibilityRange`) | ● 2026-10-20 | 정거장·관문만(예산 규칙의 `"lod"`). 함선 LOD는 1000척 전투에서 효과가 클 후보 |
 | 모델 제작 | Blender 5.2 + `tools/blender/*.py`(절차적 생성) | ● | 경로는 tools/blender/README.md(PATH에 없음) |
 | 아트 회귀 | `tools/artcheck.py`, `tools/imgdiff.py` | ● | |
 | 게임플레이·밸런스 | 시나리오 사양, `balance` 시트 | ● | |
 | 자동 플레이 QA | `bot` qa(25항목), 클라이언트 `--script` | ● | |
 | 재현(버그 리포트) | `server --record`, `replay`, `client --replay` | ● | 클라이언트 크래시 시 기록 폴더를 자동으로 남기기 |
-| 성능 | `bench`, `client --bench`, `shared::prof` | ● | 성능 예산 게이트(이전 수치보다 느려지면 실패) |
+| 성능 | `bench`, `client --bench`, `shared::prof`, `tools/perfcheck.py` | ● 2026-10-20 | 기계별 기준선(`tools/perf_baseline.json`) 대비 sim 20%·클라이언트 25% 넘게 느려지면 실패. CI는 기준선이 없어 SKIP |
 | 오디오 | `client --dump-sfx`(절차적 효과음), 음악 에셋 | ◐ | 음량 정규화 확인(ffmpeg loudnorm) |
+| 스토리·연출 | docs/STORY.md | ◐ 초안 | 오프닝(엔진 안 컷신) C1–C4 |
 | 현지화 | — (한국어 문자열이 코드에 직접) | ○ | Project Fluent(`fluent-rs`)로 문자열 분리 — 해외 출시 결정 후 |
-| 라이선스 준수 | — | ○ | `cargo-deny`(의존성 라이선스·취약점) |
+| 라이선스·취약점 | `cargo-deny`(`deny.toml`) | ● 2026-10-20 | 허용 라이선스 목록, RustSec, 출처. 예외 하나(RUSTSEC-2026-0344, 이유 기록). 게임 자체 라이선스는 미정 |
 | 배포·패키징 | — | ○ | `cargo-dist`/`cargo-packager`로 Windows 설치본 |
 | 작업 관리 | GitHub(`gh`) | ◐ | 게이트 실패를 이슈로 남기기 |
 
@@ -71,3 +72,17 @@ MSYS_NO_PATHCONV=1 docker run --rm -v "C:/WorkSpace/SpaceHistoric:/src:ro" -v st
 ```
 
 첫 CI(2026-10-20)에서 잡힌 Linux 전용 문제 셋: intel_tex_2의 C++ 객체가 `libstdc++` 링크를 요구(Windows는 자동), CI의 색 출력이 clippy 경고 수를 0으로 만듦(게이트가 색을 끔), 게이트가 `python`을 불렀는데 Debian은 `python3`뿐(이제 자기 인터프리터로 실행).
+
+## 메시 LOD (`--lod RATIO`)
+
+- 예산 규칙에 `"lod": 0.5`가 있는 모델(정거장·고대 관문)만 만든다. Blender 내보내기가 같은 규칙을 읽어 넘기고, assetcheck는 LOD가 빠진 모델을 실패시킨다(`far tris` 열 = 모든 LOD가 바뀐 뒤 그리는 삼각형).
+- LOD는 같은 정점 위의 새 인덱스 버퍼라 탄젠트·재질·텍스처를 공유한다(디스크 +2 MB). 전환 거리 = 단순화 오차(m, meshoptimizer ErrorAbsolute) x 899(1080p, 세로 62°에서 1 px) + 경계 반지름. 정거장 고리 329 m, 본체 2.0 km, 관문 8–16 km.
+- `STARFALL_LOD_SCALE=0 client --showroom 0 --shot X.png`로 LOD만 보고 imgdiff할 수 있다(정거장 장면 0.10% 차이).
+- 측정(`client --bench 15`, 3회씩): 평균 7.5 vs 7.6 ms(차이 없음), 1% 저점 12–13 vs 14.5–15.5 ms. 벤치는 3000 메시 함대전이라 정거장이 병목이 아니다.
+
+## 성능 게이트 (`python tools/perfcheck.py [--client] [--update]`)
+
+- 벤치를 3번 돌려 가장 좋은 값(다른 프로그램은 시간을 늘리기만 한다), 클라이언트는 첫 실행을 버린다(빌드 직후 셰이더 컴파일로 첫 실행만 17 ms대).
+- 측정한 흔들림: sim 7% 이내, 클라이언트 평균 17%까지 → 허용치 sim 20%, 클라이언트 25%.
+- 기준선은 하드웨어(OS·CPU·스레드) 키로 저장한다(공개 저장소라 호스트 이름은 넣지 않음). 빠르게 만든 커밋, 또는 이유 있게 느려진 커밋에서만 `--update`.
+- 게이트: sim·규칙이 바뀌면 sim 벤치, `--visual`이면 클라이언트 벤치까지.

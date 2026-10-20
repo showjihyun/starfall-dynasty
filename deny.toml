@@ -1,0 +1,57 @@
+# cargo-deny (https://github.com/EmbarkStudios/cargo-deny): dependency licences, security advisories
+# (RustSec), crate sources. Run by tools/gate.py when Cargo.toml/Cargo.lock change and on CI;
+# by hand: `cargo deny check`. docs/STUDIO_PIPELINE.md.
+
+[graph]
+# The platforms the game ships on (PC first) and CI runs on.
+targets = ["x86_64-pc-windows-msvc", "x86_64-unknown-linux-gnu"]
+
+[advisories]
+# Known vulnerabilities fail; unmaintained/unsound notices for crates we pull in deep inside Bevy are
+# reported but only fail for our direct dependencies.
+unmaintained = "workspace"
+ignore = [
+    # ruzstd 0.8 decompression bomb: Bevy 0.20's bevy_image pins ruzstd 0.8 (fix is 0.9.1). The game only
+    # decompresses the KTX2 textures it ships (crates/assetpipe), never data from players or the
+    # network, so no attacker controls the input. Drop this when Bevy moves to ruzstd >= 0.9.1.
+    { id = "RUSTSEC-2026-0344", reason = "only our own shipped KTX2 assets are decompressed; Bevy 0.20 pins ruzstd 0.8" },
+]
+
+[licenses]
+# Permissive licences only. Dual-licensed crates (e.g. "Apache-2.0 OR GPL-2.0-only") pass through
+# the permissive side; a crate offering only GPL/LGPL/MPL fails and needs a decision.
+allow = [
+    "0BSD",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "BSL-1.0",
+    "CC0-1.0",
+    "ISC",
+    "MIT",
+    "MIT-0",
+    "Unicode-3.0",
+    "Unlicense",
+    "Zlib",
+    # egui's bundled fonts (epaint_default_fonts): font licences that allow embedding in a game.
+    "OFL-1.1",
+    "Ubuntu-font-1.0",
+]
+confidence-threshold = 0.8
+
+[licenses.private]
+# Our own crates are `publish = false`; the game's licence is a separate decision.
+ignore = true
+
+[bans]
+# Bevy's tree has many duplicate versions (windows-sys etc.); not worth failing on.
+multiple-versions = "allow"
+wildcards = "deny"
+# Our own path dependencies between workspace crates have no version (they are never published).
+allow-wildcard-paths = true
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]

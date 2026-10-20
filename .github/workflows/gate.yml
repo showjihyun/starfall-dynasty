@@ -1,6 +1,6 @@
 # The same gate as before every local commit (python tools/gate.py, docs/STUDIO_PIPELINE.md), on every
 # push: logic + scenarios + determinism, balance sheet in sync, client ECS (headless), server + bot,
-# clippy baseline, asset pipeline and budgets. artcheck needs a GPU window and stays local (--visual).
+# clippy baseline, dependency licences/advisories (cargo-deny), asset pipeline and budgets. artcheck needs a GPU window and stays local (--visual).
 name: gate
 
 on:
@@ -26,6 +26,9 @@ jobs:
           toolchain: 1.98.1
           components: clippy
       - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-deny
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"

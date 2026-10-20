@@ -13,6 +13,7 @@ mod control;
 mod dust;
 mod fx;
 mod interior;
+mod lod;
 mod materials;
 mod meshes;
 mod music;

@@ -2,6 +2,7 @@
 name = "server"
 version = "0.1.0"
 edition = "2024"
+publish = false
 
 # Network binary: WebSocket transport and the 20 Hz loop around `sim::game::Game`.
 

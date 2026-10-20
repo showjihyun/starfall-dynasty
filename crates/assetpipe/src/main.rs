@@ -1,6 +1,6 @@
 //! Asset pipeline for the game's GLB models (docs/STUDIO_PIPELINE.md): GPU textures and tangents.
 //!
-//!     cargo run -p assetpipe --release -- MODEL.glb [OUT.glb] [--max-px N]
+//!     cargo run -p assetpipe --release -- MODEL.glb [OUT.glb] [--max-px N] [--lod RATIO]
 //!
 //! Blender exports PNG textures; Bevy uploads a PNG as uncompressed RGBA with one mip level, so a
 //! 4096 px map costs 64 MB of VRAM and shimmers at a distance. This rewrites every PNG/JPEG image in
@@ -14,6 +14,12 @@
 //! Tangents: Blender exports none, so Bevy ran MikkTSpace on every normal-mapped primitive at every
 //! load. This runs the same code (`bevy_mikktspace`, same sign flip as `bevy_mesh`) once and stores
 //! the result as TANGENT, so the shading is unchanged and the load skips it.
+//!
+//! `--lod RATIO` (models listed with "lod" in tools/asset_budgets.json): meshoptimizer simplifies
+//! each mesh to about RATIO of its triangles as a new index buffer over the same vertices (shared
+//! tangents, materials, textures), added as a child node `<node>__lod1` whose extras carry `lod_m`:
+//! the camera distance from the model's box centre beyond which the simplification error stays under
+//! one pixel at 1080p (client/src/lod.rs turns it into Bevy `VisibilityRange`s).
 
 use serde_json::{Value, json};
 use std::collections::BTreeMap;
@@ -35,14 +41,15 @@ fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let flag = |name: &str| args.iter().position(|a| a == name).and_then(|i| args.get(i + 1)).cloned();
     let max_px: Option<u32> = flag("--max-px").map(|v| v.parse().expect("--max-px N"));
-    let files: Vec<&String> = args.iter().enumerate().filter(|(i, a)| !a.starts_with("--") && (*i == 0 || args[i - 1] != "--max-px")).map(|(_, a)| a).collect();
+    let lod: Option<f32> = flag("--lod").map(|v| v.parse().expect("--lod RATIO"));
+    let files: Vec<&String> = args.iter().enumerate().filter(|(i, a)| !a.starts_with("--") && (*i == 0 || !["--max-px", "--lod"].contains(&args[i - 1].as_str()))).map(|(_, a)| a).collect();
     let Some(input) = files.first() else {
-        eprintln!("usage: assetpipe MODEL.glb [OUT.glb] [--max-px N]");
+        eprintln!("usage: assetpipe MODEL.glb [OUT.glb] [--max-px N] [--lod RATIO]");
         std::process::exit(2);
     };
     let output = files.get(1).unwrap_or(input);
     let bytes = std::fs::read(input).expect("read GLB");
-    let (out, report, tangents) = optimize(&bytes, max_px);
+    let (out, report, tangents, lods) = optimize(&bytes, max_px, lod);
     for r in &report {
         println!("  {:28} {:6} {:>5} px  file {:6.2} -> {:6.2} MB  gpu {:5.1} -> {:4.1} MB  decode {:4.0} -> {:3.0} ms", r.name, format!("{:?}", r.usage), r.px, r.file_before as f64 / 1e6, r.file_after as f64 / 1e6, r.gpu_before as f64 / 1e6, r.gpu_after as f64 / 1e6, r.load_before, r.load_after);
     }
@@ -50,6 +57,9 @@ fn main() {
     println!("{input}: {:.1} -> {:.1} MB on disk, textures {:.0} -> {:.0} MB VRAM", bytes.len() as f64 / 1e6, out.len() as f64 / 1e6, gpu.0 as f64 / 1e6, gpu.1 as f64 / 1e6);
     if tangents.primitives > 0 {
         println!("  tangents: {} primitives, {} vertices, {:.0} ms (Bevy spent this at every load)", tangents.primitives, tangents.vertices, tangents.ms);
+    }
+    for l in &lods {
+        println!("  lod1 {:24} {:7} -> {:6} triangles, error {:.2} m, from {:.0} m", l.mesh, l.tris_before, l.tris_after, l.error_m, l.distance_m);
     }
     if out != bytes {
         std::fs::write(output, &out).expect("write GLB");
@@ -73,6 +83,14 @@ struct TangentReport {
     primitives: usize,
     vertices: usize,
     ms: f64,
+}
+
+struct LodReport {
+    mesh: String,
+    tris_before: usize,
+    tris_after: usize,
+    error_m: f32,
+    distance_m: f32,
 }
 
 fn read_glb(bytes: &[u8]) -> (Value, Vec<u8>) {
@@ -133,7 +151,7 @@ fn usages(doc: &Value) -> BTreeMap<usize, Usage> {
     out
 }
 
-fn optimize(bytes: &[u8], max_px: Option<u32>) -> (Vec<u8>, Vec<Report>, TangentReport) {
+fn optimize(bytes: &[u8], max_px: Option<u32>, lod: Option<f32>) -> (Vec<u8>, Vec<Report>, TangentReport, Vec<LodReport>) {
     let (mut doc, bin) = read_glb(bytes);
     let views: Vec<Value> = doc["bufferViews"].as_array().cloned().unwrap_or_default();
     let view_bytes = |v: &Value| {
@@ -183,8 +201,9 @@ fn optimize(bytes: &[u8], max_px: Option<u32>) -> (Vec<u8>, Vec<Report>, Tangent
         report.push(r);
     }
     let tangents = add_tangents(&mut doc, &mut data);
-    if report.is_empty() && tangents.primitives == 0 {
-        return (bytes.to_vec(), report, tangents);
+    let lods = lod.map(|r| add_lods(&mut doc, &mut data, r)).unwrap_or_default();
+    if report.is_empty() && tangents.primitives == 0 && lods.is_empty() {
+        return (bytes.to_vec(), report, tangents, lods);
     }
     // Repack the binary chunk: every view keeps its index, offsets move, 4-byte aligned.
     let mut out_bin = Vec::new();
@@ -200,7 +219,103 @@ fn optimize(bytes: &[u8], max_px: Option<u32>) -> (Vec<u8>, Vec<Report>, Tangent
         out_bin.push(0);
     }
     doc["buffers"][0]["byteLength"] = json!(out_bin.len());
-    (write_glb(&doc, &out_bin), report, tangents)
+    (write_glb(&doc, &out_bin), report, tangents, lods)
+}
+
+/// Pixels per metre of error at 1 m, for the game camera (62 degree vertical fov) on a 1080 px tall
+/// screen: an error of E metres is under a pixel from E * PX_PER_M_AT_1M metres away.
+const PX_PER_M_AT_1M: f32 = 1080.0 / (2.0 * 0.540_698_6); // tan(31 deg)
+const LOD_SUFFIX: &str = "__lod1";
+
+/// One simplified level per mesh (see the module docs). Skips a model that already has LOD nodes.
+fn add_lods(doc: &mut Value, data: &mut Vec<Vec<u8>>, ratio: f32) -> Vec<LodReport> {
+    let nodes = doc["nodes"].as_array().cloned().unwrap_or_default();
+    if nodes.iter().any(|n| n["name"].as_str().is_some_and(|s| s.ends_with(LOD_SUFFIX))) {
+        return vec![];
+    }
+    let mut report = vec![];
+    let mut lod_mesh: BTreeMap<usize, (usize, f32)> = BTreeMap::new();
+    for node in &nodes {
+        let Some(m) = node["mesh"].as_u64().map(|m| m as usize) else { continue };
+        if lod_mesh.contains_key(&m) {
+            continue;
+        }
+        let mesh = doc["meshes"][m].clone();
+        let mut prims = vec![];
+        let (mut before, mut after, mut error) = (0, 0, 0f32);
+        let (mut lo, mut hi) = (Vec3::splat(f32::MAX), Vec3::splat(f32::MIN));
+        for prim in mesh["primitives"].as_array().into_iter().flatten() {
+            let mut prim = prim.clone();
+            let (Some(pos), Some(ind)) = (prim["attributes"]["POSITION"].as_u64(), prim["indices"].as_u64()) else { continue };
+            let (Some(p3), Some(idx)) = (floats::<3>(doc, data, pos as usize), indices(doc, data, ind as usize)) else { continue };
+            for p in &p3 {
+                lo = lo.min(Vec3(*p));
+                hi = hi.max(Vec3(*p));
+            }
+            let bytes: Vec<u8> = p3.iter().flatten().flat_map(|f| f.to_le_bytes()).collect();
+            let adapter = meshopt::VertexDataAdapter::new(&bytes, 12, 0).expect("positions");
+            let target = ((idx.len() / 3) as f32 * ratio) as usize * 3;
+            let mut err = 0f32;
+            // Absolute error (metres) so it converts straight into a distance; prune drops greebles that vanish.
+            let simple = meshopt::simplify(&idx, &adapter, target, f32::MAX, meshopt::SimplifyOptions::ErrorAbsolute, Some(&mut err));
+            before += idx.len() / 3;
+            after += simple.len() / 3;
+            error = error.max(err);
+            data.push(simple.iter().flat_map(|i| i.to_le_bytes()).collect());
+            doc["bufferViews"].as_array_mut().unwrap().push(json!({ "buffer": 0, "byteLength": simple.len() * 4, "target": 34963 }));
+            let accessors = doc["accessors"].as_array_mut().unwrap();
+            accessors.push(json!({ "bufferView": data.len() - 1, "componentType": 5125, "count": simple.len(), "type": "SCALAR" }));
+            prim["indices"] = json!(accessors.len() - 1);
+            prims.push(prim);
+        }
+        if prims.is_empty() {
+            continue;
+        }
+        // Distance is measured to the box centre (VisibilityRange::use_aabb): add the half diagonal so
+        // the nearest corner is far enough too.
+        let radius = 0.5 * Vec3(hi.0).sub(lo).len();
+        let distance = error * PX_PER_M_AT_1M + radius;
+        let name = format!("{}{LOD_SUFFIX}", mesh["name"].as_str().unwrap_or("mesh"));
+        let meshes = doc["meshes"].as_array_mut().unwrap();
+        meshes.push(json!({ "name": name, "primitives": prims }));
+        lod_mesh.insert(m, (meshes.len() - 1, distance));
+        report.push(LodReport { mesh: mesh["name"].as_str().unwrap_or("").to_string(), tris_before: before, tris_after: after, error_m: error, distance_m: distance });
+    }
+    for (i, node) in nodes.iter().enumerate() {
+        let Some(&(lm, distance)) = node["mesh"].as_u64().and_then(|m| lod_mesh.get(&(m as usize))) else { continue };
+        let name = format!("{}{LOD_SUFFIX}", node["name"].as_str().unwrap_or("node"));
+        let list = doc["nodes"].as_array_mut().unwrap();
+        list.push(json!({ "name": name, "mesh": lm, "extras": { "lod_m": distance } }));
+        let child = list.len() - 1;
+        let children = &mut doc["nodes"][i]["children"];
+        if !children.is_array() {
+            *children = json!([]);
+        }
+        children.as_array_mut().unwrap().push(json!(child));
+    }
+    report
+}
+
+/// Just enough vector maths for bounding boxes.
+#[derive(Clone, Copy)]
+struct Vec3([f32; 3]);
+
+impl Vec3 {
+    fn splat(v: f32) -> Self {
+        Vec3([v; 3])
+    }
+    fn min(self, o: Vec3) -> Vec3 {
+        Vec3(std::array::from_fn(|i| self.0[i].min(o.0[i])))
+    }
+    fn max(self, o: Vec3) -> Vec3 {
+        Vec3(std::array::from_fn(|i| self.0[i].max(o.0[i])))
+    }
+    fn sub(self, o: Vec3) -> Vec3 {
+        Vec3(std::array::from_fn(|i| self.0[i] - o.0[i]))
+    }
+    fn len(self) -> f32 {
+        self.0.iter().map(|v| v * v).sum::<f32>().sqrt()
+    }
 }
 
 /// One accessor's bytes as (view data, start, stride, count); `elem` is the tightly packed element size.

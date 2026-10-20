@@ -41,6 +41,7 @@ def read_glb(path):
     return doc, binary, len(data)
 
 
+LOD_SUFFIX = "__lod1"
 KTX2_MAGIC = b"\xabKTX 20\xbb\r\n\x1a\n"
 
 
@@ -86,16 +87,19 @@ def measure(path):
                 indices += acc[prim["indices"]]["count"]
             else:
                 indices += acc[prim["attributes"]["POSITION"]]["count"]
-    # Instanced draws (the same mesh on several nodes) render several times: count what the GPU draws.
-    uses = {}
-    for node in doc.get("nodes", []):
-        if "mesh" in node:
-            uses[node["mesh"]] = uses.get(node["mesh"], 0) + 1
-    drawn = 0
-    for m, n in uses.items():
-        for prim in doc["meshes"][m].get("primitives", []):
-            count = acc[prim["indices"]]["count"] if "indices" in prim else acc[prim["attributes"]["POSITION"]]["count"]
-            drawn += n * count // 3
+    # Instanced draws (the same mesh on several nodes) render several times: count what the GPU draws,
+    # up close (full detail) and far (every `X__lod1` from crates/assetpipe --lod in place of X).
+    nodes = doc.get("nodes", [])
+    def tris(m):
+        return sum((acc[p["indices"]]["count"] if "indices" in p else acc[p["attributes"]["POSITION"]]["count"]) // 3 for p in doc["meshes"][m].get("primitives", []))
+    drawn, drawn_far, lods = 0, 0, 0
+    for node in nodes:
+        if "mesh" not in node or node.get("name", "").endswith(LOD_SUFFIX):
+            continue
+        lod = [nodes[c] for c in node.get("children", []) if nodes[c].get("name", "").endswith(LOD_SUFFIX) and "mesh" in nodes[c]]
+        drawn += tris(node["mesh"])
+        drawn_far += tris(lod[0]["mesh"]) if lod else tris(node["mesh"])
+        lods += bool(lod)
     tex_max, tex_bytes, tex_gpu, ktx2 = 0, 0, 0, 0
     for img in doc.get("images", []):
         if "bufferView" in img:
@@ -111,6 +115,8 @@ def measure(path):
         "vertices": sum(acc[a]["count"] for a in positions),
         "triangles": indices // 3,
         "drawn_triangles": drawn,
+        "drawn_far": drawn_far,
+        "lod_nodes": lods,
         "materials": len(doc.get("materials", [])),
         "textures": len(doc.get("images", [])),
         "texture_max_px": tex_max,
@@ -143,17 +149,19 @@ def main(argv):
         m = measure(os.path.join(models, name))
         rule = budget_for(name, budgets)
         over = [k for k in keys if rule and k in rule["max"] and m[k] > rule["max"][k]]
+        if rule and "lod" in rule and not m["lod_nodes"]:
+            over.append(f"no LOD (run assetpipe --lod {rule['lod']})")
         results[name] = {"budget": rule["match"] if rule else None, "over": over, **m}
         if rule is None:
             over = ["no budget"]
         failed += bool(over)
         rows.append((name, rule["match"] if rule else "-", m, over))
-    head = f"{'model':24} {'budget':16} {'MB':>6} {'verts':>8} {'drawn tris':>10} {'mats':>4} {'tex px':>6} {'tex MB':>6} {'VRAM MB':>7} {'ktx2':>5}  result"
+    head = f"{'model':24} {'budget':16} {'MB':>6} {'verts':>8} {'drawn tris':>10} {'far tris':>8} {'mats':>4} {'tex px':>6} {'tex MB':>6} {'VRAM MB':>7} {'ktx2':>5}  result"
     print(head)
     print("-" * len(head))
     for name, rule, m, over in rows:
         verdict = "PASS" if not over else "FAIL " + ", ".join(over)
-        print(f"{name:24} {rule:16} {m['file_mb']:6.1f} {m['vertices']:8d} {m['drawn_triangles']:10d} {m['materials']:4d} {m['texture_max_px']:6d} {m['texture_mb']:6.1f} {m['texture_gpu_mb']:7.1f} {m['textures_ktx2']:2d}/{m['textures']:<2d}  {verdict}")
+        print(f"{name:24} {rule:16} {m['file_mb']:6.1f} {m['vertices']:8d} {m['drawn_triangles']:10d} {m['drawn_far']:8d} {m['materials']:4d} {m['texture_max_px']:6d} {m['texture_mb']:6.1f} {m['texture_gpu_mb']:7.1f} {m['textures_ktx2']:2d}/{m['textures']:<2d}  {verdict}")
     total = sum(m["file_mb"] for _, _, m, _ in rows)
     gpu = sum(m["texture_gpu_mb"] for _, _, m, _ in rows)
     print(f"\n{len(rows)} models, {total:.0f} MB on disk, textures {gpu:.0f} MB VRAM if all loaded; budget total {budgets['total_mb']} MB")

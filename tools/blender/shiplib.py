@@ -893,10 +893,16 @@ def export_glb(path, objs, empties):
 def gpu_textures(path):
     """PNG maps -> KTX2 (BC7/BC5, mips, zstd) and stored tangents, in place: crates/assetpipe,
     docs/STUDIO_PIPELINE.md. The asset budgets fail a model that skips this (its VRAM is ~3x over)."""
-    import subprocess
+    import fnmatch, json, subprocess
     repo = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    # Mesh LODs for the models whose budget rule asks for one (tools/asset_budgets.json "lod").
+    args = [path]
+    with open(os.path.join(repo, "tools", "asset_budgets.json"), encoding="utf-8") as f:
+        rule = next((r for r in json.load(f)["rules"] if fnmatch.fnmatch(os.path.basename(path), r["match"])), {})
+    if "lod" in rule:
+        args += ["--lod", str(rule["lod"])]
     try:
-        r = subprocess.run(["cargo", "run", "-q", "-p", "assetpipe", "--release", "--", path], cwd=repo, capture_output=True, text=True)
+        r = subprocess.run(["cargo", "run", "-q", "-p", "assetpipe", "--release", "--", *args], cwd=repo, capture_output=True, text=True)
         log((r.stdout.strip().splitlines() or ["assetpipe: no output"])[-1] if r.returncode == 0 else "assetpipe FAILED: " + r.stderr[-500:])
     except OSError as e:
         log("assetpipe not run (%s): run `cargo run -p assetpipe --release -- %s`" % (e, path))
