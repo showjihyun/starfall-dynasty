@@ -33,6 +33,10 @@ after a Blender update compiles kernels, which takes about 3 min once. Check res
 python tools/blender/inspect_glb.py crates/client/assets/models/*.glb
 ```
 
+Every export then runs `cargo run -p assetpipe --release -- MODEL.glb` (`shiplib.gpu_textures`), which turns
+the baked PNGs into KTX2 (BC7/BC5, mips, zstd) in place, and `python tools/assetcheck.py` fails a model whose
+textures stayed PNG (VRAM budget). See docs/STUDIO_PIPELINE.md.
+
 ## Contracts the client depends on
 
 - Modelled with the nose at Blender +Y, up +Z, in meters. The glTF +Y-up export puts the nose at **-Z** (Bevy forward).

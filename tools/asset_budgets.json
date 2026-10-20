@@ -1,16 +1,16 @@
 {
-  "_doc": "Budgets for tools/assetcheck.py (docs/STUDIO_PIPELINE.md). First matching glob wins. Set 2026-10-20 at each class's current maximum + ~10% to stop growth; lower them as the optimisation rounds land. Raise one only on purpose, in the same commit as the model.",
+  "_doc": "Budgets for tools/assetcheck.py (docs/STUDIO_PIPELINE.md). First matching glob wins. Each class's current maximum + ~10% to stop growth. 2026-10-20: textures went KTX2 (cargo run -p assetpipe), texture_gpu_mb added — a PNG model straight from Blender is ~3x over it, so it cannot ship unconverted; cruiser file_mb/texture_mb raised because their 4096 px maps compress less as BC7 than as PNG (+3 MB on disk for -100 MB VRAM). Raise one only on purpose, in the same commit as the model.",
   "total_mb": 470,
   "rules": [
-    { "match": "*_capital.glb", "max": { "file_mb": 40, "vertices": 200000, "drawn_triangles": 150000, "materials": 6, "texture_max_px": 4096, "texture_mb": 33 } },
-    { "match": "*_cruiser.glb", "max": { "file_mb": 26, "vertices": 90000, "drawn_triangles": 65000, "materials": 6, "texture_max_px": 4096, "texture_mb": 24 } },
-    { "match": "npc_*.glb", "max": { "file_mb": 15, "vertices": 160000, "drawn_triangles": 140000, "materials": 6, "texture_max_px": 2048, "texture_mb": 12 } },
-    { "match": "*_interior.glb", "max": { "file_mb": 2, "vertices": 30000, "drawn_triangles": 20000, "materials": 20, "texture_max_px": 2048, "texture_mb": 2 } },
-    { "match": "station.glb", "max": { "file_mb": 24, "vertices": 400000, "drawn_triangles": 350000, "materials": 6, "texture_max_px": 2048, "texture_mb": 8 } },
-    { "match": "ancient_gate.glb", "max": { "file_mb": 17, "vertices": 55000, "drawn_triangles": 480000, "materials": 4, "texture_max_px": 2048, "texture_mb": 14 } },
-    { "match": "asteroids.glb", "max": { "file_mb": 19, "vertices": 45000, "drawn_triangles": 45000, "materials": 4, "texture_max_px": 2048, "texture_mb": 18 } },
-    { "match": "ruin.glb", "max": { "file_mb": 14, "vertices": 120000, "drawn_triangles": 95000, "materials": 4, "texture_max_px": 2048, "texture_mb": 10 } },
-    { "match": "wreck.glb", "max": { "file_mb": 13, "vertices": 23000, "drawn_triangles": 16000, "materials": 4, "texture_max_px": 2048, "texture_mb": 12 } },
-    { "match": "*.glb", "max": { "file_mb": 13, "vertices": 70000, "drawn_triangles": 55000, "materials": 6, "texture_max_px": 2048, "texture_mb": 11 } }
+    { "match": "*_capital.glb", "max": { "file_mb": 40, "vertices": 200000, "drawn_triangles": 150000, "materials": 6, "texture_max_px": 4096, "texture_mb": 33, "texture_gpu_mb": 55 } },
+    { "match": "*_cruiser.glb", "max": { "file_mb": 30, "vertices": 90000, "drawn_triangles": 65000, "materials": 6, "texture_max_px": 4096, "texture_mb": 28, "texture_gpu_mb": 55 } },
+    { "match": "npc_*.glb", "max": { "file_mb": 15, "vertices": 160000, "drawn_triangles": 140000, "materials": 6, "texture_max_px": 2048, "texture_mb": 11, "texture_gpu_mb": 19 } },
+    { "match": "*_interior.glb", "max": { "file_mb": 2, "vertices": 30000, "drawn_triangles": 20000, "materials": 20, "texture_max_px": 2048, "texture_mb": 2, "texture_gpu_mb": 2 } },
+    { "match": "station.glb", "max": { "file_mb": 23, "vertices": 400000, "drawn_triangles": 350000, "materials": 6, "texture_max_px": 2048, "texture_mb": 7, "texture_gpu_mb": 19 } },
+    { "match": "ancient_gate.glb", "max": { "file_mb": 13, "vertices": 55000, "drawn_triangles": 480000, "materials": 4, "texture_max_px": 2048, "texture_mb": 11, "texture_gpu_mb": 19 } },
+    { "match": "asteroids.glb", "max": { "file_mb": 13, "vertices": 45000, "drawn_triangles": 45000, "materials": 4, "texture_max_px": 2048, "texture_mb": 12, "texture_gpu_mb": 19 } },
+    { "match": "ruin.glb", "max": { "file_mb": 12, "vertices": 120000, "drawn_triangles": 95000, "materials": 4, "texture_max_px": 2048, "texture_mb": 8, "texture_gpu_mb": 19 } },
+    { "match": "wreck.glb", "max": { "file_mb": 11, "vertices": 23000, "drawn_triangles": 16000, "materials": 4, "texture_max_px": 2048, "texture_mb": 10, "texture_gpu_mb": 19 } },
+    { "match": "*.glb", "max": { "file_mb": 12, "vertices": 70000, "drawn_triangles": 55000, "materials": 6, "texture_max_px": 2048, "texture_mb": 10, "texture_gpu_mb": 19 } }
   ]
 }

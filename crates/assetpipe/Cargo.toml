@@ -1,0 +1,14 @@
+[package]
+name = "assetpipe"
+version = "0.1.0"
+edition = "2024"
+
+# Offline asset pipeline (docs/STUDIO_PIPELINE.md): turns the PNG textures Blender exports into GPU-ready
+# KTX2 (BC7 colour, BC5 normals, full mip chain, zstd) inside the GLB. Not linked into the game.
+
+[dependencies]
+serde_json = { workspace = true }
+image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
+intel_tex_2 = "0.4"
+zstd = "0.13"
+ktx2 = "0.5"

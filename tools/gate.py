@@ -45,7 +45,8 @@ def plan(files, everything, visual):
     client = everything or any_in(files, "crates/client/", "crates/view/", "crates/shared/", "Cargo.")
     network = everything or any_in(files, "crates/server/", "crates/bot/", "crates/shared/src/protocol", "crates/sim/src/game/")
     any_rust = everything or any_in(files, "crates/", "Cargo.")
-    assets = everything or any_in(files, "crates/client/assets/models/", "tools/asset", "tools/blender/")
+    assets = everything or any_in(files, "crates/client/assets/models/", "tools/asset", "tools/blender/", "crates/assetpipe/")
+    pipeline = everything or any_in(files, "crates/assetpipe/")
     looks = any_in(files, "crates/client/src/", "crates/client/assets/", "crates/view/src/palette", "tools/blender/", "docs/art/")
     steps = []
     if rust_logic:
@@ -58,6 +59,8 @@ def plan(files, everything, visual):
         steps.append(("network + bot tests", "server/protocol/game changed", "SERVER", None))
     if any_rust:
         steps.append(("clippy (no new warnings)", f"baseline {CLIPPY_BASELINE}", "cargo clippy --release --workspace --all-targets", "CLIPPY"))
+    if pipeline:
+        steps.append(("asset pipeline tests", "texture converter changed", "cargo test --release -p assetpipe", None))
     if assets:
         steps.append(("asset budgets", "models or budgets changed", "python tools/assetcheck.py", None))
     if looks:

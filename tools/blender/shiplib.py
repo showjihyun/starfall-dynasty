@@ -887,6 +887,19 @@ def export_glb(path, objs, empties):
         export_cameras=False, export_lights=False, export_animations=False,
         export_extras=False, export_texcoords=True, export_normals=True, export_tangents=False)
     log("exported", path, "%.2f MB" % (os.path.getsize(path) / 1e6))
+    gpu_textures(path)
+
+
+def gpu_textures(path):
+    """PNG maps -> KTX2 (BC7/BC5, mips, zstd) in place: crates/assetpipe, docs/STUDIO_PIPELINE.md. The
+    asset budgets fail a model that skips this (its VRAM is ~3x over)."""
+    import subprocess
+    repo = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    try:
+        r = subprocess.run(["cargo", "run", "-q", "-p", "assetpipe", "--release", "--", path], cwd=repo, capture_output=True, text=True)
+        log((r.stdout.strip().splitlines() or ["assetpipe: no output"])[-1] if r.returncode == 0 else "assetpipe FAILED: " + r.stderr[-500:])
+    except OSError as e:
+        log("assetpipe not run (%s): run `cargo run -p assetpipe --release -- %s`" % (e, path))
 
 
 # ---------------------------------------------------------------- preview

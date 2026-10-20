@@ -6,6 +6,7 @@ over their budget, so a regenerated or AI-made model cannot quietly double the d
     python tools/assetcheck.py --json out.json # also write the measurements
     python tools/assetcheck.py --only talon    # models whose file name contains "talon"
     python tools/assetcheck.py --budgets F     # another budget file (what-if)
+    python tools/assetcheck.py --dir D         # models in another folder (e.g. a fresh Blender export)
 
 Reads the GLB container directly (JSON chunk + embedded image headers): no Blender, no GPU, no
 packages. Budgets live in tools/asset_budgets.json (first matching glob wins); raise one only on
@@ -40,8 +41,13 @@ def read_glb(path):
     return doc, binary, len(data)
 
 
+KTX2_MAGIC = b"\xabKTX 20\xbb\r\n\x1a\n"
+
+
 def image_size(blob):
-    """(width, height) of a PNG or JPEG, from its header."""
+    """(width, height) of a PNG, JPEG or KTX2, from its header."""
+    if blob[:12] == KTX2_MAGIC:
+        return struct.unpack_from("<II", blob, 20)
     if blob[:8] == b"\x89PNG\r\n\x1a\n":
         return struct.unpack(">II", blob[16:24])
     if blob[:2] == b"\xff\xd8":
@@ -56,6 +62,16 @@ def image_size(blob):
                 return w, h
             i += 2 + struct.unpack(">H", blob[i + 2 : i + 4])[0]
     return 0, 0
+
+
+def gpu_bytes(blob):
+    """VRAM one texture takes in the game. Bevy uploads PNG/JPEG as RGBA8 with one mip level; a KTX2
+    (cargo run -p assetpipe) uploads its block-compressed levels as stored."""
+    if blob[:12] == KTX2_MAGIC:
+        levels = struct.unpack_from("<I", blob, 40)[0]
+        return sum(struct.unpack_from("<Q", blob, 80 + 24 * i + 16)[0] for i in range(max(levels, 1)))
+    w, h = image_size(blob)
+    return w * h * 4
 
 
 def measure(path):
@@ -80,7 +96,7 @@ def measure(path):
         for prim in doc["meshes"][m].get("primitives", []):
             count = acc[prim["indices"]]["count"] if "indices" in prim else acc[prim["attributes"]["POSITION"]]["count"]
             drawn += n * count // 3
-    tex_max, tex_bytes = 0, 0
+    tex_max, tex_bytes, tex_gpu, ktx2 = 0, 0, 0, 0
     for img in doc.get("images", []):
         if "bufferView" in img:
             v = views[img["bufferView"]]
@@ -88,6 +104,8 @@ def measure(path):
             w, h = image_size(blob)
             tex_max = max(tex_max, w, h)
             tex_bytes += v["byteLength"]
+            tex_gpu += gpu_bytes(blob)
+            ktx2 += blob[:12] == KTX2_MAGIC
     return {
         "file_mb": round(size / 1e6, 2),
         "vertices": sum(acc[a]["count"] for a in positions),
@@ -97,6 +115,8 @@ def measure(path):
         "textures": len(doc.get("images", [])),
         "texture_max_px": tex_max,
         "texture_mb": round(tex_bytes / 1e6, 2),
+        "texture_gpu_mb": round(tex_gpu / 1e6, 1),
+        "textures_ktx2": ktx2,
         "nodes": len(doc.get("nodes", [])),
     }
 
@@ -112,14 +132,15 @@ def main(argv):
     only = argv[argv.index("--only") + 1] if "--only" in argv else None
     out = argv[argv.index("--json") + 1] if "--json" in argv else None
     budgets_path = argv[argv.index("--budgets") + 1] if "--budgets" in argv else BUDGETS
+    models = argv[argv.index("--dir") + 1] if "--dir" in argv else MODELS
     with open(budgets_path, encoding="utf-8") as f:
         budgets = json.load(f)
-    keys = ["file_mb", "vertices", "drawn_triangles", "materials", "texture_max_px", "texture_mb"]
+    keys = ["file_mb", "vertices", "drawn_triangles", "materials", "texture_max_px", "texture_mb", "texture_gpu_mb"]
     rows, failed, results = [], 0, {}
-    for name in sorted(os.listdir(MODELS)):
+    for name in sorted(os.listdir(models)):
         if not name.endswith(".glb") or (only and only not in name):
             continue
-        m = measure(os.path.join(MODELS, name))
+        m = measure(os.path.join(models, name))
         rule = budget_for(name, budgets)
         over = [k for k in keys if rule and k in rule["max"] and m[k] > rule["max"][k]]
         results[name] = {"budget": rule["match"] if rule else None, "over": over, **m}
@@ -127,14 +148,15 @@ def main(argv):
             over = ["no budget"]
         failed += bool(over)
         rows.append((name, rule["match"] if rule else "-", m, over))
-    head = f"{'model':24} {'budget':16} {'MB':>6} {'verts':>8} {'drawn tris':>10} {'mats':>4} {'tex px':>6} {'tex MB':>6}  result"
+    head = f"{'model':24} {'budget':16} {'MB':>6} {'verts':>8} {'drawn tris':>10} {'mats':>4} {'tex px':>6} {'tex MB':>6} {'VRAM MB':>7} {'ktx2':>5}  result"
     print(head)
     print("-" * len(head))
     for name, rule, m, over in rows:
         verdict = "PASS" if not over else "FAIL " + ", ".join(over)
-        print(f"{name:24} {rule:16} {m['file_mb']:6.1f} {m['vertices']:8d} {m['drawn_triangles']:10d} {m['materials']:4d} {m['texture_max_px']:6d} {m['texture_mb']:6.1f}  {verdict}")
+        print(f"{name:24} {rule:16} {m['file_mb']:6.1f} {m['vertices']:8d} {m['drawn_triangles']:10d} {m['materials']:4d} {m['texture_max_px']:6d} {m['texture_mb']:6.1f} {m['texture_gpu_mb']:7.1f} {m['textures_ktx2']:2d}/{m['textures']:<2d}  {verdict}")
     total = sum(m["file_mb"] for _, _, m, _ in rows)
-    print(f"\n{len(rows)} models, {total:.0f} MB on disk; budget total {budgets['total_mb']} MB")
+    gpu = sum(m["texture_gpu_mb"] for _, _, m, _ in rows)
+    print(f"\n{len(rows)} models, {total:.0f} MB on disk, textures {gpu:.0f} MB VRAM if all loaded; budget total {budgets['total_mb']} MB")
     if not only and total > budgets["total_mb"]:
         print(f"FAIL total {total:.0f} MB > {budgets['total_mb']} MB")
         failed += 1
