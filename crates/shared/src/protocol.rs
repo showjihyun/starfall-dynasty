@@ -663,7 +663,7 @@ mod tests {
 
     #[test]
     fn snapshot_pack_roundtrip_and_cache() {
-        let e = EntityState { id: 7, kind: EntityKind::Player, name: "A".into(), hull_class: Some(HullClass::Talon), rank: 3, livery: 2, pos: [1234.56, -7.25, 9000.0], rot: [0.0, 0.7071, 0.0, 0.7071], vel: [12.3, 0.0, -4.5], hull: 0.5, shield: 0.25, radius: 11.0, fleet: None, wanted: true, boosting: true, mining: Some(3), docked: false, owner: Some(1), alliance: Some(2), class: Some(SizeClass::Cruiser), species: Some(Species::Kharz) };
+        let e = EntityState { id: 7, kind: EntityKind::Player, name: "A".into(), hull_class: Some(HullClass::Talon), rank: 3, livery: 2, pos: [1234.56, -7.25, 9000.0], rot: [0.0, std::f32::consts::FRAC_1_SQRT_2, 0.0, std::f32::consts::FRAC_1_SQRT_2], vel: [12.3, 0.0, -4.5], hull: 0.5, shield: 0.25, radius: 11.0, fleet: None, wanted: true, boosting: true, mining: Some(3), docked: false, owner: Some(1), alliance: Some(2), class: Some(SizeClass::Cruiser), species: Some(Species::Kharz) };
         let (info, d) = pack(&e);
         let back = unpack(&info, &d);
         assert!((back.pos[0] - e.pos[0]).abs() < 0.06 && back.wanted && back.boosting && back.mining == Some(3) && !back.docked);
