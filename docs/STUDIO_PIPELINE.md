@@ -68,7 +68,7 @@ Bevy는 PNG를 압축 없는 RGBA에 밉맵 없이 올린다. 4096 px 한 장이
 CI가 Linux에서만 실패할 때, 푸시하지 않고 같은 환경(Rust 1.98.1, Debian)에서 게이트를 돌린다. Windows `target/`과 섞이지 않게 커밋된 HEAD를 컨테이너 안에 clone하고, 빌드는 이름 붙은 볼륨(`starfall-target`, `starfall-cargo`)에 둔다. 두 번째부터는 몇 분.
 
 ```
-MSYS_NO_PATHCONV=1 docker run --rm -v "C:/WorkSpace/SpaceHistoric:/src:ro" -v starfall-cargo:/usr/local/cargo/registry -v starfall-target:/work/target rust:1.98.1-bookworm bash -c "apt-get update -qq && apt-get install -y -qq --no-install-recommends pkg-config libasound2-dev libudev-dev libwayland-dev libxkbcommon-dev python3 >/dev/null; rustup component add clippy; git config --global --add safe.directory '*'; git clone -q /src /work/src && cd /work/src && ln -s /work/target target && CARGO_TERM_COLOR=always python3 tools/gate.py --all"
+MSYS_NO_PATHCONV=1 docker run --rm -v "C:/WorkSpace/SpaceHistoric:/src:ro" -v starfall-cargo:/usr/local/cargo/registry -v starfall-target:/work/target rust:1.98.1-bookworm bash -c "apt-get update -qq && apt-get install -y -qq --no-install-recommends pkg-config libasound2-dev libudev-dev libwayland-dev libxkbcommon-dev fonts-nanum python3 >/dev/null; rustup component add clippy; git config --global --add safe.directory '*'; git clone -q /src /work/src && cd /work/src && ln -s /work/target target && CARGO_TERM_COLOR=always python3 tools/gate.py --all"
 ```
 
 첫 CI(2026-10-20)에서 잡힌 Linux 전용 문제 셋: intel_tex_2의 C++ 객체가 `libstdc++` 링크를 요구(Windows는 자동), CI의 색 출력이 clippy 경고 수를 0으로 만듦(게이트가 색을 끔), 게이트가 `python`을 불렀는데 Debian은 `python3`뿐(이제 자기 인터프리터로 실행).

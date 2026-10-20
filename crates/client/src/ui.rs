@@ -40,17 +40,7 @@ use view::relation::Viewer;
 pub use view::palette::tier_color;
 
 fn setup_fonts(ctx: &egui::Context) {
-    let mut fonts = egui::FontDefinitions::default();
-    for path in ["C:/Windows/Fonts/malgun.ttf", "/usr/share/fonts/truetype/nanum/NanumGothic.ttf", "/System/Library/Fonts/AppleSDGothicNeo.ttc"] {
-        if let Ok(bytes) = std::fs::read(path) {
-            fonts.font_data.insert("kr".into(), egui::FontData::from_owned(bytes).into());
-            for fam in [egui::FontFamily::Proportional, egui::FontFamily::Monospace] {
-                fonts.families.entry(fam).or_default().push("kr".into());
-            }
-            break;
-        }
-    }
-    ctx.set_fonts(fonts);
+    ctx.set_fonts(view::fonts::with_korean().0);
     let mut style = (*ctx.global_style()).clone();
     style.visuals = egui::Visuals::dark();
     style.visuals.window_fill = chrome::WINDOW;

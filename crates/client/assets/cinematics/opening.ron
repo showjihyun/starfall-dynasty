@@ -1,0 +1,110 @@
+// Campaign opening (docs/STORY.md §5). Times in seconds, offsets in metres from the anchor.
+// `from`/`to`: camera relative to the look point at shot start/end. Shots with a `group` are
+// reordered per species: the captain's own civilisation speaks first. Checked by
+// `cargo test -p view --test cinematic` (anchors exist, captions fit and can be read in time).
+(
+    name: "opening",
+    order: [
+        (Human, ["record", "memory", "contract"]),
+        (Veyr, ["memory", "record", "contract"]),
+        (Kharz, ["contract", "record", "memory"]),
+    ],
+    shots: [
+        (
+            id: "gate_far",
+            secs: 8.0,
+            system: 9,
+            anchor: Poi(AncientGate),
+            from: (0.0, 400.0, 7000.0),
+            to: (0.0, 250.0, 4200.0),
+        ),
+        (
+            id: "gate_close",
+            secs: 12.0,
+            system: 9,
+            anchor: Poi(AncientGate),
+            from: (-1500.0, 200.0, 1400.0),
+            to: (-300.0, 80.0, 1100.0),
+            captions: [
+                (at: 2.0, secs: 6.0, text: "400년 전, 하늘의 문이 닫혔다."),
+            ],
+        ),
+        (
+            id: "record",
+            secs: 14.0,
+            system: 0,
+            anchor: Station,
+            from: (900.0, 260.0, 1300.0),
+            to: (500.0, 160.0, 900.0),
+            group: Some("record"),
+            captions: [
+                (at: 1.0, secs: 5.5, text: "게이트 연쇄 고장. 사고로 판정.", source: Some("인류 제국 기록보관소")),
+                (at: 7.0, secs: 6.0, text: "마지막 사흘: 기록 없음.", source: Some("인류 제국 기록보관소")),
+            ],
+        ),
+        (
+            id: "memory",
+            secs: 14.0,
+            system: 6,
+            anchor: Poi(Ruin),
+            from: (300.0, -500.0, 900.0),
+            to: (150.0, -250.0, 600.0),
+            group: Some("memory"),
+            captions: [
+                (at: 1.0, secs: 5.5, text: "우리는 기억한다. 세 번의 배신.", source: Some("Veyr 기억의 집")),
+                (at: 7.0, secs: 6.0, text: "셋째는… 우리 중 누구였다.", source: Some("Veyr 기억의 집")),
+            ],
+        ),
+        (
+            id: "contract",
+            secs: 12.0,
+            system: 2,
+            anchor: Station,
+            from: (-1200.0, 300.0, 600.0),
+            to: (-700.0, 150.0, 900.0),
+            group: Some("contract"),
+            captions: [
+                (at: 1.0, secs: 5.0, text: "계약은 피로 맺고 피로 갚는다.", source: Some("Kharz 계약 길드")),
+                (at: 6.5, secs: 4.5, text: "서명은 셋이었다.", source: Some("Kharz 계약 길드")),
+            ],
+        ),
+        (
+            id: "war",
+            secs: 12.0,
+            system: 7,
+            anchor: Station,
+            offset: (0.0, 300.0, 2500.0),
+            from: (0.0, 900.0, 3600.0),
+            to: (600.0, 400.0, 2400.0),
+            battle: true,
+            captions: [
+                (at: 2.0, secs: 8.0, text: "그 날부터, 우리는\n서로의 역사를 쏘고 있다."),
+            ],
+        ),
+        (
+            id: "signal",
+            secs: 12.0,
+            system: 3,
+            anchor: Poi(Signal),
+            offset: (0.0, 0.0, 180.0),
+            from: (-260.0, 90.0, 420.0),
+            to: (-140.0, 40.0, 260.0),
+            ship: Some((anchor: Poi(Signal), offset: (0.0, 0.0, 180.0))),
+            captions: [
+                (at: 1.5, secs: 3.5, text: "신호 수신.", source: Some("함선 컴퓨터")),
+                (at: 5.5, secs: 5.5, text: "호출 부호: 400년 전 소멸한 게이트.", source: Some("함선 컴퓨터")),
+            ],
+        ),
+        (
+            id: "title",
+            secs: 6.0,
+            system: 3,
+            anchor: Poi(Signal),
+            offset: (0.0, 0.0, 180.0),
+            from: (0.0, 20.0, -240.0),
+            to: (0.0, 10.0, -150.0),
+            ship: Some((anchor: Poi(Signal), offset: (0.0, 0.0, 180.0))),
+            title: Some("STARFALL DYNASTY\n1장 · 오리온의 신호"),
+        ),
+    ],
+)
