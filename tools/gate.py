@@ -25,7 +25,9 @@ CLIPPY_BASELINE = 43  # warning sites, whole workspace, 2026-10-20; lower it whe
 
 def sh(cmd, **kw):
     """Runs one of the fixed check commands below (never user input); a list runs without a shell."""
-    return subprocess.run(cmd, cwd=ROOT, shell=isinstance(cmd, str), capture_output=True, text=True, encoding="utf-8", errors="replace", **kw)
+    # CI sets CARGO_TERM_COLOR=always; colour codes in front of "-->" hid every clippy warning from the count.
+    env = {**os.environ, "CARGO_TERM_COLOR": "never"}
+    return subprocess.run(cmd, cwd=ROOT, shell=isinstance(cmd, str), capture_output=True, text=True, encoding="utf-8", errors="replace", env=env, **kw)
 
 
 def changed_files(base):
@@ -62,10 +64,10 @@ def plan(files, everything, visual):
     if pipeline:
         steps.append(("asset pipeline tests", "texture converter changed", "cargo test --release -p assetpipe", None))
     if assets:
-        steps.append(("asset budgets", "models or budgets changed", "python tools/assetcheck.py", None))
+        steps.append(("asset budgets", "models or budgets changed", [sys.executable, "tools/assetcheck.py"], None))
     if looks:
         if visual:
-            steps.append(("artcheck", "rendering changed", "python tools/artcheck.py", None))
+            steps.append(("artcheck", "rendering changed", [sys.executable, "tools/artcheck.py"], None))
         else:
             steps.append(("artcheck", "rendering changed — run `python tools/gate.py --visual` (opens windows)", "TODO", None))
     return steps

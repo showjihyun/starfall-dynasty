@@ -18,6 +18,12 @@
 use serde_json::{Value, json};
 use std::collections::BTreeMap;
 
+// intel_tex_2 ships prebuilt C++ (ISPC) objects; MSVC links its C++ runtime on its own, GNU ld needs
+// libstdc++ named (CI on Ubuntu failed with `undefined symbol: __gxx_personality_v0`).
+#[cfg(target_os = "linux")]
+#[link(name = "stdc++")]
+unsafe extern "C" {}
+
 #[derive(Clone, Copy, PartialEq, Debug)]
 enum Usage {
     Srgb,

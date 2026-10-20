@@ -23,7 +23,7 @@
 | 스튜디오 기능 | 도구 | 상태 | 다음 |
 |---|---|---|---|
 | 빌드 검증(그린 빌드) | `tools/gate.py` | ● 2026-10-20 | CI에서 같은 명령 실행 |
-| CI | GitHub Actions `.github/workflows/gate.yml` | ◐ 2026-10-20 준비 | 푸시하면 켜짐: Ubuntu에서 `gate.py --all`(artcheck 제외), 보고서 `last.json`을 아티팩트로. 첫 실행에서 Linux clippy 기준·봇 테스트 시간 확인 |
+| CI | GitHub Actions `.github/workflows/gate.yml` | ● 2026-10-20 | 푸시마다 Ubuntu에서 `gate.py --all`(artcheck 제외, 첫 실행 약 21분), 보고서 `last.json`을 아티팩트로. 로컬 재현은 아래 "CI를 로컬에서" |
 | 바이너리 에셋 버전 관리 | Git LFS | ○ 결정 필요 | 모델 재생성마다 20–36 MB가 쌓여 저장소 팩 785 MB |
 | 에셋 예산·검증 | `tools/assetcheck.py` + `tools/asset_budgets.json` | ● 2026-10-20 | VRAM 예산(`texture_gpu_mb`)까지. 예산을 낮춰 가며 최적화 |
 | 텍스처 최적화 | `crates/assetpipe`(intel_tex_2 = Intel ISPC BC7/BC5, zstd, KTX2) | ● 2026-10-20 | Blender 내보내기가 자동 실행. 아래 "텍스처 파이프라인" |
@@ -61,3 +61,13 @@ Bevy는 PNG를 압축 없는 RGBA에 밉맵 없이 올린다. 4096 px 한 장이
 - 측정(2026-10-20, 27개): 텍스처 VRAM 2264 → 755 MB(1/3), 디스크 426 → 431 MB(순양함은 4096 px BC7이 PNG보다 커서 +3 MB씩, 나머지는 줄어듦). 디코드 4096 px 한 장 약 110 → 30 ms. artcheck 9장면 모두 OK(최대 0.66% 변화, 주력함 장면).
 - 탄젠트: Blender가 내보내지 않아 Bevy가 노멀맵 쓰는 프리미티브마다 불러올 때 MikkTSpace를 돌렸다. `assetpipe`가 같은 코드(`bevy_mikktspace`, `bevy_mesh`와 같은 부호 반전)로 한 번 계산해 TANGENT로 저장한다. 27개 합 약 1.4초(정거장 269 ms, 군벌 141 ms, 주력함 35–100 ms)를 불러오기에서 덜고, 디스크 +21 MB(정점당 16 B), 주력함 장면 픽셀 100% 동일.
 - 다음 지렛대: 순양함 4096 → 2048(`--max-px 2048`, VRAM 1/4·디스크 감소, 화면 확인 필요). 디스크를 크게 줄이려면 Basis UASTC/ETC1S(불러올 때 트랜스코딩, Bevy `basis-universal` 기능 필요).
+
+## CI를 로컬에서 (Docker Desktop)
+
+CI가 Linux에서만 실패할 때, 푸시하지 않고 같은 환경(Rust 1.98.1, Debian)에서 게이트를 돌린다. Windows `target/`과 섞이지 않게 커밋된 HEAD를 컨테이너 안에 clone하고, 빌드는 이름 붙은 볼륨(`starfall-target`, `starfall-cargo`)에 둔다. 두 번째부터는 몇 분.
+
+```
+MSYS_NO_PATHCONV=1 docker run --rm -v "C:/WorkSpace/SpaceHistoric:/src:ro" -v starfall-cargo:/usr/local/cargo/registry -v starfall-target:/work/target rust:1.98.1-bookworm bash -c "apt-get update -qq && apt-get install -y -qq --no-install-recommends pkg-config libasound2-dev libudev-dev libwayland-dev libxkbcommon-dev python3 >/dev/null; rustup component add clippy; git config --global --add safe.directory '*'; git clone -q /src /work/src && cd /work/src && ln -s /work/target target && CARGO_TERM_COLOR=always python3 tools/gate.py --all"
+```
+
+첫 CI(2026-10-20)에서 잡힌 Linux 전용 문제 셋: intel_tex_2의 C++ 객체가 `libstdc++` 링크를 요구(Windows는 자동), CI의 색 출력이 clippy 경고 수를 0으로 만듦(게이트가 색을 끔), 게이트가 `python`을 불렀는데 Debian은 `python3`뿐(이제 자기 인터프리터로 실행).
