@@ -891,8 +891,8 @@ def export_glb(path, objs, empties):
 
 
 def gpu_textures(path):
-    """PNG maps -> KTX2 (BC7/BC5, mips, zstd) in place: crates/assetpipe, docs/STUDIO_PIPELINE.md. The
-    asset budgets fail a model that skips this (its VRAM is ~3x over)."""
+    """PNG maps -> KTX2 (BC7/BC5, mips, zstd) and stored tangents, in place: crates/assetpipe,
+    docs/STUDIO_PIPELINE.md. The asset budgets fail a model that skips this (its VRAM is ~3x over)."""
     import subprocess
     repo = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     try:

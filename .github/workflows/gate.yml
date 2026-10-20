@@ -1,0 +1,39 @@
+# The same gate as before every local commit (python tools/gate.py, docs/STUDIO_PIPELINE.md), on every
+# push: logic + scenarios + determinism, balance sheet in sync, client ECS (headless), server + bot,
+# clippy baseline, asset pipeline and budgets. artcheck needs a GPU window and stays local (--visual).
+name: gate
+
+on:
+  push:
+    branches: [rust-rewrite]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: gate-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - name: Linux libraries Bevy links against
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends pkg-config libasound2-dev libudev-dev libwayland-dev libxkbcommon-dev
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.98.1
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: gate --all
+        run: python tools/gate.py --all
+      - name: gate report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gate-report
+          path: target/gate/last.json

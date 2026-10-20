@@ -322,6 +322,7 @@ dependencies = [
 name = "assetpipe"
 version = "0.1.0"
 dependencies = [
+ "bevy_mikktspace",
  "image",
  "intel_tex_2",
  "ktx2",

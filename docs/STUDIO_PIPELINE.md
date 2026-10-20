@@ -23,11 +23,12 @@
 | 스튜디오 기능 | 도구 | 상태 | 다음 |
 |---|---|---|---|
 | 빌드 검증(그린 빌드) | `tools/gate.py` | ● 2026-10-20 | CI에서 같은 명령 실행 |
-| CI | GitHub Actions(OSS 러너) | ○ 결정 필요 | 헤드리스 확인만 Linux 러너에서; 클라이언트는 빌드만 |
+| CI | GitHub Actions `.github/workflows/gate.yml` | ◐ 2026-10-20 준비 | 푸시하면 켜짐: Ubuntu에서 `gate.py --all`(artcheck 제외), 보고서 `last.json`을 아티팩트로. 첫 실행에서 Linux clippy 기준·봇 테스트 시간 확인 |
 | 바이너리 에셋 버전 관리 | Git LFS | ○ 결정 필요 | 모델 재생성마다 20–36 MB가 쌓여 저장소 팩 785 MB |
 | 에셋 예산·검증 | `tools/assetcheck.py` + `tools/asset_budgets.json` | ● 2026-10-20 | VRAM 예산(`texture_gpu_mb`)까지. 예산을 낮춰 가며 최적화 |
 | 텍스처 최적화 | `crates/assetpipe`(intel_tex_2 = Intel ISPC BC7/BC5, zstd, KTX2) | ● 2026-10-20 | Blender 내보내기가 자동 실행. 아래 "텍스처 파이프라인" |
-| 메시 최적화 | gltf-transform(OSS, `npx @gltf-transform/cli@4.1.1`), meshoptimizer | ○ | 탄젠트 미포함 — Bevy가 불러올 때마다 CPU로 계산(`validate`의 MESH_PRIMITIVE_GENERATED_TANGENT_SPACE). 내보낼 때 탄젠트를 넣고 불러오기 시간 측정 |
+| 탄젠트 | `crates/assetpipe`(`bevy_mikktspace` — Bevy와 같은 코드) | ● 2026-10-20 | 불러오기 CPU 약 1.4초 절약(27개 합, 정거장 269 ms), 화면 픽셀 동일 |
+| 메시 최적화 | gltf-transform(OSS, `npx @gltf-transform/cli@4.1.1`), meshoptimizer | ○ | 정거장 31만·관문 43만 삼각형: LOD(meshoptimizer simplify) 후보 |
 | 모델 제작 | Blender 5.2 + `tools/blender/*.py`(절차적 생성) | ● | 경로는 tools/blender/README.md(PATH에 없음) |
 | 아트 회귀 | `tools/artcheck.py`, `tools/imgdiff.py` | ● | |
 | 게임플레이·밸런스 | 시나리오 사양, `balance` 시트 | ● | |
@@ -50,7 +51,7 @@
 - 그리는 삼각형: 정거장 31만, 고대 관문 43만(같은 조각을 여러 번 인스턴스) — 성능 예산의 첫 후보.
 - 예산을 올리는 건 그 모델과 같은 커밋에서, 이유와 함께만.
 
-## 텍스처 파이프라인 (`cargo run -p assetpipe --release -- MODEL.glb [OUT.glb] [--max-px N]`)
+## 에셋 파이프라인 (`cargo run -p assetpipe --release -- MODEL.glb [OUT.glb] [--max-px N]`)
 
 Bevy는 PNG를 압축 없는 RGBA에 밉맵 없이 올린다. 4096 px 한 장이 VRAM 67 MB이고 멀리서 반짝인다. `assetpipe`는 GLB 안의 PNG를 GPU가 바로 읽는 KTX2로 바꾼다.
 
@@ -58,4 +59,5 @@ Bevy는 PNG를 압축 없는 RGBA에 밉맵 없이 올린다. 4096 px 한 장이
 - Blender 내보내기(`shiplib.export_glb`)가 자동으로 실행한다. 이미 KTX2인 이미지는 건너뛴다(두 번 돌려도 그대로).
 - 표준 glTF는 아니다(KHR_texture_basisu는 Basis 전용, Bevy도 그 확장을 읽지 않음). Bevy 런타임 에셋이고, 원본은 Blender 스크립트다. `gltf-transform validate`는 `image/ktx2` MIME 오류를 내는데, 예상된 것이다.
 - 측정(2026-10-20, 27개): 텍스처 VRAM 2264 → 755 MB(1/3), 디스크 426 → 431 MB(순양함은 4096 px BC7이 PNG보다 커서 +3 MB씩, 나머지는 줄어듦). 디코드 4096 px 한 장 약 110 → 30 ms. artcheck 9장면 모두 OK(최대 0.66% 변화, 주력함 장면).
+- 탄젠트: Blender가 내보내지 않아 Bevy가 노멀맵 쓰는 프리미티브마다 불러올 때 MikkTSpace를 돌렸다. `assetpipe`가 같은 코드(`bevy_mikktspace`, `bevy_mesh`와 같은 부호 반전)로 한 번 계산해 TANGENT로 저장한다. 27개 합 약 1.4초(정거장 269 ms, 군벌 141 ms, 주력함 35–100 ms)를 불러오기에서 덜고, 디스크 +21 MB(정점당 16 B), 주력함 장면 픽셀 100% 동일.
 - 다음 지렛대: 순양함 4096 → 2048(`--max-px 2048`, VRAM 1/4·디스크 감소, 화면 확인 필요). 디스크를 크게 줄이려면 Basis UASTC/ETC1S(불러올 때 트랜스코딩, Bevy `basis-universal` 기능 필요).

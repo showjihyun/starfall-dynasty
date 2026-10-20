@@ -1,4 +1,4 @@
-//! Texture pipeline for the game's GLB models (docs/STUDIO_PIPELINE.md).
+//! Asset pipeline for the game's GLB models (docs/STUDIO_PIPELINE.md): GPU textures and tangents.
 //!
 //!     cargo run -p assetpipe --release -- MODEL.glb [OUT.glb] [--max-px N]
 //!
@@ -10,6 +10,10 @@
 //! no-op. Bevy reads the KTX2 through the image `mimeType` (it ignores KHR_texture_basisu, and BC7 is
 //! not Basis anyway), so the output is a Bevy runtime asset, not a portable glTF; the Blender scripts
 //! stay the source of truth.
+//!
+//! Tangents: Blender exports none, so Bevy ran MikkTSpace on every normal-mapped primitive at every
+//! load. This runs the same code (`bevy_mikktspace`, same sign flip as `bevy_mesh`) once and stores
+//! the result as TANGENT, so the shading is unchanged and the load skips it.
 
 use serde_json::{Value, json};
 use std::collections::BTreeMap;
@@ -32,12 +36,15 @@ fn main() {
     };
     let output = files.get(1).unwrap_or(input);
     let bytes = std::fs::read(input).expect("read GLB");
-    let (out, report) = optimize(&bytes, max_px);
+    let (out, report, tangents) = optimize(&bytes, max_px);
     for r in &report {
         println!("  {:28} {:6} {:>5} px  file {:6.2} -> {:6.2} MB  gpu {:5.1} -> {:4.1} MB  decode {:4.0} -> {:3.0} ms", r.name, format!("{:?}", r.usage), r.px, r.file_before as f64 / 1e6, r.file_after as f64 / 1e6, r.gpu_before as f64 / 1e6, r.gpu_after as f64 / 1e6, r.load_before, r.load_after);
     }
     let gpu: (usize, usize) = report.iter().fold((0, 0), |a, r| (a.0 + r.gpu_before, a.1 + r.gpu_after));
     println!("{input}: {:.1} -> {:.1} MB on disk, textures {:.0} -> {:.0} MB VRAM", bytes.len() as f64 / 1e6, out.len() as f64 / 1e6, gpu.0 as f64 / 1e6, gpu.1 as f64 / 1e6);
+    if tangents.primitives > 0 {
+        println!("  tangents: {} primitives, {} vertices, {:.0} ms (Bevy spent this at every load)", tangents.primitives, tangents.vertices, tangents.ms);
+    }
     if out != bytes {
         std::fs::write(output, &out).expect("write GLB");
     }
@@ -53,6 +60,13 @@ struct Report {
     gpu_after: usize,
     load_before: f64,
     load_after: f64,
+}
+
+#[derive(Default)]
+struct TangentReport {
+    primitives: usize,
+    vertices: usize,
+    ms: f64,
 }
 
 fn read_glb(bytes: &[u8]) -> (Value, Vec<u8>) {
@@ -113,7 +127,7 @@ fn usages(doc: &Value) -> BTreeMap<usize, Usage> {
     out
 }
 
-fn optimize(bytes: &[u8], max_px: Option<u32>) -> (Vec<u8>, Vec<Report>) {
+fn optimize(bytes: &[u8], max_px: Option<u32>) -> (Vec<u8>, Vec<Report>, TangentReport) {
     let (mut doc, bin) = read_glb(bytes);
     let views: Vec<Value> = doc["bufferViews"].as_array().cloned().unwrap_or_default();
     let view_bytes = |v: &Value| {
@@ -162,8 +176,9 @@ fn optimize(bytes: &[u8], max_px: Option<u32>) -> (Vec<u8>, Vec<Report>) {
         doc["images"][i]["mimeType"] = json!("image/ktx2");
         report.push(r);
     }
-    if report.is_empty() {
-        return (bytes.to_vec(), report);
+    let tangents = add_tangents(&mut doc, &mut data);
+    if report.is_empty() && tangents.primitives == 0 {
+        return (bytes.to_vec(), report, tangents);
     }
     // Repack the binary chunk: every view keeps its index, offsets move, 4-byte aligned.
     let mut out_bin = Vec::new();
@@ -179,7 +194,137 @@ fn optimize(bytes: &[u8], max_px: Option<u32>) -> (Vec<u8>, Vec<Report>) {
         out_bin.push(0);
     }
     doc["buffers"][0]["byteLength"] = json!(out_bin.len());
-    (write_glb(&doc, &out_bin), report)
+    (write_glb(&doc, &out_bin), report, tangents)
+}
+
+/// One accessor's bytes as (view data, start, stride, count); `elem` is the tightly packed element size.
+fn accessor_bytes<'a>(doc: &Value, data: &'a [Vec<u8>], acc: usize, elem: usize) -> Option<(&'a [u8], usize, usize, usize)> {
+    let a = &doc["accessors"][acc];
+    if a.get("sparse").is_some() {
+        return None;
+    }
+    let view = a["bufferView"].as_u64()? as usize;
+    let stride = doc["bufferViews"][view]["byteStride"].as_u64().map(|s| s as usize).unwrap_or(elem);
+    Some((&data[view], a["byteOffset"].as_u64().unwrap_or(0) as usize, stride, a["count"].as_u64()? as usize))
+}
+
+fn floats<const N: usize>(doc: &Value, data: &[Vec<u8>], acc: usize) -> Option<Vec<[f32; N]>> {
+    if doc["accessors"][acc]["componentType"] != 5126 {
+        return None;
+    }
+    let (d, start, stride, count) = accessor_bytes(doc, data, acc, 4 * N)?;
+    Some((0..count).map(|i| std::array::from_fn(|c| f32::from_le_bytes(d[start + i * stride + c * 4..][..4].try_into().unwrap()))).collect())
+}
+
+fn indices(doc: &Value, data: &[Vec<u8>], acc: usize) -> Option<Vec<u32>> {
+    let size = match doc["accessors"][acc]["componentType"].as_u64()? {
+        5121 => 1,
+        5123 => 2,
+        5125 => 4,
+        _ => return None,
+    };
+    let (d, start, stride, count) = accessor_bytes(doc, data, acc, size)?;
+    Some(
+        (0..count)
+            .map(|i| {
+                let b = &d[start + i * stride..];
+                match size {
+                    1 => b[0] as u32,
+                    2 => u16::from_le_bytes([b[0], b[1]]) as u32,
+                    _ => u32::from_le_bytes(b[..4].try_into().unwrap()),
+                }
+            })
+            .collect(),
+    )
+}
+
+/// Mirrors bevy_mesh's `MikktspaceGeometryHelper`: one tangent per vertex, the last face to touch a
+/// shared vertex wins.
+struct Geometry<'a> {
+    idx: &'a [u32],
+    pos: &'a [[f32; 3]],
+    nrm: &'a [[f32; 3]],
+    uv: &'a [[f32; 2]],
+    out: Vec<[f32; 4]>,
+}
+
+impl bevy_mikktspace::Geometry for Geometry<'_> {
+    fn num_faces(&self) -> usize {
+        self.idx.len() / 3
+    }
+    fn num_vertices_of_face(&self, _: usize) -> usize {
+        3
+    }
+    fn position(&self, face: usize, vert: usize) -> [f32; 3] {
+        self.pos[self.idx[face * 3 + vert] as usize]
+    }
+    fn normal(&self, face: usize, vert: usize) -> [f32; 3] {
+        self.nrm[self.idx[face * 3 + vert] as usize]
+    }
+    fn tex_coord(&self, face: usize, vert: usize) -> [f32; 2] {
+        self.uv[self.idx[face * 3 + vert] as usize]
+    }
+    fn set_tangent(&mut self, ts: Option<bevy_mikktspace::TangentSpace>, face: usize, vert: usize) {
+        self.out[self.idx[face * 3 + vert] as usize] = ts.unwrap_or_default().tangent_encoded();
+    }
+}
+
+/// Tangents exactly as Bevy's glTF loader would generate them (same condition: triangles with
+/// normals, a material with a normal map, no TANGENT yet), stored as a TANGENT accessor. Primitives
+/// that share the same geometry accessors share one result.
+fn add_tangents(doc: &mut Value, data: &mut Vec<Vec<u8>>) -> TangentReport {
+    let mut report = TangentReport::default();
+    let mut done: BTreeMap<(u64, u64, u64, Option<u64>), usize> = BTreeMap::new();
+    let meshes = doc["meshes"].as_array().map(Vec::len).unwrap_or(0);
+    for m in 0..meshes {
+        let prims = doc["meshes"][m]["primitives"].as_array().map(Vec::len).unwrap_or(0);
+        for p in 0..prims {
+            let prim = &doc["meshes"][m]["primitives"][p];
+            let attr = &prim["attributes"];
+            let normal_mapped = prim["material"].as_u64().is_some_and(|mat| doc["materials"][mat as usize]["normalTexture"].is_object());
+            if !normal_mapped || attr.get("TANGENT").is_some() || prim["mode"].as_u64().unwrap_or(4) != 4 {
+                continue;
+            }
+            let (Some(pos), Some(nrm), Some(uv)) = (attr["POSITION"].as_u64(), attr["NORMAL"].as_u64(), attr["TEXCOORD_0"].as_u64()) else {
+                continue;
+            };
+            let key = (pos, nrm, uv, prim["indices"].as_u64());
+            let acc = if let Some(&acc) = done.get(&key) {
+                acc
+            } else {
+                let (Some(p3), Some(n3), Some(t2)) = (floats::<3>(doc, data, pos as usize), floats::<3>(doc, data, nrm as usize), floats::<2>(doc, data, uv as usize)) else {
+                    continue;
+                };
+                let idx = match key.3 {
+                    Some(i) => match indices(doc, data, i as usize) {
+                        Some(v) => v,
+                        None => continue,
+                    },
+                    None => (0..p3.len() as u32).collect(),
+                };
+                let t = std::time::Instant::now();
+                let mut g = Geometry { idx: &idx, pos: &p3, nrm: &n3, uv: &t2, out: vec![[0.0; 4]; p3.len()] };
+                if bevy_mikktspace::generate_tangents(&mut g).is_err() {
+                    continue;
+                }
+                // bevy_mesh: mikktspace assumes left-handedness, so Bevy flips the sign.
+                for tangent in &mut g.out {
+                    tangent[3] = -tangent[3];
+                }
+                report.ms += t.elapsed().as_secs_f64() * 1e3;
+                report.vertices += g.out.len();
+                data.push(g.out.iter().flatten().flat_map(|f| f.to_le_bytes()).collect());
+                doc["bufferViews"].as_array_mut().unwrap().push(json!({ "buffer": 0, "byteLength": g.out.len() * 16, "target": 34962 }));
+                let accessors = doc["accessors"].as_array_mut().unwrap();
+                accessors.push(json!({ "bufferView": data.len() - 1, "componentType": 5126, "count": g.out.len(), "type": "VEC4" }));
+                done.insert(key, accessors.len() - 1);
+                accessors.len() - 1
+            };
+            doc["meshes"][m]["primitives"][p]["attributes"]["TANGENT"] = json!(acc);
+            report.primitives += 1;
+        }
+    }
+    report
 }
 
 fn srgb_to_linear(c: f32) -> f32 {
@@ -371,6 +516,41 @@ mod tests {
         assert!((len - 1.0).abs() < 0.02, "averaged normal renormalised, got {len}");
         let (file, ..) = encode_ktx2(img, Usage::Normal, None);
         assert_eq!(ktx2::Reader::new(&file[..]).unwrap().header().format, Some(ktx2::Format::BC5_UNORM_BLOCK));
+    }
+
+    #[test]
+    fn tangents_follow_u_and_only_for_normal_mapped_primitives() {
+        // A quad in the XY plane facing +Z, U along +X: the tangent is +X. Two primitives share it,
+        // one with a normal-mapped material, one without.
+        let f = |v: &[f32]| v.iter().flat_map(|x| x.to_le_bytes()).collect::<Vec<u8>>();
+        let mut data = vec![
+            f(&[0., 0., 0., 1., 0., 0., 1., 1., 0., 0., 1., 0.]),
+            f(&[0., 0., 1., 0., 0., 1., 0., 0., 1., 0., 0., 1.]),
+            f(&[0., 1., 1., 1., 1., 0., 0., 0.]),
+            [0u16, 1, 2, 0, 2, 3].iter().flat_map(|i| i.to_le_bytes()).collect(),
+        ];
+        let mut doc = json!({
+            "bufferViews": [{"byteLength": 48}, {"byteLength": 48}, {"byteLength": 32}, {"byteLength": 12}],
+            "accessors": [
+                {"bufferView": 0, "componentType": 5126, "count": 4, "type": "VEC3"},
+                {"bufferView": 1, "componentType": 5126, "count": 4, "type": "VEC3"},
+                {"bufferView": 2, "componentType": 5126, "count": 4, "type": "VEC2"},
+                {"bufferView": 3, "componentType": 5123, "count": 6, "type": "SCALAR"}
+            ],
+            "materials": [{"normalTexture": {"index": 0}}, {}],
+            "meshes": [{"primitives": [
+                {"attributes": {"POSITION": 0, "NORMAL": 1, "TEXCOORD_0": 2}, "indices": 3, "material": 0},
+                {"attributes": {"POSITION": 0, "NORMAL": 1, "TEXCOORD_0": 2}, "indices": 3, "material": 1}
+            ]}]
+        });
+        let r = add_tangents(&mut doc, &mut data);
+        assert_eq!((r.primitives, r.vertices), (1, 4));
+        let acc = doc["meshes"][0]["primitives"][0]["attributes"]["TANGENT"].as_u64().unwrap() as usize;
+        assert!(doc["meshes"][0]["primitives"][1]["attributes"].get("TANGENT").is_none());
+        for t in floats::<4>(&doc, &data, acc).unwrap() {
+            assert!((t[0] - 1.0).abs() < 1e-5 && t[1].abs() < 1e-5 && t[2].abs() < 1e-5 && t[3].abs() == 1.0, "{t:?}");
+        }
+        assert_eq!(add_tangents(&mut doc, &mut data).primitives, 0, "a second run adds nothing");
     }
 
     #[test]
