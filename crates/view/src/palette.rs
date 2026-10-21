@@ -78,6 +78,21 @@ pub mod cinema {
     pub const CHAPTER: Color32 = Color32::from_rgb(255, 205, 110);
 }
 
+/// Comms window at chapter ends (view::comms): each voice has its own colour for the frame, the
+/// emblem and the name, taken from its species' look (§4): Human navy steel, Veyr violet nacre,
+/// Kharz brass (never red), the Aster teal of the ancient glyphs, the ship's own HUD blue.
+pub mod comms {
+    use egui::Color32;
+    pub const SHIP: Color32 = super::ACCENT;
+    pub const HUMAN: Color32 = Color32::from_rgb(130, 170, 230);
+    pub const VEYR: Color32 = Color32::from_rgb(190, 150, 255);
+    pub const KHARZ: Color32 = Color32::from_rgb(235, 185, 90);
+    pub const ASTER: Color32 = Color32::from_rgb(60, 230, 205);
+    pub const TEXT: Color32 = Color32::from_rgb(225, 232, 245);
+    /// Portrait well behind the emblem.
+    pub const WELL: Color32 = Color32::from_rgb(6, 9, 16);
+}
+
 /// Star map (galaxy and system charts).
 pub mod map {
     use egui::Color32;

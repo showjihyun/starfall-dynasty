@@ -1,0 +1,60 @@
+// Comms calls at the end of each campaign chapter (docs/STORY.md §4, §6 way 2). `after` is the
+// scenario id just cleared; `only` lines are heard by a captain of that species alone. Faceless
+// first version: each voice is an emblem and a waveform. Checked by `cargo test -p view --test comms`
+// (speakers exist, every species hears the call, lines fit the panel in three rows).
+(
+    speakers: [
+        (id: "ship", name: "함선 컴퓨터", voice: Ship),
+        (id: "idel", name: "이델 · 제국 기록보관소 기록관", voice: Human),
+        (id: "sael", name: "사엘 · Veyr 기억의 집 낭송자", voice: Veyr),
+        (id: "gorma", name: "고르마 · Kharz 계약 길드 중재인", voice: Kharz),
+        (id: "aster", name: "???", voice: Aster),
+    ],
+    chapters: [
+        (
+            after: 0,
+            lines: [
+                (who: "ship", text: "신호 해독 완료. 발신원이 아니라 중계 신호입니다. 다음 중계점: Vesta 회랑."),
+                (who: "idel", text: "함장님, 그 호출 부호는 우리 기록에서 지워진 번호예요."),
+                (who: "idel", text: "스타폴 직후 Vesta 회랑에서 사라진 호송선단이 있었죠. 그 항해 장부를 찾아 주세요."),
+            ],
+        ),
+        (
+            after: 1,
+            lines: [
+                (who: "idel", text: "장부의 날짜… 기록보관소가 '기록 없음'이라 한 바로 그 사흘이에요."),
+                (who: "ship", text: "장부 마지막 기록: \"Hollow Crown으로. 세 함대가 함께.\""),
+                (who: "sael", text: "세 함대라 했나요? 왕관 유적으로 오세요. 기억이 당신을 기다립니다."),
+            ],
+        ),
+        (
+            after: 2,
+            lines: [
+                (who: "sael", text: "유적의 기억이 처음으로 한 목소리로 노래했어요."),
+                (who: "sael", text: "셋째 배신은 한 종족의 짓이 아니었어요. 세 종족이 함께 문을 열려 했죠."),
+                (who: "sael", text: "그리고 문 너머의 무언가가 깨어났어요."),
+                (who: "gorma", text: "그걸 증명할 계약서 원본이 있다. 문제는 군벌이 그 위에 앉아 있다는 거지."),
+                (who: "gorma", text: "Ashen Gate로 와라, 함장. 피의 계약은 피로 푼다."),
+            ],
+        ),
+        (
+            after: 3,
+            lines: [
+                (who: "gorma", text: "원본이다. 서명은 셋. 인류, Veyr, Kharz."),
+                (who: "gorma", text: "스타폴은 사고도, 한 종족의 배신도 아니었다. 우리가 함께 깬 계약이다."),
+                (who: "idel", text: "기록보관소가 지운 건 사고가 아니라 우리 서명이었군요.", only: Some(Human)),
+                (who: "sael", text: "기억의 집이 셋째의 이름을 숨긴 이유를 이제 알겠어요.", only: Some(Veyr)),
+                (who: "gorma", text: "Kharz는 피로 갚는다. 이번엔 우리 몫도 갚아야지.", only: Some(Kharz)),
+                (who: "ship", text: "경고: The Deep 게이트에서 에너지 상승. 400년 만의 수치입니다."),
+            ],
+        ),
+        (
+            after: 4,
+            lines: [
+                (who: "aster", text: "세 개의 서명. 세 개의 기억. 우리는 기다렸다."),
+                (who: "aster", text: "문은 열렸다. 무엇이 진실이었는지 기록하는 것은 너희다."),
+                (who: "ship", text: "게이트 개방 확인. 이 날은 은하의 연대기에 남습니다."),
+            ],
+        ),
+    ],
+)

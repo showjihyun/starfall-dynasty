@@ -10,6 +10,7 @@ mod audio;
 mod bench;
 mod cinematic;
 mod clicks;
+mod comms;
 mod control;
 mod dust;
 mod fx;
@@ -351,6 +352,8 @@ fn automation(
             "tp" if first => cam.first_person = false,
             "zoom" if first => cam.zoom = dur as f32,
             "scenario" if first => net.send(ClientMsg::StartScenario { id: dur as u32 }),
+            // `comms N`: the call after chapter N+1 (as when it is cleared for the first time).
+            "comms" if first => s.comms = Some(view::comms::Panel::new(dur as u32, t)),
             // `opening`: the campaign's first start, as the 임무 window does it (cutscene, then chapter 1).
             "opening" if first => s.cine_request = Some(state::CineRequest { name: "opening".into(), then: Some(ClientMsg::StartScenario { id: 0 }) }),
             _ => {}

@@ -89,6 +89,7 @@ pub fn ui_system(
         Screen::Create => create(ctx, &mut form, &s, &net, &args),
         Screen::Playing => {
             hud(ctx, &mut s, &net, &env, &vis, &ships, &cam, now);
+            crate::comms::show(ctx, &mut s, now);
             windows(ctx, &mut s, &net, &env);
             crate::starmap::draw(ctx, &mut s, &net, &env, now);
         }

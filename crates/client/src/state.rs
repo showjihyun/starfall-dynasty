@@ -100,6 +100,8 @@ pub struct Session {
     pub charted: std::collections::BTreeSet<SystemId>,
     /// A cutscene the UI asked for; `cinematic::request` plays it, then sends `then`.
     pub cine_request: Option<CineRequest>,
+    /// The comms call on screen after a chapter is cleared for the first time (`crate::comms`).
+    pub comms: Option<view::comms::Panel>,
 }
 
 pub struct CineRequest {
@@ -277,6 +279,12 @@ fn apply(s: &mut Session, m: ServerMsg, now: f64, next: &mut NextState<Screen>) 
         }
         ServerMsg::Toast { text } => s.toast(text, now),
         ServerMsg::Profile(p) => {
+            // A chapter cleared for the first time: its comms call opens the next one.
+            if let Some(old) = &s.profile
+                && p.scenarios_completed > old.scenarios_completed
+            {
+                s.comms = Some(view::comms::Panel::new(old.scenarios_completed, now));
+            }
             s.profile = Some(p);
             next.set(Screen::Playing);
         }
