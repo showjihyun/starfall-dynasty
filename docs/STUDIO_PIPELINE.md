@@ -38,7 +38,7 @@
 | 성능 | `bench`, `client --bench`, `shared::prof`, `tools/perfcheck.py` | ● 2026-10-20 | 기계별 기준선(`tools/perf_baseline.json`) 대비 sim 20%·클라이언트 25% 넘게 느려지면 실패. CI는 기준선이 없어 SKIP |
 | 오디오 | `client --dump-sfx`(절차적 효과음), 음악 에셋 | ◐ | 음량 정규화 확인(ffmpeg loudnorm) |
 | 스토리·연출 | docs/STORY.md, `view::cinematic`/`comms` | ● 2026-10-21 | 오프닝 컷신·캠페인 진입·장 끝 통신창(C1–C4) |
-| 음성(대사) | `tools/voice.py` + Docker `tools/voice/`(MeloTTS 한국어 MIT + ffmpeg) | ● 2026-10-21 | 대사 30줄 176초 1.2 MB, 화자 9 프리셋(`assets/voice/voices.json`: 속도·음높이·무전/컴퓨터/잔향). 자막을 고치면 테스트가 "not voiced yet"으로 알리고 도구를 다시 돌리면 그 줄만 생성 |
+| 음성(대사) | `tools/voice.py` + Docker `tools/voice/`(Chatterbox Multilingual V3, MIT + ffmpeg) | ● 2026-10-22 | 대사 30줄 140초 1.0 MB, 화자 9 프리셋(`assets/voice/voices.json`: 기준 목소리 mid/low/high/builtin·표현력·속도·무전/컴퓨터/잔향). 2026-10-21 MeloTTS판은 "기계가 읽는 느낌"(리드) → 교체: Whisper 오인식률 0.109 → 0.067, 억양 폭 3.5 → 6.1 반음. 기준 목소리는 우리 MeloTTS 출력이라 실제 사람 목소리 복제 없음. 자막을 고치면 테스트가 "not voiced yet"으로 알리고 도구를 다시 돌리면 그 줄만 생성 |
 | 현지화 | — (한국어 문자열이 코드에 직접) | ○ | Project Fluent(`fluent-rs`)로 문자열 분리 — 해외 출시 결정 후 |
 | 라이선스·취약점 | `cargo-deny`(`deny.toml`) | ● 2026-10-20 | 허용 라이선스 목록, RustSec, 출처. 예외 하나(RUSTSEC-2026-0344, 이유 기록). 게임 자체 라이선스는 미정 |
 | 배포·패키징 | — | ○ | `cargo-dist`/`cargo-packager`로 Windows 설치본 |

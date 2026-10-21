@@ -6,8 +6,9 @@
 
 What to say comes from the game's own data (`cargo run -p view --example voice_lines` reads
 opening.ron and comms.ron); presets and the pronunciation table are crates/client/assets/voice/voices.json.
-Speech is MeloTTS (MIT) in Docker (tools/voice/Dockerfile, image starfall-voice:1), then ffmpeg gives
-each preset its pitch and effect. Output: crates/client/assets/voice/*.ogg and manifest.json, which
+Speech is Chatterbox Multilingual V3 (Resemble AI, MIT) in Docker (tools/voice/Dockerfile), each preset
+with its reference voice (tools/voice/refs: our own MeloTTS takes), expressiveness and pacing, then a
+light ffmpeg effect (radio / computer / reverb). About 25 s per line on the CPU. Output: crates/client/assets/voice/*.ogg and manifest.json, which
 `cargo test -p view --test voice` checks against the subtitles.
 """
 
@@ -21,7 +22,7 @@ import sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ASSETS = os.path.join(ROOT, "crates", "client", "assets", "voice")
 WORK = os.path.join(ROOT, "target", "voice")
-IMAGE = "starfall-voice:2"
+IMAGE = "starfall-voice:3"
 
 
 def wanted():
@@ -60,7 +61,7 @@ def main():
     if todo:
         shutil.rmtree(WORK, ignore_errors=True)
         os.makedirs(os.path.join(WORK, "out"))
-        jobs = [{"out": file_name(w["voice"], w["text"]), "say": spoken(w["text"], voices["say"]), **{k: presets[w["voice"]][k] for k in ("speed", "pitch", "effect")}} for w in todo]
+        jobs = [{"out": file_name(w["voice"], w["text"]), "say": spoken(w["text"], voices["say"]), **{k: presets[w["voice"]][k] for k in ("ref", "exaggeration", "cfg", "speed", "effect")}} for w in todo]
         json.dump(jobs, open(os.path.join(WORK, "jobs.json"), "w", encoding="utf-8"), ensure_ascii=False, indent=1)
         if subprocess.run(["docker", "image", "inspect", IMAGE], capture_output=True).returncode != 0:
             subprocess.run(["docker", "build", "-t", IMAGE, os.path.join(ROOT, "tools", "voice")], check=True)

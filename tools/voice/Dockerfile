@@ -1,9 +1,12 @@
-# Voice generator for tools/voice.py: MeloTTS (MIT, Korean) + ffmpeg, CPU only.
-# Built once as starfall-voice:2; models download into the starfall-voice-cache volume on first run.
-FROM python:3.10-slim
-RUN apt-get update -qq && apt-get install -y -qq --no-install-recommends git build-essential ffmpeg mecab libmecab-dev \
+# Voice generator for tools/voice.py: Chatterbox Multilingual V3 (Resemble AI, MIT code and weights,
+# Korean) + ffmpeg, CPU only. Built once as starfall-voice:3; weights download into the
+# starfall-voice-cache volume on first run. Reference voices are in tools/voice/refs (our own
+# MeloTTS output, so no real person's voice is cloned).
+FROM python:3.11-slim
+RUN apt-get update -qq && apt-get install -y -qq --no-install-recommends git ffmpeg build-essential \
     && rm -rf /var/lib/apt/lists/*
-RUN pip install -q --no-cache-dir git+https://github.com/myshell-ai/MeloTTS.git python-mecab-ko && python -m unidic download
-# python-mecab-ko: the Korean g2p (g2pkk) needs it for pronunciation rules, or it warns and guesses.
+RUN pip install -q --no-cache-dir torch torchaudio --index-url https://download.pytorch.org/whl/cpu
+RUN pip install -q --no-cache-dir git+https://github.com/resemble-ai/chatterbox.git
 COPY gen.py /gen.py
+COPY refs /refs
 ENTRYPOINT ["python", "/gen.py"]

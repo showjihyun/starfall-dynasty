@@ -1,5 +1,6 @@
-//! Voice lines for the cutscenes and comms calls (docs/STORY.md §8: MeloTTS generated speech, each
-//! speaker told apart by its preset's speed, pitch and effect). Files live in
+//! Voice lines for the cutscenes and comms calls (docs/STORY.md §8: generated speech — Chatterbox
+//! Multilingual V3 since 2026-10-22, MeloTTS before it sounded too mechanical — each speaker told apart
+//! by its preset's reference voice, expressiveness, pacing and effect). Files live in
 //! `crates/client/assets/voice/`: `voices.json` (presets and the pronunciation table, written by hand),
 //! `manifest.json` and the `.ogg` lines (written by `python tools/voice.py`, which asks
 //! `cargo run -p view --example voice_lines` what to say). A line is found by (preset, on-screen text),
@@ -13,10 +14,14 @@ use shared::galaxy::Species;
 #[derive(Clone, Debug, Deserialize)]
 pub struct Preset {
     pub id: String,
-    /// Speaking rate for the TTS (1 = normal).
+    /// Reference voice the speech is modelled on (`tools/voice/refs/<ref>.wav`, or "builtin").
+    pub r#ref: String,
+    /// Chatterbox expressiveness (0.5 neutral, higher = more dramatic).
+    pub exaggeration: f32,
+    /// Chatterbox guidance; lower = slower, more deliberate pacing.
+    pub cfg: f32,
+    /// Tempo after generation (1 = as spoken).
     pub speed: f32,
-    /// Pitch shift in semitones (post-processing).
-    pub pitch: f32,
     /// Post-processing: "none", "radio", "computer", "reverb".
     pub effect: String,
 }

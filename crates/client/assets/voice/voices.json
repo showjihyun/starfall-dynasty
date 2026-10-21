@@ -1,14 +1,14 @@
 {
   "voices": [
-    { "id": "narrator", "speed": 0.88, "pitch": -2.0, "effect": "none" },
-    { "id": "archive",  "speed": 1.0,  "pitch": 0.0,  "effect": "radio" },
-    { "id": "memory",   "speed": 0.85, "pitch": 2.5,  "effect": "reverb" },
-    { "id": "contract", "speed": 0.85, "pitch": -4.5, "effect": "none" },
-    { "id": "ship",     "speed": 1.05, "pitch": 1.0,  "effect": "computer" },
-    { "id": "idel",     "speed": 0.95, "pitch": 1.0,  "effect": "radio" },
-    { "id": "sael",     "speed": 0.9,  "pitch": 3.0,  "effect": "radio" },
-    { "id": "gorma",    "speed": 0.85, "pitch": -5.0, "effect": "radio" },
-    { "id": "aster",    "speed": 0.72, "pitch": -3.0, "effect": "reverb" }
+    { "id": "narrator", "ref": "low",     "exaggeration": 0.45, "cfg": 0.5, "speed": 0.95, "effect": "none" },
+    { "id": "archive",  "ref": "builtin", "exaggeration": 0.35, "cfg": 0.5, "speed": 1.0,  "effect": "radio" },
+    { "id": "memory",   "ref": "high",    "exaggeration": 0.6,  "cfg": 0.4, "speed": 0.95, "effect": "reverb" },
+    { "id": "contract", "ref": "low",     "exaggeration": 0.6,  "cfg": 0.35, "speed": 0.95, "effect": "none" },
+    { "id": "ship",     "ref": "mid",     "exaggeration": 0.3,  "cfg": 0.5, "speed": 1.0,  "effect": "computer" },
+    { "id": "idel",     "ref": "builtin", "exaggeration": 0.6,  "cfg": 0.4, "speed": 1.0,  "effect": "radio" },
+    { "id": "sael",     "ref": "high",    "exaggeration": 0.6,  "cfg": 0.4, "speed": 1.0,  "effect": "radio" },
+    { "id": "gorma",    "ref": "low",     "exaggeration": 0.7,  "cfg": 0.3, "speed": 1.0,  "effect": "radio" },
+    { "id": "aster",    "ref": "mid",     "exaggeration": 0.5,  "cfg": 0.3, "speed": 0.88, "effect": "reverb" }
   ],
   "say": [
     ["Hollow Crown", "할로우 크라운"],
@@ -20,7 +20,6 @@
     ["Veyr", "베이르"],
     ["400년", "사백 년"],
     ["\n", " "],
-    ["…", ", "],
     ["'", ""],
     ["\"", ""]
   ]

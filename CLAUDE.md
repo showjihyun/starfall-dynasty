@@ -19,7 +19,7 @@ no feature creep, never trust untested output, keep measuring performance). Its 
   Performance budget: `python tools/perfcheck.py [--client]` (per-machine baseline); dependencies: `cargo deny check`.
   Where the frame goes (engine included): `python tools/tracy.py` (Tracy capture of the 1000-ship bench, table per system).
   Story and cinematics: docs/STORY.md; `STARFALL_FIXED_FPS=60 client --cinematic opening --shot X.png --shot-at T` (T on the cinematic clock); in a live game the script command `opening` plays it as the campaign's first start does, `comms N` opens the call after chapter N+1 (lines in `assets/cinematics/comms.ron`, `view::comms`).
-  Voice lines: after editing any subtitle or comms line run `python tools/voice.py` (Docker, MeloTTS); `cargo test -p view --test voice` fails until you do.
+  Voice lines: after editing any subtitle or comms line run `python tools/voice.py` (Docker, Chatterbox Multilingual V3; presets in `assets/voice/voices.json`); `cargo test -p view --test voice` fails until you do.
 
 - Logic: `cargo test --release -p shared -p history -p sim -p view` (seconds, no engine). Client math and HUD
   drawing live in `view` (headless egui tests in `crates/view/tests/hud.rs`); keep `client` to Bevy glue; that glue is tested headless too (`cargo test --release -p client`: Bevy systems on `MinimalPlugins`, no window/GPU — e.g. material state must not depend on the frame a model finished loading). Network: `cargo build --release -p server && cargo test --release -p bot`.
