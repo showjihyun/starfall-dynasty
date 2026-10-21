@@ -351,6 +351,8 @@ fn automation(
             "tp" if first => cam.first_person = false,
             "zoom" if first => cam.zoom = dur as f32,
             "scenario" if first => net.send(ClientMsg::StartScenario { id: dur as u32 }),
+            // `opening`: the campaign's first start, as the 임무 window does it (cutscene, then chapter 1).
+            "opening" if first => s.cine_request = Some(state::CineRequest { name: "opening".into(), then: Some(ClientMsg::StartScenario { id: 0 }) }),
             _ => {}
         }
         let wait = match cmd.first().copied() {

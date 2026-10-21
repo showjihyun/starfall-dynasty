@@ -98,6 +98,13 @@ pub struct Session {
     pub influence_threshold: f32,
     /// Generated systems someone has charted (server-sent); others show as unknown on the map.
     pub charted: std::collections::BTreeSet<SystemId>,
+    /// A cutscene the UI asked for; `cinematic::request` plays it, then sends `then`.
+    pub cine_request: Option<CineRequest>,
+}
+
+pub struct CineRequest {
+    pub name: String,
+    pub then: Option<ClientMsg>,
 }
 
 impl Session {
@@ -149,6 +156,11 @@ pub struct Args {
 
 /// Per-user config dir only (never a shared temp dir); `None` means the token is not persisted.
 pub fn token_path(name: &str) -> Option<std::path::PathBuf> {
+    user_file("token", name)
+}
+
+/// `<config>/StarfallDynasty/<kind>_<name>.txt`, one per captain.
+fn user_file(kind: &str, name: &str) -> Option<std::path::PathBuf> {
     let base = std::env::var_os("APPDATA")
         .map(std::path::PathBuf::from)
         .or_else(|| std::env::var_os("XDG_CONFIG_HOME").map(std::path::PathBuf::from))
@@ -158,7 +170,21 @@ pub fn token_path(name: &str) -> Option<std::path::PathBuf> {
     if safe.is_empty() {
         return None;
     }
-    Some(base.join("StarfallDynasty").join(format!("token_{safe}.txt")))
+    Some(base.join("StarfallDynasty").join(format!("{kind}_{safe}.txt")))
+}
+
+/// Whether this captain has seen the campaign opening on this machine. A client setting, not game
+/// state: the server and the recorded world never know about it.
+pub fn opening_seen(name: &str) -> bool {
+    user_file("opening", name).is_some_and(|p| p.exists())
+}
+
+pub fn mark_opening_seen(name: &str) {
+    let Some(p) = user_file("opening", name) else { return };
+    if let Some(d) = p.parent() {
+        let _ = std::fs::create_dir_all(d);
+    }
+    let _ = std::fs::write(p, "seen\n");
 }
 
 pub fn load_token(name: &str) -> Option<String> {
@@ -197,12 +223,17 @@ fn libc_nofollow() -> i32 {
     if cfg!(target_os = "linux") { 0o400000 } else { 0x100 }
 }
 
-pub fn pump_network(net: Option<Res<Net>>, mut s: ResMut<Session>, time: Res<Time<Real>>, mut next: ResMut<NextState<Screen>>, screen: Res<State<Screen>>) {
+pub fn pump_network(net: Option<Res<Net>>, mut s: ResMut<Session>, time: Res<Time<Real>>, mut next: ResMut<NextState<Screen>>, screen: Res<State<Screen>>, mut cine: Option<ResMut<crate::cinematic::Cine>>) {
     let _prof = shared::prof::span("state::pump_network");
     let dt = time.delta_secs().max(1e-4);
     s.fps += (1.0 / dt - s.fps) * 0.05;
     let Some(net) = net else { return };
     let now = time.elapsed_secs_f64();
+    // While the campaign opening plays in a live game, the world keeps arriving in the stashed session.
+    let s = match cine.as_mut().and_then(|c| c.live_mut()) {
+        Some(live) => live,
+        None => &mut *s,
+    };
     while let Ok(ev) = net.rx.try_recv() {
         match ev {
             NetEvent::Connected => {
@@ -211,7 +242,7 @@ pub fn pump_network(net: Option<Res<Net>>, mut s: ResMut<Session>, time: Res<Tim
                 }
             }
             NetEvent::Disconnected(r) => s.disconnected = Some(r),
-            NetEvent::Msg(m) => apply(&mut s, *m, now, &mut next),
+            NetEvent::Msg(m) => apply(s, *m, now, &mut next),
         }
     }
 }

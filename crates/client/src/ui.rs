@@ -3,7 +3,7 @@
 use crate::net::Net;
 use crate::scene::Env;
 use crate::ships::{LIVERIES, ShipVis, Visuals};
-use crate::state::{Args, Screen, Session, load_token};
+use crate::state::{Args, CineRequest, Screen, Session, load_token, opening_seen};
 use bevy::prelude::*;
 use bevy_egui::{EguiContexts, egui};
 use egui::{Align2, Color32, FontId, Pos2, RichText, Stroke, Vec2 as EVec2};
@@ -515,7 +515,7 @@ fn windows(ctx: &egui::Context, s: &mut Session, net: &Net, env: &Env) {
     s.ui.station = open;
 
     let mut open = s.ui.missions;
-    egui::Window::new("임무 (J)").open(&mut open).default_size([520.0, 560.0]).show(ctx, |ui| missions(ui, net, &prof));
+    egui::Window::new("임무 (J)").open(&mut open).default_size([520.0, 560.0]).show(ctx, |ui| missions(ui, s, net, &prof));
     s.ui.missions = open;
 
     let mut open = s.ui.contracts;
@@ -656,7 +656,7 @@ fn station(ui: &mut egui::Ui, s: &mut Session, net: &Net, prof: &Profile, env: &
     s.ui.institute_name = name;
 }
 
-fn missions(ui: &mut egui::Ui, net: &Net, prof: &Profile) {
+fn missions(ui: &mut egui::Ui, s: &mut Session, net: &Net, prof: &Profile) {
     ui.heading("일일 미션");
     ui.label(RichText::new("매일 UTC 자정에 새로 생성됩니다.").color(DIM).size(11.0));
     for (i, m) in prof.dailies.iter().enumerate() {
@@ -674,7 +674,12 @@ fn missions(ui: &mut egui::Ui, net: &Net, prof: &Profile) {
         }
     }
     ui.separator();
-    ui.heading("시나리오 캠페인");
+    ui.horizontal(|ui| {
+        ui.heading("시나리오 캠페인");
+        if ui.small_button("오프닝 다시 보기").clicked() {
+            s.cine_request = Some(CineRequest { name: "opening".into(), then: None });
+        }
+    });
     for sc in scenarios() {
         let done = sc.id < prof.scenarios_completed;
         let active = prof.scenario.as_ref().is_some_and(|p| p.id == sc.id);
@@ -693,7 +698,13 @@ fn missions(ui: &mut egui::Ui, net: &Net, prof: &Profile) {
             }
             ui.label(RichText::new(format!("보상: {} · 모듈 상한 +1", sc.reward.describe())).color(GOLD).size(12.0));
             if available && ui.button("시나리오 시작").clicked() {
-                net.send(ClientMsg::StartScenario { id: sc.id });
+                let start = ClientMsg::StartScenario { id: sc.id };
+                // The campaign opening plays once per captain on this machine, before chapter 1 starts.
+                if sc.id == 0 && !opening_seen(&prof.name) {
+                    s.cine_request = Some(CineRequest { name: "opening".into(), then: Some(start) });
+                } else {
+                    net.send(start);
+                }
             }
             if active && ui.button("포기").clicked() {
                 net.send(ClientMsg::AbandonScenario);

@@ -22,7 +22,7 @@ impl Plugin for ControlPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<CamState>()
             .add_systems(Startup, spawn_camera)
-            .add_systems(Update, (flight_input, action_keys, chase_camera).run_if(in_state(Screen::Playing)))
+            .add_systems(Update, (flight_input, action_keys.run_if(not(resource_exists::<crate::cinematic::Cine>)), chase_camera).run_if(in_state(Screen::Playing)))
             .add_systems(Update, idle_camera.run_if(not(in_state(Screen::Playing))));
     }
 }
