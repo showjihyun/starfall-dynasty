@@ -296,6 +296,9 @@ cores, running lights and weapon ports.
 | `docs/art/reference/veyr.png` | `--showroom 7 --hull talon --look bow --species veyr --shot-at 20` | Veyr: 진주빛 청록, 바이올렛, 보라 맥, 고리 늑골 |
 | `docs/art/reference/kharz.png` | `--showroom 7 --hull talon --look bow --species kharz --shot-at 20` | Kharz: 그을린 쇠, 골드, 호박색 열 균열, 뿔, 덧댄 장갑 |
 | `docs/art/reference/capital.png` | `--showroom 7 --hull bastion --class capital --look ship --species veyr` | 대형 선체: Bastion 주력함, 단면을 감싸는 Veyr 늑골 |
+| `docs/art/reference/opening_gate.png` | `--cinematic opening --shot-at 14` | 오프닝: 고대 게이트, 첫 자막, 레터박스(docs/STORY.md) |
+| `docs/art/reference/opening_war.png` | `--cinematic opening --shot-at 66` | 오프닝: Vesta Front 전열, 두 줄 자막(줄마다 가운데) |
+| `docs/art/reference/opening_title.png` | `--cinematic opening --shot-at 87` | 오프닝: 함장 함선 정면과 제목 카드(위쪽 3분의 1) |
 
 - **콘셉트·모델 기준:** `tools/blender/previews/*.png`. 함선별 히어로 렌더와 시트, 대형 함선, 소품.
 - **생성 프롬프트에 붙일 이미지:** 참고 이미지 중 가장 가까운 장면 하나, 그리고 같은 계열 함선의 `previews` 시트.

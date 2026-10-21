@@ -233,3 +233,66 @@ pub fn check(cin: &Cinematic) -> Vec<String> {
     }
     bad
 }
+
+/// Letterbox bar height, as a fraction of the screen height (top and bottom).
+pub const LETTERBOX: f32 = 0.09;
+
+/// Draws the cinematic layer for `f` over the whole screen: letterbox bars, subtitles with their
+/// source (centred in the lower part of the picture), the title card, the cut fade and the skip hint.
+/// Plain egui shapes on a foreground layer, so the HUD tests' approach checks it headless.
+pub fn draw(ctx: &egui::Context, f: &Frame, skip_hint: bool) {
+    use crate::palette::{alpha, cinema};
+    use egui::{Align2, FontId, LayerId, Order, Pos2, Rect, Vec2};
+    let screen = ctx.content_rect();
+    let painter = ctx.layer_painter(LayerId::new(Order::Foreground, egui::Id::new("cinematic")));
+    let (w, h) = (screen.width(), screen.height());
+    let bar = h * LETTERBOX;
+    painter.rect_filled(Rect::from_min_size(screen.min, Vec2::new(w, bar)), 0.0, cinema::BLACK);
+    painter.rect_filled(Rect::from_min_size(Pos2::new(screen.min.x, screen.max.y - bar), Vec2::new(w, bar)), 0.0, cinema::BLACK);
+    let a = |c, k: f32| alpha(c, (k.clamp(0.0, 1.0) * 255.0) as u8);
+    let shadowed = |pos: Pos2, align: Align2, text: &str, font: FontId, color, k: f32| {
+        painter.text(pos + Vec2::new(1.5, 1.5), align, text, font.clone(), a(cinema::SHADOW, k * 0.8));
+        painter.text(pos, align, text, font, a(color, k))
+    };
+    // Subtitles: the line block's bottom sits just above the lower bar; the source goes under it.
+    let mut y = screen.max.y - bar - h * 0.03;
+    for (text, source, k) in f.captions.iter().rev() {
+        if let Some(src) = source {
+            let r = shadowed(Pos2::new(screen.center().x, y), Align2::CENTER_BOTTOM, &format!("— {src}"), FontId::proportional(SOURCE_PX), cinema::SOURCE, *k);
+            y = r.min.y - 4.0;
+        }
+        // One centred text per line (a multi-line galley would left-align its lines).
+        for line in text.lines().rev() {
+            let r = shadowed(Pos2::new(screen.center().x, y), Align2::CENTER_BOTTOM, line, FontId::proportional(SUBTITLE_PX), cinema::LINE, *k);
+            y = r.min.y - 4.0;
+        }
+        y -= 6.0;
+    }
+    if let Some(title) = f.title {
+        let mut lines = title.lines();
+        let main = lines.next().unwrap_or("");
+        // Upper third: the shot puts the captain's ship in the middle of the frame.
+        let r = shadowed(Pos2::new(screen.center().x, screen.min.y + h * 0.30), Align2::CENTER_BOTTOM, main, FontId::proportional(TITLE_PX), cinema::TITLE, 1.0 - f.black);
+        for (i, line) in lines.enumerate() {
+            shadowed(Pos2::new(screen.center().x, r.max.y + 14.0 + i as f32 * (SUBTITLE_PX + 8.0)), Align2::CENTER_TOP, line, FontId::proportional(SUBTITLE_PX), cinema::CHAPTER, 1.0 - f.black);
+        }
+    }
+    if skip_hint {
+        painter.text(Pos2::new(screen.max.x - 24.0, screen.min.y + bar * 0.5), Align2::RIGHT_CENTER, "Esc  건너뛰기", FontId::proportional(SOURCE_PX), cinema::SOURCE);
+    }
+    if f.black > 0.0 {
+        painter.rect_filled(screen, 0.0, a(cinema::BLACK, f.black));
+    }
+}
+
+/// Ship radius the shot offsets are written for. The camera distance scales with the real hull
+/// (a Talon is 11 m, a capital ship over 200 m), so every ship fills the frame the same way.
+pub const SHIP_SHOT_RADIUS: f32 = 40.0;
+
+/// The camera for `f` when its shot frames the captain's ship of `radius` metres.
+pub fn eye_for_ship(f: &Frame, radius: f32) -> Vec3 {
+    if f.ship.is_none() {
+        return f.eye;
+    }
+    f.look_at + (f.eye - f.look_at) * (radius / SHIP_SHOT_RADIUS)
+}

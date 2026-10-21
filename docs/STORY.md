@@ -65,7 +65,7 @@
 | 단계 | 내용 | 검증 |
 |---|---|---|
 | C1 ● 2026-10-20 | `view::cinematic`: 장면 = 키프레임(성계, 카메라 위치·시선, 자막, 시작 시각) 목록. 시간 t의 카메라·자막은 순수 함수. 데이터는 `crates/client/assets/cinematics/opening.ron` | `view/tests/cinematic.rs` 7개: 파일 검증(앵커·자막 길이·읽기 시간), 종족별 순서, 시계 함수, 컷 암전·자막 페이드, 마지막 장면 함선·제목, 한국어 글꼴로 잰 자막 폭(1024 px 이내) |
-| C2 | 클라이언트 `Screen::Cinematic`: 성계를 로컬로 짓고(쇼룸처럼 서버 없이) 카메라를 따라 움직임, 자막 egui, 건너뛰기 | `client --cinematic opening --shot X.png --shot-at T` → artcheck 장면 셋(게이트·유적·함선) |
+| C2 ● 2026-10-21 | `client --cinematic opening [--species S --hull H --class C]`(`client/src/cinematic.rs`): 성계를 로컬로 짓고(쇼룸처럼 서버 없이) 장면이 바뀌면 성계를 다시 짓고, 함장 함선·전열을 놓고, 카메라를 정확히 둔다. 함선 장면의 카메라 거리는 선체 반지름에 비례(Talon 11 m ~ 주력함 225 m). 레터박스·자막·출처·제목·건너뛰기(Esc)는 `view::cinematic::draw` | artcheck 장면 셋 `opening_gate/war/title`(같은 명령 → 같은 이미지 100%), 그리기 헤드리스 테스트(자막 위치·줄마다 가운데·암전·제목 위치) |
 | C3 | 캠페인 진입 연결: 1장 시작 전 처음 한 번 재생(표시 기록은 클라이언트 설정; 게임 상태가 아니므로 서버·결정성과 무관) | 봇 QA 항목: 시나리오 시작 흐름이 그대로(오프닝은 클라이언트만) |
 | C4 | 장 끝 통신창 5개(얼굴 없는 1차) | 헤드리스 UI 테스트(view/tests/hud.rs 방식) |
 

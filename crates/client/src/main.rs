@@ -1,13 +1,14 @@
 //! STARFALL DYNASTY client (Bevy 0.20).
 //!
 //! `client [--server ws://127.0.0.1:7777] [--name NAME] [--auto] [--hull talon]`
-//! `       [--shot out.png --shot-at 8] [--showroom [system]] [--script "undock;thrust 3;fire 2"]`
+//! `       [--shot out.png --shot-at 8] [--showroom [system]] [--cinematic opening] [--script "undock;thrust 3;fire 2"]`
 //! script steps: undock, warp N, thrust/boost/fire/turn/roll SECS, attack SECS, target NAME, say TEXT
 //! (dev commands too: `say /grow 9`), map, galaxy, station, missions, alliance, contracts, chronicle, close, fp, tp, zoom N
 //! `client --replay DIR [--as NAME] [--from SECS] [--speed X]` — 3D replay of a recorded session
 
 mod audio;
 mod bench;
+mod cinematic;
 mod clicks;
 mod control;
 mod dust;
@@ -83,7 +84,7 @@ fn main() {
     )
     .add_plugins(EguiPlugin::default())
     .insert_resource(bevy_egui::EguiGlobalSettings { auto_create_primary_context: false, ..default() })
-    .add_plugins((materials::MaterialsPlugin, scene::ScenePlugin, ships::ShipsPlugin, fx::FxPlugin, control::ControlPlugin, audio::AudioFxPlugin, music::MusicPlugin, interior::InteriorPlugin, dust::DustPlugin))
+    .add_plugins((materials::MaterialsPlugin, scene::ScenePlugin, ships::ShipsPlugin, fx::FxPlugin, control::ControlPlugin, audio::AudioFxPlugin, music::MusicPlugin, interior::InteriorPlugin, dust::DustPlugin, cinematic::CinematicPlugin))
     .init_state::<Screen>()
     .insert_resource(Session { server_url: args.server.clone(), last_combat: -1e9, ..default() })
     .init_resource::<ui::Form>()
@@ -117,6 +118,11 @@ fn startup(mut commands: Commands, args: Res<Args>, mut s: ResMut<Session>, mut 
     }
     if args.showroom {
         showroom(&mut s, &args);
+        next.set(Screen::Playing);
+        return;
+    }
+    if let Some(name) = std::env::args().skip_while(|a| a != "--cinematic").nth(1) {
+        cinematic::start(&mut commands, &mut s, &args, &name);
         next.set(Screen::Playing);
         return;
     }
@@ -239,6 +245,7 @@ fn automation(
     screen: Res<State<Screen>>,
     mut cam: ResMut<control::CamState>,
     mut prev: Local<f64>,
+    cine: Option<Res<cinematic::Cine>>,
 ) {
     let _prof = shared::prof::span("main::automation");
     let t = time.elapsed_secs_f64();
@@ -357,14 +364,19 @@ fn automation(
             net.send(ClientMsg::Controls(Controls::default()));
         }
     }
+    // A cinematic's `--shot-at` counts from its own clock (it starts once the scene is built).
+    let shot_at = match &cine {
+        Some(c) => c.started_at().map_or(f64::MAX, |s| s + args.shot_at as f64),
+        None => args.shot_at as f64,
+    };
     if let Some(path) = &args.shot
         && !*done
-        && t > args.shot_at as f64
+        && t > shot_at
     {
         *done = true;
         commands.spawn(Screenshot::primary_window()).observe(save_to_disk(path.clone()));
     }
-    if *done && t > args.shot_at as f64 + 2.0 {
+    if *done && t > shot_at + 2.0 {
         exit.write(AppExit::Success);
     }
 }

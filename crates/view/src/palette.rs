@@ -64,6 +64,20 @@ pub mod chrome {
     pub const WOUND: Color32 = Color32::from_rgb(255, 30, 20);
 }
 
+/// Cinematics (view::cinematic, docs/STORY.md): letterbox, fades, subtitles, title card.
+pub mod cinema {
+    use egui::Color32;
+    /// Letterbox bars and the black of a cut (alpha set per frame).
+    pub const BLACK: Color32 = Color32::from_rgb(0, 0, 0);
+    pub const LINE: Color32 = Color32::from_rgb(235, 240, 250);
+    /// Who speaks, under the line.
+    pub const SOURCE: Color32 = Color32::from_rgb(150, 165, 190);
+    /// Soft drop shadow behind subtitles so they read over bright stars and explosions.
+    pub const SHADOW: Color32 = Color32::from_rgba_unmultiplied_const(0, 0, 0, 200);
+    pub const TITLE: Color32 = Color32::from_rgb(235, 240, 250);
+    pub const CHAPTER: Color32 = Color32::from_rgb(255, 205, 110);
+}
+
 /// Star map (galaxy and system charts).
 pub mod map {
     use egui::Color32;

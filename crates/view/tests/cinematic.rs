@@ -118,3 +118,80 @@ fn every_line_fits_the_subtitle_band_in_the_korean_font() {
     assert!(widest.0 > 100.0, "the font measured something ({font})");
     assert!(widest.0 <= SUBTITLE_BAND_W, "\"{}\" is {:.0} px, the band is {SUBTITLE_BAND_W} px", widest.1, widest.0);
 }
+
+type Texts = Vec<(String, egui::Rect)>;
+type Rects = Vec<(egui::Rect, egui::Color32)>;
+
+/// Text and filled rectangles drawn for the opening at time `t`, on a 1600x900 screen.
+fn drawn_at(t: f32) -> (Texts, Rects) {
+    use egui::{Pos2, RawInput, Rect, Shape, Vec2};
+    let cin = opening();
+    let ctx = egui::Context::default();
+    ctx.set_fonts(view::fonts::with_korean().0);
+    let (mut texts, mut rects) = (vec![], vec![]);
+    for _ in 0..2 {
+        ctx.begin_pass(RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, Vec2::new(1600.0, 900.0))), ..Default::default() });
+        view::cinematic::draw(&ctx, &frame_at(&cin, Species::Human, t), true);
+        let out = ctx.end_pass();
+        (texts, rects) = (vec![], vec![]);
+        for c in out.shapes {
+            match c.shape {
+                Shape::Text(tx) => texts.push((tx.galley.text().to_string(), tx.visual_bounding_rect())),
+                Shape::Rect(r) => rects.push((r.rect, r.fill)),
+                _ => {}
+            }
+        }
+    }
+    (texts, rects)
+}
+
+#[test]
+fn subtitles_sit_centred_above_the_letterbox_with_their_source() {
+    // record shot (Human order) starts at 20 s; its first caption is up 1..6.5 s into it.
+    let (texts, rects) = drawn_at(20.0 + 3.0);
+    let line = texts.iter().rev().find(|(t, _)| t.starts_with("게이트 연쇄 고장")).expect("subtitle drawn");
+    let source = texts.iter().rev().find(|(t, _)| t.contains("인류 제국 기록보관소")).expect("source drawn");
+    let bar_top = 900.0 * (1.0 - view::cinematic::LETTERBOX);
+    assert!((line.1.center().x - 800.0).abs() < 2.0, "centred: {:?}", line.1);
+    assert!(line.1.max.y < source.1.min.y && source.1.max.y < bar_top, "line, then source, above the bar");
+    assert!(line.1.min.y > 900.0 * 0.6, "in the lower part of the picture");
+    assert!(texts.iter().any(|(t, _)| t.contains("건너뛰기")), "skip hint");
+    let bars = rects.iter().filter(|(r, _)| r.width() >= 1600.0 && (r.height() - 81.0).abs() < 1.0).count();
+    assert_eq!(bars, 2, "letterbox top and bottom");
+    assert!(!rects.iter().any(|(r, _)| r.height() >= 900.0), "no fade mid-shot");
+}
+
+#[test]
+fn a_cut_draws_black_over_everything_and_the_title_names_the_chapter() {
+    let (_, rects) = drawn_at(0.0);
+    let fade = rects.iter().find(|(r, _)| r.height() >= 900.0).expect("full-screen fade at the start");
+    assert_eq!(fade.1.a(), 255);
+    let (texts, _) = drawn_at(opening().duration() - 2.5);
+    let title = texts.iter().find(|(t, _)| t == "STARFALL DYNASTY").expect("title");
+    assert!(title.1.max.y < 900.0 * 0.4, "title in the upper part, clear of the ship in the middle: {:?}", title.1);
+    assert!(texts.iter().any(|(t, _)| t.contains("1장 · 오리온의 신호")));
+}
+
+#[test]
+fn the_camera_distance_follows_the_ship_size() {
+    use view::cinematic::{SHIP_SHOT_RADIUS, eye_for_ship};
+    let cin = opening();
+    let f = frame_at(&cin, Species::Human, cin.duration() - 3.0);
+    let ratio = |r: f32| eye_for_ship(&f, r).distance(f.look_at) / f.eye.distance(f.look_at);
+    // A Talon (11 m) is filmed from closer than written, a capital (225 m) from further.
+    assert!((ratio(11.0) - 11.0 / SHIP_SHOT_RADIUS).abs() < 1e-3);
+    assert!((ratio(225.0) - 225.0 / SHIP_SHOT_RADIUS).abs() < 1e-3);
+    assert_eq!(eye_for_ship(&f, 11.0).normalize_or_zero(), eye_for_ship(&f, 11.0).normalize_or_zero(), "same direction");
+    let gate = frame_at(&cin, Species::Human, 3.0);
+    assert_eq!(eye_for_ship(&gate, 500.0), gate.eye, "shots without the ship are not scaled");
+}
+
+#[test]
+fn each_line_of_a_two_line_subtitle_is_centred() {
+    // war shot (Human order: 60..72 s), caption 2..10 s in: "그 날부터, 우리는\n서로의 역사를 쏘고 있다."
+    let (texts, _) = drawn_at(60.0 + 5.0);
+    let a = texts.iter().rev().find(|(t, _)| t == "그 날부터, 우리는").expect("first line");
+    let b = texts.iter().rev().find(|(t, _)| t == "서로의 역사를 쏘고 있다.").expect("second line");
+    assert!((a.1.center().x - 800.0).abs() < 2.0 && (b.1.center().x - 800.0).abs() < 2.0, "{:?} {:?}", a.1, b.1);
+    assert!(a.1.max.y <= b.1.min.y, "first line above the second");
+}

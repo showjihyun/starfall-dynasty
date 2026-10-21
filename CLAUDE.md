@@ -17,7 +17,7 @@ no feature creep, never trust untested output, keep measuring performance). Its 
   Models ship with KTX2 textures (BC7/BC5 + mips) and stored tangents: `cargo run -p assetpipe --release -- MODEL.glb` (Blender export runs it).
   CI: `.github/workflows/gate.yml` runs `gate.py --all` on push (no artcheck).
   Performance budget: `python tools/perfcheck.py [--client]` (per-machine baseline); dependencies: `cargo deny check`.
-  Story and cinematics: docs/STORY.md.
+  Story and cinematics: docs/STORY.md; `STARFALL_FIXED_FPS=60 client --cinematic opening --shot X.png --shot-at T` (T on the cinematic clock).
 
 - Logic: `cargo test --release -p shared -p history -p sim -p view` (seconds, no engine). Client math and HUD
   drawing live in `view` (headless egui tests in `crates/view/tests/hud.rs`); keep `client` to Bevy glue; that glue is tested headless too (`cargo test --release -p client`: Bevy systems on `MinimalPlugins`, no window/GPU — e.g. material state must not depend on the frame a model finished loading). Network: `cargo build --release -p server && cargo test --release -p bot`.
