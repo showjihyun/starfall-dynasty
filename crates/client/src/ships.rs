@@ -6,7 +6,9 @@ use crate::meshes;
 use crate::state::{INTERP_DELAY, Screen, Session};
 use bevy::gltf::GltfMaterialName;
 use bevy::light::NotShadowCaster;
+use bevy::mesh::MeshTag;
 use bevy::prelude::*;
+use bevy::render::storage::ShaderBuffer;
 use bevy::world_serialization::WorldInstanceReady;
 use shared::missions::NpcArchetype;
 use shared::protocol::{EntityId, EntityKind, EntityState};
@@ -17,7 +19,87 @@ pub struct ShipsPlugin;
 
 impl Plugin for ShipsPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<Visuals>().add_systems(Startup, load_models).add_systems(Update, (sync_visuals, update_ship_fx, aim_turrets, face_nozzle_glows).chain().run_if(in_state(Screen::Playing)));
+        app.init_resource::<Visuals>().add_observer(release_slot).add_systems(Startup, load_models).add_systems(Update, (sync_visuals, update_ship_fx, aim_turrets, face_nozzle_glows).chain().run_if(in_state(Screen::Playing)));
+    }
+}
+
+/// Per-ship hull state for the hull shader: one slot per ship (`ShipVis::slot`), found by the hull
+/// primitives' `MeshTag`. Hull materials are shared by every ship of one model part, livery and
+/// species, so the GPU draws them in batches — per-ship materials made the 1000-ship bench about 22%
+/// slower (Tracy, docs/STUDIO_PIPELINE.md). One buffer write per frame when any ship changed.
+#[derive(Resource)]
+pub struct ShipStates {
+    pub buffer: Handle<ShaderBuffer>,
+    /// Per slot: state (damage, hit flash, boost, pattern seed), glow rgb + unused.
+    slots: Vec<[f32; 8]>,
+    free: Vec<u32>,
+    used: u32,
+    dirty: bool,
+    grown: bool,
+    materials: HashMap<HullKey, Handle<HullMat>>,
+}
+
+/// A shared hull material: the model's part material, livery and species style (as bits).
+type HullKey = (AssetId<StandardMaterial>, [u32; 3], [u32; 4]);
+
+impl ShipStates {
+    const START: usize = 256;
+
+    pub fn new(buffers: &mut Assets<ShaderBuffer>) -> Self {
+        let slots = vec![[0.0; 8]; Self::START];
+        ShipStates { buffer: buffers.add(ShaderBuffer::from(slots.clone())), slots, free: vec![], used: 0, dirty: false, grown: false, materials: HashMap::new() }
+    }
+
+    pub fn alloc(&mut self) -> u32 {
+        if let Some(s) = self.free.pop() {
+            return s;
+        }
+        let s = self.used;
+        self.used += 1;
+        if s as usize >= self.slots.len() {
+            let n = self.slots.len() * 2;
+            self.slots.resize(n, [0.0; 8]);
+            self.grown = true;
+            self.dirty = true;
+        }
+        s
+    }
+
+    fn write(&mut self, slot: u32, state: Vec4, glow: [f32; 3]) {
+        self.slots[slot as usize] = [state.x, state.y, state.z, state.w, glow[0], glow[1], glow[2], 0.0];
+        self.dirty = true;
+    }
+
+    /// What the shader reads for `slot`: (state, glow rgb).
+    #[cfg(test)]
+    pub fn get(&self, slot: u32) -> (Vec4, [f32; 3]) {
+        let s = self.slots[slot as usize];
+        (Vec4::new(s[0], s[1], s[2], s[3]), [s[4], s[5], s[6]])
+    }
+
+    /// Uploads this frame's changes (same size: written in place; grown: a new buffer, so the shared
+    /// materials are touched to rebind it).
+    fn flush(&mut self, buffers: &mut Assets<ShaderBuffer>, hull_mats: &mut Assets<HullMat>) {
+        if !self.dirty {
+            return;
+        }
+        if let Some(mut b) = buffers.get_mut(&self.buffer) {
+            *b = ShaderBuffer::from(self.slots.clone());
+        }
+        if self.grown {
+            for h in self.materials.values() {
+                let _ = hull_mats.get_mut(h);
+            }
+            self.grown = false;
+        }
+        self.dirty = false;
+    }
+}
+
+/// A ship's visual is gone: its state slot can be reused.
+fn release_slot(ev: On<Remove<ShipVis>>, ships: Query<&ShipVis>, states: Option<ResMut<ShipStates>>) {
+    if let (Ok(v), Some(mut states)) = (ships.get(ev.entity), states) {
+        states.free.push(v.slot);
     }
 }
 
@@ -55,7 +137,8 @@ pub struct ShipVis {
     pub species: [f32; 4],
     /// The captain's species: which `Species_<Name>_Kit` node the model shows (none for NPCs).
     pub species_of: Option<shared::galaxy::Species>,
-    pub hull_mats: Vec<Handle<HullMat>>,
+    /// Slot in `ShipStates` (the hull shader's per-ship state), set when the visual is spawned.
+    pub slot: u32,
     pub plumes: Vec<Handle<EngineMat>>,
     /// Camera-facing glow at every nozzle exit (one material per ship).
     pub nozzle_glow: Option<(Handle<FlareMat>, f32)>,
@@ -105,7 +188,7 @@ impl ShipVis {
             hostile,
             species: view::palette::species_style(st.species),
             species_of: st.species,
-            hull_mats: vec![],
+            slot: 0,
             plumes: vec![],
             nozzle_glow: None,
             shield: None,
@@ -222,7 +305,8 @@ impl Models {
     }
 }
 
-fn load_models(mut commands: Commands, server: Res<AssetServer>, mut meshes: ResMut<Assets<Mesh>>, mut mats: ResMut<Assets<StandardMaterial>>) {
+fn load_models(mut commands: Commands, server: Res<AssetServer>, mut meshes: ResMut<Assets<Mesh>>, mut mats: ResMut<Assets<StandardMaterial>>, mut buffers: ResMut<Assets<ShaderBuffer>>) {
+    commands.insert_resource(ShipStates::new(&mut buffers));
     let mut available = std::collections::HashSet::new();
     let mut names: Vec<String> = ["npc_raider", "npc_gunship", "npc_warden", "npc_warlord", "npc_sentinel", "wreck", "bridge_interior", "cockpit_interior"].iter().map(|s| s.to_string()).collect();
     for h in HullClass::ALL {
@@ -261,6 +345,7 @@ fn sync_visuals(
     mut engine_mats: ResMut<Assets<EngineMat>>,
     mut q: Query<(&mut ShipVis, &mut Transform, &mut Visibility)>,
     cam: Res<crate::control::CamState>,
+    mut states: ResMut<ShipStates>,
 ) {
     let _prof = shared::prof::span("ships::sync_visuals");
     if vis.epoch != s.system_epoch {
@@ -285,7 +370,7 @@ fn sync_visuals(
             Some(e) if q.get(e).is_ok_and(|(v, _, _)| matches!(st.kind, EntityKind::Player) && v.class != st.class.unwrap_or(SizeClass::Small)) => {
                 // Grew into a cruiser / capital ship: swap the model.
                 commands.entity(e).despawn();
-                let ne = spawn_visual(&mut commands, st, pos, rot, &models, &mut meshes, &mut std_mats, &mut shield_mats, &mut engine_mats);
+                let ne = spawn_visual(&mut commands, st, pos, rot, &models, &mut meshes, &mut std_mats, &mut shield_mats, &mut engine_mats, &mut states);
                 vis.map.insert(*id, ne);
             }
             Some(e) => {
@@ -307,7 +392,7 @@ fn sync_visuals(
                 }
             }
             None => {
-                let e = spawn_visual(&mut commands, st, pos, rot, &models, &mut meshes, &mut std_mats, &mut shield_mats, &mut engine_mats);
+                let e = spawn_visual(&mut commands, st, pos, rot, &models, &mut meshes, &mut std_mats, &mut shield_mats, &mut engine_mats, &mut states);
                 vis.map.insert(*id, e);
             }
         }
@@ -325,8 +410,10 @@ fn spawn_visual(
     std_mats: &mut Assets<StandardMaterial>,
     shield_mats: &mut Assets<ShieldMat>,
     engine_mats: &mut Assets<EngineMat>,
+    states: &mut ShipStates,
 ) -> Entity {
     let mut v = ShipVis::new(st, pos);
+    v.slot = states.alloc();
     let (hostile, livery, seed) = (v.hostile, v.livery, v.seed);
     let tf = Transform::from_translation(pos).with_rotation(rot);
     match st.kind {
@@ -420,11 +507,13 @@ fn on_model_ready(
     models: Res<Models>,
     mut ships: Query<&mut ShipVis>,
     transforms: Query<&Transform>,
+    mut states: ResMut<ShipStates>,
 ) {
     let Ok(ModelRoot(root)) = roots.get(ev.entity) else { return };
     let Ok(mut ship) = ships.get_mut(*root) else { return };
     let hostile = ship.hostile;
-    let mut cache: HashMap<AssetId<StandardMaterial>, Handle<HullMat>> = HashMap::new();
+    let mut hull_parts = std::collections::HashSet::new();
+    let buffer = states.buffer.clone();
     let mut turrets: Vec<(usize, Entity)> = vec![];
     let mut muzzles: Vec<(usize, Entity)> = vec![];
     for d in children.iter_descendants(ev.entity) {
@@ -478,7 +567,9 @@ fn on_model_ready(
             }
         }
         if let Ok((MeshMaterial3d(h), gname)) = mesh_q.get(d) {
-            let hm = cache.entry(h.id()).or_insert_with(|| {
+            let key = (h.id(), ship.livery.map(f32::to_bits), ship.species.map(f32::to_bits));
+            hull_parts.insert(h.id());
+            let hm = states.materials.entry(key).or_insert_with(|| {
                 let base = std_mats.get(h).cloned().unwrap_or_default();
                 let gname = gname.map(|g| g.0.to_lowercase()).unwrap_or_default();
                 let kind = if gname.contains("livery") {
@@ -490,20 +581,18 @@ fn on_model_ready(
                 } else {
                     0.0
                 };
-                hull_mats.add(HullMat { base, extension: HullExt { p: HullParams { livery: v4(ship.livery, kind), glow: v4(ship.glow, if kind == 3.0 { 1.6 } else { 4.0 }), state: Vec4::new(0.0, 0.0, 0.0, ship.seed), species: Vec4::from_array(ship.species) } } })
+                hull_mats.add(HullMat { base, extension: HullExt { p: HullParams { livery: v4(ship.livery, kind), glow: Vec4::new(0.0, 0.0, 0.0, if kind == 3.0 { 1.6 } else { 4.0 }), species: Vec4::from_array(ship.species) }, ships: buffer.clone() } })
             });
-            ship.hull_mats.push(hm.clone());
-            commands.entity(d).remove::<MeshMaterial3d<StandardMaterial>>().insert(MeshMaterial3d(hm.clone()));
+            commands.entity(d).remove::<MeshMaterial3d<StandardMaterial>>().insert((MeshMaterial3d(hm.clone()), MeshTag::new(ship.slot)));
         }
     }
-    ship.hull_mats.dedup();
     turrets.sort_by_key(|t| t.0);
     muzzles.sort_by_key(|m| m.0);
     ship.turrets = turrets.iter().map(|(_, e)| (*e, transforms.get(*e).map(|t| t.rotation).unwrap_or_default())).collect();
     ship.turret_muzzles = muzzles.into_iter().map(|(_, e)| e).collect();
     // Or a model that finishes loading after the state settled keeps the defaults (wrong plume/damage).
     ship.materials_added();
-    info!("model ready for {}: {} plumes, {} hull mats, {} muzzles", ship.id, ship.plumes.len(), ship.hull_mats.len(), ship.muzzles.len());
+    info!("model ready for {}: {} plumes, {} hull parts (slot {}), {} muzzles", ship.id, ship.plumes.len(), hull_parts.len(), ship.slot, ship.muzzles.len());
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -517,6 +606,8 @@ fn update_ship_fx(
     mut shield_mats: ResMut<Assets<ShieldMat>>,
     mut parts: Query<(&RankPart, &mut Visibility, &ChildOf)>,
     parents: Query<&ChildOf>,
+    mut states: ResMut<ShipStates>,
+    mut buffers: ResMut<Assets<ShaderBuffer>>,
 ) {
     let _prof = shared::prof::span("ships::update_ship_fx");
     // Touching a material asset re-uploads its bind group, so only write values that changed.
@@ -532,11 +623,8 @@ fn update_ship_fx(
             let side = view::palette::side::of(hostile);
             v.glow = side.glow;
             let rgb = |c: [f32; 3], w: f32| Vec4::new(c[0], c[1], c[2], w);
-            for h in &v.hull_mats {
-                if let Some(mut m) = hull_mats.get_mut(h) {
-                    m.extension.p.glow = rgb(side.glow, m.extension.p.glow.w);
-                }
-            }
+            // The hull glow is in the ship's slot: rewrite it below.
+            v.sent.0 = UNSENT.0;
             for h in &v.plumes {
                 if let Some(mut m) = engine_mats.get_mut(h) {
                     (m.p.color, m.p.core) = (rgb(side.engine, m.p.color.w), rgb(side.engine_core, m.p.core.w));
@@ -560,11 +648,7 @@ fn update_ship_fx(
         let hull_state = Vec4::new(q(1.0 - st.hull, 0.02), q(flash, 0.02), q(boost, 0.05), v.seed);
         if hull_state != v.sent.0 {
             v.sent.0 = hull_state;
-            for h in &v.hull_mats {
-                if let Some(mut m) = hull_mats.get_mut(h) {
-                    m.extension.p.state = hull_state;
-                }
-            }
+            states.write(v.slot, hull_state, v.glow);
         }
         let engine = Vec2::new(q(v.throttle, 0.05), q(boost, 0.05));
         if engine != v.sent.1 {
@@ -591,6 +675,7 @@ fn update_ship_fx(
             m.p.hit = v.hit_dir.extend(shield.w);
         }
     }
+    states.flush(&mut buffers, &mut hull_mats);
     // Rank parts: visible once the ship reaches the part's rank.
     for (part, mut vis, parent) in &mut parts {
         let mut e = parent.parent();
@@ -689,12 +774,10 @@ mod tests {
         let plume = world.resource_mut::<Assets<EngineMat>>().add(EngineMat { p: EngineParams { color: Vec4::new(0.5, 0.7, 1.0, 0.0), core: Vec4::ONE, seed: Vec4::ZERO } });
         let glow = world.resource_mut::<Assets<FlareMat>>().add(FlareMat { p: FlareParams { color: Vec4::ONE, shape: Vec4::ZERO } });
         let shield = world.resource_mut::<Assets<ShieldMat>>().add(ShieldMat { p: ShieldParams { color: Vec4::ONE, hit: Vec4::Z, center: Vec4::ZERO } });
-        let hull = world.resource_mut::<Assets<HullMat>>().add(HullMat { base: StandardMaterial::default(), extension: HullExt::default() });
         let mut v = world.get_mut::<ShipVis>(e).unwrap();
         v.plumes.push(plume);
         v.nozzle_glow = Some((glow, 1.0));
         v.shield = Some(shield);
-        v.hull_mats.push(hull);
     }
 
     /// Everything the shaders get from one ship: (plume, nozzle glow, shield, hull state).
@@ -705,7 +788,7 @@ mod tests {
         let plume = world.resource::<Assets<EngineMat>>().get(&v.plumes[0]).unwrap().p.color;
         let glow = world.resource::<Assets<FlareMat>>().get(&v.nozzle_glow.as_ref().unwrap().0).unwrap().p.color;
         let shield = world.resource::<Assets<ShieldMat>>().get(v.shield.as_ref().unwrap()).unwrap().p.color;
-        let hull = world.resource::<Assets<HullMat>>().get(&v.hull_mats[0]).unwrap().extension.p.state;
+        let hull = world.resource::<ShipStates>().get(v.slot).0;
         // (hull w is the per-ship pattern seed, not state)
         (plume, glow, shield, hull.truncate().extend(0.0))
     }
@@ -720,7 +803,10 @@ mod tests {
             .init_asset::<FlareMat>()
             .init_asset::<ShieldMat>()
             .init_asset::<HullMat>()
+            .init_asset::<ShaderBuffer>()
             .add_systems(Update, update_ship_fx);
+        let states = ShipStates::new(&mut app.world_mut().resource_mut::<Assets<ShaderBuffer>>());
+        app.insert_resource(states);
         let mut s = Session::default();
         s.snaps.push_back(crate::state::Snap { at: 0.0, ents: [(1, ship(1)), (2, ship(2))].into_iter().collect() });
         app.insert_resource(s);
@@ -728,6 +814,7 @@ mod tests {
             let mut v = ShipVis::new(&ship(id), Vec3::ZERO);
             v.throttle = 0.7;
             v.boost.set(true, 0.0, BOOST_UP, BOOST_DOWN);
+            v.slot = app.world_mut().resource_mut::<ShipStates>().alloc();
             app.world_mut().spawn(v).id()
         };
         let (a, b) = (spawn(&mut app, 1), spawn(&mut app, 2));
@@ -742,6 +829,20 @@ mod tests {
             app.update();
         }
         (shown(app.world(), a), shown(app.world(), b))
+    }
+
+    #[test]
+    fn ships_keep_their_own_state_slots_and_freed_slots_are_reused() {
+        let mut buffers = Assets::<ShaderBuffer>::default();
+        let mut st = ShipStates::new(&mut buffers);
+        let slots: Vec<u32> = (0..300).map(|_| st.alloc()).collect();
+        assert_eq!(slots.iter().copied().collect::<std::collections::HashSet<_>>().len(), 300, "every ship its own slot");
+        assert!(st.slots.len() >= 300 && st.grown, "the buffer grows past its first 256 slots");
+        st.write(7, Vec4::new(0.5, 0.0, 1.0, 3.0), [1.0, 0.25, 0.15]);
+        assert_eq!(st.get(7), (Vec4::new(0.5, 0.0, 1.0, 3.0), [1.0, 0.25, 0.15]));
+        assert_eq!(st.get(8).0, Vec4::ZERO, "neighbours untouched");
+        st.free.push(7);
+        assert_eq!(st.alloc(), 7, "a despawned ship's slot is reused");
     }
 
     #[test]

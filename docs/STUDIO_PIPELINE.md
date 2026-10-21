@@ -34,6 +34,7 @@
 | 게임플레이·밸런스 | 시나리오 사양, `balance` 시트 | ● | |
 | 자동 플레이 QA | `bot` qa(25항목), 클라이언트 `--script` | ● | |
 | 재현(버그 리포트) | `server --record`, `replay`, `client --replay` | ● | 클라이언트 크래시 시 기록 폴더를 자동으로 남기기 |
+| 프로파일러 | Tracy 0.14.1(BSD) — `python tools/tracy.py [-- 클라이언트 인자]` | ● 2026-10-22 | `client --features profile`(Bevy `trace_tracy`)로 엔진·게임 시스템 전부를 기록, UI 없이 캡처·CSV로 프레임당 비용 표. 도구는 target/tools에 받아 SHA-256 확인. 흔적은 target/tracy/run.tracy(UI로 열 수 있음) |
 | 성능 | `bench`, `client --bench`, `shared::prof`, `tools/perfcheck.py` | ● 2026-10-20 | 기계별 기준선(`tools/perf_baseline.json`) 대비 sim 20%·클라이언트 25% 넘게 느려지면 실패. CI는 기준선이 없어 SKIP |
 | 오디오 | `client --dump-sfx`(절차적 효과음), 음악 에셋 | ◐ | 음량 정규화 확인(ffmpeg loudnorm) |
 | 스토리·연출 | docs/STORY.md, `view::cinematic`/`comms` | ● 2026-10-21 | 오프닝 컷신·캠페인 진입·장 끝 통신창(C1–C4) |
@@ -85,6 +86,8 @@ MSYS_NO_PATHCONV=1 docker run --rm -v "C:/WorkSpace/SpaceHistoric:/src:ro" -v st
   - 엔티티를 늘리지 않는 "작은 부품 숨김"(포탑·랭크 부품·종족 키트가 1080p에서 2 px 미만이면 그리지 않음, 함선당 11–37개): 평균 14.1–17.4 vs 대조 14.0–14.1 ms, **효과 없음** → 되돌림.
   - 해상도 640x360(픽셀 1/6)에서도 12.4–13.4 ms: 병목은 GPU(삼각형·픽셀)가 아니라 CPU 쪽 엔진의 엔티티당 비용(함선당 메시 약 34개, 빈 노드 포함 더 많음, 함선마다 고유 재질 인스턴스 → 배칭 불가 의심). 다음은 추측 대신 Tracy 프로파일로 확인.
   - 같은 조건 반복 사이 편차가 ±3 ms라, 판단은 여러 번의 최솟값(perfcheck 방식)으로.
+- **Tracy로 찾은 원인과 수정(2026-10-22):** 렌더 스레드(14.7 ms/프레임)가 병목이고 그 안은 그리기 기록·제출·인스턴스 버퍼. 함선마다 선체 재질을 따로 복제(함선당 14–59개, 피해·피격 섬광·부스트를 재질에 담았기 때문)해서 배칭이 안 됐다. 선체 재질을 (모델 부품 재질, 도색, 종족)마다 하나로 공유하고, 함선별 값(피해·섬광·부스트·무늬 씨앗·발광색)은 저장 버퍼 한 개의 함선 슬롯에 두어 셰이더가 `MeshTag`로 읽게 했다(`ships::ShipStates`). 번갈아 4쌍 측정: 평균 최솟값 13.9 → 10.7 ms(−23%), 1% 저점 22.3 → 15.0 ms(−33%). artcheck 화면 동일.
+  - 남은 후보: 함선마다 복제되는 엔진 분사(EngineMat)·노즐 발광(FlareMat)·실드(ShieldMat) 재질도 같은 방식으로 공유할 수 있다.
 
 ## 성능 게이트 (`python tools/perfcheck.py [--client] [--update]`)
 

@@ -103,21 +103,24 @@ simple_material!(ExplosionMat, ExplosionParams { life, state }, "explosion.wesl"
 simple_material!(WarpMat, WarpParams { color, accent }, "warp.wesl", AlphaMode::Add, cull: false, zwrite: false);
 simple_material!(FlareMat, FlareParams { color, shape }, "flare.wesl", AlphaMode::Add, cull: false, zwrite: false);
 
-/// Hull extension over the Blender-baked StandardMaterial.
+/// Hull extension over the Blender-baked StandardMaterial. One material is shared by every ship of
+/// the same model part, livery and species (so the GPU batches them); what differs per ship — damage,
+/// hit flash, boost, pattern seed, glow colour — is in `ships`, one slot per ship, picked by the
+/// primitive's `MeshTag` (`ships::ShipStates`).
 #[derive(Asset, AsBindGroup, Reflect, Debug, Clone, Default)]
 pub struct HullExt {
     #[uniform(100)]
     pub p: HullParams,
+    #[storage(101, read_only)]
+    pub ships: Handle<bevy::render::storage::ShaderBuffer>,
 }
 
 #[derive(Clone, Copy, Debug, Default, ShaderType, Reflect)]
 pub struct HullParams {
     /// rgb livery, w = part kind (0 hull, 1 livery, 2 glow, 3 engine core).
     pub livery: Vec4,
-    /// rgb glow tint, w = strength.
+    /// w = glow strength of this part (the per-ship glow colour is in the ship slot).
     pub glow: Vec4,
-    /// x damage, y hit flash, z boost, w seed.
-    pub state: Vec4,
     /// Species style (`view::palette::species_style`): x style id (−1 none), rgb accent.
     pub species: Vec4,
 }

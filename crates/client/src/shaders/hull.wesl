@@ -10,15 +10,22 @@ import bevy_pbr::render::{
     pbr_types::STANDARD_MATERIAL_FLAGS_UNLIT_BIT,
 };
 import bevy_pbr::render::mesh_view_bindings::{globals, view};
+import bevy_pbr::render::mesh_functions::get_tag;
 
 struct HullExt {
     livery: vec4<f32>,  // rgb livery, w = part kind (0 hull, 1 livery, 2 glow, 3 engine core)
-    glow: vec4<f32>,    // rgb glow tint, w = glow strength
-    state: vec4<f32>,   // x damage 0..1, y hit flash 0..1, z boost 0..1, w seed
+    glow: vec4<f32>,    // w = glow strength of this part
     species: vec4<f32>, // x style (-1 none, 0 Human, 1 Veyr, 2 Kharz), rgb accent (docs/ART_DIRECTION.md §4)
 }
 
+// Per ship (ships::ShipStates), indexed by the mesh's MeshTag: the material is shared between ships.
+struct Ship {
+    state: vec4<f32>,   // x damage 0..1, y hit flash 0..1, z boost 0..1, w seed
+    glow: vec4<f32>,    // rgb glow tint (friend / hostile)
+}
+
 @group(constants::MATERIAL_BIND_GROUP) @binding(100) var<uniform> ext: HullExt;
+@group(constants::MATERIAL_BIND_GROUP) @binding(101) var<storage, read> ships: array<Ship>;
 
 fn hash3(q: vec3<f32>) -> f32 {
     var x = fract(q * vec3<f32>(0.1031, 0.1030, 0.0973));
@@ -58,22 +65,23 @@ fn fragment(vertex_output: VertexOutput, @builtin(front_facing) is_front: bool) 
 
     let kind = i32(ext.livery.w + 0.5);
     let t = globals.time;
+    let ship = ships[get_tag(in.instance_index)];
 
     // Damage pattern lives in UV space so it sticks to the hull as the ship moves.
     var uvp = vec3<f32>(in.world_normal * 0.5);
 @if(VERTEX_UVS_A) {
-    uvp = vec3<f32>(in.uv * 9.0, ext.state.w);
+    uvp = vec3<f32>(in.uv * 9.0, ship.state.w);
 }
-    let dmg = ext.state.x;
-    let scorch_n = fbm(uvp * 1.3 + ext.state.w);
+    let dmg = ship.state.x;
+    let scorch_n = fbm(uvp * 1.3 + ship.state.w);
     let scorch = smoothstep(1.0 - dmg * 0.9, 1.05 - dmg * 0.9, scorch_n + 0.25) * step(0.02, dmg);
 
     if kind == 1 {
         pbr_input.material.base_color = vec4<f32>(pbr_input.material.base_color.rgb * ext.livery.rgb, pbr_input.material.base_color.a);
     }
     if kind == 2 {
-        let blink = 0.75 + 0.25 * sin(t * 2.0 + ext.state.w * 6.0);
-        pbr_input.material.emissive = vec4<f32>(ext.glow.rgb * ext.glow.w * blink * (1.0 + ext.state.z), 1.0);
+        let blink = 0.75 + 0.25 * sin(t * 2.0 + ship.state.w * 6.0);
+        pbr_input.material.emissive = vec4<f32>(ship.glow.rgb * ext.glow.w * blink * (1.0 + ship.state.z), 1.0);
     }
     if kind == 3 {
         // Engine core: glowing plasma, not glass. No reflections; hottest (white-blue) where the core
@@ -84,8 +92,8 @@ fn fragment(vertex_output: VertexOutput, @builtin(front_facing) is_front: bool) 
         pbr_input.material.base_color = vec4<f32>(0.0, 0.0, 0.0, 1.0);
         pbr_input.material.metallic = 0.0;
         pbr_input.material.perceptual_roughness = 1.0;
-        let boost = 1.0 + 1.6 * ext.state.z;
-        let plasma = ext.glow.rgb * ext.glow.w * (0.3 + 1.3 * hot) + vec3<f32>(1.0, 1.0, 1.0) * pow(facing, 10.0) * ext.glow.w * 0.9;
+        let boost = 1.0 + 1.6 * ship.state.z;
+        let plasma = ship.glow.rgb * ext.glow.w * (0.3 + 1.3 * hot) + vec3<f32>(1.0, 1.0, 1.0) * pow(facing, 10.0) * ext.glow.w * 0.9;
         pbr_input.material.emissive = vec4<f32>(plasma * boost, 1.0);
     }
     // Species style on the hull and livery plates (Human is the baseline look).
@@ -133,18 +141,18 @@ fn fragment(vertex_output: VertexOutput, @builtin(front_facing) is_front: bool) 
     if kind <= 1 && style == 1 {
         // Veyr nacre: the rim shifts from the vein violet to teal with the viewing angle; veins breathe.
         rim_col = mix(vec3<f32>(0.2, 0.9, 0.8), ext.species.yzw, facing) * 1.6;
-        let breathe = 0.55 + 0.45 * sin(t * 1.4 + ext.state.w * 3.0);
+        let breathe = 0.55 + 0.45 * sin(t * 1.4 + ship.state.w * 3.0);
         out.color = vec4<f32>(out.color.rgb + ext.species.yzw * vein * breathe * 0.45 * (1.0 - scorch), out.color.a);
     }
     if kind <= 1 && style == 2 {
         // Kharz heat seams: amber, slow and dull like cooling metal.
-        let cool = 0.6 + 0.4 * sin(t * 0.6 + ext.state.w * 5.0);
+        let cool = 0.6 + 0.4 * sin(t * 0.6 + ship.state.w * 5.0);
         out.color = vec4<f32>(out.color.rgb + ext.species.yzw * seam * cool * 1.4, out.color.a);
         rim_col = rim_col * vec3<f32>(1.0, 0.85, 0.7);
     }
     out.color = vec4<f32>(out.color.rgb + rim_col * rim * 0.35, out.color.a);
     // Hit flash.
-    out.color = vec4<f32>(out.color.rgb + vec3<f32>(1.5, 1.7, 2.2) * ext.state.y * (0.3 + rim), out.color.a);
+    out.color = vec4<f32>(out.color.rgb + vec3<f32>(1.5, 1.7, 2.2) * ship.state.y * (0.3 + rim), out.color.a);
 
     out.color = main_pass_post_lighting_processing(pbr_input, out.color);
     return out;

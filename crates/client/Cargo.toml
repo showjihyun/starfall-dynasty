@@ -22,3 +22,5 @@ crossbeam-channel = { workspace = true }
 raytracing = ["bevy/bevy_solari"]
 # + DLSS Ray Reconstruction denoiser: needs DLSS_SDK, VULKAN_SDK and clang at build time.
 raytracing_dlss = ["raytracing", "bevy/dlss"]
+# Tracy profiler zones for every engine and game system (tools/tracy.py captures a run headless).
+profile = ["bevy/trace_tracy"]

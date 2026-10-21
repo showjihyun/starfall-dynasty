@@ -17,6 +17,7 @@ no feature creep, never trust untested output, keep measuring performance). Its 
   Models ship with KTX2 textures (BC7/BC5 + mips) and stored tangents: `cargo run -p assetpipe --release -- MODEL.glb` (Blender export runs it).
   CI: `.github/workflows/gate.yml` runs `gate.py --all` on push (no artcheck).
   Performance budget: `python tools/perfcheck.py [--client]` (per-machine baseline); dependencies: `cargo deny check`.
+  Where the frame goes (engine included): `python tools/tracy.py` (Tracy capture of the 1000-ship bench, table per system).
   Story and cinematics: docs/STORY.md; `STARFALL_FIXED_FPS=60 client --cinematic opening --shot X.png --shot-at T` (T on the cinematic clock); in a live game the script command `opening` plays it as the campaign's first start does, `comms N` opens the call after chapter N+1 (lines in `assets/cinematics/comms.ron`, `view::comms`).
   Voice lines: after editing any subtitle or comms line run `python tools/voice.py` (Docker, MeloTTS); `cargo test -p view --test voice` fails until you do.
 
