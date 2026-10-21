@@ -53,27 +53,34 @@ fn a_line_types_out_then_holds_then_the_next_comes_on_its_own() {
     assert_eq!(typed(text, 0.0), "");
     assert_eq!(typed(text, 0.2).chars().count(), 5);
     assert_eq!(typed(text, typing(text) + 0.1), text);
-    let lines = ["첫 줄입니다.", "둘째 줄."];
+    let lines = [("첫 줄입니다.", hold("첫 줄입니다.", None)), ("둘째 줄.", hold("둘째 줄.", None))];
     let mut p = Panel::new(3, 100.0);
-    assert!(p.step(&lines, 100.0 + hold(lines[0]) as f64 - 0.05, false));
+    assert!(p.step(&lines, 100.0 + lines[0].1 as f64 - 0.05, false));
     assert_eq!(p.line, 0, "still holding");
-    assert!(p.step(&lines, 100.0 + hold(lines[0]) as f64 + 0.01, false));
+    assert!(p.step(&lines, 100.0 + lines[0].1 as f64 + 0.01, false));
     assert_eq!(p.line, 1, "moved on by itself");
     let t1 = p.since;
-    assert!(!p.step(&lines, t1 + hold(lines[1]) as f64 + 0.01, false), "the call closes after the last line");
+    assert!(!p.step(&lines, t1 + lines[1].1 as f64 + 0.01, false), "the call closes after the last line");
+}
+
+#[test]
+fn a_spoken_line_holds_until_its_voice_is_done() {
+    let text = "문은 열렸다.";
+    assert_eq!(hold(text, None), hold(text, Some(0.5)), "a short voice line: reading time decides");
+    assert!((hold(text, Some(6.0)) - (6.0 + view::comms::VOICE_TAIL)).abs() < 1e-6, "a long one: the voice decides");
 }
 
 #[test]
 fn a_click_finishes_the_typing_then_goes_to_the_next_line() {
-    let lines = ["세 개의 서명. 세 개의 기억. 우리는 기다렸다.", "문은 열렸다."];
+    let lines = [("세 개의 서명. 세 개의 기억. 우리는 기다렸다.", 5.0), ("문은 열렸다.", 3.0)];
     let mut p = Panel::new(4, 10.0);
     assert!(p.step(&lines, 10.1, true));
     assert_eq!(p.line, 0, "first click shows the whole line");
-    assert_eq!(typed(lines[0], (10.1 - p.since) as f32), lines[0]);
+    assert_eq!(typed(lines[0].0, (10.1 - p.since) as f32), lines[0].0);
     assert!(p.step(&lines, 10.2, true));
     assert_eq!(p.line, 1, "second click goes on");
     assert!(p.step(&lines, 10.25, false), "and the new line starts typing");
-    assert_eq!(typed(lines[1], (10.25 - p.since) as f32).chars().count(), 1);
+    assert_eq!(typed(lines[1].0, (10.25 - p.since) as f32).chars().count(), 1);
 }
 
 /// Text shapes and the panel's clicked flag for one call frame on a 1600x900 screen.

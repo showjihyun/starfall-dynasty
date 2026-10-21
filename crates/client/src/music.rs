@@ -74,8 +74,11 @@ fn toggle_mute(keys: Res<ButtonInput<KeyCode>>, mut m: ResMut<MusicSettings>, wa
     }
 }
 
+/// Music level under a voice line.
+const VOICE_DUCK: f32 = 0.35;
+
 #[allow(clippy::too_many_arguments)]
-fn crossfade(time: Res<Time<Real>>, s: Res<Session>, screen: Res<State<Screen>>, m: Res<MusicSettings>, mut sinks: Query<(&MusicTrack, &mut AudioSink)>, mut last: Local<Option<Track>>, mut logged: Local<usize>, mut battles: Local<(bool, u32)>) {
+fn crossfade(time: Res<Time<Real>>, s: Res<Session>, screen: Res<State<Screen>>, m: Res<MusicSettings>, mut sinks: Query<(&MusicTrack, &mut AudioSink)>, mut last: Local<Option<Track>>, mut logged: Local<usize>, mut battles: Local<(bool, u32)>, voice: Query<(), With<crate::voice::VoiceLine>>) {
     let _prof = shared::prof::span("music::crossfade");
     use shared::galaxy::{self, RiskTier};
     let now = time.elapsed_secs_f64();
@@ -102,7 +105,8 @@ fn crossfade(time: Res<Time<Real>>, s: Res<Session>, screen: Res<State<Screen>>,
         *last = Some(wanted);
         *logged = sinks.iter().len();
     }
-    let master = if m.muted { 0.0 } else { m.volume };
+    // Music steps back while a voice line speaks (cutscene narration, comms calls).
+    let master = if m.muted { 0.0 } else { m.volume } * if voice.is_empty() { 1.0 } else { VOICE_DUCK };
     let k = (time.delta_secs() / 2.5).min(1.0);
     for (t, mut sink) in &mut sinks {
         // Tracks are loudness-matched on disk; battle sits a little under the effects.

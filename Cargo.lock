@@ -6323,6 +6323,7 @@ dependencies = [
  "egui",
  "ron",
  "serde",
+ "serde_json",
  "shared",
 ]
 

@@ -28,6 +28,7 @@ mod ships;
 mod starmap;
 mod state;
 mod ui;
+mod voice;
 
 use bevy::prelude::*;
 use bevy::render::view::screenshot::{Screenshot, save_to_disk};
@@ -85,7 +86,7 @@ fn main() {
     )
     .add_plugins(EguiPlugin::default())
     .insert_resource(bevy_egui::EguiGlobalSettings { auto_create_primary_context: false, ..default() })
-    .add_plugins((materials::MaterialsPlugin, scene::ScenePlugin, ships::ShipsPlugin, fx::FxPlugin, control::ControlPlugin, audio::AudioFxPlugin, music::MusicPlugin, interior::InteriorPlugin, dust::DustPlugin, cinematic::CinematicPlugin))
+    .add_plugins((materials::MaterialsPlugin, scene::ScenePlugin, ships::ShipsPlugin, fx::FxPlugin, control::ControlPlugin, audio::AudioFxPlugin, music::MusicPlugin, interior::InteriorPlugin, dust::DustPlugin, cinematic::CinematicPlugin, voice::VoicePlugin))
     .init_state::<Screen>()
     .insert_resource(Session { server_url: args.server.clone(), last_combat: -1e9, ..default() })
     .init_resource::<ui::Form>()

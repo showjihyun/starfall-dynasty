@@ -7,6 +7,7 @@ use crate::state::Session;
 use shared::galaxy::Species;
 use std::sync::OnceLock;
 use view::comms::Comms;
+use view::voice::Cue;
 
 /// `assets/cinematics/comms.ron`, read once (problems printed, a broken file shows no calls).
 fn file() -> &'static Comms {
@@ -36,12 +37,18 @@ pub fn show(ctx: &bevy_egui::egui::Context, s: &mut Session, now: f64) {
     let lines = c.lines(panel.after, species);
     let Some(line) = lines.get(panel.line) else { return };
     let Some(who) = c.speaker(&line.who) else { return };
+    if panel.spoken != Some(panel.line) {
+        panel.spoken = Some(panel.line);
+        s.voice.push(Cue::Play { voice: line.who.clone(), text: line.text.clone() });
+    }
     let dt = (now - panel.since) as f32;
     let shown = view::comms::typed(&line.text, dt);
     let clicked = view::comms::draw(ctx, who, shown, shown.len() < line.text.len(), (panel.line, lines.len()), now);
-    let texts: Vec<&str> = lines.iter().map(|l| l.text.as_str()).collect();
-    if panel.step(&texts, now, clicked) {
+    let timed = view::voice::comms_lines(c, crate::voice::manifest(), panel.after, species);
+    if panel.step(&timed, now, clicked) {
         s.comms = Some(panel);
+    } else {
+        s.voice.push(Cue::Stop);
     }
 }
 

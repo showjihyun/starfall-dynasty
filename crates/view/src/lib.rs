@@ -7,6 +7,7 @@
 //! - [`anim`]: animation as a function of the clock (ramps, fades, turret swing, throttle).
 //! - [`cinematic`]: in-engine cutscenes (camera, subtitles, cuts) as a function of the clock.
 //! - [`comms`]: the chapter-end comms window (who speaks, typing, emblem), checked headless.
+//! - [`voice`]: generated voice lines for those two (presets, manifest, timing checks).
 //! - [`interp`]: snapshot interpolation and own-ship extrapolation.
 //! - [`relation`]: mine / friend / hostile / neutral, shared by the HUD and the star map.
 //! - [`mapview`]: star map projection, zoom and pan between the galaxy and system charts.
@@ -27,5 +28,6 @@ pub mod mapview;
 pub mod palette;
 pub mod panels;
 pub mod relation;
+pub mod voice;
 
 pub use egui;

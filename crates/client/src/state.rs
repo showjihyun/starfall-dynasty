@@ -102,6 +102,8 @@ pub struct Session {
     pub cine_request: Option<CineRequest>,
     /// The comms call on screen after a chapter is cleared for the first time (`crate::comms`).
     pub comms: Option<view::comms::Panel>,
+    /// Voice lines to start or stop this frame (`crate::voice`).
+    pub voice: Vec<view::voice::Cue>,
 }
 
 pub struct CineRequest {

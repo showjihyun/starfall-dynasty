@@ -2,6 +2,7 @@
 // `from`/`to`: camera relative to the look point at shot start/end. Shots with a `group` are
 // reordered per species: the captain's own civilisation speaks first. Checked by
 // `cargo test -p view --test cinematic` (anchors exist, captions fit and can be read in time).
+// `voice`: preset in assets/voice/voices.json (narrator when absent); `python tools/voice.py` speaks them.
 (
     name: "opening",
     order: [
@@ -38,8 +39,8 @@
             to: (380.0, 120.0, 600.0),
             group: Some("record"),
             captions: [
-                (at: 1.0, secs: 5.5, text: "게이트 연쇄 고장. 사고로 판정.", source: Some("인류 제국 기록보관소")),
-                (at: 7.0, secs: 6.0, text: "마지막 사흘: 기록 없음.", source: Some("인류 제국 기록보관소")),
+                (at: 1.0, secs: 5.5, text: "게이트 연쇄 고장. 사고로 판정.", source: Some("인류 제국 기록보관소"), voice: Some("archive")),
+                (at: 7.0, secs: 6.0, text: "마지막 사흘: 기록 없음.", source: Some("인류 제국 기록보관소"), voice: Some("archive")),
             ],
         ),
         (
@@ -51,8 +52,8 @@
             to: (100.0, -150.0, 340.0),
             group: Some("memory"),
             captions: [
-                (at: 1.0, secs: 5.5, text: "우리는 기억한다. 세 번의 배신.", source: Some("Veyr 기억의 집")),
-                (at: 7.0, secs: 6.0, text: "셋째는… 우리 중 누구였다.", source: Some("Veyr 기억의 집")),
+                (at: 1.0, secs: 6.0, text: "우리는 기억한다. 세 번의 배신.", source: Some("Veyr 기억의 집"), voice: Some("memory")),
+                (at: 7.0, secs: 6.0, text: "셋째는… 우리 중 누구였다.", source: Some("Veyr 기억의 집"), voice: Some("memory")),
             ],
         ),
         (
@@ -64,8 +65,8 @@
             to: (-700.0, 150.0, 900.0),
             group: Some("contract"),
             captions: [
-                (at: 1.0, secs: 5.0, text: "계약은 피로 맺고 피로 갚는다.", source: Some("Kharz 계약 길드")),
-                (at: 6.5, secs: 4.5, text: "서명은 셋이었다.", source: Some("Kharz 계약 길드")),
+                (at: 1.0, secs: 5.0, text: "계약은 피로 맺고 피로 갚는다.", source: Some("Kharz 계약 길드"), voice: Some("contract")),
+                (at: 6.5, secs: 4.5, text: "서명은 셋이었다.", source: Some("Kharz 계약 길드"), voice: Some("contract")),
             ],
         ),
         (
@@ -91,8 +92,8 @@
             to: (-140.0, 40.0, 260.0),
             ship: Some((anchor: Poi(Signal), offset: (0.0, 0.0, 400.0))),
             captions: [
-                (at: 1.5, secs: 3.5, text: "신호 수신.", source: Some("함선 컴퓨터")),
-                (at: 5.5, secs: 5.5, text: "호출 부호: 400년 전 소멸한 게이트.", source: Some("함선 컴퓨터")),
+                (at: 1.5, secs: 3.5, text: "신호 수신.", source: Some("함선 컴퓨터"), voice: Some("ship")),
+                (at: 5.5, secs: 5.5, text: "호출 부호: 400년 전 소멸한 게이트.", source: Some("함선 컴퓨터"), voice: Some("ship")),
             ],
         ),
         (

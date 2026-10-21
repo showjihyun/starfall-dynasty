@@ -21,6 +21,7 @@ use shared::protocol::{ClientMsg, EntityKind, EntityState, Fx};
 use shared::ships::{HullClass, Module, Ship, SizeClass, WeaponKind};
 use std::collections::HashMap;
 use view::cinematic::{Cinematic, Frame, frame_at};
+use view::voice::Cue;
 
 /// Real seconds before the offline cinematic clock starts: time for the models to load, fixed so frames repeat.
 pub const CINE_START: f64 = 3.0;
@@ -230,8 +231,9 @@ fn drive(
         }
         cine.start = Some(now);
     }
-    if keys.just_pressed(KeyCode::Escape) || cine.interrupted() {
+    if !cine.skipped && (keys.just_pressed(KeyCode::Escape) || cine.interrupted()) {
         cine.skipped = true;
+        s.voice.push(Cue::Stop);
     }
     let t = cine.time(now);
     let (system, ship, battle, look_at, done) = {
@@ -245,6 +247,7 @@ fn drive(
         if let (Some(m), Some(net)) = (end_live(&mut s, live), &net) {
             net.send(m);
         }
+        s.voice.push(Cue::Stop);
         commands.remove_resource::<Cine>();
         return;
     }
@@ -275,6 +278,12 @@ fn drive(
             s.fx.push(Fx::Explosion { pos: p.to_array(), size: 2.5 });
         }
         ents.extend(fl.into_iter().map(|e| (e.id, e)));
+    }
+    // Each caption's voice line starts on the frame its subtitle comes up.
+    if !cine.skipped {
+        for c in view::cinematic::caption_cues(&cine.cin, cine.species, cine.prev_t, t) {
+            s.voice.push(Cue::Play { voice: c.voice().into(), text: c.text.clone() });
+        }
     }
     cine.prev_t = t;
     if let Some(snap) = s.snaps.back_mut() {
@@ -382,6 +391,7 @@ mod tests {
         let s = app.world().resource::<Session>();
         assert_eq!((s.system, s.me, s.ui.missions), (3, Some(42), true), "the player's own session is back");
         assert!(s.system_epoch > shown_epoch, "and their system is rebuilt");
+        assert!(s.voice.contains(&Cue::Stop), "the narrator falls silent with the cutscene");
         let sent: Vec<_> = out.try_iter().collect();
         assert!(sent.iter().any(|m| matches!(m, ClientMsg::StartScenario { id: 0 })), "{sent:?}");
     }

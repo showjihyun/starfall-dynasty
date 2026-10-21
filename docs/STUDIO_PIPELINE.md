@@ -36,7 +36,8 @@
 | 재현(버그 리포트) | `server --record`, `replay`, `client --replay` | ● | 클라이언트 크래시 시 기록 폴더를 자동으로 남기기 |
 | 성능 | `bench`, `client --bench`, `shared::prof`, `tools/perfcheck.py` | ● 2026-10-20 | 기계별 기준선(`tools/perf_baseline.json`) 대비 sim 20%·클라이언트 25% 넘게 느려지면 실패. CI는 기준선이 없어 SKIP |
 | 오디오 | `client --dump-sfx`(절차적 효과음), 음악 에셋 | ◐ | 음량 정규화 확인(ffmpeg loudnorm) |
-| 스토리·연출 | docs/STORY.md | ◐ 초안 | 오프닝(엔진 안 컷신) C1–C4 |
+| 스토리·연출 | docs/STORY.md, `view::cinematic`/`comms` | ● 2026-10-21 | 오프닝 컷신·캠페인 진입·장 끝 통신창(C1–C4) |
+| 음성(대사) | `tools/voice.py` + Docker `tools/voice/`(MeloTTS 한국어 MIT + ffmpeg) | ● 2026-10-21 | 대사 30줄 176초 1.2 MB, 화자 9 프리셋(`assets/voice/voices.json`: 속도·음높이·무전/컴퓨터/잔향). 자막을 고치면 테스트가 "not voiced yet"으로 알리고 도구를 다시 돌리면 그 줄만 생성 |
 | 현지화 | — (한국어 문자열이 코드에 직접) | ○ | Project Fluent(`fluent-rs`)로 문자열 분리 — 해외 출시 결정 후 |
 | 라이선스·취약점 | `cargo-deny`(`deny.toml`) | ● 2026-10-20 | 허용 라이선스 목록, RustSec, 출처. 예외 하나(RUSTSEC-2026-0344, 이유 기록). 게임 자체 라이선스는 미정 |
 | 배포·패키징 | — | ○ | `cargo-dist`/`cargo-packager`로 Windows 설치본 |

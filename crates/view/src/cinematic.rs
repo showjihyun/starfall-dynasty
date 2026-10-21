@@ -38,6 +38,18 @@ pub struct Caption {
     /// Who says it ("인류 제국 기록보관소"), shown under the line.
     #[serde(default)]
     pub source: Option<String>,
+    /// Voice preset (`assets/voice/voices.json`); the narrator when absent.
+    #[serde(default)]
+    pub voice: Option<String>,
+}
+
+/// The voice of captions that name none.
+pub const NARRATOR: &str = "narrator";
+
+impl Caption {
+    pub fn voice(&self) -> &str {
+        self.voice.as_deref().unwrap_or(NARRATOR)
+    }
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -181,6 +193,23 @@ pub fn frame_at(cin: &Cinematic, species: Species, t: f32) -> Frame<'_> {
         .collect();
     let ship = shot.ship.and_then(|m| anchor_pos(shot.system, m.anchor).map(|p| p + Vec3::from(m.offset)));
     Frame { index, shot: &shot.id, system: shot.system, eye, look_at, black, captions, title: shot.title.as_deref(), ship, battle: shot.battle, done: t >= total }
+}
+
+/// Captions that come up after `t0` and by `t1` (cinematic clock), in order: the voice lines to start
+/// on this frame. Nothing once the cinematic is over.
+pub fn caption_cues(cin: &Cinematic, species: Species, t0: f32, t1: f32) -> Vec<&Caption> {
+    let mut start = 0.0;
+    let mut out = vec![];
+    for shot in cin.sequence(species) {
+        for c in &shot.captions {
+            let at = start + c.at;
+            if at > t0 && at <= t1 {
+                out.push(c);
+            }
+        }
+        start += shot.secs;
+    }
+    out
 }
 
 /// Problems with a cinematic file, in words (empty = fine): anchors that do not exist in their

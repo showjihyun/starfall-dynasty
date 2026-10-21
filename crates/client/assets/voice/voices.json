@@ -1,0 +1,27 @@
+{
+  "voices": [
+    { "id": "narrator", "speed": 0.88, "pitch": -2.0, "effect": "none" },
+    { "id": "archive",  "speed": 1.0,  "pitch": 0.0,  "effect": "radio" },
+    { "id": "memory",   "speed": 0.85, "pitch": 2.5,  "effect": "reverb" },
+    { "id": "contract", "speed": 0.85, "pitch": -4.5, "effect": "none" },
+    { "id": "ship",     "speed": 1.05, "pitch": 1.0,  "effect": "computer" },
+    { "id": "idel",     "speed": 0.95, "pitch": 1.0,  "effect": "radio" },
+    { "id": "sael",     "speed": 0.9,  "pitch": 3.0,  "effect": "radio" },
+    { "id": "gorma",    "speed": 0.85, "pitch": -5.0, "effect": "radio" },
+    { "id": "aster",    "speed": 0.72, "pitch": -3.0, "effect": "reverb" }
+  ],
+  "say": [
+    ["Hollow Crown", "할로우 크라운"],
+    ["Ashen Gate", "애션 게이트"],
+    ["The Deep", "더 딥"],
+    ["Orion Drift", "오리온 드리프트"],
+    ["Vesta", "베스타"],
+    ["Kharz", "카르즈"],
+    ["Veyr", "베이르"],
+    ["400년", "사백 년"],
+    ["\n", " "],
+    ["…", ", "],
+    ["'", ""],
+    ["\"", ""]
+  ]
+}

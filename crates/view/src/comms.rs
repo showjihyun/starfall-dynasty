@@ -84,9 +84,13 @@ fn chars(text: &str) -> usize {
     text.chars().filter(|c| !c.is_whitespace()).count()
 }
 
-/// Seconds `text` stays up before the next line comes on its own.
-pub fn hold(text: &str) -> f32 {
-    chars(text) as f32 / READ_CPS + HOLD
+/// Silence after a spoken line before the next one.
+pub const VOICE_TAIL: f32 = 0.8;
+
+/// Seconds `text` stays up before the next line comes on its own: time to read it, or to hear its
+/// voice line (`voice` seconds long) out, whichever is longer.
+pub fn hold(text: &str, voice: Option<f32>) -> f32 {
+    (chars(text) as f32 / READ_CPS + HOLD).max(voice.map_or(0.0, |v| v + VOICE_TAIL))
 }
 
 /// Seconds to type `text` out.
@@ -109,18 +113,20 @@ pub struct Panel {
     pub after: u32,
     pub line: usize,
     pub since: f64,
+    /// The line whose voice was started (so each line is spoken once).
+    pub spoken: Option<usize>,
 }
 
 impl Panel {
     pub fn new(after: u32, now: f64) -> Self {
-        Panel { after, line: 0, since: now }
+        Panel { after, line: 0, since: now, spoken: None }
     }
 
-    /// One frame of the call with `lines` (the current line's text is `lines[self.line]`): a click
-    /// finishes the typing, or goes to the next line once it is typed; a line also moves on by itself
-    /// after its hold. Returns false once the last line is done (close the window).
-    pub fn step(&mut self, lines: &[&str], now: f64, clicked: bool) -> bool {
-        let Some(text) = lines.get(self.line) else { return false };
+    /// One frame of the call with `lines` (text, hold seconds; the current one is `lines[self.line]`):
+    /// a click finishes the typing, or goes to the next line once it is typed; a line also moves on by
+    /// itself after its hold. Returns false once the last line is done (close the window).
+    pub fn step(&mut self, lines: &[(&str, f32)], now: f64, clicked: bool) -> bool {
+        let Some(&(text, hold)) = lines.get(self.line) else { return false };
         let dt = (now - self.since) as f32;
         let next = if clicked {
             if dt < typing(text) {
@@ -131,7 +137,7 @@ impl Panel {
                 true
             }
         } else {
-            dt >= hold(text)
+            dt >= hold
         };
         if next {
             self.line += 1;
