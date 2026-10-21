@@ -28,7 +28,7 @@
 | 에셋 예산·검증 | `tools/assetcheck.py` + `tools/asset_budgets.json` | ● 2026-10-20 | VRAM 예산(`texture_gpu_mb`)까지. 예산을 낮춰 가며 최적화 |
 | 텍스처 최적화 | `crates/assetpipe`(intel_tex_2 = Intel ISPC BC7/BC5, zstd, KTX2) | ● 2026-10-20 | Blender 내보내기가 자동 실행. 아래 "텍스처 파이프라인" |
 | 탄젠트 | `crates/assetpipe`(`bevy_mikktspace` — Bevy와 같은 코드) | ● 2026-10-20 | 불러오기 CPU 약 1.4초 절약(27개 합, 정거장 269 ms), 화면 픽셀 동일 |
-| 메시 LOD | `assetpipe --lod`(meshoptimizer, `meshopt` 크레이트) + `client/src/lod.rs`(Bevy `VisibilityRange`) | ● 2026-10-20 | 정거장·관문만(예산 규칙의 `"lod"`). 함선 LOD는 1000척 전투에서 효과가 클 후보 |
+| 메시 LOD | `assetpipe --lod`(meshoptimizer, `meshopt` 크레이트) + `client/src/lod.rs`(Bevy `VisibilityRange`) | ● 2026-10-20 | 정거장·관문만(예산 규칙의 `"lod"`). 함선 LOD는 측정 결과 역효과(아래 "메시 LOD") — 1000척 병목은 CPU 엔티티 비용 |
 | 모델 제작 | Blender 5.2 + `tools/blender/*.py`(절차적 생성) | ● | 경로는 tools/blender/README.md(PATH에 없음) |
 | 아트 회귀 | `tools/artcheck.py`, `tools/imgdiff.py` | ● | |
 | 게임플레이·밸런스 | 시나리오 사양, `balance` 시트 | ● | |
@@ -80,6 +80,11 @@ MSYS_NO_PATHCONV=1 docker run --rm -v "C:/WorkSpace/SpaceHistoric:/src:ro" -v st
 - LOD는 같은 정점 위의 새 인덱스 버퍼라 탄젠트·재질·텍스처를 공유한다(디스크 +2 MB). 전환 거리 = 단순화 오차(m, meshoptimizer ErrorAbsolute) x 899(1080p, 세로 62°에서 1 px) + 경계 반지름. 정거장 고리 329 m, 본체 2.0 km, 관문 8–16 km.
 - `STARFALL_LOD_SCALE=0 client --showroom 0 --shot X.png`로 LOD만 보고 imgdiff할 수 있다(정거장 장면 0.10% 차이).
 - 측정(`client --bench 15`, 3회씩): 평균 7.5 vs 7.6 ms(차이 없음), 1% 저점 12–13 vs 14.5–15.5 ms. 벤치는 3000 메시 함대전이라 정거장이 병목이 아니다.
+- **함선 LOD는 하지 않는다(2026-10-22 측정, 1000척 `client --bench 15`, 기준 평균 13.3 ms):**
+  - 함선·NPC 20개 모델에 `--lod 0.25`: 평균 15.7–17.8 ms로 **느려짐**. 프리미티브마다 LOD 복사본이 생겨 메시 엔티티가 3.5만 → 6만.
+  - 엔티티를 늘리지 않는 "작은 부품 숨김"(포탑·랭크 부품·종족 키트가 1080p에서 2 px 미만이면 그리지 않음, 함선당 11–37개): 평균 14.1–17.4 vs 대조 14.0–14.1 ms, **효과 없음** → 되돌림.
+  - 해상도 640x360(픽셀 1/6)에서도 12.4–13.4 ms: 병목은 GPU(삼각형·픽셀)가 아니라 CPU 쪽 엔진의 엔티티당 비용(함선당 메시 약 34개, 빈 노드 포함 더 많음, 함선마다 고유 재질 인스턴스 → 배칭 불가 의심). 다음은 추측 대신 Tracy 프로파일로 확인.
+  - 같은 조건 반복 사이 편차가 ±3 ms라, 판단은 여러 번의 최솟값(perfcheck 방식)으로.
 
 ## 성능 게이트 (`python tools/perfcheck.py [--client] [--update]`)
 
