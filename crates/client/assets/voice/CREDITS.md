@@ -7,5 +7,7 @@ weights), Korean, modelled on reference voices in `tools/voice/refs/` that are t
 light ffmpeg effect per speaker (presets in `voices.json`). Chatterbox embeds Resemble AI's inaudible
 PerTh watermark in every file, which marks the lines as AI-generated.
 The lines are the game's own text (`assets/cinematics/opening.ron`, `comms.ron`). `manifest.json`
-records the generator version and each line's length; do not edit the .ogg files by hand — change the
+records the generator version and each line's length, take and what
+[faster-whisper](https://github.com/SYSTRAN/faster-whisper) (MIT, Whisper small) heard — a misheard take is
+generated again, so `cer` is the error rate of the take that was kept; do not edit the .ogg files by hand — change the
 text or the preset and run the tool again.

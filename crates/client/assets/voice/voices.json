@@ -1,4 +1,5 @@
 {
+  "check": { "max_cer": 0.12, "takes": 4 },
   "voices": [
     { "id": "narrator", "ref": "low",     "exaggeration": 0.45, "cfg": 0.5, "speed": 0.95, "effect": "none" },
     { "id": "archive",  "ref": "builtin", "exaggeration": 0.35, "cfg": 0.5, "speed": 1.0,  "effect": "radio" },
