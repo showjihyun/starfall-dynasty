@@ -370,6 +370,48 @@ fn a_marker_straight_ahead_keeps_its_label_off_the_gauges() {
     assert_eq!(hud::place_label(far, size, &keep).min, far + Vec2::new(9.0, -6.0));
 }
 
+#[test]
+fn a_crowded_battle_labels_only_the_target_and_the_nearest_ships() {
+    use hud::{Mark, MarkCand};
+    // As the 1020-captain screenshot showed: 2700 name labels in one heap over the battle.
+    let mut cands: Vec<MarkCand> = (0..2700)
+        .map(|i| {
+            let (x, y) = ((i * 37 % 1280) as f32, (i * 53 % 720) as f32);
+            MarkCand { at: Pos2::new(x, y), r: 10.0, dist: 500.0 + i as f32 * 3.0, target: false, hostile: i % 2 == 0 }
+        })
+        .collect();
+    // The target is the farthest ship and sits right on another label: it still gets one.
+    let target = 2699;
+    cands[target].target = true;
+    cands[target].at = cands[0].at;
+    // Labels kept off the crosshair gauges are moved, and still must not land on one another.
+    let keep = hud::crosshair_keepout(Pos2::new(640.0, 360.0));
+    let placed = hud::declutter(&cands, &keep);
+    let marks: Vec<Mark> = placed.iter().map(|m| m.0).collect();
+    let full: Vec<usize> = (0..cands.len()).filter(|i| marks[*i] == Mark::Full).collect();
+    let brackets = marks.iter().filter(|m| **m != Mark::Dot).count();
+    assert_eq!(marks[target], Mark::Full);
+    assert!(full.len() <= hud::MAX_LABELS && full.len() >= hud::MAX_LABELS / 2, "{} labels", full.len());
+    assert!(brackets <= hud::MAX_BRACKETS + 1, "{brackets} brackets");
+    // Labels never overlap one another (the target's may sit on one: it is drawn regardless).
+    let rect = |i: usize| placed[i].1;
+    for a in full.iter().filter(|a| **a != target) {
+        assert!(!keep.iter().any(|k| k.intersects(rect(*a))), "label {a} on the gauges");
+        for b in full.iter().filter(|b| *b > a && **b != target) {
+            assert!(!rect(*a).intersects(rect(*b)), "labels {a} and {b} overlap");
+        }
+    }
+    // The nearest ships are the ones marked; the far ones are dots.
+    assert_ne!(marks[0], Mark::Dot);
+    assert_eq!(marks[2000], Mark::Dot);
+    // A hostile outranks an ally at the same range.
+    let pair = [MarkCand { at: Pos2::new(100.0, 100.0), r: 10.0, dist: 1000.0, target: false, hostile: false }, MarkCand { at: Pos2::new(105.0, 102.0), r: 10.0, dist: 1000.0, target: false, hostile: true }];
+    assert_eq!(hud::declutter(&pair, &keep).iter().map(|m| m.0).collect::<Vec<_>>(), vec![Mark::Bracket, Mark::Full]);
+    // A small fight is untouched: every ship is labelled when the labels have room.
+    let few: Vec<MarkCand> = (0..6).map(|i| MarkCand { at: Pos2::new(100.0 + i as f32 * 200.0, 300.0), r: 10.0, dist: 800.0, target: false, hostile: true }).collect();
+    assert!(hud::declutter(&few, &keep).iter().all(|m| m.0 == Mark::Full));
+}
+
 // ---- war-zone fronts
 
 fn fs(side: SideId, name: &str, ships: u32, strength: u32, lost: u32) -> FrontSide {

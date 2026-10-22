@@ -223,6 +223,72 @@ pub fn place_label(anchor: Pos2, size: EVec2, keepout: &[egui::Rect]) -> egui::R
     r
 }
 
+/// How much of a ship's world marker to draw.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Mark {
+    /// Brackets and the name label.
+    Full,
+    /// Brackets only.
+    Bracket,
+    /// A dot in its relation colour.
+    Dot,
+}
+
+/// At most this many ships get a name label, and this many their brackets, in a crowded battle.
+pub const MAX_LABELS: usize = 24;
+pub const MAX_BRACKETS: usize = 96;
+/// Size assumed for a name label when checking that two don't overlap.
+pub const LABEL_SIZE: EVec2 = EVec2::new(150.0, 14.0);
+
+/// A ship on screen, for [`declutter`]: where it is, the half size of its brackets, its distance.
+#[derive(Clone, Copy, Debug)]
+pub struct MarkCand {
+    pub at: Pos2,
+    pub r: f32,
+    pub dist: f32,
+    pub target: bool,
+    pub hostile: bool,
+}
+
+/// Where a ship's name label goes: centred under its brackets, unless that is on the crosshair
+/// gauges — then beside them ([`place_label`]).
+pub fn label_rect(c: &MarkCand, keepout: &[egui::Rect]) -> egui::Rect {
+    let under = egui::Rect::from_min_size(c.at + EVec2::new(-LABEL_SIZE.x / 2.0, c.r + 4.0), LABEL_SIZE);
+    if keepout.iter().any(|k| k.intersects(under)) { place_label(c.at, LABEL_SIZE, keepout) } else { under }
+}
+
+/// Which marks to draw when thousands of ships are on screen: the target always in full, then the
+/// nearest ships (hostiles first within the same distance band) — a label only where it doesn't
+/// overlap one already placed, at most [`MAX_LABELS`] — then brackets for the next nearest up to
+/// [`MAX_BRACKETS`], and a dot for every other ship, so the battle stays readable. Each mark comes
+/// with the rect its label goes in ([`label_rect`]).
+pub fn declutter(cands: &[MarkCand], keepout: &[egui::Rect]) -> Vec<(Mark, egui::Rect)> {
+    let mut order: Vec<usize> = (0..cands.len()).collect();
+    // Hostiles count as half as far: a nearby enemy outranks an ally at the same range.
+    let rank = |c: &MarkCand| if c.hostile { c.dist * 0.5 } else { c.dist };
+    order.sort_by(|a, b| {
+        let (a, b) = (&cands[*a], &cands[*b]);
+        b.target.cmp(&a.target).then(rank(a).total_cmp(&rank(b)))
+    });
+    let mut marks = vec![(Mark::Dot, egui::Rect::NOTHING); cands.len()];
+    let mut placed: Vec<egui::Rect> = Vec::with_capacity(MAX_LABELS);
+    for (n, i) in order.into_iter().enumerate() {
+        let c = &cands[i];
+        if n >= MAX_BRACKETS && !c.target {
+            break;
+        }
+        let r = label_rect(c, keepout);
+        let mark = if c.target || (placed.len() < MAX_LABELS && !placed.iter().any(|p| p.intersects(r))) {
+            placed.push(r);
+            Mark::Full
+        } else {
+            Mark::Bracket
+        };
+        marks[i] = (mark, r);
+    }
+    marks
+}
+
 /// The ship status panel (bottom centre): name and class, the growth line, shield/hull bars with
 /// the lost part trailing, and speed, cargo and warp range.
 pub fn ship_status(ui: &mut egui::Ui, ship: &Ship, cargo_used: u32, me: Option<&EntityState>, lag: [f32; 2]) {

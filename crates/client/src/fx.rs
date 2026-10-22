@@ -55,6 +55,18 @@ struct Boom {
 #[derive(Component)]
 struct FlashLight(f32);
 
+/// At most this many explosion flash lights are live at once.
+const MAX_FLASHES: usize = 6;
+/// At most this many debris blasts ring a dying ship.
+const MAX_DEBRIS: usize = 8;
+
+/// How far a fireball of `size` swells (times its size; size ≈ hull radius / 10): a fighter's to
+/// about 3.6 hull radii as before, a titan's only to about 1.3, so it doesn't fill the screen.
+/// Hit sparks (size < 1) are unchanged.
+fn boom_growth(size: f32) -> f32 {
+    30.0 / size.max(1.0).sqrt()
+}
+
 #[derive(Component)]
 struct GlowFx(Handle<GlowMat>, f32);
 
@@ -85,8 +97,10 @@ fn spawn_fx(
     time: Res<Time<Real>>,
     shader_time: Res<Time>,
     mut pool: ResMut<FxPool>,
+    flashes: Query<(), With<FlashLight>>,
 ) {
     let _prof = shared::prof::span("fx::spawn_fx");
+    let mut lit = flashes.iter().count();
     let now = time.elapsed_secs_f64();
     // The clock the shaders see as `globals.time`.
     let t = shader_time.elapsed_secs_wrapped();
@@ -162,9 +176,13 @@ fn spawn_fx(
                 let p = Vec3::from(pos);
                 sfx.play(if size >= 3.0 { Sfx::ExplosionBig } else { Sfx::ExplosionSmall }, Some(p));
                 spawn_boom(&mut commands, &assets, &mut booms, &mut pool, (t, born), p, size, 1.6);
-                commands.spawn((Ttl { born, total: 0.9 }, FlashLight(4.0e9 * size), PointLight { color: Color::srgb(1.0, 0.7, 0.4), intensity: 4.0e9 * size, range: 900.0 * size.sqrt(), ..default() }, Transform::from_translation(p)));
+                // A few lit blasts at a time: in a mass battle dozens of these lights at once wash every hull white.
+                if lit < MAX_FLASHES {
+                    lit += 1;
+                    commands.spawn((Ttl { born, total: 0.9 }, FlashLight(4.0e9 * size), PointLight { color: Color::srgb(1.0, 0.7, 0.4), intensity: 4.0e9 * size, range: 900.0 * size.sqrt(), ..default() }, Transform::from_translation(p)));
+                }
                 // Debris ring of smaller blasts.
-                for k in 0..(3 + size as usize) {
+                for k in 0..(3 + size as usize).min(MAX_DEBRIS) {
                     let a = k as f32 * 2.4;
                     let off = Vec3::new(a.cos(), (a * 1.7).sin() * 0.5, a.sin()) * 10.0 * size;
                     spawn_boom(&mut commands, &assets, &mut booms, &mut pool, (t, born), p + off, size * 0.35, 1.0 + k as f32 * 0.1);
@@ -266,7 +284,7 @@ fn tick_fx(
             continue;
         }
         if let Some(b) = boom {
-            tf.scale = Vec3::splat(b.size * (6.0 + 30.0 * (1.0 - (1.0 - age).powf(3.0))));
+            tf.scale = Vec3::splat(b.size * (6.0 + boom_growth(b.size) * (1.0 - (1.0 - age).powf(3.0))));
         }
         if let (Some(f), Some(mut l)) = (flash, light) {
             l.intensity = f.0 * (1.0 - age).powf(2.0);

@@ -275,6 +275,9 @@ fn hud(ctx: &egui::Context, s: &mut Session, net: &Net, env: &Env, vis: &Visuals
         let (cam_pos, cam_rot) = (cgt.translation(), cgt.compute_transform().rotation);
         let viewer = Viewer { me: s.me, player: s.player_id, fleet: s.fleet, alliance: s.my_alliance, alliances: &s.alliances, tier: def.tier };
         if let Some(latest) = s.latest() {
+            // Ships on screen, marked after the loop: in a crowded battle only some get labels.
+            let mut shown: Vec<(&EntityState, Pos2, f32, Color32, Vec3)> = Vec::new();
+            let mut cands: Vec<view::hud::MarkCand> = Vec::new();
             for e in latest.ents.values() {
                 if Some(e.id) == s.me || e.docked || e.kind == EntityKind::Missile {
                     continue;
@@ -302,6 +305,17 @@ fn hud(ctx: &egui::Context, s: &mut Session, net: &Net, env: &Env, vis: &Visuals
                     continue;
                 }
                 let Some(sp) = projected else { continue };
+                let hostile = matches!(viewer.relation(e), view::relation::Relation::Hostile);
+                let r = (e.radius * 900.0 / d.max(1.0)).clamp(10.0, 80.0);
+                cands.push(view::hud::MarkCand { at: sp, r, dist: d, target: is_target, hostile });
+                shown.push((e, sp, d, col, vt));
+            }
+            for ((e, sp, d, col, vt), (mark, at)) in shown.into_iter().zip(view::hud::declutter(&cands, &keep)) {
+                let is_target = s.target == Some(e.id);
+                if mark == view::hud::Mark::Dot {
+                    painter.circle_filled(sp, 1.5, col);
+                    continue;
+                }
                 let r = (e.radius * 900.0 / d.max(1.0)).clamp(10.0, 80.0);
                 let st = Stroke::new(if is_target { 2.0 } else { 1.0 }, col);
                 for (sx, sy) in [(-1.0, -1.0), (1.0, -1.0), (-1.0, 1.0), (1.0, 1.0)] {
@@ -309,12 +323,13 @@ fn hud(ctx: &egui::Context, s: &mut Session, net: &Net, env: &Env, vis: &Visuals
                     painter.line_segment([c, c - EVec2::new(sx * r * 0.35, 0.0)], st);
                     painter.line_segment([c, c - EVec2::new(0.0, sy * r * 0.35)], st);
                 }
+                if mark == view::hud::Mark::Bracket {
+                    continue;
+                }
                 let label = if e.wanted { format!("☠ {} [수배]", e.name) } else { e.name.clone() };
-                // Under the brackets, unless that is on the crosshair gauges: then beside them.
+                // In the spot declutter gave it: under the brackets, or beside them off the crosshair gauges.
                 let g = painter.layout_no_wrap(format!("{label}  {:.0}u", d), FontId::proportional(11.0), col);
-                let under = egui::Rect::from_min_size(sp + EVec2::new(-g.size().x / 2.0, r + 4.0), g.size());
-                let at = if keep.iter().any(|k| k.intersects(under)) { view::hud::place_label(sp, g.size(), &keep) } else { under };
-                painter.galley(at.min, g, col);
+                painter.galley(at.center() - g.size() / 2.0, g, col);
                 if is_target {
                     painter.text(at.center_bottom() + EVec2::new(0.0, 2.0), Align2::CENTER_TOP, view::hud::elevation_text(my_pos, vt), FontId::proportional(11.0), col);
                 }
