@@ -18,10 +18,16 @@ struct HullExt {
     species: vec4<f32>, // x style (-1 none, 0 Human, 1 Veyr, 2 Kharz), rgb accent (docs/ART_DIRECTION.md §4)
 }
 
-// Per ship (ships::ShipStates), indexed by the mesh's MeshTag: the material is shared between ships.
+// Per ship (ships::ShipStates), indexed by the mesh's MeshTag (low 24 bits): the material is shared
+// between ships. Same layout in engine.wesl, nozzle.wesl, shield.wesl.
 struct Ship {
     state: vec4<f32>,   // x damage 0..1, y hit flash 0..1, z boost 0..1, w seed
     glow: vec4<f32>,    // rgb glow tint (friend / hostile)
+    drive: vec4<f32>,   // x throttle 0..1, y boost 0..1
+    engine: vec4<f32>,  // rgb plume sheath
+    core: vec4<f32>,    // rgb plume core
+    shield: vec4<f32>,  // rgb, w = shield fraction
+    hit: vec4<f32>,     // xyz local hit direction, w = seconds since hit
 }
 
 @group(constants::MATERIAL_BIND_GROUP) @binding(100) var<uniform> ext: HullExt;
@@ -65,7 +71,7 @@ fn fragment(vertex_output: VertexOutput, @builtin(front_facing) is_front: bool) 
 
     let kind = i32(ext.livery.w + 0.5);
     let t = globals.time;
-    let ship = ships[get_tag(in.instance_index)];
+    let ship = ships[get_tag(in.instance_index) & 0xffffffu];
 
     // Damage pattern lives in UV space so it sticks to the hull as the ship moves.
     var uvp = vec3<f32>(in.world_normal * 0.5);

@@ -5,6 +5,7 @@ use bevy::{
     pbr::{ExtendedMaterial, MaterialExtension, MaterialPipeline, MaterialPipelineKey},
     prelude::*,
     render::render_resource::{AsBindGroup, RenderPipelineDescriptor, ShaderType, SpecializedMeshPipelineError},
+    render::storage::ShaderBuffer,
     shader::ShaderRef,
 };
 
@@ -24,6 +25,7 @@ impl Plugin for MaterialsPlugin {
         bevy::asset::embedded_asset!(app, "shaders/explosion.wesl");
         bevy::asset::embedded_asset!(app, "shaders/warp.wesl");
         bevy::asset::embedded_asset!(app, "shaders/flare.wesl");
+        bevy::asset::embedded_asset!(app, "shaders/nozzle.wesl");
         app.add_plugins((
             MaterialPlugin::<SpaceMat>::default(),
             MaterialPlugin::<StarMat>::default(),
@@ -37,6 +39,7 @@ impl Plugin for MaterialsPlugin {
             MaterialPlugin::<ExplosionMat>::default(),
             MaterialPlugin::<WarpMat>::default(),
             MaterialPlugin::<FlareMat>::default(),
+            MaterialPlugin::<NozzleMat>::default(),
         ));
     }
 }
@@ -51,9 +54,10 @@ fn no_depth_write(d: &mut RenderPipelineDescriptor) {
     }
 }
 
-/// Declares a simple uniform-driven material with one params block at binding 0.
+/// Declares a simple uniform-driven material with one params block at binding 0 and, with `ships`,
+/// the per-ship state buffer (`ships::ShipStates`) at binding 1.
 macro_rules! simple_material {
-    ($name:ident, $params:ident { $($field:ident),* $(,)? }, $shader:literal, $alpha:expr, cull: $cull:expr, zwrite: $zw:expr) => {
+    ($name:ident, $params:ident { $($field:ident),* $(,)? }, $shader:literal, $alpha:expr, cull: $cull:expr, zwrite: $zw:expr $(, $ships:ident)?) => {
         #[derive(Clone, Copy, Debug, Default, ShaderType, Reflect)]
         pub struct $params {
             $(pub $field: Vec4,)*
@@ -63,6 +67,10 @@ macro_rules! simple_material {
         pub struct $name {
             #[uniform(0)]
             pub p: $params,
+            $(
+                #[storage(1, read_only)]
+                pub $ships: Handle<ShaderBuffer>,
+            )?
         }
 
         impl Material for $name {
@@ -96,8 +104,10 @@ simple_material!(StarMat, StarParams { color, center }, "star.wesl", AlphaMode::
 simple_material!(GlowMat, GlowParams { color, center, shape }, "glow.wesl", AlphaMode::Add, cull: true, zwrite: false);
 simple_material!(PlanetMat, PlanetParams { center, kind, col_a, col_b, atmo, star }, "planet.wesl", AlphaMode::Opaque, cull: true, zwrite: true);
 simple_material!(RingMat, RingParams { center, color, radii, star }, "ring.wesl", AlphaMode::Premultiplied, cull: false, zwrite: false);
-simple_material!(EngineMat, EngineParams { color, core, seed }, "engine.wesl", AlphaMode::Add, cull: false, zwrite: false);
-simple_material!(ShieldMat, ShieldParams { color, hit, center }, "shield.wesl", AlphaMode::Add, cull: true, zwrite: false);
+// Shared by many ships (like the hull): per-ship values are in the state buffer, found by `MeshTag`.
+simple_material!(EngineMat, EngineParams { color, core, seed }, "engine.wesl", AlphaMode::Add, cull: false, zwrite: false, ships);
+simple_material!(ShieldMat, ShieldParams { look }, "shield.wesl", AlphaMode::Add, cull: true, zwrite: false, ships);
+simple_material!(NozzleMat, NozzleParams { shape }, "nozzle.wesl", AlphaMode::Add, cull: false, zwrite: false, ships);
 simple_material!(BeamMat, BeamParams { color, flow, life }, "beam.wesl", AlphaMode::Add, cull: false, zwrite: false);
 simple_material!(ExplosionMat, ExplosionParams { life, state }, "explosion.wesl", AlphaMode::Add, cull: true, zwrite: false);
 simple_material!(WarpMat, WarpParams { color, accent }, "warp.wesl", AlphaMode::Add, cull: false, zwrite: false);
@@ -112,7 +122,7 @@ pub struct HullExt {
     #[uniform(100)]
     pub p: HullParams,
     #[storage(101, read_only)]
-    pub ships: Handle<bevy::render::storage::ShaderBuffer>,
+    pub ships: Handle<ShaderBuffer>,
 }
 
 #[derive(Clone, Copy, Debug, Default, ShaderType, Reflect)]
