@@ -191,6 +191,38 @@ pub fn crosshair_gauges(p: &egui::Painter, c: Pos2, shield: f32, hull: f32, lag:
     p.text(c + EVec2::new(r + 10.0, 0.0), Align2::LEFT_CENTER, format!("선체\n{:.0}%", hull * 100.0), FontId::proportional(15.0), hull_col);
 }
 
+/// Where the crosshair and its gauges are drawn around the screen centre `c` (arcs with their
+/// "실드"/"선체" readouts on each side, the cross in the middle): world labels stay out of it.
+pub fn crosshair_keepout(c: Pos2) -> [egui::Rect; 3] {
+    let (r, half) = (CROSSHAIR_R, CROSSHAIR_SPAN / 2.0);
+    let inner = r * half.cos() - CROSSHAIR_W;
+    let tall = r * half.sin() + CROSSHAIR_W;
+    // The readouts reach about 45 px beyond the arcs (two lines of 15 px text).
+    let side = |s: f32| egui::Rect::from_two_pos(Pos2::new(c.x + s * inner, c.y - tall), Pos2::new(c.x + s * (r + 10.0 + 48.0), c.y + tall));
+    [side(-1.0), side(1.0), egui::Rect::from_center_size(c, EVec2::splat(60.0))]
+}
+
+/// Where to put a world label of `size` next to its marker at `anchor`: to the right (the usual
+/// spot), left, below or above — the first that stays clear of `keepout` — or else just below the
+/// keep-out it hits.
+pub fn place_label(anchor: Pos2, size: EVec2, keepout: &[egui::Rect]) -> egui::Rect {
+    let at = |min: Pos2| egui::Rect::from_min_size(min, size);
+    let spots = [
+        at(anchor + EVec2::new(9.0, -6.0)),
+        at(anchor + EVec2::new(-9.0 - size.x, -6.0)),
+        at(anchor + EVec2::new(-size.x / 2.0, 10.0)),
+        at(anchor + EVec2::new(-size.x / 2.0, -10.0 - size.y)),
+    ];
+    if let Some(r) = spots.iter().find(|r| !keepout.iter().any(|k| k.intersects(**r))) {
+        return *r;
+    }
+    let mut r = spots[2];
+    while let Some(k) = keepout.iter().find(|k| k.intersects(r)) {
+        r = r.translate(EVec2::new(0.0, k.bottom() + 2.0 - r.top()));
+    }
+    r
+}
+
 /// The ship status panel (bottom centre): name and class, the growth line, shield/hull bars with
 /// the lost part trailing, and speed, cargo and warp range.
 pub fn ship_status(ui: &mut egui::Ui, ship: &Ship, cargo_used: u32, me: Option<&EntityState>, lag: [f32; 2]) {

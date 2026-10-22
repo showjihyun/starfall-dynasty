@@ -265,6 +265,8 @@ fn hud(ctx: &egui::Context, s: &mut Session, net: &Net, env: &Env, vis: &Visuals
     let me = s.my_state().cloned();
     let screen = ctx.content_rect();
     let painter = ctx.layer_painter(egui::LayerId::new(egui::Order::Background, egui::Id::new("hud3d")));
+    // World labels keep off the crosshair and its gauges.
+    let keep = view::hud::crosshair_keepout(screen.center());
 
     // World-space labels and target brackets.
     if let Ok((camera, cgt)) = cam.single() {
@@ -308,9 +310,13 @@ fn hud(ctx: &egui::Context, s: &mut Session, net: &Net, env: &Env, vis: &Visuals
                     painter.line_segment([c, c - EVec2::new(0.0, sy * r * 0.35)], st);
                 }
                 let label = if e.wanted { format!("☠ {} [수배]", e.name) } else { e.name.clone() };
-                painter.text(sp + EVec2::new(0.0, r + 4.0), Align2::CENTER_TOP, format!("{label}  {:.0}u", d), FontId::proportional(11.0), col);
+                // Under the brackets, unless that is on the crosshair gauges: then beside them.
+                let g = painter.layout_no_wrap(format!("{label}  {:.0}u", d), FontId::proportional(11.0), col);
+                let under = egui::Rect::from_min_size(sp + EVec2::new(-g.size().x / 2.0, r + 4.0), g.size());
+                let at = if keep.iter().any(|k| k.intersects(under)) { view::hud::place_label(sp, g.size(), &keep) } else { under };
+                painter.galley(at.min, g, col);
                 if is_target {
-                    painter.text(sp + EVec2::new(0.0, r + 18.0), Align2::CENTER_TOP, view::hud::elevation_text(my_pos, vt), FontId::proportional(11.0), col);
+                    painter.text(at.center_bottom() + EVec2::new(0.0, 2.0), Align2::CENTER_TOP, view::hud::elevation_text(my_pos, vt), FontId::proportional(11.0), col);
                 }
                 if e.kind != EntityKind::Wreck && (is_target || d < 1500.0) {
                     let w = r * 1.6;
@@ -330,7 +336,8 @@ fn hud(ctx: &egui::Context, s: &mut Session, net: &Net, env: &Env, vis: &Visuals
                 if let Some(sp) = project(pos) {
                     let d = pos.distance(my_pos);
                     painter.circle_stroke(sp, 6.0, Stroke::new(1.0, col));
-                    painter.text(sp + EVec2::new(9.0, -6.0), Align2::LEFT_TOP, format!("{name}  {:.0}u", d), FontId::proportional(11.0), col);
+                    let g = painter.layout_no_wrap(format!("{name}  {:.0}u", d), FontId::proportional(11.0), col);
+                    painter.galley(view::hud::place_label(sp, g.size(), &keep).min, g, col);
                 }
             }
         }

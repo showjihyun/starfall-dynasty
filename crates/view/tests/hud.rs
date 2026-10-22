@@ -327,3 +327,45 @@ fn the_help_window_lists_every_control() {
         assert!(hud::CONTROLS.iter().flat_map(|(_, ks)| ks.iter()).any(|(key, _)| key.starts_with(&spaced) || *key == k), "{k} missing from the help");
     }
 }
+
+// ---- world labels around the crosshair
+
+#[test]
+fn the_keepout_covers_everything_the_crosshair_gauges_draw() {
+    let c = Pos2::new(800.0, 450.0);
+    let d = frame_ko(Vec2::new(1600.0, 900.0), |ctx| {
+        let p = ctx.layer_painter(egui::LayerId::background());
+        hud::crosshair_gauges(&p, c, 1.0, 1.0, [1.0, 1.0], 0.0);
+    });
+    let keep = hud::crosshair_keepout(c);
+    let inside = |p: Pos2| keep.iter().any(|k| k.expand(0.5).contains(p));
+    for (t, r) in &d.texts {
+        assert!(inside(r.left_top()) && inside(r.right_bottom()), "{t:?} at {r:?} outside {keep:?}");
+    }
+    for (pts, _) in &d.lines {
+        assert!(pts.iter().all(|p| inside(*p)), "arc point outside the keep-out");
+    }
+}
+
+#[test]
+fn a_marker_straight_ahead_keeps_its_label_off_the_gauges() {
+    // As the screenshot showed: docked, the station sits at the crosshair and "■ 정거장 (G: 도킹)  52u"
+    // ran into the hull readout.
+    let c = Pos2::new(800.0, 450.0);
+    let keep = hud::crosshair_keepout(c);
+    let size = Vec2::new(130.0, 14.0);
+    let usual = Rect::from_min_size(c + Vec2::new(9.0, -6.0), size);
+    assert!(keep.iter().any(|k| k.intersects(usual)), "the test can see the old overlap");
+    // Markers anywhere around the crosshair: the label is clear of it and stays near its marker.
+    for dx in (-300..=300).step_by(25) {
+        for dy in (-200..=200).step_by(25) {
+            let anchor = c + Vec2::new(dx as f32, dy as f32);
+            let r = hud::place_label(anchor, size, &keep);
+            assert!(!keep.iter().any(|k| k.intersects(r)), "label of a marker at {anchor:?} over the gauges: {r:?}");
+            assert!(r.distance_to_pos(anchor) < 150.0, "label {r:?} far from its marker {anchor:?}");
+        }
+    }
+    // Away from the crosshair nothing moves: the usual spot, right of the marker.
+    let far = c + Vec2::new(400.0, -300.0);
+    assert_eq!(hud::place_label(far, size, &keep).min, far + Vec2::new(9.0, -6.0));
+}
