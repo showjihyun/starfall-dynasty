@@ -144,6 +144,7 @@ impl Plugin for AudioFxPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<SfxQueue>()
             .add_systems(Startup, build_bank)
+            .add_systems(PreUpdate, decode_once)
             .add_systems(Update, (play_queue, (event_sounds, ship_loops).run_if(in_state(Screen::Playing))));
     }
 }
@@ -183,19 +184,26 @@ fn env(t: f32, attack: f32, decay: f32) -> f32 {
     if t < attack { t / attack } else { (-(t - attack) / decay).exp() }
 }
 
+/// Synthesized mono samples as a WAV file, normalised to 90% of full scale.
 fn wav(samples: &[f32]) -> Vec<u8> {
     let peak = samples.iter().fold(0.0f32, |m, v| m.max(v.abs())).max(1e-6);
-    let data: Vec<u8> = samples.iter().flat_map(|v| (((v / peak) * 0.9 * i16::MAX as f32) as i16).to_le_bytes()).collect();
+    let scaled: Vec<f32> = samples.iter().map(|v| v / peak * 0.9).collect();
+    pcm_wav(&scaled, 1, RATE)
+}
+
+/// Interleaved samples (−1..1) as a 16-bit PCM WAV file.
+fn pcm_wav(samples: &[f32], channels: u16, rate: u32) -> Vec<u8> {
+    let data: Vec<u8> = samples.iter().flat_map(|v| ((v.clamp(-1.0, 1.0) * i16::MAX as f32) as i16).to_le_bytes()).collect();
     let mut out = Vec::with_capacity(44 + data.len());
     out.extend_from_slice(b"RIFF");
     out.extend_from_slice(&(36 + data.len() as u32).to_le_bytes());
     out.extend_from_slice(b"WAVEfmt ");
     out.extend_from_slice(&16u32.to_le_bytes());
     out.extend_from_slice(&1u16.to_le_bytes()); // PCM
-    out.extend_from_slice(&1u16.to_le_bytes()); // mono
-    out.extend_from_slice(&RATE.to_le_bytes());
-    out.extend_from_slice(&(RATE * 2).to_le_bytes());
-    out.extend_from_slice(&2u16.to_le_bytes());
+    out.extend_from_slice(&channels.to_le_bytes());
+    out.extend_from_slice(&rate.to_le_bytes());
+    out.extend_from_slice(&(rate * 2 * channels as u32).to_le_bytes());
+    out.extend_from_slice(&(2 * channels).to_le_bytes());
     out.extend_from_slice(&16u16.to_le_bytes());
     out.extend_from_slice(b"data");
     out.extend_from_slice(&(data.len() as u32).to_le_bytes());
@@ -347,6 +355,34 @@ fn build_bank(mut commands: Commands, mut sources: ResMut<Assets<AudioSource>>, 
     }
     let synth = ALL.iter().map(|k| (*k, sources.add(AudioSource { bytes: wav(&synth(*k)).into() }))).collect();
     commands.insert_resource(SfxBank { recorded, synth });
+}
+
+/// One-shot sounds are decoded once, when they load, and kept as PCM WAV: every play of an Ogg
+/// Vorbis file set up a new Vorbis decoder (about 0.8 ms each on the audio system's frame), and a
+/// battle starts several per frame — the slowest frames of the 1000-ship bench (Tracy). Handles
+/// stay the same; the loops (engine, boost, station) keep streaming from Ogg.
+fn decode_once(mut events: MessageReader<AssetEvent<AudioSource>>, bank: Option<Res<SfxBank>>, mut sources: ResMut<Assets<AudioSource>>) {
+    let Some(bank) = bank else { return };
+    for ev in events.read() {
+        let AssetEvent::LoadedWithDependencies { id } = ev else { continue };
+        if !bank.recorded.values().flatten().flat_map(|l| &l.variants).any(|h| h.id() == *id) {
+            continue;
+        }
+        if let Some(src) = sources.get(*id)
+            && !src.bytes.starts_with(b"RIFF")
+        {
+            let pcm = to_pcm(src);
+            let _ = sources.insert(*id, pcm);
+        }
+    }
+}
+
+fn to_pcm(src: &AudioSource) -> AudioSource {
+    use bevy::audio::{Decodable, Source};
+    let d = src.decoder();
+    let (channels, rate) = (d.channels().get(), d.sample_rate().get());
+    let samples: Vec<f32> = d.collect();
+    AudioSource { bytes: pcm_wav(&samples, channels, rate).into() }
 }
 
 #[allow(clippy::too_many_arguments)]
