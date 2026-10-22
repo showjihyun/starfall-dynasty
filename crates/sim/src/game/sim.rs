@@ -65,6 +65,7 @@ impl Game {
         lap = std::time::Instant::now();
         let p = prof::span("engagements+dailies");
         self.tick_engagements();
+        self.tick_fronts();
 
         if self.tick % 20 == 0 {
             self.store.decay_supply(0.9995);
@@ -631,6 +632,7 @@ impl Game {
         }
         let size = (e.stats.radius / 10.0).max(1.0);
         self.fx(sys, Fx::Explosion { pos: e.pos.to_array(), size });
+        self.front_loss(sys, &e);
         let now = self.now;
         let killer = e.attackers.iter().rev().find(|(_, p, t)| p.is_some() && now - t < 30.0).map(|(a, p, _)| (*a, p.unwrap()));
         let killer_ent_name = e.attackers.last().and_then(|(a, _, _)| self.ent(sys, *a)).map(|k| k.name.clone());
@@ -824,6 +826,7 @@ impl Game {
             for (c, _) in self.players_in(sys) {
                 self.send(c, ServerMsg::Engagement { active: false, sides: vec![] });
             }
+            self.end_fronts(sys);
             if eng.sides.len() < 2 {
                 continue;
             }

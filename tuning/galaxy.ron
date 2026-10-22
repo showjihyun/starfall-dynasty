@@ -59,4 +59,12 @@
         belt_thickness: 320.0,
         poi_rise: 0.6,
     ),
+    // War zones are fought on named fronts (galaxy::fronts): landmarks at least `min_gap` u apart,
+    // `max` per system; everyone there gets each side's standing per front every `report_secs` s.
+    fronts: (
+        max: 4,
+        min_gap: 1800.0,
+        report_secs: 1.0,
+        max_sides: 6,   // per front; the rest are summed as "외 N개 세력"
+    ),
 )

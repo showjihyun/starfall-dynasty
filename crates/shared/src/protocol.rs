@@ -10,7 +10,7 @@ use crate::ships::{HullClass, Materials, Module, Ship, SizeClass, WeaponKind};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
-pub const PROTOCOL_VERSION: u32 = 2;
+pub const PROTOCOL_VERSION: u32 = 3;
 pub const DEFAULT_PORT: u16 = 7777;
 pub const TICK_HZ: f32 = 20.0;
 
@@ -235,6 +235,37 @@ pub enum Fx {
     WarpIn { entity: EntityId },
 }
 
+/// Who a side is in a war-zone report: an alliance, else a fleet, else a lone captain; pirates apart.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+pub enum SideId {
+    Alliance(AllianceId),
+    Fleet(FleetId),
+    Captain(PlayerId),
+    Pirates,
+    /// The weaker sides on a front beyond `fronts.max_sides`, summed.
+    Others,
+}
+
+/// One side's standing on one front.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct FrontSide {
+    pub side: SideId,
+    pub name: String,
+    /// Ships there now (captains and escorts).
+    pub ships: u32,
+    /// Their hull + shield left, summed: what decides who is winning.
+    pub strength: u32,
+    /// Captains this side has lost on this front since the battle began.
+    pub lost: u32,
+}
+
+/// One front's sides, strongest first.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct FrontReport {
+    pub front: u8,
+    pub sides: Vec<FrontSide>,
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct AllianceInfo {
     pub id: AllianceId,
@@ -308,6 +339,9 @@ pub enum ServerMsg {
     FleetInvite { from: String, fleet: FleetId },
     Fleet { id: Option<FleetId>, members: Vec<FleetMember> },
     Engagement { active: bool, sides: Vec<String> },
+    /// War-zone battle standing per front (`galaxy::fronts`, index = position in that list), sent to
+    /// everyone in the system every `fronts.report_secs` during a battle; empty when it ends.
+    Fronts { fronts: Vec<FrontReport> },
     Chat { from: String, text: String },
     AllianceInvite { from: String, alliance: AllianceId, name: String },
     Alliances { mine: Option<AllianceId>, list: Vec<AllianceInfo> },

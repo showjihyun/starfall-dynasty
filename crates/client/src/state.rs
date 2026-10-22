@@ -71,6 +71,8 @@ pub struct Session {
     pub alliance_invite: Option<(String, AllianceId, String)>,
     pub invite: Option<(String, FleetId)>,
     pub engagement: Option<Vec<String>>,
+    /// War-zone battle standing per front (`ServerMsg::Fronts`); empty when there is none.
+    pub fronts: Vec<FrontReport>,
     pub chat: VecDeque<(String, String)>,
     pub target: Option<EntityId>,
     pub fx: Vec<Fx>,
@@ -292,6 +294,7 @@ fn apply(s: &mut Session, m: ServerMsg, now: f64, next: &mut NextState<Screen>) 
         }
         ServerMsg::EnterSystem { system, you } => {
             s.system = system;
+            s.fronts.clear();
             s.me = Some(you);
             s.system_epoch += 1;
             s.snaps.clear();
@@ -331,6 +334,7 @@ fn apply(s: &mut Session, m: ServerMsg, now: f64, next: &mut NextState<Screen>) 
             s.fleet_members = members;
         }
         ServerMsg::Engagement { active, sides } => s.engagement = if active { Some(sides) } else { None },
+        ServerMsg::Fronts { fronts } => s.fronts = fronts,
         ServerMsg::Chat { from, text } => {
             s.chat.push_back((from, text));
             while s.chat.len() > 50 {

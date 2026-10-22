@@ -7,6 +7,7 @@
 //! `client --replay DIR [--as NAME] [--from SECS] [--speed X]` — 3D replay of a recorded session
 
 mod audio;
+mod battle;
 mod bench;
 mod cinematic;
 mod clicks;

@@ -1423,3 +1423,108 @@ fn selecting_a_captain_is_not_an_attack() {
     assert!(hit, "shot at first: the turrets answer the attacker without the trigger");
     assert_eq!(bounty, 0, "self-defence is no crime");
 }
+
+#[test]
+fn war_zone_fronts_report_each_sides_standing() {
+    // Two alliances fight in Vesta Front on two different fronts; everyone there is told, per
+    // front, who is there, how strong, and who has lost captains — then nothing once it is over.
+    let mut g = game();
+    let names = ["Yang", "Julian", "Attenborough", "Reinhard", "Kircheis"];
+    let pids: Vec<PlayerId> = names.iter().enumerate().map(|(i, n)| join(&mut g, i as ConnId + 1, n, Species::Human, HullClass::Talon, Profession::CombatPilot)).collect();
+    g.handle(1, ClientMsg::AllianceCreate { name: "Free Planets".into(), tag: "FPA".into() });
+    g.handle(4, ClientMsg::AllianceCreate { name: "Galactic Empire".into(), tag: "EMP".into() });
+    let (fpa, emp) = (g.alliance_of(pids[0]).unwrap(), g.alliance_of(pids[3]).unwrap());
+    for (c, name) in [(2, "Julian"), (3, "Attenborough")] {
+        g.handle(1, ClientMsg::AllianceInvite { name: name.into() });
+        g.handle(c, ClientMsg::AllianceAccept { alliance: fpa });
+    }
+    g.handle(4, ClientMsg::AllianceInvite { name: "Kircheis".into() });
+    g.handle(5, ClientMsg::AllianceAccept { alliance: emp });
+    g.handle(1, ClientMsg::AllianceDeclareWar { target: emp });
+    for c in 1..=5 {
+        move_to_system(&mut g, c, 7);
+    }
+    clear_npcs(&mut g, 7);
+    let fronts = g.systems[&7].fronts.clone();
+    assert!(fronts.len() >= 2, "Vesta Front has fronts: {fronts:?}");
+    // Front 0: Yang and Julian against Reinhard. Front 1: Attenborough against Kircheis.
+    let at = |f: usize, dx: f32| fronts[f].pos + Vec3::new(dx, 0.0, 0.0);
+    place(&mut g, 1, at(0, -300.0), at(0, 0.0));
+    place(&mut g, 2, at(0, -340.0), at(0, 0.0));
+    place(&mut g, 4, at(0, 300.0), at(0, 0.0));
+    place(&mut g, 3, at(1, -300.0), at(1, 0.0));
+    place(&mut g, 5, at(1, 300.0), at(1, 0.0));
+    // Escorts (none for fighters, but keep the count honest) and pirates stay out of it.
+    let (_, e_yang) = ent_of(&g, 1);
+    let (_, e_rein) = ent_of(&g, 4);
+    let (_, e_kirch) = ent_of(&g, 5);
+    let (_, e_atten) = ent_of(&g, 3);
+    g.apply_damage(7, e_rein, e_yang, 10.0); // the battle starts
+    g.out.clear();
+    run(&mut g, 1.1);
+    let report = |g: &Game, conn: ConnId| -> Option<Vec<FrontReport>> {
+        g.out.iter().rev().filter(|(c, _)| *c == conn).find_map(|(_, m)| if let ServerMsg::Fronts { fronts } = m { Some(fronts.clone()) } else { None })
+    };
+    let r = report(&g, 5).expect("everyone in the system gets the report");
+    assert_eq!(r, report(&g, 1).unwrap(), "the same report for everyone");
+    let side = |r: &[FrontReport], f: u8, s: SideId| r.iter().find(|x| x.front == f).and_then(|x| x.sides.iter().find(|y| y.side == s).cloned());
+    let f0_fpa = side(&r, 0, SideId::Alliance(fpa)).expect("FPA on front 0");
+    let f0_emp = side(&r, 0, SideId::Alliance(emp)).expect("EMP on front 0");
+    assert_eq!((f0_fpa.ships, f0_emp.ships), (2, 1));
+    assert_eq!(f0_fpa.name, "[FPA] Free Planets");
+    assert!(f0_fpa.strength > f0_emp.strength, "two ships outweigh one");
+    let hp = |e| g.ent(7, e).map(|x| (x.hull + x.shield).round() as u32).unwrap();
+    assert_eq!(side(&r, 1, SideId::Alliance(emp)).unwrap().strength, hp(e_kirch), "strength is hull + shield left");
+    assert_eq!(r[0].sides[0].side, SideId::Alliance(fpa), "strongest side first");
+    // Kircheis destroys Attenborough on front 1: the loss shows there, not on front 0.
+    for _ in 0..400 {
+        if g.ent(7, e_atten).is_none() {
+            break;
+        }
+        g.apply_damage(7, e_kirch, e_atten, 120.0);
+        g.tick(DT, T0);
+    }
+    assert!(g.ent(7, e_atten).is_none(), "Attenborough is down");
+    g.out.clear();
+    run(&mut g, 1.1);
+    let r = report(&g, 1).unwrap();
+    let f1_fpa = side(&r, 1, SideId::Alliance(fpa)).expect("a side with losses stays listed");
+    assert_eq!((f1_fpa.ships, f1_fpa.lost), (0, 1));
+    assert_eq!(side(&r, 0, SideId::Alliance(fpa)).unwrap().lost, 0);
+    // Quiet long enough and the battle ends: the fronts clear on every screen.
+    g.out.clear();
+    run(&mut g, 40.0);
+    assert_eq!(report(&g, 1), Some(vec![]), "fronts cleared when the battle ends");
+}
+
+#[test]
+fn a_free_for_all_names_the_strongest_sides_and_sums_the_rest() {
+    // Lone captains each fight for themselves: the report names `max_sides` of them per front and
+    // sums the others, so its size does not grow with the crowd.
+    let mut g = game();
+    let keep = g.tuning.galaxy.fronts.max_sides;
+    let n = keep + 3;
+    for c in 1..=n as ConnId {
+        join(&mut g, c, &format!("Lone{c}"), Species::Human, HullClass::Talon, Profession::CombatPilot);
+        move_to_system(&mut g, c, 7);
+    }
+    clear_npcs(&mut g, 7);
+    let f0 = g.systems[&7].fronts[0].pos;
+    for c in 1..=n as ConnId {
+        place(&mut g, c, f0 + Vec3::new(c as f32 * 60.0, 0.0, 0.0), f0);
+    }
+    let (_, a) = ent_of(&g, 1);
+    let (_, b) = ent_of(&g, 2);
+    g.apply_damage(7, a, b, 10.0);
+    g.out.clear();
+    run(&mut g, 1.1);
+    let r = g.out.iter().rev().find_map(|(c, m)| if let (1, ServerMsg::Fronts { fronts }) = (*c, m) { Some(fronts.clone()) } else { None }).expect("report");
+    let sides = &r[0].sides;
+    assert_eq!(sides.len(), keep);
+    let rest = sides.last().unwrap();
+    // (Pirates may have arrived meanwhile: one more side, counted like the rest.)
+    let on_front = g.systems[&7].ents.values().filter(|e| matches!(e.kind, EntityKind::Player | EntityKind::Npc(_)) && galaxy::front_of(&g.systems[&7].fronts, e.pos) == Some(0)).count() as u32;
+    assert_eq!(rest.side, SideId::Others);
+    assert_eq!(rest.name, format!("외 {}개 세력", on_front - (keep as u32 - 1)), "each lone ship is its own side");
+    assert_eq!(sides.iter().map(|s| s.ships).sum::<u32>(), on_front, "nobody is dropped from the count");
+}

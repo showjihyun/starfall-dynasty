@@ -3,7 +3,7 @@
 
 use egui::epaint::{ColorMode, Shape};
 use egui::{Color32, Pos2, RawInput, Rect, Vec2};
-use shared::protocol::{EntityKind, EntityState};
+use shared::protocol::{EntityKind, EntityState, FrontReport, FrontSide, SideId};
 use shared::ships::{HullClass, Module, Ship};
 use view::hud::{self, CROSSHAIR_R, STATUS_BAR_W};
 use view::palette::LOSS;
@@ -368,4 +368,44 @@ fn a_marker_straight_ahead_keeps_its_label_off_the_gauges() {
     // Away from the crosshair nothing moves: the usual spot, right of the marker.
     let far = c + Vec2::new(400.0, -300.0);
     assert_eq!(hud::place_label(far, size, &keep).min, far + Vec2::new(9.0, -6.0));
+}
+
+// ---- war-zone fronts
+
+fn fs(side: SideId, name: &str, ships: u32, strength: u32, lost: u32) -> FrontSide {
+    FrontSide { side, name: name.into(), ships, strength, lost }
+}
+
+#[test]
+fn war_report_shows_who_is_winning_overall_and_per_front() {
+    let (fpa, emp, pir) = (SideId::Alliance(1), SideId::Alliance(2), SideId::Pirates);
+    let reports = vec![
+        FrontReport { front: 0, sides: vec![fs(fpa, "[FPA] Free Planets", 12, 9000, 1), fs(emp, "[EMP] Empire", 9, 6000, 3)] },
+        FrontReport { front: 2, sides: vec![fs(emp, "[EMP] Empire", 20, 15000, 0), fs(fpa, "[FPA] Free Planets", 4, 3000, 6), fs(pir, "해적", 3, 1000, 0)] },
+    ];
+    // Overall: FPA 12000 against EMP + pirates 22000.
+    assert_eq!(hud::war_balance(&reports, Some(fpa)), Some((12000, 22000, "[FPA] Free Planets".into(), "[EMP] Empire 외 1".into())));
+    // A bystander sees the strongest side against the rest.
+    assert_eq!(hud::war_balance(&reports, Some(SideId::Captain(99))).map(|b| (b.0, b.1)), Some((21000, 13000)));
+    assert_eq!(hud::war_balance(&[], Some(fpa)), None, "no battle, no bar");
+
+    let names: Vec<String> = ["정거장 궤도", "워프 지점", "행성 2 궤도"].iter().map(|s| s.to_string()).collect();
+    let d = frame_ko(Vec2::new(1600.0, 900.0), |ctx| {
+        egui::Area::new("war".into()).anchor(egui::Align2::CENTER_TOP, Vec2::new(0.0, 14.0)).show(ctx, |ui| hud::war_report(ui, &names, &reports, Some(fpa), Some(2)));
+    });
+    assert!(d.text("아군 [FPA] Free Planets").is_some() && d.text("적 [EMP] Empire 외 1").is_some(), "{:?}", d.texts);
+    assert!(d.text("전체 전력 35% : 65%").is_some(), "12000 of 34000");
+    // Front rows by name, ours first in each count, the front we are on marked.
+    let (_, r0) = d.text("정거장 궤도").expect("front 0 row");
+    let (_, r2) = d.text("▶ 행성 2 궤도").expect("we are on front 2");
+    assert!(r0.top() < r2.top());
+    assert!(d.text("12척 : 9척 · 손실 1 : 3").is_some());
+    assert!(d.text("4척 : 23척 · 손실 6 : 0").is_some(), "pirates count with the enemy");
+    assert!(d.text("워프 지점").is_none(), "quiet fronts are not listed");
+    // The overall bar: green from the left for our share.
+    let bar = d.rects.iter().filter(|(r, c)| *c == view::palette::GREEN && (r.height() - 12.0).abs() < 0.1).map(|(r, _)| r.width()).next().expect("our share");
+    assert!((bar / hud::WAR_W - 12000.0 / 34000.0).abs() < 0.01, "{bar}");
+    for (t, r) in &d.texts {
+        assert!(Rect::from_min_size(Pos2::ZERO, Vec2::new(1600.0, 900.0)).contains_rect(*r), "{t} off screen");
+    }
 }

@@ -333,6 +333,53 @@ pub const STAR_POS: Vec3 = Vec3::ZERO;
 pub const DOCK_RANGE: f32 = 220.0;
 pub const MINE_RANGE: f32 = 320.0;
 
+/// A named front in a war zone: where one of its battles is fought.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Front {
+    pub name: String,
+    pub pos: Vec3,
+}
+
+/// A war zone's fronts (none elsewhere): its landmarks — the station orbit, the warp point, then
+/// points of interest, planet orbits and asteroid fields — taken in that order, each at least `fronts.min_gap` from
+/// those already taken, up to `fronts.max`; asteroid fields fill in where landmarks are too close
+/// together. A ship is on the nearest one (`front_of`).
+pub fn fronts(l: &Layout) -> Vec<Front> {
+    if system(l.id).tier != RiskTier::WarZone {
+        return vec![];
+    }
+    let t = crate::tuning::get().galaxy.fronts;
+    let mut cands = vec![("정거장 궤도".to_string(), l.station), ("워프 지점".to_string(), l.jump_point)];
+    cands.extend(l.pois.iter().map(|p| (p.name.clone(), p.pos)));
+    for (i, p) in l.planets.iter().enumerate() {
+        // In orbit on the station's side of the planet, not inside it.
+        let out = (l.station - p.pos).normalize_or(Vec3::Z);
+        cands.push((format!("행성 {} 궤도", i + 1), p.pos + out * (p.radius + 500.0)));
+    }
+    // Asteroid fields last: numbered as they are taken.
+    let rocks = cands.len();
+    cands.extend(l.asteroids.iter().map(|a| (String::new(), a.pos)));
+    let mut out: Vec<Front> = vec![];
+    let mut fields = 0;
+    for (i, (name, pos)) in cands.into_iter().enumerate() {
+        if out.len() < t.max && out.iter().all(|f| f.pos.distance(pos) >= t.min_gap) {
+            let name = if i >= rocks {
+                fields += 1;
+                format!("소행성 지대 {fields}")
+            } else {
+                name
+            };
+            out.push(Front { name, pos });
+        }
+    }
+    out
+}
+
+/// Index of the front nearest to `pos` (None when there are no fronts).
+pub fn front_of(fronts: &[Front], pos: Vec3) -> Option<usize> {
+    (0..fronts.len()).min_by(|a, b| fronts[*a].pos.distance_squared(pos).total_cmp(&fronts[*b].pos.distance_squared(pos)))
+}
+
 /// Where the star sits relative to the playable area: the action happens around
 /// the station 0..3000 u away from the star so the sun is always on screen as a backdrop.
 pub fn system_layout(id: SystemId) -> Layout {
@@ -549,6 +596,25 @@ mod tests {
         assert!(all[CORE.len()..].iter().all(|s| s.tier != RiskTier::Core && s.tier != RiskTier::Deep));
         // Same numbers, same galaxy.
         assert_eq!(generate(g).iter().map(|s| (s.name, s.map_pos)).collect::<Vec<_>>(), all.iter().map(|s| (s.name, s.map_pos)).collect::<Vec<_>>());
+    }
+
+    #[test]
+    fn war_zones_have_named_fronts_far_apart() {
+        let t = crate::tuning::get().galaxy.fronts;
+        let wars: Vec<SystemId> = systems().iter().filter(|s| s.tier == RiskTier::WarZone).map(|s| s.id).collect();
+        assert!(wars.contains(&7), "Vesta Front is a war zone");
+        for id in wars {
+            let f = fronts(&system_layout(id));
+            assert!((3..=t.max).contains(&f.len()), "system {id}: {} fronts {:?}", f.len(), f.iter().map(|x| &x.name).collect::<Vec<_>>());
+            assert_eq!(f[0].name, "정거장 궤도", "the station orbit is always a front");
+            for (i, a) in f.iter().enumerate() {
+                for b in &f[i + 1..] {
+                    assert!(a.pos.distance(b.pos) >= t.min_gap, "system {id}: {} and {} too close", a.name, b.name);
+                }
+            }
+            assert_eq!(front_of(&f, f[1].pos + Vec3::splat(10.0)), Some(1), "a ship is on the nearest front");
+        }
+        assert!(fronts(&system_layout(0)).is_empty(), "no fronts outside war zones");
     }
 
     #[test]

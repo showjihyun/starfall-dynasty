@@ -92,7 +92,7 @@ fn forward(rp: &mut Replay) {
 }
 
 /// The message as the client would have decoded it off the socket.
-fn wire(m: &ServerMsg) -> Option<ServerMsg> {
+pub(crate) fn wire(m: &ServerMsg) -> Option<ServerMsg> {
     match encode_snapshot(m) {
         Some(b) => decode_snapshot(&b),
         None => decode(&encode(m)).ok(),

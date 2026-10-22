@@ -258,6 +258,30 @@ pub struct GalaxyTuning {
     /// the old flat layout.
     #[serde(default)]
     pub relief: Relief,
+    /// War-zone fronts (`galaxy::fronts`). Missing (older recordings): the defaults.
+    #[serde(default)]
+    pub fronts: FrontTuning,
+}
+
+/// How a war zone is split into named fronts and how often each side's standing is reported.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct FrontTuning {
+    /// At most this many fronts per war zone.
+    pub max: usize,
+    /// Fronts are at least this far apart (u), so their fights stay apart.
+    pub min_gap: f32,
+    /// Seconds between front reports during a battle.
+    pub report_secs: f32,
+    /// Sides named per front; weaker ones are summed into one "others" entry (a free-for-all of
+    /// lone captains would otherwise send a thousand sides to a thousand players every report).
+    pub max_sides: usize,
+}
+
+impl Default for FrontTuning {
+    fn default() -> Self {
+        FrontTuning { max: 4, min_gap: 1800.0, report_secs: 1.0, max_sides: 6 }
+    }
 }
 
 /// Height in a system's layout (main goal "3D freedom", docs/BALANCE.md 「성계 지형」): each value is a

@@ -27,6 +27,7 @@ no feature creep, never trust untested output, keep measuring performance). Its 
   See it in 3D: `STARFALL_FIXED_FPS=60 client --replay DIR [--as NAME] [--from SECS] [--speed X] --shot X.png --shot-at T`
   (prints the digest verdict; same command → identical image).
 - Visuals, by numbers: `STARFALL_FIXED_FPS=60 STARFALL_HIDE_UI=1 client --showroom 7 --shot X.png --shot-at 8` (same command → identical image), then `python tools/imgdiff.py before.png after.png [--crop X,Y,W,H]` or `--stats`.
+- War zones are fought on named fronts (`galaxy::fronts`, tuning/galaxy.ron `fronts`); the server reports each side's ships, hull + shield and losses per front every second (`ServerMsg::Fronts`, sim/src/game/fronts.rs) and the HUD shows who is winning (`view::hud::war_report`).
 - 3D combat/terrain design (main goal): docs/3D_전투_설계.md — which 3D move beats which, with the numbers and scenarios behind it; rerun them after changing combat/npcs/galaxy/minerals tuning.
 - Art direction: docs/ART_DIRECTION.md is the visual style guide (prompts, palette, rules); colours come only from
   `crates/view/src/palette.rs`. After a visual change run `python tools/artcheck.py` (renders the reference scenes and
@@ -34,7 +35,7 @@ no feature creep, never trust untested output, keep measuring performance). Its 
 - Play QA (no human needed): `cargo run -p bot --release --example qa` plays docs/QA_PHASE2_3.md with two headless captains
   against a real `--dev` server and prints PASS/FAIL per item; `--keep --data DIR` leaves the world up for
   `client --token … --auto --script "station 1" --shot …`; `client --clicks "x,y@t;…"` injects real mouse clicks.
-- Performance, as text: `cargo run -p sim --release --example bench 1000`, `client --bench 15` (`STARFALL_BENCH_SCALE=15` ≈ 1000 ships), `cargo run -p bot --release --example swarm -- ws://127.0.0.1:PORT 1000 60`.
+- Performance, as text: `cargo run -p sim --release --example bench 1000`, `client --bench 15` (`STARFALL_BENCH_SCALE=15`: a real 1020-captain war on Vesta Front's fronts, the sim on its own thread — src/battle.rs; `STARFALL_BENCH_SYNTH=1` for the old synthetic 1020-ship scene), `cargo run -p bot --release --example swarm -- ws://127.0.0.1:PORT 1000 60`.
   Both benches end with a span-tree profile (`shared::prof`; live: `server --prof`). Add `shared::prof::span("name")`
   around new heavy phases so they show up there.
 

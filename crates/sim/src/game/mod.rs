@@ -7,6 +7,7 @@ mod contracts;
 mod influence;
 mod institutes;
 mod diplomacy;
+mod fronts;
 pub mod interest;
 mod weapons;
 mod sim;
@@ -209,6 +210,10 @@ pub struct Sys {
     pub sent_infos: HashMap<EntityId, EntityInfo>,
     pub grid: interest::Grid,
     pub slots: interest::Slots,
+    /// War-zone fronts (`galaxy::fronts`; empty elsewhere) and captains lost on each, per side, in
+    /// the current battle.
+    pub fronts: Vec<galaxy::Front>,
+    pub front_losses: BTreeMap<(u8, SideId), u32>,
 }
 
 #[derive(Default)]
@@ -302,7 +307,9 @@ impl Game {
             metrics: None,
         };
         for def in galaxy::systems() {
-            g.systems.insert(def.id, Sys { id: def.id, layout: galaxy::system_layout(def.id), ents: BTreeMap::new(), pirate_cd: 1.0, engagement: None, wrecks: HashMap::new(), sent_infos: HashMap::new(), grid: Default::default(), slots: Default::default() });
+            let layout = galaxy::system_layout(def.id);
+            let fronts = galaxy::fronts(&layout);
+            g.systems.insert(def.id, Sys { id: def.id, layout, ents: BTreeMap::new(), pirate_cd: 1.0, engagement: None, wrecks: HashMap::new(), sent_infos: HashMap::new(), grid: Default::default(), slots: Default::default(), fronts, front_losses: BTreeMap::new() });
         }
         // Restore persisted wrecks (expired ones are dropped).
         let wrecks: Vec<(usize, SystemId, Vec3, String)> = g

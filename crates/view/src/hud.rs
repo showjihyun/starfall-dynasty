@@ -5,7 +5,7 @@
 use crate::palette::{ACCENT, GOLD, LOSS};
 use egui::{Align2, Color32, FontId, Pos2, RichText, Stroke, Vec2 as EVec2};
 use shared::glam::Vec3;
-use shared::protocol::{EntityKind, EntityState};
+use shared::protocol::{EntityKind, EntityState, FrontReport, SideId};
 use shared::ships::{Ship, SizeClass};
 
 /// Radius (px) of the crosshair gauge arcs and their width.
@@ -256,4 +256,88 @@ pub fn ship_status(ui: &mut egui::Ui, ship: &Ship, cargo_used: u32, me: Option<&
         let speed = Vec3::from(m.vel).length();
         ui.label(RichText::new(format!("속도 {:.0} u/s{} · 화물 {}/{:.0} · 워프 {:.2} ly{}", speed, if m.boosting { " ⚡" } else { "" }, cargo_used, st.cargo, st.warp_range, if m.docked { " · 도킹 중" } else { "" })).size(12.0));
     }
+}
+
+/// Width of the war-zone report (top centre).
+pub const WAR_W: f32 = 460.0;
+
+/// Who is winning, from the front reports: (ours, theirs) strength and the two names. "Ours" is
+/// `mine` when it fights here; otherwise (a bystander) the strongest side against all the rest.
+pub fn war_balance(reports: &[FrontReport], mine: Option<SideId>) -> Option<(u32, u32, String, String)> {
+    let mut total: std::collections::BTreeMap<SideId, (u32, String)> = Default::default();
+    for s in reports.iter().flat_map(|r| &r.sides) {
+        let t = total.entry(s.side).or_insert((0, s.name.clone()));
+        t.0 += s.strength;
+    }
+    let us = mine.filter(|m| total.contains_key(m)).or_else(|| overall_leader(reports))?;
+    let ours = total[&us].0;
+    let them: u32 = total.iter().filter(|(k, _)| **k != us).map(|(_, v)| v.0).sum();
+    let mut rivals: Vec<(&SideId, &(u32, String))> = total.iter().filter(|(k, _)| **k != us).collect();
+    rivals.sort_by(|a, b| b.1.0.cmp(&a.1.0).then(a.0.cmp(b.0)));
+    let their_name = match rivals.as_slice() {
+        [] => "—".to_string(),
+        [one] => one.1.1.clone(),
+        [first, rest @ ..] => format!("{} 외 {}", first.1.1, rest.len()),
+    };
+    Some((ours, them, total[&us].1.clone(), their_name))
+}
+
+/// A two-colour balance bar: `ours` share from the left in `ours_col`, the rest in `theirs_col`.
+fn balance_bar(ui: &mut egui::Ui, ours: u32, theirs: u32, w: f32, h: f32, ours_col: Color32, theirs_col: Color32) -> f32 {
+    let (rect, _) = ui.allocate_exact_size(EVec2::new(w, h), egui::Sense::hover());
+    let p = ui.painter();
+    let total = (ours + theirs).max(1) as f32;
+    let share = if ours + theirs == 0 { 0.5 } else { ours as f32 / total };
+    p.rect_filled(rect, 2.0, theirs_col);
+    p.rect_filled(egui::Rect::from_min_size(rect.min, EVec2::new(w * share, h)), 2.0, ours_col);
+    // The even line, so a lead reads at a glance.
+    p.line_segment([rect.center_top(), rect.center_bottom()], Stroke::new(1.0, crate::palette::chrome::INK));
+    share
+}
+
+/// The war-zone report under the top edge: one bar for the whole battle (us against them, by hull +
+/// shield left), then a row per front — its name, a bar, ships and captains lost on each side —
+/// with the front we are on marked. `names` are the system's fronts (`galaxy::fronts`).
+pub fn war_report(ui: &mut egui::Ui, names: &[String], reports: &[FrontReport], mine: Option<SideId>, here: Option<usize>) {
+    use crate::palette::{GREEN, RED};
+    let Some((ours, theirs, our_name, their_name)) = war_balance(reports, mine) else { return };
+    let involved = mine.is_some_and(|m| reports.iter().flat_map(|r| &r.sides).any(|s| s.side == m));
+    let (us_label, them_label) = if involved { ("아군", "적") } else { ("우세", "도전") };
+    ui.set_width(WAR_W);
+    ui.horizontal(|ui| {
+        ui.label(RichText::new(format!("{us_label} {our_name}")).color(GREEN).strong());
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            ui.label(RichText::new(format!("{them_label} {their_name}")).color(RED).strong());
+        });
+    });
+    let share = balance_bar(ui, ours, theirs, WAR_W, 12.0, GREEN, RED);
+    ui.label(RichText::new(format!("전체 전력 {:.0}% : {:.0}%", share * 100.0, (1.0 - share) * 100.0)).size(11.0).color(crate::palette::DIM));
+    // The same "us" as the top bar: our side, or for a bystander the strongest overall.
+    let us = mine.filter(|_| involved).or_else(|| overall_leader(reports));
+    for r in reports {
+        let name = names.get(r.front as usize).cloned().unwrap_or_else(|| format!("전선 {}", r.front + 1));
+        // (strength, ships, captains lost) for us and for everyone else on this front.
+        let (mut o, mut t) = ((0u32, 0u32, 0u32), (0u32, 0u32, 0u32));
+        for s in &r.sides {
+            let acc = if Some(s.side) == us { &mut o } else { &mut t };
+            acc.0 += s.strength;
+            acc.1 += s.ships;
+            acc.2 += s.lost;
+        }
+        let mark = if here == Some(r.front as usize) { "▶ " } else { "" };
+        ui.horizontal(|ui| {
+            ui.add_sized([150.0, 16.0], egui::Label::new(RichText::new(format!("{mark}{name}")).size(12.0).color(if mark.is_empty() { crate::palette::DIM } else { GOLD })).truncate());
+            balance_bar(ui, o.0, t.0, 120.0, 8.0, GREEN, RED);
+            ui.label(RichText::new(format!("{}척 : {}척 · 손실 {} : {}", o.1, t.1, o.2, t.2)).size(11.0));
+        });
+    }
+}
+
+/// The strongest side over all fronts.
+fn overall_leader(reports: &[FrontReport]) -> Option<SideId> {
+    let mut total: std::collections::BTreeMap<SideId, u32> = Default::default();
+    for s in reports.iter().flat_map(|r| &r.sides) {
+        *total.entry(s.side).or_default() += s.strength;
+    }
+    total.into_iter().max_by(|a, b| a.1.cmp(&b.1).then(b.0.cmp(&a.0))).map(|(k, _)| k)
 }

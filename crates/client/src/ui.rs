@@ -441,7 +441,18 @@ fn hud(ctx: &egui::Context, s: &mut Session, net: &Net, env: &Env, vis: &Visuals
     // Top-center: toasts and progress bars.
     egui::Area::new("toasts".into()).anchor(Align2::CENTER_TOP, EVec2::new(0.0, 14.0)).show(ctx, |ui| {
         ui.set_max_width(560.0);
-        if let Some(sides) = &s.engagement {
+        if let Some(layout) = env.layout.as_ref().filter(|_| !s.fronts.is_empty()) {
+            // War zone: who is winning, overall and on each front (we are on the nearest).
+            let fronts = galaxy::fronts(layout);
+            let names: Vec<String> = fronts.iter().map(|f| f.name.clone()).collect();
+            let here = s.my_state().and_then(|m| galaxy::front_of(&fronts, Vec3::from(m.pos)));
+            let mine = match (s.my_alliance, s.fleet, s.player_id) {
+                (Some(a), _, _) => Some(SideId::Alliance(a)),
+                (None, Some(f), _) => Some(SideId::Fleet(f)),
+                (None, None, p) => p.map(SideId::Captain),
+            };
+            egui::Frame::popup(ui.style()).fill(chrome::DANGER).show(ui, |ui| view::hud::war_report(ui, &names, &s.fronts, mine, here));
+        } else if let Some(sides) = &s.engagement {
             egui::Frame::popup(ui.style()).fill(chrome::DANGER).show(ui, |ui| {
                 ui.label(RichText::new(format!("⚔ 함대 교전 중 — {}", sides.join("  vs  "))).color(Color32::WHITE).strong());
             });
