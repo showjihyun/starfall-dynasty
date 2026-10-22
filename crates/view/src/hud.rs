@@ -15,6 +15,56 @@ pub const CROSSHAIR_W: f32 = 9.0;
 pub const CROSSHAIR_SPAN: f32 = std::f32::consts::PI * 0.55;
 /// Width of the shield and hull bars in the ship status panel.
 pub const STATUS_BAR_W: f32 = 420.0;
+/// Bottom-left chat: margin from the screen corner and width.
+pub const CHAT_MARGIN: f32 = 14.0;
+pub const CHAT_W: f32 = 380.0;
+
+/// Every control, grouped, for the help window (F1).
+pub const CONTROLS: &[(&str, &[(&str, &str)])] = &[
+    ("비행", &[("W / S", "추진 · 역추진"), ("A / D", "선회"), ("R / F", "기수 상하"), ("Q / E", "롤"), ("Z / Ctrl", "상승 · 하강"), ("Alt + A / D", "좌우 평행이동"), ("방향키", "선회 · 상하"), ("우클릭 누른 채", "커서 쪽으로 조종"), ("Shift", "부스트")]),
+    ("전투", &[("Space / 좌클릭", "사격 · 주포"), ("T", "목표 지정"), ("X", "미사일"), ("B", "호위함 공격 명령"), ("Y", "호위함 복귀")]),
+    ("시점", &[("C", "1인칭 / 3인칭"), ("I", "함교 화면")]),
+    ("행동", &[("G", "도킹"), ("N", "채굴"), ("V", "스캔")]),
+    ("창", &[("M", "지도"), ("U", "정거장"), ("J", "미션"), ("O", "계약"), ("H", "연대기"), ("K", "함대"), ("L", "동맹"), ("F1", "도움말")]),
+];
+
+/// The always-on hint: the controls a new captain needs first; the rest is in the help window.
+pub const KEY_HINTS: [&str; 2] = ["W/S 추진 · A/D 선회 · R/F 상하 · Q/E 롤 · Shift 부스트", "Space 사격 · T 목표 · X 미사일 · M 지도 · F1 모든 조작"];
+
+/// Draws `KEY_HINTS` in the bottom-right corner (clear of the chat and the ship status panel).
+pub fn key_hints(ctx: &egui::Context) {
+    egui::Area::new("keys".into()).anchor(Align2::RIGHT_BOTTOM, EVec2::new(-CHAT_MARGIN, -CHAT_MARGIN)).interactable(false).show(ctx, |ui| {
+        ui.with_layout(egui::Layout::top_down(egui::Align::Max), |ui| {
+            for l in KEY_HINTS {
+                ui.label(RichText::new(l).size(11.0).color(crate::palette::DIM));
+            }
+        });
+    });
+}
+
+/// Width of the controls table (fits a 1280-wide screen next to nothing else).
+pub const CONTROLS_W: f32 = 600.0;
+
+/// The controls table for the help window.
+pub fn controls(ui: &mut egui::Ui) {
+    // One wrapped row per group: group, then key (gold) and what it does, within CONTROLS_W.
+    ui.set_max_width(CONTROLS_W);
+    for (group, keys) in CONTROLS {
+        ui.horizontal_wrapped(|ui| {
+            ui.add_sized([36.0, 18.0], egui::Label::new(RichText::new(*group).color(ACCENT).strong()));
+            for (k, what) in *keys {
+                // A key and its meaning: one label that moves to the next line as a whole.
+                let mut job = egui::text::LayoutJob::default();
+                let font = egui::TextStyle::Body.resolve(ui.style());
+                job.append(k, 0.0, egui::TextFormat::simple(font.clone(), GOLD));
+                job.append(what, 6.0, egui::TextFormat::simple(font, ui.visuals().text_color()));
+                ui.add(egui::Label::new(job).wrap_mode(egui::TextWrapMode::Extend));
+                ui.add_space(8.0);
+            }
+        });
+        ui.add_space(4.0);
+    }
+}
 
 /// Where to point at something the camera cannot show (off screen or behind): a spot on an inset
 /// ring around the screen and the direction to turn. `local` is the object in camera space (−z ahead,

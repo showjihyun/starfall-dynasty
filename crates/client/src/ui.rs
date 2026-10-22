@@ -462,21 +462,20 @@ fn hud(ctx: &egui::Context, s: &mut Session, net: &Net, env: &Env, vis: &Visuals
     });
 
     // Bottom-left: chat.
-    egui::Area::new("chat".into()).anchor(Align2::LEFT_BOTTOM, EVec2::new(14.0, -14.0)).show(ctx, |ui| {
-        ui.set_max_width(380.0);
+    let (margin, w) = (view::hud::CHAT_MARGIN, view::hud::CHAT_W);
+    egui::Area::new("chat".into()).anchor(Align2::LEFT_BOTTOM, EVec2::new(margin, -margin)).show(ctx, |ui| {
+        ui.set_max_width(w);
         for (from, text) in s.chat.iter().rev().take(6).collect::<Vec<_>>().into_iter().rev() {
             ui.label(RichText::new(format!("{from}: {text}")).size(12.0).background_color(alpha(chrome::INK, 140)));
         }
-        let r = ui.add(egui::TextEdit::singleline(&mut s.ui.chat_input).hint_text("채팅 (Enter)").desired_width(360.0));
+        let r = ui.add(egui::TextEdit::singleline(&mut s.ui.chat_input).hint_text("채팅 (Enter)").desired_width(w - 20.0));
         if r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) && !s.ui.chat_input.trim().is_empty() {
             net.send(ClientMsg::Chat { text: std::mem::take(&mut s.ui.chat_input) });
         }
     });
 
-    // Key hints.
-    egui::Area::new("keys".into()).anchor(Align2::CENTER_BOTTOM, EVec2::new(0.0, -6.0)).show(ctx, |ui| {
-        ui.label(RichText::new("W/S 추진 · A/D 선회 · R/F 상하 · Q/E 롤 · Z/Ctrl 상승·하강 · Alt+A/D 좌우 평행이동 · 우클릭 조종 · Shift 부스트 · Space 사격/주포 · T 목표 · X 미사일 · B 호위공격 · Y 호위복귀 · C 1/3인칭 · I 함교 화면 · G 도킹 · N 채굴 · V 스캔 · M 지도 · U 정거장 · J 미션 · O 계약 · H 연대기 · K 함대 · L 동맹 · F1").size(11.0).color(DIM));
-    });
+    // Key hints (bottom right; every control is in the help window).
+    view::hud::key_hints(ctx);
 
     if let Some(killer) = s.dead.clone() {
         egui::Area::new("dead".into()).anchor(Align2::CENTER_CENTER, EVec2::ZERO).show(ctx, |ui| {
@@ -550,7 +549,11 @@ fn windows(ctx: &egui::Context, s: &mut Session, net: &Net, env: &Env) {
     s.ui.alliance = open;
 
     let mut open = s.ui.help;
-    egui::Window::new("도움말 (F1)").open(&mut open).show(ctx, |ui| {
+    // Controls first (what a new captain needs), then how the ship grows; scrolls on small screens.
+    egui::Window::new("도움말 (F1)").open(&mut open).default_pos([280.0, 20.0]).default_width(640.0).max_width(640.0).show(ctx, |ui| egui::ScrollArea::vertical().max_height(ctx.content_rect().height() * 0.75).show(ui, |ui| {
+        ui.label(RichText::new("조작").strong());
+        view::hud::controls(ui);
+        ui.separator();
         ui.label("당신은 평생 단 한 척의 함선만 가집니다. 그 함선을 키우는 길:");
         ui.label("• 일일 미션(J) — 매일 바뀌는 4개의 임무. 완료 후 보상 수령.");
         ui.label("• 교전 — 해적 격파, War Zone 함대전 승리, 현상금 사냥.");
@@ -567,7 +570,7 @@ fn windows(ctx: &egui::Context, s: &mut Session, net: &Net, env: &Env) {
         for t in view::panels::TACTICS_3D {
             ui.label(t);
         }
-    });
+    }));
     s.ui.help = open;
 }
 

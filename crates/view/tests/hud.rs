@@ -242,3 +242,88 @@ fn turret_ship_is_warned_about_captains_outside_its_fleet() {
     let both = at(4, [0.0, 300.0, 0.0]);
     assert!(warn(&wild, 14, &[&mate, &both]).unwrap().starts_with("함대 아님: Cap2 외 1척"));
 }
+
+// ---- bottom of the screen: chat, ship status, key hints
+
+/// Like `frame`, at `size` and with the Korean font the client uses (text widths as in the game).
+fn frame_ko(size: Vec2, mut draw: impl FnMut(&egui::Context)) -> Drawn {
+    let ctx = egui::Context::default();
+    ctx.set_fonts(view::fonts::with_korean().0);
+    let mut out = Drawn::default();
+    for i in 0..3 {
+        let input = RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, size)), time: Some(i as f64 * 0.1), ..Default::default() };
+        ctx.begin_pass(input);
+        draw(&ctx);
+        let full = ctx.end_pass();
+        out = Drawn::default();
+        for c in &full.shapes {
+            collect(&c.shape, &mut out);
+        }
+    }
+    out
+}
+
+/// The status panel as the client places it, and its bounding box.
+fn status_panel(ctx: &egui::Context, ship: &Ship, m: &EntityState) -> Rect {
+    egui::Area::new("ship".into()).anchor(egui::Align2::CENTER_BOTTOM, Vec2::new(0.0, -36.0)).show(ctx, |ui| {
+        egui::Frame::popup(ui.style()).show(ui, |ui| hud::ship_status(ui, ship, 12, Some(m), [1.0, 1.0]));
+    })
+    .response
+    .rect
+}
+
+#[test]
+fn key_hints_stay_clear_of_the_chat_and_the_ship_panel() {
+    let ship = Ship::new("Aegis".into(), HullClass::Bastion, 1);
+    let m = me(1.0, 1.0);
+    for size in [Vec2::new(1280.0, 720.0), Vec2::new(1600.0, 900.0), Vec2::new(1920.0, 1080.0)] {
+        let chat = Rect::from_min_max(Pos2::new(hud::CHAT_MARGIN, size.y - 200.0), Pos2::new(hud::CHAT_MARGIN + hud::CHAT_W, size.y - hud::CHAT_MARGIN));
+        let mut panel = Rect::NOTHING;
+        let d = frame_ko(size, |ctx| {
+            panel = status_panel(ctx, &ship, &m);
+            hud::key_hints(ctx);
+        });
+        let hints: Vec<Rect> = hud::KEY_HINTS.iter().map(|l| d.text(l).unwrap_or_else(|| panic!("missing hint {l}")).1).collect();
+        for r in &hints {
+            assert!(Rect::from_min_size(Pos2::ZERO, size).contains_rect(*r), "hint off screen at {size:?}: {r:?}");
+            assert!(!r.intersects(panel), "hint over the ship panel at {size:?}: {r:?} vs {panel:?}");
+            assert!(!r.intersects(chat), "hint over the chat at {size:?}");
+        }
+        assert!(hints[0].bottom() <= hints[1].top(), "two lines, one under the other");
+    }
+
+    // The single 150-character line it replaces ran under the ship panel and into the chat.
+    const OLD: &str = "W/S 추진 · A/D 선회 · R/F 상하 · Q/E 롤 · Z/Ctrl 상승·하강 · Alt+A/D 좌우 평행이동 · 우클릭 조종 · Shift 부스트 · Space 사격/주포 · T 목표 · X 미사일 · B 호위공격 · Y 호위복귀 · C 1/3인칭 · I 함교 화면 · G 도킹 · N 채굴 · V 스캔 · M 지도 · U 정거장 · J 미션 · O 계약 · H 연대기 · K 함대 · L 동맹 · F1";
+    let size = Vec2::new(1280.0, 720.0);
+    let chat = Rect::from_min_max(Pos2::new(hud::CHAT_MARGIN, size.y - 200.0), Pos2::new(hud::CHAT_MARGIN + hud::CHAT_W, size.y - hud::CHAT_MARGIN));
+    let mut panel = Rect::NOTHING;
+    let d = frame_ko(size, |ctx| {
+        panel = status_panel(ctx, &ship, &m);
+        egui::Area::new("keys".into()).anchor(egui::Align2::CENTER_BOTTOM, Vec2::new(0.0, -6.0)).show(ctx, |ui| {
+            ui.label(egui::RichText::new(OLD).size(11.0));
+        });
+    });
+    let old: Vec<Rect> = d.texts.iter().filter(|(t, _)| t.contains("추진") && t.contains("동맹")).map(|(_, r)| *r).collect();
+    assert!(old.iter().any(|r| r.intersects(chat) || r.intersects(panel)), "the test can see the old overlap: {old:?} panel {panel:?}");
+}
+
+#[test]
+fn the_help_window_lists_every_control() {
+    let d = frame_ko(Vec2::new(1600.0, 900.0), |ctx| {
+        egui::Window::new("도움말 (F1)").show(ctx, hud::controls);
+    });
+    let right = d.texts.iter().map(|(_, r)| r.right()).fold(0.0, f32::max);
+    let left = d.texts.iter().map(|(_, r)| r.left()).fold(f32::MAX, f32::min);
+    assert!(right - left <= hud::CONTROLS_W + 1.0, "the rows wrap within {} px (spans {})", hud::CONTROLS_W, right - left);
+    for (group, keys) in hud::CONTROLS {
+        assert!(d.text(group).is_some(), "group {group}");
+        for (k, what) in *keys {
+            assert!(d.text(k).is_some() && d.text(what).is_some(), "{k} {what}");
+        }
+    }
+    // Every key the short hint names is explained in full there.
+    for k in ["W/S", "A/D", "R/F", "Q/E", "Shift", "Space", "T", "X", "M", "F1"] {
+        let spaced = k.replace('/', " / ");
+        assert!(hud::CONTROLS.iter().flat_map(|(_, ks)| ks.iter()).any(|(key, _)| key.starts_with(&spaced) || *key == k), "{k} missing from the help");
+    }
+}

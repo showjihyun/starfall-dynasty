@@ -333,6 +333,7 @@ fn automation(
             "galaxy" if first => s.map.level = starmap::Level::Galaxy,
             "station" if first => s.ui.station = true,
             "missions" if first => s.ui.missions = true,
+            "help" if first => s.ui.help = true,
             "ally" if first => net.send(ClientMsg::AllianceCreate { name: cmd.get(1).copied().unwrap_or("QA Pact").into(), tag: cmd.get(2).copied().unwrap_or("QA").into() }),
             "alliance" if first => {
                 s.ui.alliance = true;
