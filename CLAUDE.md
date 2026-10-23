@@ -32,6 +32,7 @@ no feature creep, never trust untested output, keep measuring performance). Its 
 - Art direction: docs/ART_DIRECTION.md is the visual style guide (prompts, palette, rules); colours come only from
   `crates/view/src/palette.rs`. After a visual change run `python tools/artcheck.py` (renders the reference scenes and
   compares them with docs/art/reference/); approve an intended new look with `--update` in the same commit.
+- Campaign QA: `cargo run -p sim --release --example campaign` — a fresh captain plays chapters 1–5 like a player (no dev commands; fights, retreats, mines, refines, upgrades) in accelerated game time and reports per chapter time, deaths and where it got stuck (`sim::playthrough`, results in docs/QA_CAMPAIGN.md); rerun after combat, economy or scenario changes.
 - Play QA (no human needed): `cargo run -p bot --release --example qa` plays docs/QA_PHASE2_3.md with two headless captains
   against a real `--dev` server and prints PASS/FAIL per item; `--keep --data DIR` leaves the world up for
   `client --token … --auto --script "station 1" --shot …`; `client --clicks "x,y@t;…"` injects real mouse clicks.

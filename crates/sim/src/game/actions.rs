@@ -480,7 +480,7 @@ impl Game {
         self.push_profile(pid);
     }
 
-    fn price(&self, sys: SystemId, ore: Ore, trader: bool) -> f32 {
+    pub(crate) fn price(&self, sys: SystemId, ore: Ore, trader: bool) -> f32 {
         let tier = galaxy::system(sys).tier;
         let supply = self.store.supply(sys, ore);
         let m = &self.tuning.economy;

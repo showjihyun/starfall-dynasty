@@ -13,5 +13,6 @@
 pub mod game;
 pub mod harness;
 pub mod metrics;
+pub mod playthrough;
 pub mod scenario;
 pub mod store;
