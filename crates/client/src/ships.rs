@@ -20,7 +20,8 @@ pub struct ShipsPlugin;
 
 impl Plugin for ShipsPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<Visuals>().add_observer(release_slot).add_systems(Startup, load_models).add_systems(Update, (sync_visuals, update_ship_fx, aim_turrets, face_nozzle_glows).chain().run_if(in_state(Screen::Playing)));
+        app.init_resource::<Visuals>().add_observer(release_slot).add_systems(Startup, load_models).add_systems(Update, (sync_visuals, update_ship_fx, aim_turrets, face_nozzle_glows).chain().run_if(in_state(Screen::Playing)))
+            .add_systems(PostUpdate, engine_lod.before(bevy::camera::visibility::VisibilitySystems::VisibilityPropagate).run_if(in_state(Screen::Playing)));
     }
 }
 
@@ -232,6 +233,12 @@ pub struct ShipVis {
     pub swing: (Option<EntityId>, f64, Vec<Quat>),
     /// Last values written to the ship's slot: (hull, drive, shield).
     pub sent: (Vec4, Vec2, Vec4),
+    /// The shield bubble, hidden while it would draw nothing (`view::anim::shield_shown`).
+    pub shield: Option<(Entity, bool)>,
+    /// Engine effects by detail level (`view::anim::engine_lod`): nozzle glows and bores, plumes.
+    pub nozzles: Vec<Entity>,
+    pub plume_fx: Vec<Entity>,
+    pub lod: view::anim::EngineLod,
 }
 
 /// `ShipVis::sent` before anything was written to the slot.
@@ -272,6 +279,10 @@ impl ShipVis {
             aim: None,
             swing: (None, 0.0, vec![]),
             sent: UNSENT,
+            shield: None,
+            nozzles: vec![],
+            plume_fx: vec![],
+            lod: view::anim::EngineLod::Full,
         }
     }
 }
@@ -517,10 +528,10 @@ fn spawn_visual(
             };
             let scale = st.radius * 2.2 / len;
             let shield = states.shield(&mut mats.shield);
+            let bubble = commands.spawn((NotShadowCaster, Mesh3d(models.shield.clone()), MeshMaterial3d(shield), MeshTag::new(slot), Visibility::Hidden, Transform::from_scale(Vec3::new(1.15, 0.7, 1.35) * st.radius))).id();
+            v.shield = Some((bubble, false));
             let root = commands.spawn((v, tf, Visibility::default())).id();
-            commands.entity(root).with_children(|c| {
-                c.spawn((NotShadowCaster, Mesh3d(models.shield.clone()), MeshMaterial3d(shield), MeshTag::new(slot), Transform::from_scale(Vec3::new(1.15, 0.7, 1.35) * st.radius)));
-            });
+            commands.entity(root).add_child(bubble);
             if let Some(h) = models.handle(&name) {
                 let model = commands.spawn((WorldAssetRoot(h.clone()), ModelRoot(root), Transform::from_scale(Vec3::splat(scale)))).observe(on_model_ready).id();
                 commands.entity(root).add_child(model);
@@ -534,6 +545,7 @@ fn spawn_visual(
 }
 
 use bevy::world_serialization::WorldAssetRoot;
+use view::anim::EngineLod;
 
 /// Procedural stand-in used when a GLB is missing.
 #[allow(clippy::too_many_arguments)]
@@ -590,15 +602,21 @@ fn on_model_ready(
                     SizeClass::Capital => 0.75,
                 };
                 let glow = states.nozzle(&mut mats.nozzle, NozzleParams { shape: Vec4::new(glow_gain, style, 0.0, 0.0) });
+                // Spawned at the ship's current engine detail (engine_lod may have run before the model loaded).
+                let shown = |on: bool| if on { Visibility::Inherited } else { Visibility::Hidden };
+                let (plume_vis, nozzle_vis) = (shown(ship.lod != EngineLod::Off), shown(ship.lod == EngineLod::Full));
+                let (mut plumes, mut nozzles) = (vec![], vec![]);
                 commands.entity(d).with_children(|c| {
-                    c.spawn((NotShadowCaster, Mesh3d(models.plume.clone()), MeshMaterial3d(m), tag, Transform::from_scale(Vec3::new(width, width, len))));
+                    plumes.push(c.spawn((NotShadowCaster, Mesh3d(models.plume.clone()), MeshMaterial3d(m), tag, plume_vis, Transform::from_scale(Vec3::new(width, width, len)))).id());
                     let sprite = if style > 0.5 { 2.0 } else { 3.2 };
-                    c.spawn((NozzleGlow, NotShadowCaster, Mesh3d(models.quad.clone()), MeshMaterial3d(glow), MeshTag::new(slot), Transform::from_xyz(0.0, 0.0, 0.15).with_scale(Vec3::splat(sprite))));
+                    nozzles.push(c.spawn((NozzleGlow, NotShadowCaster, Mesh3d(models.quad.clone()), MeshMaterial3d(glow), MeshTag::new(slot), nozzle_vis, Transform::from_xyz(0.0, 0.0, 0.15).with_scale(Vec3::splat(sprite)))).id());
                     if style > 0.5 {
                         // Circle faces +Z = out of the nozzle; sits just inside the exit plane.
-                        c.spawn((NotShadowCaster, Mesh3d(models.bore.0.clone()), MeshMaterial3d(models.bore.1.clone()), Transform::from_xyz(0.0, 0.0, -0.04)));
+                        nozzles.push(c.spawn((NotShadowCaster, Mesh3d(models.bore.0.clone()), MeshMaterial3d(models.bore.1.clone()), nozzle_vis, Transform::from_xyz(0.0, 0.0, -0.04))).id());
                     }
                 });
+                ship.plume_fx.extend(plumes);
+                ship.nozzles.extend(nozzles);
             } else if n.starts_with("Gun_") {
                 ship.muzzles.push(d);
             } else if n.starts_with("Main_") {
@@ -654,6 +672,7 @@ fn update_ship_fx(
     mut parts: Query<(&RankPart, &mut Visibility, &ChildOf)>,
     parents: Query<&ChildOf>,
     mut states: ResMut<ShipStates>,
+    mut bubbles: Query<&mut Visibility, Without<RankPart>>,
 ) {
     let _prof = shared::prof::span("ships::update_ship_fx");
     // Only write values that changed: an unchanged frame uploads nothing.
@@ -694,6 +713,14 @@ fn update_ship_fx(
             states.put(v.slot, SHIELD, v4(side.shield, shield.x));
             states.put(v.slot, HIT, v.hit_dir.extend(shield.w));
         }
+        let show = view::anim::shield_shown(st.shield, hit_age);
+        if let Some((b, shown)) = v.shield
+            && shown != show
+            && let Ok(mut vis) = bubbles.get_mut(b)
+        {
+            *vis = if show { Visibility::Inherited } else { Visibility::Hidden };
+            v.shield = Some((b, show));
+        }
     }
     states.flush(&mut mats);
     // Rank parts: visible once the ship reaches the part's rank.
@@ -723,12 +750,39 @@ fn update_ship_fx(
 #[derive(Component)]
 pub struct NozzleGlow;
 
+/// Engine detail by size on screen (`view::anim::engine_lod`): far ships drop their nozzle glows
+/// and bores, dots drop their plumes. Runs before visibility is propagated, after the frame's moves.
+fn engine_lod(cam: Query<(&GlobalTransform, &Camera, &Projection), With<crate::control::MainCamera>>, mut ships: Query<(&mut ShipVis, &Transform)>, mut fx: Query<&mut Visibility, Without<ShipVis>>) {
+    let _prof = shared::prof::span("ships::engine_lod");
+    let Ok((c, camera, Projection::Perspective(p))) = cam.single() else { return };
+    let h = camera.logical_viewport_size().map_or(720.0, |v| v.y);
+    for (mut v, tf) in &mut ships {
+        let px = view::anim::screen_radius(v.radius, tf.translation.distance(c.translation()), h, p.fov);
+        let lod = view::anim::engine_lod(px, v.lod);
+        if lod == v.lod {
+            continue;
+        }
+        v.lod = lod;
+        let shown = |on: bool| if on { Visibility::Inherited } else { Visibility::Hidden };
+        for (list, on) in [(&v.plume_fx, lod != EngineLod::Off), (&v.nozzles, lod == EngineLod::Full)] {
+            for e in list {
+                if let Ok(mut vis) = fx.get_mut(*e) {
+                    vis.set_if_neq(shown(on));
+                }
+            }
+        }
+    }
+}
+
 /// Keep nozzle glow sprites facing the camera.
-fn face_nozzle_glows(cam: Query<&GlobalTransform, With<crate::control::MainCamera>>, mut q: Query<(&mut Transform, &ChildOf), With<NozzleGlow>>, globals: Query<&GlobalTransform, Without<NozzleGlow>>) {
+fn face_nozzle_glows(cam: Query<&GlobalTransform, With<crate::control::MainCamera>>, mut q: Query<(&mut Transform, &ChildOf, &Visibility), With<NozzleGlow>>, globals: Query<&GlobalTransform, Without<NozzleGlow>>) {
     let _prof = shared::prof::span("ships::face_nozzle_glows");
     let Ok(c) = cam.single() else { return };
     let cam_rot = c.rotation();
-    for (mut t, parent) in &mut q {
+    for (mut t, parent, vis) in &mut q {
+        if *vis == Visibility::Hidden {
+            continue;
+        }
         if let Ok(pg) = globals.get(parent.parent()) {
             t.rotation = pg.rotation().inverse() * cam_rot;
         }
@@ -882,5 +936,46 @@ mod tests {
         let (_, was_hostile) = run(30, true);
         assert_eq!(friendly, was_hostile);
         assert_ne!(view::palette::side::of(true).engine, view::palette::side::of(false).engine, "the test can see the difference");
+    }
+
+    #[test]
+    fn a_shield_bubble_is_drawn_only_while_it_shows_something() {
+        // 2700 idle, fully transparent bubbles were drawn every frame of the 1000-captain battle.
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, bevy::asset::AssetPlugin::default()))
+            .insert_resource(bevy::time::TimeUpdateStrategy::ManualDuration(std::time::Duration::from_secs_f64(1.0 / 60.0)))
+            .init_asset::<EngineMat>()
+            .init_asset::<NozzleMat>()
+            .init_asset::<ShieldMat>()
+            .init_asset::<HullMat>()
+            .init_asset::<ShaderBuffer>()
+            .add_systems(Update, update_ship_fx);
+        let states = ShipStates::new(&mut app.world_mut().resource_mut::<Assets<ShaderBuffer>>());
+        app.insert_resource(states);
+        let mut s = Session::default();
+        s.snaps.push_back(crate::state::Snap { at: 0.0, ents: [(1, ship(1))].into_iter().collect() });
+        app.insert_resource(s);
+        let bubble = app.world_mut().spawn(Visibility::Hidden).id();
+        let mut v = ShipVis::new(&ship(1), Vec3::ZERO);
+        v.shield = Some((bubble, false));
+        let e = app.world_mut().spawn(v).id();
+        let vis = |app: &App| *app.world().get::<Visibility>(bubble).unwrap();
+        for _ in 0..60 {
+            app.update();
+        }
+        assert_eq!(vis(&app), Visibility::Hidden, "a full shield nobody hits draws nothing");
+        // A hit: the ripple shows, then the bubble is hidden again once it has faded.
+        let now = app.world().resource::<Time<Real>>().elapsed_secs_f64();
+        app.world_mut().get_mut::<ShipVis>(e).unwrap().hit_at = now;
+        app.update();
+        assert_eq!(vis(&app), Visibility::Inherited);
+        for _ in 0..150 {
+            app.update();
+        }
+        assert_eq!(vis(&app), Visibility::Hidden);
+        // Nearly empty: it flickers, so it is drawn.
+        app.world_mut().resource_mut::<Session>().snaps.back_mut().unwrap().ents.get_mut(&1).unwrap().shield = 0.1;
+        app.update();
+        assert_eq!(vis(&app), Visibility::Inherited);
     }
 }
