@@ -22,7 +22,8 @@
         "Umber", "Vigil", "Wraith", "Xyra", "Yarrow", "Zenith", "Corvid", "Marrow", "Solace", "Tamsin",
         "Aster", "Briar", "Cobalt", "Drover", "Eidolon", "Fallow", "Garnet", "Heron", "Isolde", "Juniper",
         "Kiln", "Lattice",
-    ],   // drawn without replacement until every one has been used
+    ],   // drawn without replacement until every one has been used; the names actually shown come from catalog.ron
+         // (real objects JWST observed) — these words are only the fallback once the catalogue runs out
     names_second: [
         "Reach", "Drift", "Hollow", "Verge", "Spire", "Basin", "Crossing", "Shoal", "Cradle", "Rift",
         "Anchorage", "Wake", "Expanse", "Fold", "Watch", "Bastion",

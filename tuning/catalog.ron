@@ -1,0 +1,78 @@
+#![enable(implicit_some)]
+// Real astronomical names for the generated systems (ids 10+; crates/shared/src/galaxy.rs `systems`).
+// Read at run time. Every entry is a well-known object the James Webb Space Telescope (JWST) has
+// observed. A generated system takes an unused entry whose `star` matches the star it rolled (entries
+// without `star` fit any), in a fixed shuffled order, so the galaxy's positions, tiers and stars stay
+// exactly as before — only names and lore change. More entries than generated systems are fine;
+// if they run out, the old `names_first`/`names_second` words of galaxy.ron are used.
+//
+//   name:          the system's name in game (English, like the hand-made systems; unique, ≤ 22 chars)
+//   designation:   the catalogue designation of the real object
+//   kind:          Galaxy, Cluster (of galaxies or stars), Nebula, Star, Planetary (an exoplanet system),
+//                  Remnant (of a supernova)
+//   constellation: IAU constellation it lies in
+//   star:          which of the game's star kinds suits it (optional)
+//   note:          one line on the object and what JWST saw, shown in the system's lore
+(
+    entries: [
+        // Deep fields and galaxies
+        (name: "SMACS 0723", designation: "SMACS J0723.3-7327", kind: Cluster, constellation: "Volans", note: "JWST의 첫 심우주 영상(2022)에 담긴 은하단. 중력렌즈로 휜 먼 은하들의 빛이 겹겹이 보인다."),
+        (name: "Stephan's Quintet", designation: "Hickson Compact Group 92", kind: Galaxy, constellation: "Pegasus", note: "다섯 은하가 모인 무리. JWST 첫 공개 영상 중 하나로, 충돌하는 은하 사이의 충격파가 드러났다."),
+        (name: "Cartwheel", designation: "ESO 350-40", kind: Galaxy, constellation: "Sculptor", note: "작은 은하와 충돌한 뒤 수레바퀴 모양 고리가 생긴 은하."),
+        (name: "Phantom Galaxy", designation: "M74 (NGC 628)", kind: Galaxy, constellation: "Pisces", note: "정면으로 보이는 나선은하. JWST 중적외선 영상에서 먼지 팔이 선명하다.", star: YellowDwarf),
+        (name: "Pandora's Cluster", designation: "Abell 2744", kind: Cluster, constellation: "Sculptor", note: "은하단 여러 개가 합쳐지는 중인 거대 은하단. 뒤편의 초기 우주 은하를 확대해 보여 준다."),
+        (name: "El Gordo", designation: "ACT-CL J0102-4915", kind: Cluster, constellation: "Phoenix", note: "'뚱보'라는 별명의 무거운 충돌 은하단."),
+        (name: "Earendel", designation: "WHL0137-LS", kind: Star, constellation: "Cetus", note: "중력렌즈로 확대되어 보이는, 알려진 가장 먼 단일 별. JWST가 뜨겁고 무거운 별임을 확인했다.", star: BlueGiant),
+        (name: "GN-z11", designation: "GN-z11", kind: Galaxy, constellation: "Ursa Major", note: "빅뱅 후 약 4억 년의 은하. JWST가 중심의 블랙홀 흔적을 관측했다."),
+        (name: "JADES-GS-z14", designation: "JADES-GS-z14-0", kind: Galaxy, constellation: "Fornax", note: "JWST JADES 탐사로 확인된 가장 먼 은하 가운데 하나(빅뱅 후 3억 년 무렵)."),
+        (name: "Sombrero", designation: "M104 (NGC 4594)", kind: Galaxy, constellation: "Virgo", note: "챙 넓은 모자 같은 먼지 고리를 두른 은하. JWST 영상에서 고리의 덩어리진 먼지가 보인다.", star: YellowDwarf),
+        (name: "Great Barred Spiral", designation: "NGC 1365", kind: Galaxy, constellation: "Fornax", note: "중심을 가로지르는 막대가 뚜렷한 나선은하. JWST PHANGS 탐사 대상."),
+        (name: "Penguin and Egg", designation: "Arp 142", kind: Galaxy, constellation: "Hydra", note: "펭귄과 알처럼 보이는 한 쌍의 상호작용 은하. JWST 2주년 기념 영상(2024)."),
+        (name: "I Zwicky 18", designation: "I Zw 18", kind: Galaxy, constellation: "Ursa Major", note: "무거운 원소가 거의 없는 왜소 은하. 초기 우주 은하와 닮아 JWST가 별 탄생을 살폈다.", star: BlueGiant),
+        (name: "Cigar Galaxy", designation: "M82", kind: Galaxy, constellation: "Ursa Major", note: "별이 폭발적으로 태어나는 은하. 중심에서 뿜어 나오는 바람을 JWST가 촬영했다.", star: BlueGiant),
+        (name: "NGC 7469", designation: "NGC 7469", kind: Galaxy, constellation: "Pegasus", note: "활동성 핵과 별 탄생 고리를 함께 가진 나선은하."),
+        (name: "II Zwicky 96", designation: "II Zw 96", kind: Galaxy, constellation: "Delphinus", note: "서로 합쳐지고 있는 두 나선은하."),
+        (name: "MACS0416", designation: "MACS J0416.1-2403", kind: Cluster, constellation: "Eridanus", note: "'크리스마스트리 은하단'. 렌즈로 확대된 먼 별들이 깜박이는 모습이 관측됐다."),
+        (name: "NGC 604", designation: "NGC 604", kind: Nebula, constellation: "Triangulum", note: "삼각형자리 은하 안의 거대한 별 탄생 구역. 젊고 무거운 별 200여 개가 있다.", star: BlueGiant),
+
+        // Nebulae and star-forming regions
+        (name: "Cosmic Cliffs", designation: "NGC 3324 (Carina Nebula)", kind: Nebula, constellation: "Carina", note: "용골자리 성운의 가장자리. JWST 첫 공개 영상에서 절벽처럼 솟은 가스벽으로 유명해졌다.", star: BlueGiant),
+        (name: "Pillars of Creation", designation: "M16 (Eagle Nebula)", kind: Nebula, constellation: "Serpens", note: "독수리 성운의 가스 기둥. 기둥 끝마다 새로 태어나는 별이 숨어 있다.", star: BlueGiant),
+        (name: "Tarantula", designation: "30 Doradus", kind: Nebula, constellation: "Dorado", note: "대마젤란 성운의 거대한 별 탄생 구역. 거미줄 같은 가스 필라멘트가 뻗어 있다.", star: BlueGiant),
+        (name: "Orion Bar", designation: "M42 (Orion Nebula)", kind: Nebula, constellation: "Orion", note: "오리온 성운의 밝은 띠. JWST가 별빛에 깎이는 가스와 갓 생긴 행성계 원반을 관측했다.", star: BlueGiant),
+        (name: "Horsehead", designation: "Barnard 33", kind: Nebula, constellation: "Orion", note: "말 머리 모양의 암흑 성운. JWST가 머리 윗부분의 경계를 자세히 찍었다(2024)."),
+        (name: "Rho Ophiuchi", designation: "Rho Ophiuchi cloud complex", kind: Nebula, constellation: "Ophiuchus", note: "지구에서 가장 가까운 별 탄생 구역. JWST 1주년 기념 영상(2023)."),
+        (name: "Cat's Paw", designation: "NGC 6334", kind: Nebula, constellation: "Scorpius", note: "고양이 발자국 같은 별 탄생 성운. JWST 3주년 기념 영상(2025).", star: BlueGiant),
+        (name: "Chamaeleon I", designation: "Chamaeleon I cloud", kind: Nebula, constellation: "Chamaeleon", note: "차가운 분자 구름. JWST가 행성의 재료가 될 얼음 분자들을 찾아냈다."),
+        (name: "Serpens Main", designation: "Serpens Main cluster", kind: Nebula, constellation: "Serpens", note: "갓 태어난 별들의 분출이 한 방향으로 나란히 늘어선 모습이 JWST로 처음 보였다."),
+        (name: "Sagittarius C", designation: "Sgr C", kind: Nebula, constellation: "Sagittarius", note: "우리은하 중심 블랙홀 가까이의 별 탄생 구역.", star: BlueGiant),
+        (name: "Westerlund 1", designation: "Westerlund 1", kind: Cluster, constellation: "Ara", note: "우리은하에서 가장 무거운 젊은 성단 가운데 하나.", star: RedGiant),
+        (name: "NGC 346", designation: "NGC 346", kind: Cluster, constellation: "Tucana", note: "소마젤란 성운의 젊은 성단. JWST가 별 주위의 행성 재료 원반을 확인했다.", star: BlueGiant),
+        (name: "HH 211", designation: "Herbig-Haro 211", kind: Nebula, constellation: "Perseus", note: "아기 별이 양쪽으로 뿜어내는 분출. JWST 영상에서 매듭진 충격파가 보인다."),
+        (name: "HH 46/47", designation: "Herbig-Haro 46/47", kind: Nebula, constellation: "Vela", note: "서로 공전하는 두 아기 별이 만든 양방향 분출."),
+        (name: "L1527", designation: "L1527 IRS", kind: Star, constellation: "Taurus", note: "모래시계 모양 구름 속 원시별. 아직 핵융합을 시작하지 않았다.", star: RedGiant),
+
+        // Dying stars and remnants
+        (name: "Southern Ring", designation: "NGC 3132", kind: Nebula, constellation: "Vela", note: "죽어 가는 별이 벗어 던진 가스 껍질(행성상 성운). JWST 첫 공개 영상 중 하나.", star: WhiteDwarf),
+        (name: "Ring Nebula", designation: "M57", kind: Nebula, constellation: "Lyra", note: "거문고자리의 고리 모양 행성상 성운. 가운데 백색왜성이 남았다.", star: WhiteDwarf),
+        (name: "NGC 1514", designation: "NGC 1514", kind: Nebula, constellation: "Taurus", note: "두 별이 함께 빚은 행성상 성운. JWST 중적외선에서 먼지 고리가 드러났다(2025).", star: WhiteDwarf),
+        (name: "Wolf-Rayet 124", designation: "WR 124", kind: Star, constellation: "Sagitta", note: "곧 초신성이 될 무거운 별. 뿜어낸 가스와 먼지가 별을 둘러싸고 있다.", star: BlueGiant),
+        (name: "Wolf-Rayet 140", designation: "WR 140", kind: Star, constellation: "Cygnus", note: "두 별이 가까워질 때마다 먼지 껍질을 하나씩 만들어 나이테 같은 고리가 겹친다.", star: BlueGiant),
+        (name: "Cassiopeia A", designation: "Cas A", kind: Remnant, constellation: "Cassiopeia", note: "약 340년 전 폭발한 초신성의 잔해. 안쪽의 '초록 괴물' 구조가 JWST로 보였다.", star: Neutron),
+        (name: "Crab Nebula", designation: "M1", kind: Remnant, constellation: "Taurus", note: "1054년에 기록된 초신성의 잔해. 한가운데 펄서가 돈다.", star: Neutron),
+        (name: "SN 1987A", designation: "SN 1987A", kind: Remnant, constellation: "Dorado", note: "1987년 관측된 초신성. JWST가 잔해 속 중성자별의 흔적을 찾아냈다.", star: Neutron),
+
+        // Stars and planetary systems
+        (name: "TRAPPIST-1", designation: "TRAPPIST-1", kind: Planetary, constellation: "Aquarius", note: "지구 크기 행성 일곱 개가 도는 붉은 왜성. JWST가 안쪽 행성들의 열을 쟀다.", star: RedGiant),
+        (name: "WASP-39", designation: "WASP-39 b", kind: Planetary, constellation: "Virgo", note: "JWST가 외계행성 대기에서 이산화탄소를 처음으로 확실히 검출한 뜨거운 가스 행성.", star: YellowDwarf),
+        (name: "WASP-96", designation: "WASP-96 b", kind: Planetary, constellation: "Phoenix", note: "JWST 첫 공개 자료 중 하나. 대기의 물 흔적이 담긴 투과 스펙트럼.", star: YellowDwarf),
+        (name: "K2-18", designation: "K2-18 b", kind: Planetary, constellation: "Leo", note: "붉은 왜성의 생명 가능 지대를 도는 행성. JWST가 대기에서 메탄과 이산화탄소를 찾았다.", star: RedGiant),
+        (name: "LHS 475", designation: "LHS 475 b", kind: Planetary, constellation: "Octans", note: "JWST로 처음 확인된 지구 크기 암석 행성.", star: RedGiant),
+        (name: "HIP 65426", designation: "HIP 65426 b", kind: Planetary, constellation: "Centaurus", note: "JWST가 처음으로 직접 촬영한 외계행성.", star: YellowDwarf),
+        (name: "VHS 1256", designation: "VHS 1256-1257 b", kind: Planetary, constellation: "Corvus", note: "구름이 끓어오르는 젊은 거대 행성. JWST 스펙트럼에 규산염 구름이 나타났다.", star: RedGiant),
+        (name: "55 Cancri", designation: "55 Cancri e", kind: Planetary, constellation: "Cancer", note: "용암 바다로 덮였을지 모를 초지구. JWST가 대기의 흔적을 관측했다.", star: YellowDwarf),
+        (name: "Fomalhaut", designation: "Fomalhaut (Alpha PsA)", kind: Star, constellation: "Piscis Austrinus", note: "먼지 고리 세 겹을 두른 밝은 별. JWST가 소행성대 같은 안쪽 고리를 찾았다.", star: WhiteDwarf),
+        (name: "Vega", designation: "Vega (Alpha Lyr)", kind: Star, constellation: "Lyra", note: "거문고자리의 밝은 별. JWST로 본 먼지 원반이 놀랄 만큼 매끈했다.", star: WhiteDwarf),
+        (name: "Beta Pictoris", designation: "Beta Pictoris", kind: Star, constellation: "Pictor", note: "젊은 행성계의 먼지 원반. JWST가 원반에서 갈라져 나온 비스듬한 먼지 꼬리를 찾았다.", star: WhiteDwarf),
+    ],
+)

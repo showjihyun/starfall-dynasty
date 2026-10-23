@@ -191,6 +191,13 @@ fn generate(g: &crate::tuning::GalaxyTuning) -> Vec<SystemDef> {
     let (x0, x1, z0, z1) = g.bounds;
     let mut names: std::collections::BTreeSet<String> = CORE.iter().map(|s| s.name.to_string()).collect();
     let mut firsts: Vec<String> = Vec::new();
+    // Real names (catalog.ron) in a fixed shuffled order, from their own generator so the galaxy's
+    // positions, tiers and stars are the same with or without them.
+    let mut pool: Vec<&crate::tuning::CatalogEntry> = g.catalog.iter().filter(|e| !names.contains(&e.name)).collect();
+    let mut shuffle = Rng::from_parts(&[0xCA7A_1060, g.seed]);
+    for i in (1..pool.len()).rev() {
+        pool.swap(i, shuffle.below(i as u32 + 1) as usize);
+    }
     let mut tries = 0;
     while out.len() < CORE.len() + g.generated as usize && tries < 100_000 {
         tries += 1;
@@ -225,8 +232,14 @@ fn generate(g: &crate::tuning::GalaxyTuning) -> Vec<SystemDef> {
             name = format!("{base} {}", roman(n));
             n += 1;
         }
+        let mut lore = r.pick(&g.lore[&tier]).clone();
+        // A real object whose star suits this one names it instead (the words above are still drawn).
+        if let Some(i) = pool.iter().position(|e| e.star.is_none_or(|s| s == star) && !names.contains(&e.name)) {
+            let e = pool.remove(i);
+            name = e.name.clone();
+            lore = format!("{lore}\n실제 천체 {} · {} — {}", e.designation, e.constellation, e.note);
+        }
         names.insert(name.clone());
-        let lore = r.pick(&g.lore[&tier]).clone();
         out.push(SystemDef { id: out.len() as SystemId, name: Box::leak(name.into_boxed_str()), tier, map_pos: p.into(), star, lore: Box::leak(lore.into_boxed_str()) });
     }
     out
@@ -578,6 +591,21 @@ mod tests {
         for s in systems().iter().filter(|s| s.id != 9) {
             let n = systems().iter().filter(|o| o.id != s.id).map(|o| distance_ly(s.id, o.id)).fold(f32::MAX, f32::min);
             assert!(n <= 1.5, "{} isolated ({n})", s.name);
+        }
+    }
+
+    #[test]
+    fn generated_systems_take_real_names_without_moving() {
+        let g = &crate::tuning::get().galaxy;
+        assert!(g.catalog.len() >= g.generated as usize, "catalog.ron has a name for every generated system");
+        let named = generate(g);
+        let words = generate(&crate::tuning::GalaxyTuning { catalog: vec![], ..g.clone() });
+        for (a, b) in named.iter().zip(&words).skip(CORE.len()) {
+            // Same place, risk and star as the galaxy without real names; only the name and lore differ.
+            assert_eq!((a.map_pos, a.tier, a.star), (b.map_pos, b.tier, b.star), "{} / {}", a.name, b.name);
+            let e = g.catalog.iter().find(|e| e.name == a.name).unwrap_or_else(|| panic!("{} is not a catalog name", a.name));
+            assert!(e.star.is_none_or(|s| s == a.star), "{} has a {:?} but suits {:?}", a.name, a.star, e.star);
+            assert!(a.lore.contains(&e.designation), "{}: lore names the real object", a.name);
         }
     }
 

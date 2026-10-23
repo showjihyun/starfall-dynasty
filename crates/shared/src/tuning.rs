@@ -22,6 +22,9 @@ use std::sync::{Arc, RwLock};
 
 pub const DIR_ENV: &str = "STARFALL_TUNING";
 pub const DIR_NAME: &str = "tuning";
+/// Real astronomical names for the generated systems; optional (a recording made before it existed
+/// keeps the old names), so it is not in [`FILES`].
+pub const CATALOG_FILE: &str = "catalog.ron";
 pub const FILES: [&str; 9] = ["ships.ron", "npcs.ron", "combat.ron", "artifacts.ron", "history.ron", "social.ron", "economy.ron", "galaxy.ron", "minerals.ron"];
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -253,6 +256,9 @@ pub struct GalaxyTuning {
     pub names_first: Vec<String>,
     pub names_second: Vec<String>,
     pub lore: BTreeMap<crate::galaxy::RiskTier, Vec<String>>,
+    /// Real names for generated systems, read from `catalog.ron` (not written in galaxy.ron).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub catalog: Vec<CatalogEntry>,
     pub chart_reward: u64,
     /// How far a system's places rise out of its plane. Missing (recordings made before it existed):
     /// the old flat layout.
@@ -304,6 +310,43 @@ impl Default for Relief {
         Relief { station_y: 60.0, jump_y: 120.0, belt_y: 150.0, belt_thickness: 140.0, poi_rise: 0.2 }
     }
 }
+
+/// The `catalog.ron` file: real objects (all observed by JWST) whose names the generated systems take.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Catalog {
+    pub entries: Vec<CatalogEntry>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct CatalogEntry {
+    /// The system's name in game.
+    pub name: String,
+    /// The real object's catalogue designation.
+    pub designation: String,
+    pub kind: CelestialKind,
+    /// IAU constellation.
+    pub constellation: String,
+    /// The game star kind it suits; none fits any.
+    #[serde(default)]
+    pub star: Option<crate::galaxy::StarKind>,
+    /// One line on the object and what JWST saw (shown in the system's lore).
+    pub note: String,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CelestialKind {
+    Galaxy,
+    Cluster,
+    Nebula,
+    Star,
+    Planetary,
+    Remnant,
+}
+
+/// Longest catalogue name a system may take (galaxy map and HUD labels).
+pub const CATALOG_NAME_MAX: usize = 22;
 
 /// The mineral catalogue and deposits (`minerals.ron`, see `minerals`).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -489,7 +532,11 @@ impl Tuning {
             let text = std::fs::read_to_string(&path).map_err(|e| format!("{}: {e}", path.display()))?;
             ron::from_str(&text).map_err(|e| format!("{}:{e}", path.display()))
         }
-        let t = Tuning { ships: read(dir, fallback, FILES[0])?, npcs: read(dir, fallback, FILES[1])?, combat: read(dir, fallback, FILES[2])?, artifacts: read(dir, fallback, FILES[3])?, history: read(dir, fallback, FILES[4])?, social: read(dir, fallback, FILES[5])?, economy: read(dir, fallback, FILES[6])?, galaxy: read(dir, fallback, FILES[7])?, minerals: read(dir, fallback, FILES[8])? };
+        let mut t = Tuning { ships: read(dir, fallback, FILES[0])?, npcs: read(dir, fallback, FILES[1])?, combat: read(dir, fallback, FILES[2])?, artifacts: read(dir, fallback, FILES[3])?, history: read(dir, fallback, FILES[4])?, social: read(dir, fallback, FILES[5])?, economy: read(dir, fallback, FILES[6])?, galaxy: read(dir, fallback, FILES[7])?, minerals: read(dir, fallback, FILES[8])? };
+        // Only from `dir` itself: a recording without it replays with the names it was made with.
+        if dir.join(CATALOG_FILE).is_file() {
+            t.galaxy.catalog = read::<Catalog>(dir, None, CATALOG_FILE)?.entries;
+        }
         t.validate().map_err(|e| format!("{}: {e}", dir.display()))?;
         Ok(t)
     }
@@ -526,6 +573,12 @@ impl Tuning {
         for (_, t) in &g.tiers {
             if g.lore.get(t).is_none_or(|l| l.is_empty()) {
                 return Err(format!("galaxy.ron: lore has no {t:?}"));
+            }
+        }
+        let mut seen = std::collections::BTreeSet::new();
+        for e in &g.catalog {
+            if e.name.trim().is_empty() || e.name.chars().count() > CATALOG_NAME_MAX || !seen.insert(e.name.as_str()) {
+                return Err(format!("catalog.ron: {:?} — names must be unique, non-empty and at most {CATALOG_NAME_MAX} characters", e.name));
             }
         }
         if g.hop.0 <= 0.0 || g.hop.0 > g.hop.1 || g.min_spacing > g.hop.1 {
@@ -570,6 +623,9 @@ impl Tuning {
         std::fs::create_dir_all(dir)?;
         for f in FILES {
             std::fs::copy(from.join(f), dir.join(f))?;
+        }
+        if from.join(CATALOG_FILE).is_file() {
+            std::fs::copy(from.join(CATALOG_FILE), dir.join(CATALOG_FILE))?;
         }
         Ok(())
     }
