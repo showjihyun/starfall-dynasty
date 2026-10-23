@@ -221,7 +221,7 @@ pub fn scenarios() -> Vec<Scenario> {
             steps: vec![
                 Step::Reach { system: 3 },
                 Step::ScanPoi { system: 3, kind: PoiKind::Signal, count: 1 },
-                Step::Defeat { system: 3, wave: vec![(Raider, 3)], level: 1 },
+                Step::Defeat { system: 3, wave: vec![(Raider, 2)], level: 0 },
             ],
             reward: Materials { credits: 3000, alloy: 25, crystal: 12, datacore: 3, relic: 0 },
         },
@@ -233,7 +233,7 @@ pub fn scenarios() -> Vec<Scenario> {
                 Step::Reach { system: 4 },
                 Step::ScanPoi { system: 4, kind: PoiKind::Derelict, count: 1 },
                 Step::ScanPoi { system: 4, kind: PoiKind::Signal, count: 1 },
-                Step::Defeat { system: 4, wave: vec![(Raider, 3), (Gunship, 1)], level: 2 },
+                Step::Defeat { system: 4, wave: vec![(Raider, 2), (Gunship, 1)], level: 1 },
             ],
             reward: Materials { credits: 6000, alloy: 40, crystal: 20, datacore: 6, relic: 1 },
         },
@@ -266,7 +266,7 @@ pub fn scenarios() -> Vec<Scenario> {
             steps: vec![
                 Step::Reach { system: 9 },
                 Step::ScanPoi { system: 9, kind: PoiKind::AncientGate, count: 1 },
-                Step::Defeat { system: 9, wave: vec![(Warden, 3), (Sentinel, 1)], level: 4 },
+                Step::Defeat { system: 9, wave: vec![(Warden, 3), (Sentinel, 1)], level: 3 },
             ],
             reward: Materials { credits: 40000, alloy: 150, crystal: 120, datacore: 30, relic: 6 },
         },

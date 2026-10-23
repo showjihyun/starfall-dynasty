@@ -16,4 +16,9 @@
     // Wild/WarZone/Deep 1.5/1.8/2.6 → 0.95/1.15/1.6 — more and tougher pirates already pay more there;
     // Wild hunting was ~2× Wild mining, now ~1.3×.
     bounty_risk: { Core: 1.0, Frontier: 1.0, Wild: 0.95, WarZone: 1.15, Deep: 1.6 },
+
+    // Seconds for ore sold at a station to weigh half as much on its price (scarcity above).
+    // Was a fixed ×0.9995/s (≈ 1386 s): one captain selling a hold every few minutes held a core
+    // station at ~26% of its price (campaign QA, docs/QA_CAMPAIGN.md).
+    supply_half_life: 300.0,
 )

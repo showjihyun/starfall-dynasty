@@ -29,11 +29,17 @@ pub struct Options {
     /// Give up on a chapter after this many deaths in it.
     pub max_deaths: u32,
     pub unix: u64,
+    /// Start at this chapter (0 = the first) with every module at `level` — to play one chapter on
+    /// its own (`--chapter 4 --level 8`). Chapters before it count as done; the wallet is empty.
+    pub chapter: u32,
+    pub level: u8,
+    /// Stop after that one chapter.
+    pub only: bool,
 }
 
 impl Default for Options {
     fn default() -> Self {
-        Options { species: Species::Human, profession: Profession::CombatPilot, hull: HullClass::Talon, max_secs: 10.0 * 3600.0, max_deaths: 20, unix: 1_760_000_000 }
+        Options { species: Species::Human, profession: Profession::CombatPilot, hull: HullClass::Talon, max_secs: 10.0 * 3600.0, max_deaths: 20, unix: 1_760_000_000, chapter: 0, level: 1, only: false }
     }
 }
 
@@ -51,6 +57,8 @@ pub struct Chapter {
     /// Seconds spent earning credits instead of playing the chapter.
     pub grind_secs: f32,
     pub upgrades: u32,
+    /// Lowest hull (share) while playing the chapter (not while earning): how close the fights were.
+    pub low_hull: f32,
     /// Ship rank and module levels when it ended.
     pub rank: u8,
     pub levels: String,
@@ -77,12 +85,13 @@ impl Report {
         for c in &self.chapters {
             let took = c.finished.map(|f| f - c.started);
             s += &format!(
-                "{} {}  {}  deaths {} (+{} earning)  grind {}  upgrades {}  rank {}  [{}]\n",
+                "{} {}  {}  deaths {} (+{} earning)  lowest hull {:.0}%  grind {}  upgrades {}  rank {}  [{}]\n",
                 if c.finished.is_some() { "PASS" } else { "FAIL" },
                 c.title,
                 took.map_or("not finished".to_string(), mins),
                 c.deaths,
                 c.grind_deaths,
+                c.low_hull * 100.0,
                 mins(c.grind_secs),
                 c.upgrades,
                 c.rank,
@@ -143,6 +152,17 @@ pub fn play(o: &Options) -> Report {
         rep.stuck = Some("character could not be created".into());
         return rep;
     };
+    if o.chapter > 0 || o.level > 1 {
+        if let Some(p) = g.store.profile_mut(pid) {
+            p.scenarios_completed = o.chapter;
+            for m in Module::ALL {
+                p.ship.modules.insert(m, o.level.clamp(1, tier_cap(o.chapter)));
+            }
+        }
+        let home = g.store.profile(pid).map_or(0, |p| p.home);
+        g.spawn_player(pid, home, true);
+        g.out.clear();
+    }
     let mut p = Pilot { conn, pid, mode: Mode::Play, step_deaths: 0, step: None, upgrades_at_last_retreat: 0, upgrades: 0, missile_cd: 0.0, last_attacker: String::new(), at: 0, avoid: Default::default() };
     let dt = 1.0 / TICK_HZ;
     let total = (o.max_secs * TICK_HZ) as u64;
@@ -171,7 +191,8 @@ pub fn play(o: &Options) -> Report {
                 rep.stuck = Some(why);
                 break;
             }
-            if rep.chapters.len() == scenarios().len() && rep.chapters.iter().all(|c| c.finished.is_some()) {
+            let last_done = rep.chapters.last().is_some_and(|c| c.finished.is_some() && (o.only || c.id as usize + 1 == scenarios().len()));
+            if last_done {
                 break;
             }
         }
@@ -183,7 +204,7 @@ pub fn play(o: &Options) -> Report {
         g.kicked.clear();
         rep.secs = t + dt;
     }
-    if rep.stuck.is_none() && rep.completed() < scenarios().len() {
+    if rep.stuck.is_none() && !rep.chapters.last().is_some_and(|c| c.finished.is_some() && (o.only || c.id as usize + 1 == scenarios().len())) {
         rep.stuck = Some(format!("out of time after {} ({})", mins(rep.secs), step_text(&g, pid)));
     }
     rep.credits = g.store.profile(pid).map(|p| p.wallet.credits).unwrap_or(0);
@@ -291,6 +312,11 @@ impl Pilot {
             self.last_attacker = format!("{} in system {sys} ({npcs} pirates there)", a.name);
         }
         let in_combat = g.now - last_hit < COMBAT_LOCK;
+        if self.mode == Mode::Play
+            && let Some(c) = rep.chapters.last_mut().filter(|c| c.finished.is_none())
+        {
+            c.low_hull = c.low_hull.min(hull_frac);
+        }
 
         // Chapter bookkeeping: a new chapter starts, a step changes, a chapter ends.
         let current = prof.scenario.clone().map(|s| (s.id, s.step));
@@ -298,7 +324,7 @@ impl Pilot {
             if let Some((id, step)) = current {
                 if rep.chapters.iter().all(|c| c.id != id) {
                     let sc = &scenarios()[id as usize];
-                    rep.chapters.push(Chapter { id, title: sc.title.to_string(), started: t, ..Default::default() });
+                    rep.chapters.push(Chapter { id, title: sc.title.to_string(), started: t, low_hull: 1.0, ..Default::default() });
                 }
                 if let Some(c) = rep.chapters.iter_mut().find(|c| c.id == id) {
                     c.log.push(format!("{} {}", mins(t), step_text(g, pid)));
@@ -326,7 +352,8 @@ impl Pilot {
         // Losing a fight twice: go home, earn credits and upgrade before the next try.
         let cap = tier_cap(prof.scenarios_completed);
         if self.mode == Mode::Play && self.step_deaths >= 2 {
-            let room = Module::ALL.iter().any(|m| prof.ship.level(*m) < cap);
+            // Room to grow in what fights (scanner and cargo do not win a battle).
+            let room = Module::ALL.iter().filter(|m| !matches!(m, Module::Scanner | Module::Cargo)).any(|m| prof.ship.level(*m) < cap);
             if !room {
                 return Some(format!("{}: still losing with every module at the level cap Lv{cap} ({})", rep.chapters.last().map_or("", |c| c.title.as_str()), step_text(g, pid)));
             }
@@ -336,8 +363,8 @@ impl Pilot {
             if let Some(c) = rep.chapters.last_mut() {
                 c.log.push(format!("{} retreats to earn the next 3 upgrades: {} (has {})", mins(t), want.describe(), prof.wallet.describe()));
             }
-            if want.relic > prof.wallet.relic {
-                return Some(format!("{}: the next upgrades need {} relics, which mining cannot earn ({})", rep.chapters.last().map_or("", |c| c.title.as_str()), want.relic, step_text(g, pid)));
+            if want == Materials::default() {
+                return Some(format!("{}: every upgrade left needs relics, which mining cannot earn — has {} ({})", rep.chapters.last().map_or("", |c| c.title.as_str()), prof.wallet.relic, step_text(g, pid)));
             }
             self.mode = Mode::Grind { goal: want };
         }
@@ -403,7 +430,7 @@ impl Pilot {
                 // home (prices fall as a station buys). Fill the hold, dock there.
                 let short = |o: &Ore| refine_need(*o, &goal, &prof.wallet).1;
                 let (at, ore) = match Ore::ALL.into_iter().filter(|o| short(o) > 0).max_by_key(short) {
-                    Some(o) => (mining_system(prof.home, Some(o), stats.warp_range, &self.avoid), Some(o)),
+                    Some(o) => (mining_system(prof.home, Some(o), stats.warp_range, &self.avoid, prof.scenarios_completed), Some(o)),
                     None => best_market(g, prof.home, stats.warp_range, prof.profession == Profession::Trader, prof.scenarios_completed, &self.avoid),
                 };
                 if sys != at {
@@ -542,15 +569,19 @@ impl Pilot {
 
     /// Upgrade order: what wins fights first, then the rest; cheapest level first within that.
     fn order(prof: &shared::protocol::Profile, cap: u8) -> Vec<Module> {
+        // A level of weapons first, then hull and shield, …; scanner and cargo only while they are
+        // cheap (from Lv6 every level costs relics, which go to what wins fights).
         let weight = |m: Module| match m {
             Module::Weapons => 0,
             Module::Hull | Module::Shield => 1,
-            Module::Reactor | Module::Engine => 2,
-            Module::WarpCore => 3,
-            Module::Scanner | Module::Cargo => 4,
+            Module::Reactor => 2,
+            Module::Engine => 3,
+            Module::WarpCore => 4,
+            Module::Scanner | Module::Cargo => 6,
         };
-        let mut ms: Vec<Module> = Module::ALL.into_iter().filter(|m| prof.ship.level(*m) < cap).collect();
-        ms.sort_by_key(|m| (prof.ship.level(*m), weight(*m)));
+        let utility = |m: Module| matches!(m, Module::Scanner | Module::Cargo);
+        let mut ms: Vec<Module> = Module::ALL.into_iter().filter(|m| prof.ship.level(*m) < cap && !(utility(*m) && prof.ship.level(*m) >= 5)).collect();
+        ms.sort_by_key(|m| (prof.ship.level(*m) as u32 * 2 + weight(*m), weight(*m)));
         ms
     }
 
@@ -561,8 +592,12 @@ impl Pilot {
     /// What the next `n` upgrades in order cost together.
     fn next_upgrades_cost(&self, prof: &shared::protocol::Profile, cap: u8, n: usize) -> Materials {
         let mut sum = Materials::default();
-        for m in Self::order(prof, cap).into_iter().take(n) {
+        // Only upgrades the relics in hand pay for: mining earns everything else.
+        for m in Self::order(prof, cap).into_iter().filter(|m| upgrade_cost(*m, prof.ship.level(*m)).relic <= prof.wallet.relic).take(n) {
             let c = upgrade_cost(m, prof.ship.level(m));
+            if sum.relic + c.relic > prof.wallet.relic {
+                continue;
+            }
             sum.credits += c.credits;
             sum.alloy += c.alloy;
             sum.crystal += c.crystal;
@@ -599,8 +634,8 @@ fn refine_need(ore: Ore, goal: &Materials, wallet: &Materials) -> (u32, u32) {
 }
 
 /// Where to mine `ore` (any ore: home): home if it has an asteroid of it, else the system that has
-/// one fewest warps from home.
-fn mining_system(home: SystemId, ore: Option<Ore>, range: f32, avoid: &std::collections::BTreeSet<SystemId>) -> SystemId {
+/// one fewest warps from home, safe ones ([`safe_to_earn`]) first.
+fn mining_system(home: SystemId, ore: Option<Ore>, range: f32, avoid: &std::collections::BTreeSet<SystemId>, cleared: u32) -> SystemId {
     let Some(ore) = ore else { return home };
     let has = |s: SystemId| !avoid.contains(&s) && galaxy::system_layout(s).asteroids.iter().any(|a| a.ore == ore);
     if has(home) {
@@ -614,14 +649,20 @@ fn mining_system(home: SystemId, ore: Option<Ore>, range: f32, avoid: &std::coll
         }
         (at == to).then_some(n)
     };
-    galaxy::systems().iter().filter(|d| has(d.id)).filter_map(|d| hops(d.id).map(|n| (n, d.id))).min().map_or(home, |b| b.1)
+    galaxy::systems().iter().filter(|d| has(d.id)).filter_map(|d| hops(d.id).map(|n| (!safe_to_earn(d, cleared), n, d.id))).min().map_or(home, |b| b.2)
+}
+
+/// A system whose roaming pirates a captain who cleared `cleared` chapters can live with while
+/// mining: pirate level below the chapters cleared (the core until chapter 2 is done).
+fn safe_to_earn(d: &galaxy::SystemDef, cleared: u32) -> bool {
+    (d.tier.pirate_level() as u32) < cleared.max(1)
 }
 
 /// The (system, ore) worth the most per unit among home and the systems at most two warps away
-/// whose pirates are no stronger than the chapters cleared (a new captain mines in safe space).
+/// that are safe to earn in ([`safe_to_earn`]).
 fn best_market(g: &Game, home: SystemId, range: f32, trader: bool, cleared: u32, avoid: &std::collections::BTreeSet<SystemId>) -> (SystemId, Option<Ore>) {
     let near = |s: SystemId| s == home || next_hop(home, s, range).is_some_and(|h| h == s || galaxy::distance_ly(h, s) <= range + 1e-3);
-    let safe = |d: &&galaxy::SystemDef| d.id == home || (d.tier.pirate_level() as u32 <= cleared && !avoid.contains(&d.id));
+    let safe = |d: &&galaxy::SystemDef| d.id == home || (safe_to_earn(d, cleared) && !avoid.contains(&d.id));
     let mut best: Option<(f32, SystemId, Ore)> = None;
     for d in galaxy::systems().iter().filter(|d| near(d.id)).filter(safe) {
         for a in &galaxy::system_layout(d.id).asteroids {

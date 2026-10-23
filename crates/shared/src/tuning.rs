@@ -178,6 +178,31 @@ pub struct NpcTuning {
     /// How NPCs use 3D space. Missing (recordings made before it existed): the old flat behaviour.
     #[serde(default)]
     pub tactics: Tactics,
+    /// Free-roaming pirates outside the core. Missing (recordings made before it existed): the old
+    /// fixed numbers.
+    #[serde(default)]
+    pub ambient: Ambient,
+}
+
+/// Free-roaming pirate groups in Frontier and wilder systems with a captain in them.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Ambient {
+    /// A system keeps up to `base + per_level × pirate level` of them (Frontier 1, Wild 2, …)…
+    pub base: u32,
+    pub per_level: u32,
+    /// …spawning a group of 1–3 at most every this many seconds.
+    pub interval: f32,
+    /// While a captain fights a chapter's wave, no new group spawns in that system and roaming
+    /// pirates leave that captain alone unless shot at: the chapter's fight is the one it was
+    /// measured as (docs/QA_CAMPAIGN.md).
+    pub leave_waves: bool,
+}
+
+impl Default for Ambient {
+    fn default() -> Self {
+        Ambient { base: 2, per_level: 2, interval: 18.0, leave_waves: false }
+    }
 }
 
 /// 3D tactics for NPCs and escorts (main goal: fights that use height). The default is the old
@@ -235,6 +260,14 @@ pub struct EconomyTuning {
     pub risk_reward: BTreeMap<crate::galaxy::RiskTier, f32>,
     /// …and pirate bounties.
     pub bounty_risk: BTreeMap<crate::galaxy::RiskTier, f32>,
+    /// Seconds for ore sold at a station to count half as much against its price. Missing
+    /// (recordings made before it existed): the old fixed recovery (×0.9995 a second, ~23 min).
+    #[serde(default = "old_supply_half_life")]
+    pub supply_half_life: f32,
+}
+
+fn old_supply_half_life() -> f32 {
+    std::f32::consts::LN_2 / -(0.9995f32.ln())
 }
 
 /// The procedural galaxy around the hand-made core (`galaxy.ron`, see `galaxy::systems`).

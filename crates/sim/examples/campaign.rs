@@ -2,7 +2,8 @@
 //! game time, and the report says per chapter whether it was finished, how long it took, how often
 //! the captain died and where it got stuck (`sim::playthrough`).
 //!
-//!   cargo run -p sim --release --example campaign [-- --hull Talon --species Human --profession CombatPilot --hours 6]
+//!   cargo run -p sim --release --example campaign [-- --hull Talon --species Human --profession CombatPilot --hours 10]
+//!   … --chapter 4 [--level 8]   one chapter on its own (chapters before it done, every module at that level)
 //!
 //! Exit code 1 when the campaign was not finished.
 
@@ -26,6 +27,14 @@ fn main() {
     if let Some(p) = arg("--profession") {
         o.profession = parse(&p);
     }
+    if let Some(c) = arg("--chapter").and_then(|v| v.parse::<u32>().ok()) {
+        // Chapters are numbered from 1 here, as in game.
+        o.chapter = c.saturating_sub(1);
+        o.only = true;
+    }
+    if let Some(l) = arg("--level").and_then(|v| v.parse::<u8>().ok()) {
+        o.level = l;
+    }
     if let Some(h) = arg("--hours").and_then(|v| v.parse::<f32>().ok()) {
         o.max_secs = h * 3600.0;
     }
@@ -34,7 +43,7 @@ fn main() {
     let rep = play(&o);
     print!("{}", rep.text());
     println!("({:.1} s wall clock)", start.elapsed().as_secs_f32());
-    if rep.completed() < shared::missions::scenarios().len() {
+    if rep.stuck.is_some() {
         std::process::exit(1);
     }
 }

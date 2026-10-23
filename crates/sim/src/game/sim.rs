@@ -68,7 +68,7 @@ impl Game {
         self.tick_fronts();
 
         if self.tick % 20 == 0 {
-            self.store.decay_supply(0.9995);
+            self.store.decay_supply(0.5f32.powf(1.0 / self.tuning.economy.supply_half_life.max(1.0)));
         }
         if self.tick % 1200 == 0 && !self.store.data.contracts.is_empty() {
             self.expire_contracts();
@@ -204,15 +204,17 @@ impl Game {
         let has_players = self.sessions.values().any(|s| s.system == sys && s.player.is_some());
         let tier = galaxy::system(sys).tier;
         // Pirate population.
-        if tier != RiskTier::Core && has_players {
+        let amb = self.tuning.npcs.ambient;
+        let wave_here = amb.leave_waves && self.sessions.values().any(|s| s.wave_system == Some(sys) && !s.wave.is_empty());
+        if tier != RiskTier::Core && has_players && !wave_here {
             let s = self.systems.get_mut(&sys).unwrap();
             s.pirate_cd -= dt;
             // Only free-roaming pirates count (not scenario waves, and not players' escorts, which also
             // carry an AI — counting them used to stop pirates spawning around big fleets).
             let pop = s.ents.values().filter(|e| matches!(e.kind, EntityKind::Npc(_)) && !e.dead && e.ai.as_ref().is_some_and(|a| a.scenario_owner.is_none())).count();
-            let target = 2 + 2 * tier.pirate_level() as usize;
+            let target = (amb.base + amb.per_level * tier.pirate_level() as u32) as usize;
             if s.pirate_cd <= 0.0 && pop < target {
-                s.pirate_cd = 18.0;
+                s.pirate_cd = amb.interval;
                 self.spawn_pirate_group(sys, tier);
             }
         }
@@ -383,6 +385,8 @@ impl Game {
         if ai.think_cd <= 0.0 {
             ai.think_cd = 0.5;
             let fleet_of_owner = ai.scenario_owner.and_then(|o| self.fleet_of(o));
+            // Captains fighting their chapter's wave here, whom roaming pirates leave alone.
+            let busy: Vec<PlayerId> = if ai.scenario_owner.is_none() && self.tuning.npcs.ambient.leave_waves { self.sessions.values().filter(|s| s.wave_system == Some(sys) && !s.wave.is_empty()).filter_map(|s| s.player).collect() } else { vec![] };
             let mut best: Option<(EntityId, f32)> = None;
             for (tid, t) in &self.systems[&sys].ents {
                 if t.kind != EntityKind::Player || t.dead || t.docked {
@@ -391,7 +395,7 @@ impl Game {
                 let d = t.pos.distance(e.pos);
                 let is_owner_side = ai.scenario_owner.is_some() && (t.owner == ai.scenario_owner || (fleet_of_owner.is_some() && t.fleet == fleet_of_owner));
                 let attacked_me = e.attackers.iter().any(|(a, _, time)| a == tid && self.now - time < 20.0);
-                let ok = if ai.scenario_owner.is_some() { is_owner_side || attacked_me } else { d < aggro || attacked_me };
+                let ok = if ai.scenario_owner.is_some() { is_owner_side || attacked_me } else { (d < aggro && !t.owner.is_some_and(|o| busy.contains(&o))) || attacked_me };
                 if ok && best.is_none_or(|(_, bd)| d < bd) {
                     best = Some((*tid, d));
                 }

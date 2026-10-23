@@ -280,7 +280,11 @@ fn scenario_one_full_run_unlocks_tier() {
     run(&mut g, 5.0);
     assert_eq!(g.store.profile(pid).unwrap().scenario.as_ref().unwrap().step, 2, "scan step done");
     let wave = g.sessions[&1].wave.clone();
-    assert_eq!(wave.len(), 3, "raider wave spawned");
+    let want: u32 = match &shared::missions::scenarios()[0].steps[2] {
+        shared::missions::Step::Defeat { wave, .. } => wave.iter().map(|(_, n)| n).sum(),
+        s => panic!("chapter 1 ends with a fight, not {s:?}"),
+    };
+    assert_eq!(wave.len() as u32, want, "raider wave spawned");
     let (_, me) = ent_of(&g, 1);
     for w in wave {
         let hp = g.ent(3, w).map(|e| e.hull + e.shield).unwrap();
