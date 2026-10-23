@@ -211,9 +211,10 @@ pub struct Scenario {
     pub reward: Materials,
 }
 
+/// The campaign chapters; rewards come from `tuning/economy.ron` `chapter_rewards`.
 pub fn scenarios() -> Vec<Scenario> {
     use NpcArchetype::*;
-    vec![
+    let mut chapters = vec![
         Scenario {
             id: 0,
             title: "1장 · 오리온의 신호",
@@ -223,7 +224,7 @@ pub fn scenarios() -> Vec<Scenario> {
                 Step::ScanPoi { system: 3, kind: PoiKind::Signal, count: 1 },
                 Step::Defeat { system: 3, wave: vec![(Raider, 2)], level: 0 },
             ],
-            reward: Materials { credits: 3000, alloy: 25, crystal: 12, datacore: 3, relic: 0 },
+            reward: Materials::default(),
         },
         Scenario {
             id: 1,
@@ -235,7 +236,7 @@ pub fn scenarios() -> Vec<Scenario> {
                 Step::ScanPoi { system: 4, kind: PoiKind::Signal, count: 1 },
                 Step::Defeat { system: 4, wave: vec![(Raider, 2), (Gunship, 1)], level: 1 },
             ],
-            reward: Materials { credits: 6000, alloy: 40, crystal: 20, datacore: 6, relic: 1 },
+            reward: Materials::default(),
         },
         Scenario {
             id: 2,
@@ -246,7 +247,7 @@ pub fn scenarios() -> Vec<Scenario> {
                 Step::ScanPoi { system: 6, kind: PoiKind::Ruin, count: 3 },
                 Step::Defeat { system: 6, wave: vec![(Warden, 4)], level: 3 },
             ],
-            reward: Materials { credits: 10000, alloy: 60, crystal: 40, datacore: 10, relic: 2 },
+            reward: Materials::default(),
         },
         Scenario {
             id: 3,
@@ -257,7 +258,7 @@ pub fn scenarios() -> Vec<Scenario> {
                 Step::ScanPoi { system: 8, kind: PoiKind::Signal, count: 1 },
                 Step::Defeat { system: 8, wave: vec![(Gunship, 2), (Warlord, 1)], level: 3 },
             ],
-            reward: Materials { credits: 16000, alloy: 90, crystal: 60, datacore: 16, relic: 3 },
+            reward: Materials::default(),
         },
         Scenario {
             id: 4,
@@ -268,9 +269,14 @@ pub fn scenarios() -> Vec<Scenario> {
                 Step::ScanPoi { system: 9, kind: PoiKind::AncientGate, count: 1 },
                 Step::Defeat { system: 9, wave: vec![(Warden, 3), (Sentinel, 1)], level: 3 },
             ],
-            reward: Materials { credits: 40000, alloy: 150, crystal: 120, datacore: 30, relic: 6 },
+            reward: Materials::default(),
         },
-    ]
+    ];
+    let rewards = &crate::tuning::get().economy.chapter_rewards;
+    for (c, r) in chapters.iter_mut().zip(rewards) {
+        c.reward = r.clone();
+    }
+    chapters
 }
 
 #[cfg(test)]
@@ -310,6 +316,7 @@ mod tests {
     fn five_scenarios_with_rising_rewards() {
         let s = scenarios();
         assert_eq!(s.len(), 5);
+        assert_eq!(crate::tuning::get().economy.chapter_rewards.len(), s.len(), "one reward per chapter in economy.ron");
         for w in s.windows(2) {
             assert!(w[1].reward.credits > w[0].reward.credits);
         }

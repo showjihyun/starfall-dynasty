@@ -264,6 +264,15 @@ pub struct EconomyTuning {
     /// (recordings made before it existed): the old fixed recovery (×0.9995 a second, ~23 min).
     #[serde(default = "old_supply_half_life")]
     pub supply_half_life: f32,
+    /// What finishing each campaign chapter pays, in chapter order (`missions::scenarios`). Missing
+    /// (recordings made before it existed): the rewards that were code constants until then.
+    #[serde(default = "old_chapter_rewards")]
+    pub chapter_rewards: Vec<Materials>,
+}
+
+fn old_chapter_rewards() -> Vec<Materials> {
+    let m = |credits, alloy, crystal, datacore, relic| Materials { credits, alloy, crystal, datacore, relic };
+    vec![m(3000, 25, 12, 3, 0), m(6000, 40, 20, 6, 1), m(10000, 60, 40, 10, 2), m(16000, 90, 60, 16, 3), m(40000, 150, 120, 30, 6)]
 }
 
 fn old_supply_half_life() -> f32 {

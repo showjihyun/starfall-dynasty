@@ -21,4 +21,16 @@
     // Was a fixed ×0.9995/s (≈ 1386 s): one captain selling a hold every few minutes held a core
     // station at ~26% of its price (campaign QA, docs/QA_CAMPAIGN.md).
     supply_half_life: 300.0,
+
+    // Campaign chapter rewards, chapters 1–5 (shared::missions). 2026-10-24, campaign QA (docs/QA_CAMPAIGN.md):
+    // chapters 1–4 doubled, then chapter 2 raised again (12000 CR/60 alloy → 20000/120) — a captain reached
+    // chapter 3 with 2 alloy and ground 40 min for the upgrades to beat it; now chapter 3 takes 1–2 min and the
+    // first grind is chapter 4 (chapter 3 20000 → 25000 CR to keep rewards rising). Campaign 1h35–2h38 → 1h01–1h28 (Wren aside); chapter 5 unchanged.
+    chapter_rewards: [
+        (credits: 6000, alloy: 40, crystal: 15, datacore: 4),
+        (credits: 20000, alloy: 120, crystal: 35, datacore: 8, relic: 1),
+        (credits: 25000, alloy: 90, crystal: 50, datacore: 16, relic: 2),
+        (credits: 30000, alloy: 120, crystal: 80, datacore: 24, relic: 4),
+        (credits: 40000, alloy: 150, crystal: 120, datacore: 30, relic: 6),
+    ],
 )
