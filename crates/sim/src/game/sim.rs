@@ -330,8 +330,12 @@ impl Game {
 
         drop(p);
         let p = prof::span("damage");
+        let war = galaxy::system(sys).tier == RiskTier::WarZone;
         for s in shots {
-            self.apply_damage(sys, s.from, s.to, s.dmg);
+            // Captains against captains (escorts included) in a war zone fight longer (combat.ron war_pvp_damage).
+            let pvp = |id| self.ent(sys, id).is_some_and(|e| matches!(e.kind, EntityKind::Player | EntityKind::Escort));
+            let k = if war && pvp(s.from) && pvp(s.to) { self.tuning.combat.war_pvp_damage } else { 1.0 };
+            self.apply_damage(sys, s.from, s.to, s.dmg * k);
         }
         drop(p);
 

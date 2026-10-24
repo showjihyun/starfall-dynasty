@@ -3,9 +3,9 @@
   "description": "잔해를 조사해 증거를 쥔 함장을 격침하면 그 기록 일부를 빼앗고(정보 탈취), 빼앗은 기록을 공개하면 봉인된 블랙박스까지 모두가 읽게 된다(기밀 공개)",
   "dev": true,
   "captains": [
-    { "name": "Holder", "hull": "Bastion", "level": 5, "system": 7, "pos": [0, 0, 6000] },
-    { "name": "Victim", "hull": "Wren", "level": 1, "system": 7, "pos": [0, 0, 5500] },
-    { "name": "Spy", "hull": "Bastion", "level": 9, "system": 7, "pos": [9000, 0, 6000] }
+    { "name": "Holder", "hull": "Bastion", "level": 5, "system": 5, "pos": [0, 0, 6000] },
+    { "name": "Victim", "hull": "Wren", "level": 1, "system": 5, "pos": [0, 0, 5500] },
+    { "name": "Spy", "hull": "Bastion", "level": 9, "system": 5, "pos": [9000, 0, 6000] }
   ],
   "script": [
     { "at": 0.5, "captain": "Holder", "target_captain": "Victim", "aim": true, "msg": { "Controls": { "fire": true } }, "repeat_every": 0.1, "until": 7.0 },

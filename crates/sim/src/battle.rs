@@ -7,7 +7,7 @@
 use crate::game::{ConnId, Game};
 use crate::store::Store;
 use shared::galaxy::{Species, SystemId};
-use shared::glam::{Quat, Vec3};
+use shared::glam::{Quat, Vec2, Vec3};
 use shared::protocol::*;
 use shared::ships::{HullClass, Module};
 
@@ -26,6 +26,31 @@ pub struct Captain {
     pub side: usize,
     pub front: usize,
     pub target: Option<EntityId>,
+    /// Its place in its side's block on the front, kept while fighting under [`Doctrine::lanes`]:
+    /// the front's centre, the axis across the front toward the enemy, and the offset along the
+    /// line (x) and in height (y).
+    pub lane: (Vec3, Vec3, Vec2),
+    /// Direction away from the nearest ally, when one is closer than [`Doctrine::separation`].
+    pub crowd: Option<Vec3>,
+}
+
+/// How the captains fight (main goal "epic spread-out battles"; `examples/battle --doctrine`).
+#[derive(Clone, Copy, Debug)]
+pub struct Doctrine {
+    /// Spacing between captains in a block (u).
+    pub spacing: f32,
+    /// Hold the target at this share of the own weapon range (0: fly straight at it).
+    pub keep: f32,
+    /// Keep the own place along the line and in height, and prefer enemies facing it.
+    pub lanes: bool,
+    /// Slide away from an ally closer than this (0: never).
+    pub separation: f32,
+}
+
+impl Doctrine {
+    /// Everyone at the nearest enemy (the bench until 2026-10-24).
+    pub const OLD: Doctrine = Doctrine { spacing: SPACING, keep: 0.0, lanes: false, separation: 0.0 };
+    pub const WIDE: Doctrine = Doctrine { spacing: 300.0, keep: 0.8, lanes: true, separation: 120.0 };
 }
 
 /// Unix time the battle starts at.
@@ -33,7 +58,7 @@ pub const T0: u64 = 1_800_000_000;
 
 /// Sets up the war with `n` captains (half a side; conn 1 is the watcher, a capital above side 0's
 /// line on the first front) and places them on the fronts.
-pub fn setup(n: usize) -> (Game, Vec<Captain>) {
+pub fn setup(n: usize, d: &Doctrine) -> (Game, Vec<Captain>) {
     let mut g = Game::new(Store::memory(), history::HistoryEngine::new(), T0);
     let nf = g.systems[&SYSTEM].fronts.len().clamp(1, 4);
     // Conn 1 watches: a capital behind side 0's line on the first front.
@@ -56,7 +81,7 @@ pub fn setup(n: usize) -> (Game, Vec<Captain>) {
         let w = &SPREAD[side][..nf];
         let mut k = (i / 2) % w.iter().sum::<usize>();
         let front = w.iter().position(|x| if k < *x { true } else { k -= x; false }).unwrap();
-        caps.push(Captain { conn, side, front: if i == 0 { 0 } else { front }, target: None });
+        caps.push(Captain { conn, side, front: if i == 0 { 0 } else { front }, target: None, lane: (Vec3::ZERO, Vec3::X, Vec2::ZERO), crowd: None });
         pids.push(pid);
     }
     // Two alliances at war, joined directly (the invite/accept round trip tells every member about
@@ -72,18 +97,19 @@ pub fn setup(n: usize) -> (Game, Vec<Captain>) {
     for pid in &pids {
         g.spawn_player(*pid, SYSTEM, false);
     }
-    place(&mut g, &caps);
+    place(&mut g, &mut caps, d.spacing);
     (g, caps)
 }
 
 /// On each front, two facing blocks, Homeworld-style: rows across, layers in height, ranks in
 /// depth, escorts beside their captain. The lines face each other across the front's centre, along
 /// the direction from the system's middle out to the front, so neighbouring fronts stay apart.
-pub fn place(g: &mut Game, caps: &[Captain]) {
+pub fn place(g: &mut Game, caps: &mut [Captain], spacing: f32) {
     let fronts = g.systems[&SYSTEM].fronts.clone();
     let middle = fronts.iter().map(|f| f.pos).sum::<Vec3>() / fronts.len().max(1) as f32;
     let mut k = vec![[0usize; 2]; fronts.len().max(1)];
-    for c in caps {
+    let counts: Vec<(usize, usize)> = caps.iter().map(|c| (c.front, c.side)).collect();
+    for c in caps.iter_mut() {
         let Some(sess) = g.sessions.get(&c.conn) else { continue };
         let (ent, escorts) = (sess.entity, sess.escorts.clone());
         let Some(ent) = ent else { continue };
@@ -93,18 +119,20 @@ pub fn place(g: &mut Game, caps: &[Captain]) {
         let side_dir = axis.cross(Vec3::Y);
         let face = if c.side == 0 { 1.0 } else { -1.0 };
         let rot = Quat::from_rotation_arc(Vec3::NEG_Z, axis * face);
-        let n_here = caps.iter().filter(|x| x.front == c.front && x.side == c.side).count();
+        let n_here = counts.iter().filter(|x| **x == (c.front, c.side)).count();
         let across = (n_here as f32).cbrt().ceil().max(1.0) as usize;
         let pos = if c.conn == 1 {
             // The watcher: high above its own (inner) line, looking across the front at the enemy;
             // still nearer this front than any other, so the HUD marks it as ours.
-            f.pos - axis * (GAP / 2.0) + Vec3::Y * (across as f32 * SPACING * 0.6 + 250.0)
+            f.pos - axis * (GAP / 2.0) + Vec3::Y * (across as f32 * spacing * 0.6 + 250.0)
         } else {
             let i = k[c.front][c.side];
             k[c.front][c.side] += 1;
             let (row, layer, rank) = (i % across, (i / across) % across, i / (across * across));
             let half = across as f32 / 2.0;
-            f.pos - axis * face * (GAP / 2.0 + rank as f32 * SPACING) + Vec3::Y * ((layer as f32 - half) * SPACING * 0.8) + side_dir * ((row as f32 - half) * SPACING)
+            let lane = Vec2::new((row as f32 - half) * spacing, (layer as f32 - half) * spacing * 0.8);
+            c.lane = (f.pos, axis * face, lane);
+            f.pos - axis * face * (GAP / 2.0 + rank as f32 * spacing) + Vec3::Y * lane.y + side_dir * lane.x
         };
         let ents = &mut g.systems.get_mut(&SYSTEM).unwrap().ents;
         if let Some(e) = ents.get_mut(&ent) {
@@ -118,9 +146,13 @@ pub fn place(g: &mut Game, caps: &[Captain]) {
     }
 }
 
-/// Every captain flies at its target and fires; a twentieth of them pick the nearest enemy again
-/// each tick (once a second each), and anyone whose target is gone picks at once.
-pub fn steer(g: &mut Game, caps: &mut [Captain], tick: u64) {
+/// Every captain flies at its target and fires; a twentieth of them pick a target again each tick
+/// (once a second each), and anyone whose target is gone picks at once. Under [`Doctrine::OLD`]
+/// that is the nearest enemy, flown straight at; otherwise see [`Doctrine`].
+pub fn steer(g: &mut Game, caps: &mut [Captain], tick: u64, d: &Doctrine) {
+    if d.keep > 0.0 || d.lanes || d.separation > 0.0 {
+        return steer_doctrine(g, caps, tick, d);
+    }
     let sys = &g.systems[&SYSTEM];
     let side_of: std::collections::BTreeMap<PlayerId, usize> = caps.iter().filter_map(|c| Some((g.sessions[&c.conn].player?, c.side))).collect();
     let ships: Vec<(EntityId, Vec3, usize)> = sys.ents.values().filter_map(|e| Some((e.id, e.pos, *side_of.get(&e.owner?)?))).collect();
@@ -143,6 +175,64 @@ pub fn steer(g: &mut Game, caps: &mut [Captain], tick: u64) {
         if local.z > 0.0 {
             ctl.yaw = if local.x >= 0.0 { 1.0 } else { -1.0 };
         }
+        orders.push((c.conn, retarget, ctl));
+    }
+    for (conn, retarget, ctl) in orders {
+        if let Some(t) = retarget {
+            g.handle(conn, ClientMsg::SetTarget(t));
+        }
+        g.handle(conn, ClientMsg::Controls(ctl));
+    }
+}
+
+fn steer_doctrine(g: &mut Game, caps: &mut [Captain], tick: u64, d: &Doctrine) {
+    let sys = &g.systems[&SYSTEM];
+    let side_of: std::collections::BTreeMap<PlayerId, usize> = caps.iter().filter_map(|c| Some((g.sessions[&c.conn].player?, c.side))).collect();
+    let ships: Vec<(EntityId, Vec3, usize, bool)> = sys.ents.values().filter_map(|e| Some((e.id, e.pos, *side_of.get(&e.owner?)?, e.kind == EntityKind::Player))).collect();
+    let mut orders = vec![];
+    for (i, c) in caps.iter_mut().enumerate() {
+        if c.conn == 1 {
+            continue;
+        }
+        let Some(me) = g.sessions[&c.conn].entity.and_then(|id| sys.ents.get(&id)) else { continue };
+        let (centre, axis, lane) = c.lane;
+        let across = axis.cross(Vec3::Y);
+        let home = centre + across * lane.x + Vec3::Y * lane.y;
+        let alive = c.target.is_some_and(|t| sys.ents.contains_key(&t));
+        let mut retarget = None;
+        if !alive || (i as u64 + tick).is_multiple_of(TICK_HZ as u64) {
+            // The enemy nearest, counting how far off our lane it is twice when keeping lanes.
+            let off = |p: Vec3| if d.lanes { ((p - home).dot(across).abs() + (p.y - home.y).abs()) * 2.0 } else { 0.0 };
+            c.target = ships.iter().filter(|s| s.2 != c.side).min_by(|a, b| (a.1.distance(me.pos) + off(a.1)).total_cmp(&(b.1.distance(me.pos) + off(b.1)))).map(|s| s.0);
+            retarget = Some(c.target);
+            c.crowd = (d.separation > 0.0)
+                .then(|| ships.iter().filter(|s| s.2 == c.side && s.3 && s.0 != me.id).map(|s| (s.1, s.1.distance(me.pos))).filter(|s| s.1 < d.separation).min_by(|a, b| a.1.total_cmp(&b.1)))
+                .flatten()
+                .map(|(p, _)| (me.pos - p).normalize_or(Vec3::Y));
+        }
+        let Some(t) = c.target.and_then(|t| sys.ents.get(&t)) else { continue };
+        let to = t.pos - me.pos;
+        let dist = to.length();
+        let local = me.rot.inverse() * to.normalize_or_zero();
+        let mut ctl = Controls { yaw: (local.x * 4.0).clamp(-1.0, 1.0), pitch: (local.y * 4.0).clamp(-1.0, 1.0), fire: local.z < -0.8, ..Default::default() };
+        if local.z > 0.0 {
+            ctl.yaw = if local.x >= 0.0 { 1.0 } else { -1.0 };
+        }
+        let keep = me.stats.weapon_range * d.keep;
+        ctl.thrust = if d.keep <= 0.0 { if dist > 700.0 { 0.7 } else { 0.1 } } else if dist > keep * 1.1 { 0.7 } else if dist < keep * 0.8 { -0.5 } else { 0.0 };
+        // Slide (not turn) back toward our lane and away from a crowding ally; the nose stays on the target.
+        let mut slide = Vec3::ZERO;
+        if d.lanes {
+            let err = home - me.pos;
+            let dir = to.normalize_or_zero();
+            slide += (err - dir * err.dot(dir)) / 150.0;
+        }
+        if let Some(away) = c.crowd {
+            slide += away * 1.5;
+        }
+        let sl = me.rot.inverse() * slide;
+        ctl.strafe_x = sl.x.clamp(-1.0, 1.0);
+        ctl.strafe_y = sl.y.clamp(-1.0, 1.0);
         orders.push((c.conn, retarget, ctl));
     }
     for (conn, retarget, ctl) in orders {

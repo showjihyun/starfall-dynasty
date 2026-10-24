@@ -178,7 +178,7 @@ Phase 2·3 수입원을 한 표로 모았다. 사냥·채굴은 시뮬레이션�
 | 해적 사냥 15분 (Wild) | Hunter | 1602 | 68% | 29.1° |
 | 시나리오 capital_vs_raiders | Ares | 45 | 0% | 2.6° |
 | 시나리오 fighter_duel_gunship | Wing | 31 | 55% | 18.3° |
-| 시나리오 war_shifts_control | Raider | 14 | 0% | 0.0° |
+| 시나리오 war_shifts_control | Raider | 64 | 0% | 0.0° |
 | 시나리오 wild_crime_bounty | Rogue | 25 | 0% | 0.0° |
 
 대인전 위·아래 공격(시나리오 pvp_dive_halves_return_fire): Lv9 Talon이 Lv9 Bastion 주력함을 10초 공격. 주력함은 공격자를 목표로 잡고 포탑으로만 반격한다(`turret_arc_overlap`). 「구름」= 주력함이 공격자를 선체 옆으로 오게 구른다(broadside), 「따라붙음」= 공격자가 주력함의 위 축을 따라 움직인다(hold_over).

@@ -1,5 +1,6 @@
 //! The real battle behind `client --bench` (docs/STUDIO_PIPELINE.md, 성능): two alliances at war,
-//! each captain steering at and firing on the nearest enemy, run by the actual simulation on its
+//! each captain holding its place in its side's line and engaging at range (`sim::battle::Doctrine::WIDE`,
+//! main goal "epic spread-out battles"), run by the actual simulation on its
 //! own thread at the server's tick rate — a local server, in effect. Only the watching captain's
 //! messages reach the client, through the wire encoding and the same channel the network feeds,
 //! with the server's real interest management (snapshot budgets, effect radius). So the frame
@@ -34,7 +35,7 @@ pub fn start(captains: usize) -> Net {
 
 fn run(n: usize, feed: Sender<NetEvent>) {
     let setup = Instant::now();
-    let (mut g, mut caps) = sim::battle::setup(n);
+    let (mut g, mut caps) = sim::battle::setup(n, &sim::battle::Doctrine::WIDE);
     let nf = g.systems[&SYSTEM].fronts.len().clamp(1, 4);
     flush(&mut g, &feed);
     let on: Vec<usize> = (0..nf).map(|f| caps.iter().filter(|c| c.front == f).count()).collect();
@@ -44,7 +45,7 @@ fn run(n: usize, feed: Sender<NetEvent>) {
     let start = Instant::now();
     let mut tick = 0u64;
     loop {
-        sim::battle::steer(&mut g, &mut caps, tick);
+        sim::battle::steer(&mut g, &mut caps, tick, &sim::battle::Doctrine::WIDE);
         g.tick(dt, sim::battle::T0 + tick / TICK_HZ as u64);
         tick += 1;
         if !flush(&mut g, &feed) {

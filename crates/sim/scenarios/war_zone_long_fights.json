@@ -1,0 +1,26 @@
+{
+  "name": "war_zone_long_fights",
+  "description": "대규모 교전(최종 목표 「넓은 공간의 대규모 교전」): 전쟁 지역에서는 함장끼리(호위함 포함) 피해가 combat.ron war_pvp_damage(0.15)배라 함대전이 몇 분 이어진다. 같은 Lv5 Talon이 같은 Lv5 Bastion을 10초 쏜다 — Wild(Cinder Expanse)에서는 그대로, 전쟁 지역(Vesta Front)에서는 약 15%. 해적 상대는 그대로(Lv9 Gunship을 10초 안에 격파, 2026-10-24: Wild 2122 · 전쟁 지역 421 · 해적 1924)",
+  "captains": [
+    { "name": "WildShooter", "hull": "Talon", "level": 5, "system": 5, "pos": [0, 0, 6000] },
+    { "name": "WildTarget", "hull": "Bastion", "level": 5, "system": 5, "pos": [0, 0, 5600] },
+    { "name": "WarShooter", "hull": "Talon", "level": 5, "system": 7, "pos": [0, 0, 6000] },
+    { "name": "WarTarget", "hull": "Bastion", "level": 5, "system": 7, "pos": [0, 0, 5600] },
+    { "name": "PirateHunter", "hull": "Talon", "level": 5, "system": 7, "pos": [8000, 0, 6000] }
+  ],
+  "npcs": [
+    { "archetype": "Gunship", "level": 9, "system": 7, "pos": [8000, 0, 5600] }
+  ],
+  "script": [
+    { "at": 0.5, "captain": "WildShooter", "target_captain": "WildTarget", "aim": true, "msg": { "Controls": { "fire": true } }, "repeat_every": 0.1, "until": 10 },
+    { "at": 0.5, "captain": "WarShooter", "target_captain": "WarTarget", "aim": true, "msg": { "Controls": { "fire": true } }, "repeat_every": 0.1, "until": 10 },
+    { "at": 0.5, "captain": "PirateHunter", "target_nearest": "npc", "aim": true, "msg": { "Controls": { "fire": true } }, "repeat_every": 0.1, "until": 10 }
+  ],
+  "run_secs": 10,
+  "expect": [
+    { "check": "dealt", "captain": "WildShooter", "min": 2000 },
+    { "check": "dealt", "captain": "WarShooter", "max": 450 },
+    { "check": "dealt", "captain": "PirateHunter", "min": 1500 },
+    { "check": "alive", "captain": "WarTarget" }
+  ]
+}

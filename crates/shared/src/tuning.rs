@@ -556,6 +556,15 @@ pub struct CombatTuning {
     /// the value before it moved here.
     #[serde(default = "roll_rate")]
     pub roll_rate: f32,
+    /// Damage between captains (their escorts included) in a war zone, as a share of the same hit
+    /// anywhere else: fleet wars last minutes, pirates, bosses and duels elsewhere stay as they are.
+    /// Default 1 (recordings from before it).
+    #[serde(default = "one")]
+    pub war_pvp_damage: f32,
+}
+
+fn one() -> f32 {
+    1.0
 }
 
 fn no_arcs() -> f32 {
