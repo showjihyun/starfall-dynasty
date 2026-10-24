@@ -92,6 +92,17 @@ pub fn elevation_text(me: Vec3, it: Vec3) -> String {
     if d.y.abs() >= 1000.0 { format!("{arrow} {:.2} km · {angle:+.0}°", d.y.abs() / 1000.0) } else { format!("{arrow} {:.0} m · {angle:+.0}°", d.y.abs()) }
 }
 
+/// My post in my fleet's formation (`shared::formation`), if the leader set one and its ship is in
+/// sight: the post in the world and the HUD label for it. `members` in post order (leader first),
+/// `ents` the snapshot's ships.
+pub fn formation_post<'a>(formation: shared::formation::Formation, members: &[shared::protocol::FleetMember], me: shared::protocol::PlayerId, ents: impl IntoIterator<Item = &'a EntityState>, spacing: f32) -> Option<(Vec3, String)> {
+    let slot = members.iter().position(|m| m.player == me)?;
+    let leader = members.first()?.player;
+    let l = ents.into_iter().find(|e| e.kind == EntityKind::Player && e.owner == Some(leader))?;
+    let post = formation.post_at(slot, Vec3::from(l.pos), shared::glam::Quat::from_array(l.rot), spacing)?;
+    Some((post, format!("◆ 진형 자리 · {}", formation.name())))
+}
+
 /// Target panel line on its turret arcs (`shared::ships::batteries_reaching`): how many of its
 /// batteries can reach me, and the hint to dive when all of them can — under its belly when fewer
 /// than half reach there (`under`, `shared::ships::batteries_under`). None: it has no turrets.

@@ -97,6 +97,8 @@ pub enum ClientMsg {
     FleetInvite { name: String },
     FleetAccept { fleet: FleetId },
     FleetLeave,
+    /// Fleet leader only: the formation every other member keeps station in (`shared::formation`).
+    FleetFormation { formation: crate::formation::Formation },
     Respawn,
     Chat { text: String },
     RequestChronicle,
@@ -290,6 +292,9 @@ pub struct SystemStanding {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct FleetMember {
+    /// Missing (0) from servers before formations.
+    #[serde(default)]
+    pub player: PlayerId,
     pub name: String,
     pub hull: HullClass,
     pub system: SystemId,
@@ -337,7 +342,16 @@ pub enum ServerMsg {
     Chronicle { events: Vec<HistoricalEvent>, evidence: Vec<Evidence>, herald: Vec<Headline> },
     Biography { name: String, character: Vec<BioEntry>, ship: Vec<BioEntry> },
     FleetInvite { from: String, fleet: FleetId },
-    Fleet { id: Option<FleetId>, members: Vec<FleetMember> },
+    /// `members` in post order (the leader first); `formation` and `leader` (its name) are missing
+    /// from servers before formations.
+    Fleet {
+        id: Option<FleetId>,
+        members: Vec<FleetMember>,
+        #[serde(default)]
+        formation: crate::formation::Formation,
+        #[serde(default)]
+        leader: String,
+    },
     Engagement { active: bool, sides: Vec<String> },
     /// War-zone battle standing per front (`galaxy::fronts`, index = position in that list), sent to
     /// everyone in the system every `fronts.report_secs` during a battle; empty when it ends.

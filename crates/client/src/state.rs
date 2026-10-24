@@ -66,6 +66,9 @@ pub struct Session {
     pub biography: Option<(String, Vec<BioEntry>, Vec<BioEntry>)>,
     pub fleet: Option<FleetId>,
     pub fleet_members: Vec<FleetMember>,
+    /// The fleet's formation and leader's name (`ServerMsg::Fleet`); members are in post order.
+    pub fleet_formation: shared::formation::Formation,
+    pub fleet_leader: String,
     pub alliances: Vec<AllianceInfo>,
     pub my_alliance: Option<AllianceId>,
     pub alliance_invite: Option<(String, AllianceId, String)>,
@@ -329,9 +332,11 @@ fn apply(s: &mut Session, m: ServerMsg, now: f64, next: &mut NextState<Screen>) 
             s.toast(format!("{from}의 함대 초대 — 함대 창(K)에서 수락"), now);
             s.invite = Some((from, fleet));
         }
-        ServerMsg::Fleet { id, members } => {
+        ServerMsg::Fleet { id, members, formation, leader } => {
             s.fleet = id;
             s.fleet_members = members;
+            s.fleet_formation = formation;
+            s.fleet_leader = leader;
         }
         ServerMsg::Engagement { active, sides } => s.engagement = if active { Some(sides) } else { None },
         ServerMsg::Fronts { fronts } => s.fronts = fronts,

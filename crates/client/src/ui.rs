@@ -347,6 +347,12 @@ fn hud(ctx: &egui::Context, s: &mut Session, net: &Net, env: &Env, vis: &Visuals
             let mut marks: Vec<(Vec3, String, Color32)> = layout.pois.iter().map(|p| (p.pos, format!("{} {}", poi_icon(p.kind), p.name), if s.scanned.contains(&p.id) { DIM } else { view::palette::POI })).collect();
             marks.push((layout.station, "■ 정거장 (G: 도킹)".into(), GREEN));
             marks.push((layout.jump_point, "◎ 워프 지점".into(), ACCENT));
+            // My post in the fleet's formation (main goal "epic spread-out battles").
+            if let (Some(me), Some(latest)) = (s.player_id, s.latest())
+                && let Some((post, label)) = view::hud::formation_post(s.fleet_formation, &s.fleet_members, me, latest.ents.values(), shared::tuning::get().ships.formation_spacing)
+            {
+                marks.push((post, label, GOLD));
+            }
             for (pos, name, col) in marks {
                 if let Some(sp) = project(pos) {
                     let d = pos.distance(my_pos);
@@ -914,8 +920,23 @@ fn fleet(ui: &mut egui::Ui, s: &mut Session, net: &Net) {
     match s.fleet {
         Some(id) => {
             ui.label(RichText::new(format!("함대 #{id}")).strong());
-            for m in &s.fleet_members {
-                ui.label(format!("{} {} — {} · {}", if m.online { "●" } else { "○" }, m.name, m.hull.name(), galaxy::system(m.system).name));
+            for (i, m) in s.fleet_members.iter().enumerate() {
+                let role = if i == 0 { "함대장" } else { "" };
+                ui.label(format!("{} {} {role} — {} · {}", if m.online { "●" } else { "○" }, m.name, m.hull.name(), galaxy::system(m.system).name));
+            }
+            // Formation: the leader picks, everyone else keeps the ◆ post on the HUD.
+            let leader = s.fleet_members.first().is_some_and(|m| Some(m.player) == s.player_id);
+            ui.horizontal(|ui| {
+                ui.label("진형");
+                for f in shared::formation::Formation::ALL {
+                    let on = s.fleet_formation == f;
+                    if ui.add_enabled(leader || on, egui::Button::new(f.name()).selected(on)).clicked() && leader && !on {
+                        net.send(ClientMsg::FleetFormation { formation: f });
+                    }
+                }
+            });
+            if !leader {
+                ui.label(RichText::new("진형은 함대장이 정합니다. HUD의 ◆ 진형 자리를 지키면 함대가 넓게 펼쳐집니다.").size(11.0).color(DIM));
             }
             if ui.button("함대 탈퇴").clicked() {
                 net.send(ClientMsg::FleetLeave);

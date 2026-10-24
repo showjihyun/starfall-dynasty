@@ -245,6 +245,7 @@ pub fn escort_slot(k: u8) -> Vec3 {
 pub struct Fleet {
     pub leader: PlayerId,
     pub members: Vec<PlayerId>,
+    pub formation: shared::formation::Formation,
 }
 
 pub struct Game {
@@ -742,19 +743,25 @@ impl Game {
 
     pub fn broadcast_fleet(&mut self, pid: PlayerId) {
         let Some(fid) = self.fleet_of(pid) else {
-            self.send_player(pid, ServerMsg::Fleet { id: None, members: vec![] });
+            self.send_player(pid, ServerMsg::Fleet { id: None, members: vec![], formation: Default::default(), leader: String::new() });
             return;
         };
-        let members_ids = self.fleets[&fid].members.clone();
+        // Post order: the leader first, then the others as they joined.
+        let leader = self.fleets[&fid].leader;
+        let formation = self.fleets[&fid].formation;
+        let mut members_ids = self.fleets[&fid].members.clone();
+        members_ids.retain(|m| *m != leader);
+        members_ids.insert(0, leader);
+        let leader_name = self.store.profile(leader).map(|p| p.name.clone()).unwrap_or_default();
         let members: Vec<FleetMember> = members_ids
             .iter()
             .filter_map(|m| {
                 let p = self.store.profile(*m)?;
-                Some(FleetMember { name: p.name.clone(), hull: p.ship.hull, system: self.player_entity(*m).map(|x| x.0).unwrap_or(p.last_system), online: self.conn_of.contains_key(m) })
+                Some(FleetMember { player: *m, name: p.name.clone(), hull: p.ship.hull, system: self.player_entity(*m).map(|x| x.0).unwrap_or(p.last_system), online: self.conn_of.contains_key(m) })
             })
             .collect();
         for m in &members_ids {
-            self.send_player(*m, ServerMsg::Fleet { id: Some(fid), members: members.clone() });
+            self.send_player(*m, ServerMsg::Fleet { id: Some(fid), members: members.clone(), formation, leader: leader_name.clone() });
             if let Some((s, e)) = self.player_entity(*m)
                 && let Some(ent) = self.ent_mut(s, e)
             {
@@ -766,7 +773,7 @@ impl Game {
     pub fn new_fleet(&mut self, leader: PlayerId) -> FleetId {
         let id = self.next_fleet;
         self.next_fleet += 1;
-        self.fleets.insert(id, Fleet { leader, members: vec![leader] });
+        self.fleets.insert(id, Fleet { leader, members: vec![leader], formation: Default::default() });
         id
     }
 

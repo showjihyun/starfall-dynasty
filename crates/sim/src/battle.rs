@@ -45,12 +45,15 @@ pub struct Doctrine {
     pub lanes: bool,
     /// Slide away from an ally closer than this (0: never).
     pub separation: f32,
+    /// Captains on a front form fleets of five (`shared::formation`): leaders fly by the rest of the
+    /// doctrine, the others keep their post around their leader. Free: no fleets.
+    pub formation: shared::formation::Formation,
 }
 
 impl Doctrine {
     /// Everyone at the nearest enemy (the bench until 2026-10-24).
-    pub const OLD: Doctrine = Doctrine { spacing: SPACING, keep: 0.0, lanes: false, separation: 0.0 };
-    pub const WIDE: Doctrine = Doctrine { spacing: 300.0, keep: 0.8, lanes: true, separation: 120.0 };
+    pub const OLD: Doctrine = Doctrine { spacing: SPACING, keep: 0.0, lanes: false, separation: 0.0, formation: shared::formation::Formation::Free };
+    pub const WIDE: Doctrine = Doctrine { spacing: 300.0, keep: 0.8, lanes: true, separation: 120.0, formation: shared::formation::Formation::Free };
 }
 
 /// Unix time the battle starts at.
@@ -98,6 +101,22 @@ pub fn setup(n: usize, d: &Doctrine) -> (Game, Vec<Captain>) {
         g.spawn_player(*pid, SYSTEM, false);
     }
     place(&mut g, &mut caps, d.spacing);
+    if d.formation != shared::formation::Formation::Free {
+        // Fleets of five per side and front, in placement order (neighbours in the block).
+        let mut groups: std::collections::BTreeMap<(usize, usize), Vec<PlayerId>> = Default::default();
+        for (c, pid) in caps.iter().zip(&pids).skip(1) {
+            groups.entry((c.side, c.front)).or_default().push(*pid);
+        }
+        for members in groups.values() {
+            for five in members.chunks(5).filter(|f| f.len() > 1) {
+                let fid = g.new_fleet(five[0]);
+                let f = g.fleets.get_mut(&fid).unwrap();
+                f.members.extend_from_slice(&five[1..]);
+                f.formation = d.formation;
+                g.broadcast_fleet(five[0]);
+            }
+        }
+    }
     (g, caps)
 }
 
@@ -150,7 +169,7 @@ pub fn place(g: &mut Game, caps: &mut [Captain], spacing: f32) {
 /// (once a second each), and anyone whose target is gone picks at once. Under [`Doctrine::OLD`]
 /// that is the nearest enemy, flown straight at; otherwise see [`Doctrine`].
 pub fn steer(g: &mut Game, caps: &mut [Captain], tick: u64, d: &Doctrine) {
-    if d.keep > 0.0 || d.lanes || d.separation > 0.0 {
+    if d.keep > 0.0 || d.lanes || d.separation > 0.0 || d.formation != shared::formation::Formation::Free {
         return steer_doctrine(g, caps, tick, d);
     }
     let sys = &g.systems[&SYSTEM];
@@ -187,6 +206,18 @@ pub fn steer(g: &mut Game, caps: &mut [Captain], tick: u64, d: &Doctrine) {
 
 fn steer_doctrine(g: &mut Game, caps: &mut [Captain], tick: u64, d: &Doctrine) {
     let sys = &g.systems[&SYSTEM];
+    // Formation posts of fleet members (not leaders), from their leader's ship.
+    let spacing = g.tuning.ships.formation_spacing;
+    let mut posts: std::collections::BTreeMap<ConnId, Vec3> = Default::default();
+    for f in g.fleets.values() {
+        let Some(l) = g.player_entity(f.leader).and_then(|(_, id)| sys.ents.get(&id)) else { continue };
+        let others = f.members.iter().filter(|m| **m != f.leader);
+        for (k, m) in others.enumerate() {
+            if let (Some(conn), Some(post)) = (g.conn_of.get(m), f.formation.post_at(k + 1, l.pos, l.rot, spacing)) {
+                posts.insert(*conn, post);
+            }
+        }
+    }
     let side_of: std::collections::BTreeMap<PlayerId, usize> = caps.iter().filter_map(|c| Some((g.sessions[&c.conn].player?, c.side))).collect();
     let ships: Vec<(EntityId, Vec3, usize, bool)> = sys.ents.values().filter_map(|e| Some((e.id, e.pos, *side_of.get(&e.owner?)?, e.kind == EntityKind::Player))).collect();
     let mut orders = vec![];
@@ -217,6 +248,23 @@ fn steer_doctrine(g: &mut Game, caps: &mut [Captain], tick: u64, d: &Doctrine) {
         let mut ctl = Controls { yaw: (local.x * 4.0).clamp(-1.0, 1.0), pitch: (local.y * 4.0).clamp(-1.0, 1.0), fire: local.z < -0.8, ..Default::default() };
         if local.z > 0.0 {
             ctl.yaw = if local.x >= 0.0 { 1.0 } else { -1.0 };
+        }
+        // A fleet member keeps its formation post (the ◆ on its HUD): nose-first while far, else
+        // nose on the target and sliding into the post.
+        if let Some(post) = posts.get(&c.conn) {
+            let err = *post - me.pos;
+            if err.length() > 800.0 {
+                let l = me.rot.inverse() * err.normalize_or_zero();
+                ctl = Controls { yaw: (l.x * 4.0).clamp(-1.0, 1.0), pitch: (l.y * 4.0).clamp(-1.0, 1.0), thrust: 1.0, fire: false, ..Default::default() };
+                if l.z > 0.0 {
+                    ctl.yaw = if l.x >= 0.0 { 1.0 } else { -1.0 };
+                }
+            } else {
+                let l = me.rot.inverse() * err / 150.0;
+                (ctl.strafe_x, ctl.strafe_y, ctl.thrust) = (l.x.clamp(-1.0, 1.0), l.y.clamp(-1.0, 1.0), (-l.z).clamp(-1.0, 1.0));
+            }
+            orders.push((c.conn, retarget, ctl));
+            continue;
         }
         let keep = me.stats.weapon_range * d.keep;
         ctl.thrust = if d.keep <= 0.0 { if dist > 700.0 { 0.7 } else { 0.1 } } else if dist > keep * 1.1 { 0.7 } else if dist < keep * 0.8 { -0.5 } else { 0.0 };

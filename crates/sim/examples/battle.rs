@@ -1,6 +1,6 @@
 //! How far a big fight spreads (main goal "epic spread-out battles"):
 //! `cargo run -p sim --release --example battle [captains] [--secs S] [--every S] [--doctrine old|wide]
-//!  [--spacing U] [--keep SHARE] [--lanes 0|1] [--separation U]`
+//!  [--spacing U] [--keep SHARE] [--lanes 0|1] [--separation U] [--formation line|column|wall]`
 //! Runs the `client --bench` war (`sim::battle`, default 1020 captains) headless and prints, per
 //! front, how wide the fighting is: ships, RMS spread across and up, 90% footprint, median distance
 //! to the nearest ship, share of ships within 60 u of another, median distance to the target.
@@ -21,6 +21,9 @@ fn main() {
     d.keep = arg("--keep").unwrap_or(d.keep);
     d.lanes = arg("--lanes").map_or(d.lanes, |v| v > 0.0);
     d.separation = arg("--separation").unwrap_or(d.separation);
+    if let Some(f) = args.iter().position(|a| a == "--formation").and_then(|i| args.get(i + 1)) {
+        d.formation = shared::formation::Formation::ALL.into_iter().find(|x| format!("{x:?}").eq_ignore_ascii_case(f)).expect("formation: free|line|column|wall");
+    }
     println!("doctrine {d:?}");
     let (mut g, mut caps) = sim::battle::setup(n, &d);
     let fronts = &g.systems[&sim::battle::SYSTEM].fronts;

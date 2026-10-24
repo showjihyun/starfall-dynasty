@@ -75,6 +75,7 @@ impl Game {
             ClientMsg::FleetInvite { name } => self.fleet_invite(pid, &name),
             ClientMsg::FleetAccept { fleet } => self.fleet_accept(conn, pid, fleet),
             ClientMsg::FleetLeave => self.fleet_leave(pid),
+            ClientMsg::FleetFormation { formation } => self.fleet_formation(pid, formation),
             ClientMsg::Respawn => {
                 if dead {
                     self.respawn(pid);
@@ -766,6 +767,18 @@ impl Game {
         self.broadcast_fleet(pid);
     }
 
+    fn fleet_formation(&mut self, pid: PlayerId, formation: shared::formation::Formation) {
+        let Some(fid) = self.fleet_of(pid) else { return self.toast(pid, "함대가 없습니다") };
+        if self.fleets[&fid].leader != pid {
+            return self.toast(pid, "진형은 함대장만 정할 수 있습니다");
+        }
+        self.fleets.get_mut(&fid).unwrap().formation = formation;
+        for m in self.fleets[&fid].members.clone() {
+            self.toast(m, format!("함대 진형: {} — HUD의 ◆ 진형 자리를 지키세요", formation.name()));
+        }
+        self.broadcast_fleet(pid);
+    }
+
     pub(super) fn fleet_leave(&mut self, pid: PlayerId) {
         let Some(fid) = self.fleet_of(pid) else { return };
         let f = self.fleets.get_mut(&fid).unwrap();
@@ -781,7 +794,7 @@ impl Game {
         {
             ent.fleet = None;
         }
-        self.send_player(pid, ServerMsg::Fleet { id: None, members: vec![] });
+        self.send_player(pid, ServerMsg::Fleet { id: None, members: vec![], formation: Default::default(), leader: String::new() });
         for m in rest {
             if !self.fleets.contains_key(&fid)
                 && let Some((s, e)) = self.player_entity(m)

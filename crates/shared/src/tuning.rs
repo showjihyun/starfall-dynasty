@@ -49,6 +49,13 @@ pub struct ShipTuning {
     pub batteries: Batteries,
     pub upgrade: UpgradeCosts,
     pub escort: EscortTuning,
+    /// Distance between neighbouring posts of a fleet formation (`shared::formation`). Default 400.
+    #[serde(default = "formation_spacing")]
+    pub formation_spacing: f32,
+}
+
+fn formation_spacing() -> f32 {
+    400.0
 }
 
 /// What one module level beyond the first adds (fractions of the base value unless noted).

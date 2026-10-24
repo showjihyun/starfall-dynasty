@@ -458,3 +458,20 @@ fn war_report_shows_who_is_winning_overall_and_per_front() {
         assert!(Rect::from_min_size(Pos2::ZERO, Vec2::new(1600.0, 900.0)).contains_rect(*r), "{t} off screen");
     }
 }
+
+#[test]
+fn a_fleet_member_sees_its_formation_post_around_the_leader() {
+    use shared::formation::Formation;
+    use shared::protocol::FleetMember;
+    let member = |player: u64, name: &str| FleetMember { player, name: name.into(), hull: HullClass::Talon, system: 7, online: true };
+    let members = vec![member(10, "Lead"), member(11, "Wing")];
+    let mut leader = me(1.0, 1.0);
+    leader.owner = Some(10);
+    leader.pos = [1000.0, 50.0, 0.0];
+    let (post, label) = hud::formation_post(Formation::Line, &members, 11, [&leader], 400.0).expect("a post");
+    assert!((post - shared::glam::Vec3::new(1400.0, 50.0, 0.0)).length() < 1.0, "abreast, 400 u to the leader's right: {post}");
+    assert_eq!(label, "◆ 진형 자리 · 횡대");
+    assert!(hud::formation_post(Formation::Line, &members, 10, [&leader], 400.0).is_none(), "the leader has no post");
+    assert!(hud::formation_post(Formation::Free, &members, 11, [&leader], 400.0).is_none(), "free: no post");
+    assert!(hud::formation_post(Formation::Line, &members, 11, [], 400.0).is_none(), "leader out of sight");
+}

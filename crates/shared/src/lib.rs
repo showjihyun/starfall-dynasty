@@ -3,6 +3,7 @@
 pub mod artifacts;
 pub mod chronicle;
 pub mod contracts;
+pub mod formation;
 pub mod galaxy;
 pub mod institutes;
 pub mod minerals;
