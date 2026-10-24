@@ -10,6 +10,7 @@
 //! - [`scenario`]: data-driven gameplay specs, run headless.
 //! - [`metrics`]: hits, kills and rewards as time series.
 
+pub mod battle;
 pub mod game;
 pub mod harness;
 pub mod metrics;
