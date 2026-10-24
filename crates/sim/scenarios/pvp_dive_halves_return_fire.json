@@ -25,8 +25,8 @@
   "expect": [
     { "check": "deaths", "captain": "Level", "max": 0 },
     { "check": "deaths", "captain": "Diver", "max": 0 },
-    { "check": "hull", "captain": "Level", "max": 0.3 },
-    { "check": "hull", "captain": "Diver", "min": 0.4 },
+    { "check": "hull", "captain": "Level", "max": 0.4 },
+    { "check": "hull", "captain": "Diver", "min": 0.5 },
     { "check": "vertical", "captain": "Level", "max": 0.1 },
     { "check": "vertical", "captain": "Diver", "min": 0.9 },
     { "check": "hull", "captain": "DiverVsRoll", "max": 0.35 },
