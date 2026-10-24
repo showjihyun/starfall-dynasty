@@ -235,6 +235,9 @@ pub struct ShipVis {
     pub sent: (Vec4, Vec2, Vec4),
     /// The shield bubble, hidden while it would draw nothing (`view::anim::shield_shown`).
     pub shield: Option<(Entity, bool)>,
+    /// Rank parts (`Rank<N>_*` nodes) with their rank, and the rank they were last shown for.
+    pub rank_parts: Vec<(Entity, u8)>,
+    pub rank_shown: Option<u8>,
     /// Engine effects by detail level (`view::anim::engine_lod`): nozzle glows and bores, plumes.
     pub nozzles: Vec<Entity>,
     pub plume_fx: Vec<Entity>,
@@ -280,6 +283,8 @@ impl ShipVis {
             swing: (None, 0.0, vec![]),
             sent: UNSENT,
             shield: None,
+            rank_parts: vec![],
+            rank_shown: None,
             nozzles: vec![],
             plume_fx: vec![],
             lod: view::anim::EngineLod::Full,
@@ -288,7 +293,7 @@ impl ShipVis {
 }
 
 #[derive(Component)]
-pub struct RankPart(pub u8);
+pub struct RankPart;
 
 #[derive(Component)]
 struct ModelRoot(Entity);
@@ -431,38 +436,50 @@ fn sync_visuals(
             commands.entity(e).despawn();
         }
     }
+    // New ships (rare): one pass in order.
     for (id, st) in &latest.ents {
-        let Some((pos, rot, st2)) = s.sample(*id, t) else { continue };
-        match vis.map.get(id).copied() {
-            Some(e) if q.get(e).is_ok_and(|(v, _, _)| matches!(st.kind, EntityKind::Player) && v.class != st.class.unwrap_or(SizeClass::Small)) => {
-                // Grew into a cruiser / capital ship: swap the model.
-                commands.entity(e).despawn();
-                let ne = spawn_visual(&mut commands, st, pos, rot, &models, &mut meshes, &mut std_mats, &mut mats, &mut states);
-                vis.map.insert(*id, ne);
-            }
-            Some(e) => {
-                if let Ok((mut v, mut tf, mut visibility)) = q.get_mut(e) {
-                    v.last_pos = pos;
-                    tf.translation = pos;
-                    tf.rotation = rot;
-                    // Docked ships vanish into the station; in a fighter's cockpit view our own hull is hidden.
-                    let cockpit = Some(*id) == s.me && cam.first_person && v.class == SizeClass::Small;
-                    let want = if st2.docked || cockpit { Visibility::Hidden } else { Visibility::Inherited };
-                    if *visibility != want {
-                        *visibility = want;
-                    }
-                    // Throttle: mean speed over the last 0.4 s of snapshots; boost glow ramps from its switch.
-                    let speeds: Vec<f32> = (0..5).filter_map(|k| s.sample(*id, t - k as f64 * 0.1)).map(|(_, _, e)| Vec3::from(e.vel).length()).collect();
-                    v.throttle = view::anim::throttle(&speeds, 140.0);
-                    v.boost.set(st2.boosting, now, BOOST_UP, BOOST_DOWN);
-                    v.rank = st2.rank;
-                }
-            }
-            None => {
-                let e = spawn_visual(&mut commands, st, pos, rot, &models, &mut meshes, &mut std_mats, &mut mats, &mut states);
-                vis.map.insert(*id, e);
-            }
+        if vis.map.contains_key(id) {
+            continue;
         }
+        let Some((pos, rot, _)) = s.sample(*id, t) else { continue };
+        let e = spawn_visual(&mut commands, st, pos, rot, &models, &mut meshes, &mut std_mats, &mut mats, &mut states);
+        vis.map.insert(*id, e);
+    }
+    // Every ship's pose and state, in parallel (thousands in a big battle; each only reads the snapshots).
+    let (me, first_person) = (s.me, cam.first_person);
+    let grown = std::sync::Mutex::new(vec![]);
+    q.par_iter_mut().for_each(|(mut v, mut tf, mut visibility)| {
+        let id = v.id;
+        let Some((pos, rot, st2)) = s.sample(id, t) else { return };
+        // Grew into a cruiser / capital ship: the model is swapped below.
+        if matches!(st2.kind, EntityKind::Player) && v.class != st2.class.unwrap_or(SizeClass::Small) {
+            grown.lock().unwrap().push((id, pos, rot));
+            return;
+        }
+        v.last_pos = pos;
+        tf.translation = pos;
+        tf.rotation = rot;
+        // Docked ships vanish into the station; in a fighter's cockpit view our own hull is hidden.
+        let cockpit = Some(id) == me && first_person && v.class == SizeClass::Small;
+        let want = if st2.docked || cockpit { Visibility::Hidden } else { Visibility::Inherited };
+        if *visibility != want {
+            *visibility = want;
+        }
+        // Throttle: mean speed over the last 0.4 s of snapshots; boost glow ramps from its switch.
+        // Only engines that draw something need it (five more samples a ship: a third of
+        // this system's time in a 2700-ship battle, where most engines are off).
+        if v.lod != view::anim::EngineLod::Off {
+            let speeds: Vec<f32> = (0..5).filter_map(|k| s.sample(id, t - k as f64 * 0.1)).map(|(_, _, e)| Vec3::from(e.vel).length()).collect();
+            v.throttle = view::anim::throttle(&speeds, 140.0);
+        }
+        v.boost.set(st2.boosting, now, BOOST_UP, BOOST_DOWN);
+        v.rank = st2.rank;
+    });
+    for (id, pos, rot) in grown.into_inner().unwrap() {
+        let (Some(old), Some(st)) = (vis.map.get(&id).copied(), latest.ents.get(&id)) else { continue };
+        commands.entity(old).despawn();
+        let e = spawn_visual(&mut commands, st, pos, rot, &models, &mut meshes, &mut std_mats, &mut mats, &mut states);
+        vis.map.insert(id, e);
     }
 }
 
@@ -581,7 +598,14 @@ fn on_model_ready(
     let buffer = states.buffer.clone();
     let mut turrets: Vec<(usize, Entity)> = vec![];
     let mut muzzles: Vec<(usize, Entity)> = vec![];
+    // Other species' kits are removed, not hidden: hidden parts still cost transform propagation and
+    // visibility checks, and in a 2700-ship battle (escorts and NPCs show none) that was a tenth of all meshes.
+    let mut dropped: std::collections::HashSet<Entity> = Default::default();
+    let mut rank_parts = vec![];
     for d in children.iter_descendants(ev.entity) {
+        if dropped.contains(&d) {
+            continue;
+        }
         if let Ok(name) = names.get(d) {
             let n = name.as_str();
             if n.starts_with("Engine_") {
@@ -629,11 +653,16 @@ fn on_model_ready(
             } else if let Some(k) = n.strip_prefix("Muzzle_").and_then(|k| k.parse::<usize>().ok()) {
                 muzzles.push((k, d));
             } else if let Some(rank) = n.strip_prefix("Rank").and_then(|r| r.split('_').next()).and_then(|r| r.parse::<u8>().ok()) {
-                commands.entity(d).insert(RankPart(rank));
+                commands.entity(d).insert(RankPart);
+                rank_parts.push((d, rank));
             } else if let Some(kit) = n.strip_prefix("Species_").and_then(|r| r.split('_').next()) {
                 // Species kit (docs/ART_DIRECTION.md §4): only the captain's own species is shown.
                 let mine = ship.species_of.is_some_and(|s| format!("{s:?}") == kit);
-                commands.entity(d).insert(if mine { Visibility::Inherited } else { Visibility::Hidden });
+                if !mine {
+                    dropped.extend(children.iter_descendants(d));
+                    commands.entity(d).despawn();
+                    continue;
+                }
             }
         }
         if let Ok((MeshMaterial3d(h), gname)) = mesh_q.get(d) {
@@ -660,6 +689,8 @@ fn on_model_ready(
     muzzles.sort_by_key(|m| m.0);
     ship.turrets = turrets.iter().map(|(_, e)| (*e, transforms.get(*e).map(|t| t.rotation).unwrap_or_default())).collect();
     ship.turret_muzzles = muzzles.into_iter().map(|(_, e)| e).collect();
+    ship.rank_parts = rank_parts;
+    ship.rank_shown = None;
     info!("model ready for {}: {} plumes, {} hull parts (slot {}), {} muzzles", ship.id, ship.plumes, hull_parts.len(), ship.slot, ship.muzzles.len());
 }
 
@@ -669,8 +700,7 @@ fn update_ship_fx(
     s: Res<Session>,
     mut ships: Query<&mut ShipVis>,
     mut mats: ShipMats,
-    mut parts: Query<(&RankPart, &mut Visibility, &ChildOf)>,
-    parents: Query<&ChildOf>,
+    mut parts: Query<&mut Visibility, With<RankPart>>,
     mut states: ResMut<ShipStates>,
     mut bubbles: Query<&mut Visibility, Without<RankPart>>,
 ) {
@@ -713,6 +743,15 @@ fn update_ship_fx(
             states.put(v.slot, SHIELD, v4(side.shield, shield.x));
             states.put(v.slot, HIT, v.hit_dir.extend(shield.w));
         }
+        // Rank parts: visible once the ship reaches the part's rank (rank changes on upgrades only).
+        if v.rank_shown != Some(v.rank) {
+            for &(e, r) in &v.rank_parts {
+                if let Ok(mut vis) = parts.get_mut(e) {
+                    *vis = if v.rank >= r { Visibility::Inherited } else { Visibility::Hidden };
+                }
+            }
+            v.rank_shown = Some(v.rank);
+        }
         let show = view::anim::shield_shown(st.shield, hit_age);
         if let Some((b, shown)) = v.shield
             && shown != show
@@ -723,27 +762,6 @@ fn update_ship_fx(
         }
     }
     states.flush(&mut mats);
-    // Rank parts: visible once the ship reaches the part's rank.
-    for (part, mut vis, parent) in &mut parts {
-        let mut e = parent.parent();
-        let mut rank = None;
-        for _ in 0..16 {
-            if let Ok(v) = ships.get(e) {
-                rank = Some(v.rank);
-                break;
-            }
-            match parents.get(e) {
-                Ok(p) => e = p.parent(),
-                Err(_) => break,
-            }
-        }
-        if let Some(r) = rank {
-            let want = if r >= part.0 { Visibility::Inherited } else { Visibility::Hidden };
-            if *vis != want {
-                *vis = want;
-            }
-        }
-    }
 }
 
 /// Engine nozzle glow sprite (child of an `Engine_N` node).

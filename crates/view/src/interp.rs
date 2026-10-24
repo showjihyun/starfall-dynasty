@@ -6,6 +6,10 @@ use shared::glam::{Quat, Vec3};
 use shared::protocol::{EntityId, EntityState};
 use std::collections::{HashMap, VecDeque};
 
+/// A snapshot's entities by id. Looked up thousands of times a frame in a big battle, so a fast
+/// fixed-seed hasher instead of SipHash (ids come from the server, not from an attacker of this map).
+pub type EntMap = HashMap<EntityId, EntityState, foldhash::fast::FixedState>;
+
 /// How far behind the newest snapshot other entities are rendered (seconds).
 pub const INTERP_DELAY: f64 = 0.1;
 /// Own-ship extrapolation never runs further ahead than this (seconds).
@@ -13,7 +17,7 @@ pub const MAX_EXTRAPOLATION: f64 = 0.12;
 
 pub struct Snap {
     pub at: f64,
-    pub ents: HashMap<EntityId, EntityState>,
+    pub ents: EntMap,
 }
 
 /// Pose of `id` at render time `t` (same clock as `Snap::at`) and its newest state.

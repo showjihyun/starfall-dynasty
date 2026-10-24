@@ -19,7 +19,6 @@ use bevy_egui::{EguiContexts, EguiPrimaryContextPass};
 use shared::galaxy::Species;
 use shared::protocol::{ClientMsg, EntityKind, EntityState, Fx};
 use shared::ships::{HullClass, Module, Ship, SizeClass, WeaponKind};
-use std::collections::HashMap;
 use view::cinematic::{Cinematic, Frame, frame_at};
 use view::voice::Cue;
 
@@ -119,7 +118,7 @@ pub fn start(commands: &mut Commands, s: &mut Session, args: &Args, name: &str) 
     s.system_epoch = 1;
     s.me = None;
     s.profile = None;
-    s.snaps.push_back(Snap { at: 0.0, ents: HashMap::new() });
+    s.snaps.push_back(Snap { at: 0.0, ents: Default::default() });
     commands.insert_resource(Cine { cin, species, ship, start: None, earliest: CINE_START, skipped: false, prev_t: 0.0, live: None });
 }
 
@@ -137,7 +136,7 @@ pub fn begin_live(s: &mut Session, cin: Cinematic, then: Option<ClientMsg>, now:
         system_epoch: s.system_epoch + 1,
         ..default()
     };
-    shown.snaps.push_back(Snap { at: now, ents: HashMap::new() });
+    shown.snaps.push_back(Snap { at: now, ents: Default::default() });
     let session = Box::new(std::mem::replace(s, shown));
     let health = health(&session);
     Cine { cin, species, ship, start: None, earliest: now, skipped: false, prev_t: 0.0, live: Some(Live { session, then, health }) }
@@ -255,7 +254,7 @@ fn drive(
         s.system = system;
         s.system_epoch += 1;
     }
-    let mut ents = HashMap::new();
+    let mut ents = view::interp::EntMap::default();
     if let Some(p) = ship {
         let mut e = cine.ship.clone();
         e.pos = p.to_array();

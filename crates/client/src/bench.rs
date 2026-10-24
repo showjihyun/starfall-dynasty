@@ -12,7 +12,6 @@ use bevy::prelude::*;
 use shared::missions::NpcArchetype;
 use shared::protocol::{EntityKind, EntityState, Fx};
 use shared::ships::{HullClass, Module, Ship, WeaponKind};
-use std::collections::HashMap;
 
 pub struct BenchPlugin {
     pub seconds: f32,
@@ -58,9 +57,9 @@ fn setup(mut s: ResMut<Session>, mut cfg: ResMut<BenchCfg>, mut next: ResMut<Nex
     s.system = sys;
     s.system_epoch = 1;
     let center = lay.station + Vec3::new(0.0, 300.0, 2500.0);
-    let mut ents = HashMap::new();
+    let mut ents = view::interp::EntMap::default();
     let mut id = 1000u32;
-    let mut add = |ents: &mut HashMap<u32, EntityState>, kind: EntityKind, hull: Option<HullClass>, lvl: u8, pos: Vec3, livery: u8, cfg: &mut BenchCfg| {
+    let mut add = |ents: &mut view::interp::EntMap, kind: EntityKind, hull: Option<HullClass>, lvl: u8, pos: Vec3, livery: u8, cfg: &mut BenchCfg| {
         let (rank, class, radius) = match hull {
             Some(h) => {
                 let mut ship = Ship::new(String::new(), h, livery);

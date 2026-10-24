@@ -161,7 +161,7 @@ fn showroom(s: &mut Session, args: &Args) {
     s.system = sys;
     s.system_epoch = 1;
     let base = if args.hull.is_some() { layout.station + Vec3::new(0.0, 60.0, 420.0) } else { layout.station + Vec3::new(0.0, 170.0, 120.0) };
-    let mut ents = std::collections::HashMap::new();
+    let mut ents = view::interp::EntMap::default();
     let face = Quat::from_rotation_y(0.35);
     // `--species human|veyr|kharz` dresses the whole showroom fleet in one species' style.
     let only_species = std::env::args().skip_while(|a| a != "--species").nth(1).and_then(|s| shared::galaxy::Species::ALL.into_iter().find(|x| format!("{x:?}").eq_ignore_ascii_case(&s)));
