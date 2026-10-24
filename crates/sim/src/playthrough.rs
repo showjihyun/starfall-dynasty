@@ -67,6 +67,68 @@ pub struct Chapter {
     pub levels: String,
     /// What happened, in order (step reached, deaths, retreats, stuck).
     pub log: Vec<String>,
+    /// Seconds spent in each activity while the chapter was open ([`Activity`]).
+    pub time: [f32; Activity::ALL.len()],
+}
+
+/// What the captain is doing at a moment, read from the game state each tick (not the pilot's
+/// intent): where play time goes — flying, mining, warping and trading, not only fights.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Activity {
+    Warp,
+    Docked,
+    Combat,
+    Mining,
+    Scanning,
+    /// Flying inside a system: to a fight, an asteroid, a scan site, the station or the warp point.
+    Flight,
+    /// Dead, waiting to be rebuilt.
+    Dead,
+}
+
+impl Activity {
+    pub const ALL: [Activity; 7] = [Activity::Warp, Activity::Docked, Activity::Combat, Activity::Mining, Activity::Scanning, Activity::Flight, Activity::Dead];
+
+    pub fn name(self) -> &'static str {
+        match self {
+            Activity::Warp => "워프",
+            Activity::Docked => "도킹",
+            Activity::Combat => "교전",
+            Activity::Mining => "채굴",
+            Activity::Scanning => "스캔",
+            Activity::Flight => "성계 내 비행",
+            Activity::Dead => "재건 대기",
+        }
+    }
+
+    /// The captain on `conn`'s activity now.
+    pub fn of(g: &Game, conn: ConnId) -> Activity {
+        let Some(s) = g.sessions.get(&conn) else { return Activity::Dead };
+        if s.dead {
+            return Activity::Dead;
+        }
+        if s.warp.is_some() {
+            return Activity::Warp;
+        }
+        let Some(e) = s.entity.and_then(|id| g.ent(s.system, id)) else { return Activity::Dead };
+        if e.docked {
+            Activity::Docked
+        } else if g.now - e.last_hit < COMBAT_LOCK || e.controls.fire {
+            Activity::Combat
+        } else if e.mining.is_some() {
+            Activity::Mining
+        } else if s.scan.is_some() {
+            Activity::Scanning
+        } else {
+            Activity::Flight
+        }
+    }
+}
+
+/// "워프 1m02s (12%) · …" for the activities with any time.
+fn shares(time: &[f32; Activity::ALL.len()]) -> String {
+    let total: f32 = time.iter().sum::<f32>().max(1e-3);
+    Activity::ALL.iter().zip(time).filter(|(_, t)| **t > 0.0).map(|(a, t)| format!("{} {} ({:.0}%)", a.name(), mins(*t), t / total * 100.0)).collect::<Vec<_>>().join(" · ")
 }
 
 #[derive(Clone, Debug, Default)]
@@ -100,10 +162,18 @@ impl Report {
                 c.rank,
                 c.levels
             );
+            s += &format!("       time: {}\n", shares(&c.time));
             for l in &c.log {
                 s += &format!("       {l}\n");
             }
         }
+        let mut all = [0.0; Activity::ALL.len()];
+        for c in &self.chapters {
+            for (a, t) in all.iter_mut().zip(c.time) {
+                *a += t;
+            }
+        }
+        s += &format!("time: {}\n", shares(&all));
         s += &format!("campaign: {}/{} chapters in {} of game time, {} CR left\n", self.completed(), scenarios().len(), mins(self.secs), self.credits);
         if let Some(why) = &self.stuck {
             s += &format!("STUCK: {why}\n");
@@ -201,6 +271,9 @@ pub fn play(o: &Options) -> Report {
         }
         if let (Mode::Grind { .. }, Some(c)) = (&p.mode, rep.chapters.last_mut()) {
             c.grind_secs += dt;
+        }
+        if let Some(c) = rep.chapters.last_mut().filter(|c| c.finished.is_none()) {
+            c.time[Activity::of(&g, conn) as usize] += dt;
         }
         g.tick(dt, o.unix + tick / TICK_HZ as u64);
         g.out.clear();

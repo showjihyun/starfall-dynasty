@@ -6415,6 +6415,7 @@ name = "view"
 version = "0.1.0"
 dependencies = [
  "egui",
+ "foldhash 0.2.0",
  "ron",
  "serde",
  "serde_json",
