@@ -14,6 +14,7 @@ pub mod battle;
 pub mod game;
 pub mod harness;
 pub mod metrics;
+pub mod mining;
 pub mod playthrough;
 pub mod scenario;
 pub mod store;

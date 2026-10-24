@@ -211,7 +211,7 @@ struct Pilot {
     avoid: std::collections::BTreeSet<SystemId>,
 }
 
-const THINK: u64 = 5;
+pub(crate) const THINK: u64 = 5;
 
 /// Plays the campaign from character creation to the end of chapter 5 (or until stuck).
 pub fn play(o: &Options) -> Report {
@@ -319,7 +319,7 @@ fn short(m: Module) -> &'static str {
 }
 
 /// Fewest-hop route to `to` using jumps no longer than `range` light-years: the next system to warp to.
-fn next_hop(from: SystemId, to: SystemId, range: f32) -> Option<SystemId> {
+pub(crate) fn next_hop(from: SystemId, to: SystemId, range: f32) -> Option<SystemId> {
     let n = galaxy::systems().len();
     let mut prev: Vec<Option<SystemId>> = vec![None; n];
     let mut seen = vec![false; n];
@@ -350,7 +350,7 @@ fn next_hop(from: SystemId, to: SystemId, range: f32) -> Option<SystemId> {
 /// Controls that turn the nose toward `goal` and fly there, stopping `stop` short of it. `turn` is the
 /// ship's turn rate (rad/s): the nose is turned by about the remaining error until the next decision,
 /// so an agile hull does not swing past the target and back (Wren lost every fight that way).
-fn steer(pos: Vec3, rot: shared::glam::Quat, goal: Vec3, stop: f32, turn: f32) -> Controls {
+pub(crate) fn steer(pos: Vec3, rot: shared::glam::Quat, goal: Vec3, stop: f32, turn: f32) -> Controls {
     let to = goal - pos;
     let local = rot.inverse() * to.normalize_or_zero();
     let gain = (TICK_HZ / (THINK as f32 * turn.max(0.1))).min(4.0);
