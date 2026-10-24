@@ -272,6 +272,23 @@ impl Game {
         }
         let mut c = Controls::default();
         let goal = match target.and_then(|t| self.ent(sys, t)) {
+            Some(t) if let Some((keep, gap)) = self.tuning.ships.escort.attack_post => {
+                // A post on the flagship's side of the target at fighting range, fanned out by slot, so
+                // a fleet's escorts spread along its line instead of balling up around one enemy.
+                let toward = (flag.pos - t.pos).normalize_or(-t.forward());
+                let post = t.pos + toward * e.stats.weapon_range * keep + flag.rot * (escort_slot(ai.slot) * gap);
+                let d = post.distance(e.pos);
+                if d > 600.0 {
+                    // Far: fly there nose-first; near: nose on the target, slide into the post.
+                    c.thrust = 1.0;
+                    c.boost = d > 2000.0;
+                    post
+                } else {
+                    let local = e.rot.inverse() * (post - e.pos) / 150.0;
+                    (c.strafe_x, c.strafe_y, c.thrust) = (local.x.clamp(-1.0, 1.0), local.y.clamp(-1.0, 1.0), (-local.z).clamp(-1.0, 1.0));
+                    t.pos
+                }
+            }
             Some(t) => {
                 let d = t.pos.distance(e.pos);
                 c.thrust = if d > e.stats.weapon_range * 0.6 { 1.0 } else { 0.3 };

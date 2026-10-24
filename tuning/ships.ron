@@ -82,5 +82,10 @@
         fire_interval: 0.45,      // seconds
         range: 0.6, min_range: 500.0,
         radius: 0.09, min_radius: 10.0, max_radius: 32.0,
+        // Attack from a post on the flagship's side of the target at 0.8 of their range, fanned out
+        // by formation slot 250 u apart (2026-10-24, main goal "epic spread-out battles"): they no
+        // longer ball up around one enemy (1020-captain war: ships within 60 u of another 82–96% → 50–58%
+        // with captains flying straight at the enemy, docs/3D_전투_설계.md 「대규모 교전의 넓이」).
+        attack_post: Some((0.8, 250.0)),
     ),
 )

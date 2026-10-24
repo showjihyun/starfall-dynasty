@@ -160,6 +160,11 @@ pub struct EscortTuning {
     pub radius: f32,
     pub min_radius: f32,
     pub max_radius: f32,
+    /// How escorts attack (main goal "epic spread-out battles"): (keep, gap) — from their flagship's
+    /// side of the target, at `keep` of their own range, fanned out by formation slot `gap` u apart.
+    /// None (recordings from before it): straight at the target, circling it.
+    #[serde(default)]
+    pub attack_post: Option<(f32, f32)>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
