@@ -128,6 +128,10 @@ fn chase_camera(
         _ => {
             // Docked or dead: slow orbit around the station (or a showroom point of interest).
             let look = args.look.as_deref().and_then(|k| {
+                if k == "leviathan" {
+                    // Showroom `--leviathan`: orbit the Sentinel and its three targets.
+                    return ships.iter().find(|(sv, _)| sv.id == 300).map(|(sv, t)| (t.translation, sv.radius.max(60.0) * 4.0));
+                }
                 if k == "ship" {
                     // Showroom art check of one model (`--class`): orbit the captain's ship (the only one with a species).
                     return ships.iter().find(|(sv, _)| sv.species_of.is_some()).map(|(sv, t)| (t.translation, sv.radius.max(8.0) * 2.0));

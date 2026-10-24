@@ -2,7 +2,7 @@
 //! from "now" and the moment something happened, never from a per-frame accumulation, so the same
 //! clock gives the same picture at any frame rate.
 
-use shared::glam::Quat;
+use shared::glam::{Quat, Vec3};
 
 /// A 0..1 level that rises at `up`/s while on and falls at `down`/s while off, from `from` at the
 /// last switch `at` (engine boost glow).
@@ -100,9 +100,53 @@ pub fn engine_lod(radius_px: f32, was: EngineLod) -> EngineLod {
     }
 }
 
+/// Where battery `k` of `n` (`beam` of them flank mounts, `shared::ships::battery_covers`) fires
+/// from on a model without turret nodes, in the ship's own frame for a hull of `radius`: dorsal on
+/// top, ventral under the belly, beam mounts on alternate flanks at the hull's plane, spread along
+/// the length — so a leviathan's shots come from the side of the hull that may fire, not its bow.
+/// `target_x`: the target's x in the ship's frame — a beam mount fires from the flank facing it.
+pub fn battery_mount(k: usize, n: usize, beam: u8, radius: f32, target_x: f32) -> Vec3 {
+    let along = ((k / 2) as f32 + 0.5) / (n.div_ceil(2).max(1)) as f32 - 0.5;
+    let z = along * radius * 1.2;
+    if k.is_multiple_of(2) {
+        Vec3::new(0.0, radius * 0.14, z)
+    } else if k / 2 + beam as usize >= n / 2 {
+        let side = if target_x != 0.0 { target_x.signum() } else if (k / 2).is_multiple_of(2) { 1.0 } else { -1.0 };
+        Vec3::new(side * radius * 0.3, 0.0, z)
+    } else {
+        Vec3::new(0.0, -radius * 0.14, z)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn battery_mounts_sit_on_the_side_of_the_hull_that_fires() {
+        // Sentinel: 12 batteries, 5 of the 6 ventral ones on the flanks (npcs.ron ventral_turrets 1).
+        let (n, beam, r) = (12, 5, 100.0);
+        for k in 0..n {
+            let m = battery_mount(k, n, beam, r, 0.0);
+            for up in [-1.0f32, 0.0, 1.0] {
+                // A battery that reaches straight up sits on top, straight down under the belly.
+                if shared::ships::battery_covers(k, n, beam, up, 0.25) && up.abs() > 0.5 {
+                    assert!(m.y * up > 0.0, "battery {k} reaches up={up} but sits at {m}");
+                }
+            }
+            if !shared::ships::battery_covers(k, n, beam, 1.0, 0.25) && !shared::ships::battery_covers(k, n, beam, -1.0, 0.25) {
+                assert!(m.y == 0.0 && m.x.abs() > r * 0.2, "beam battery {k} on a flank, at {m}");
+            }
+            assert!(m.length() < r, "battery {k} on the hull, at {m}");
+        }
+        let flanks: Vec<f32> = (0..n).map(|k| battery_mount(k, n, beam, r, 0.0)).filter(|m| m.y == 0.0).map(|m| m.x.signum()).collect();
+        assert_eq!(flanks.len(), 5);
+        assert!(flanks.contains(&1.0) && flanks.contains(&-1.0), "both flanks fire");
+        // At a target on its left, every beam battery fires from the left flank (not through the hull).
+        assert!((0..n).map(|k| battery_mount(k, n, beam, r, -300.0)).filter(|m| m.y == 0.0).all(|m| m.x < 0.0));
+        // An ordinary ship: dorsal and ventral alternate, none on the flanks.
+        assert!((0..6).all(|k| battery_mount(k, 6, 0, r, 0.0).y != 0.0));
+    }
 
     #[test]
     fn ramp_is_a_function_of_the_clock_not_the_frame_rate() {

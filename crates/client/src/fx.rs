@@ -138,11 +138,16 @@ fn spawn_fx(
                         let dorsal = k % 2 == 0;
                         let on_side: Vec<Entity> = sv.turret_muzzles.iter().copied().filter(|m| gt.get(*m).is_ok_and(|g| ((stf.rotation.inverse() * (g.translation() - stf.translation)).y >= 0.0) == dorsal)).collect();
                         let list = if on_side.is_empty() { &sv.turret_muzzles } else { &on_side };
-                        let start = pick(list, k / 2).or_else(|| pick(&sv.muzzles, k)).unwrap_or_else(|| {
-                            // No turret nodes: spread shots along the hull.
-                            let a = k as f32 * 2.399;
-                            stf.translation + stf.rotation * Vec3::new(a.cos() * sv.radius * 0.25, sv.radius * 0.12, (k as f32 / 8.0 - 0.5) * sv.radius * 1.4)
-                        });
+                        // No turret nodes (the leviathans): fire from the side of the hull that battery covers
+                        // (beam mounts on the flanks), not from the bow guns.
+                        let mount_at = || {
+                            let st = s.latest().and_then(|sn| sn.ents.get(&from));
+                            let n = st.map_or(0, shared::ships::turret_batteries) as usize;
+                            let beam = st.map_or(0, shared::ships::beam_batteries);
+                            let tx = target_pos.map_or(0.0, |tp| (stf.rotation.inverse() * (tp - stf.translation)).x);
+                            stf.translation + stf.rotation * view::anim::battery_mount(k, n.max(k + 1), beam, sv.radius, tx)
+                        };
+                        let start = pick(list, k / 2).unwrap_or_else(mount_at);
                         let Some(end) = target_pos else { continue };
                         let col = side.pulse;
                         let w = (sv.radius * 0.012).clamp(2.0, 6.0);
