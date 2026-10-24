@@ -4,6 +4,7 @@
 //!
 //!   cargo run -p sim --release --example campaign [-- --hull Talon --species Human --profession CombatPilot --hours 10]
 //!   … --chapter 4 [--level 8]   one chapter on its own (chapters before it done, every module at that level)
+//!   … --over                     fight turret ships from over their hull (3D), not head-on
 //!
 //! Exit code 1 when the campaign was not finished.
 
@@ -35,6 +36,7 @@ fn main() {
     if let Some(l) = arg("--level").and_then(|v| v.parse::<u8>().ok()) {
         o.level = l;
     }
+    o.over = args.iter().any(|a| a == "--over");
     if let Some(h) = arg("--hours").and_then(|v| v.parse::<f32>().ok()) {
         o.max_secs = h * 3600.0;
     }

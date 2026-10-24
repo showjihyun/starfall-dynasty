@@ -35,9 +35,12 @@
                    bounty: (credits: 120, alloy: 3, datacore: 1)),
         Warden:   (hull: 260.0,  shield: 260.0,  damage: 12.0, fire_interval: 0.45, speed: 90.0, turn: 1.6, radius: 12.0, turrets: 0,
                    bounty: (credits: 102, crystal: 3, relic: 1)),   // ancient guardians carry relics (campaign QA: Lv9 needed more than chapters give)
-        Warlord:  (hull: 1900.0, shield: 700.0,  damage: 26.0, fire_interval: 0.35, speed: 65.0, turn: 0.7, radius: 30.0, turrets: 6,
+        // Warlord and Sentinel turn 0.7 → 0.25 rad/s (2026-10-24, main goal "3D freedom"): at 0.7 a 60 m
+        // leviathan swung its nose onto a captain as fast as a fighter, so the point over its hull moved
+        // hundreds of m/s and nobody could get out of its turret arcs (docs/3D_전투_설계.md 「PvE」).
+        Warlord:  (hull: 1900.0, shield: 700.0,  damage: 26.0, fire_interval: 0.35, speed: 65.0, turn: 0.25, radius: 30.0, turrets: 6,
                    bounty: (credits: 1500, alloy: 20, datacore: 4, relic: 1)),
-        Sentinel: (hull: 5200.0, shield: 2200.0, damage: 38.0, fire_interval: 0.3,  speed: 55.0, turn: 0.7, radius: 60.0, turrets: 12,
+        Sentinel: (hull: 5200.0, shield: 2200.0, damage: 38.0, fire_interval: 0.3,  speed: 55.0, turn: 0.25, radius: 60.0, turrets: 12,
                    bounty: (credits: 5400, alloy: 40, crystal: 30, datacore: 10, relic: 3)),
     },
 )

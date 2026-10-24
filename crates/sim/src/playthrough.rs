@@ -35,11 +35,14 @@ pub struct Options {
     pub level: u8,
     /// Stop after that one chapter.
     pub only: bool,
+    /// Fight ships with turrets from straight over (or under) their hull, outside the turret arcs,
+    /// as `hold_over` in the scenario specs (docs/3D_전투_설계.md) — what a 3D player does.
+    pub over: bool,
 }
 
 impl Default for Options {
     fn default() -> Self {
-        Options { species: Species::Human, profession: Profession::CombatPilot, hull: HullClass::Talon, max_secs: 10.0 * 3600.0, max_deaths: 20, unix: 1_760_000_000, chapter: 0, level: 1, only: false }
+        Options { species: Species::Human, profession: Profession::CombatPilot, hull: HullClass::Talon, max_secs: 10.0 * 3600.0, max_deaths: 20, unix: 1_760_000_000, chapter: 0, level: 1, only: false, over: false }
     }
 }
 
@@ -407,11 +410,30 @@ impl Pilot {
             return None;
         }
 
+        let over = o.over;
         // Someone shooting at us outside a planned fight: answer.
         let fight = |p: &mut Pilot, g: &mut Game, target: EntityId| {
-            let Some(tp) = g.ent(sys, target).map(|e| e.pos) else { return };
+            let Some((tp, trot, turrets)) = g.ent(sys, target).map(|e| (e.pos, e.rot, e.stats.turrets)) else { return };
             g.handle(p.conn, ClientMsg::SetTarget(Some(target)));
             let mut c = steer(pos, rot, tp, stats.weapon_range * 0.55, stats.turn);
+            if over && turrets > 0 {
+                // Get over (or under) its hull, whichever side we are on, at fighting range: fly there
+                // first, then hold it with the thrusters while the nose stays on the target.
+                let up = trot * Vec3::Y;
+                let side = if (pos - tp).dot(up) >= 0.0 { 1.0 } else { -1.0 };
+                let want = tp + up * side * stats.weapon_range * 0.55;
+                if pos.distance(want) > 200.0 {
+                    c = steer(pos, rot, want, 0.0, stats.turn);
+                } else {
+                    let local = rot.inverse() * (want - pos) / 150.0;
+                    c.strafe_x = local.x.clamp(-1.0, 1.0);
+                    c.strafe_y = local.y.clamp(-1.0, 1.0);
+                    c.thrust = (-local.z).clamp(-1.0, 1.0);
+                }
+                // Roll the target level with our hull, so all our own batteries reach it.
+                let t_local = rot.inverse() * (tp - pos).normalize_or_zero();
+                c.roll = (-t_local.y * if t_local.x >= 0.0 { 1.0 } else { -1.0 } * 4.0).clamp(-1.0, 1.0);
+            }
             let local = rot.inverse() * (tp - pos).normalize_or_zero();
             c.fire = -local.z > 0.9 && pos.distance(tp) < stats.weapon_range * 1.05;
             g.handle(p.conn, ClientMsg::Controls(c));
