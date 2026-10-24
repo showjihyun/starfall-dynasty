@@ -413,10 +413,18 @@ impl Pilot {
         let over = o.over;
         // Someone shooting at us outside a planned fight: answer.
         let fight = |p: &mut Pilot, g: &mut Game, target: EntityId| {
-            let Some((tp, trot, turrets, beam, tr)) = g.ent(sys, target).map(|e| (e.pos, e.rot, e.stats.turrets, e.stats.beam_turrets, e.stats.radius)) else { return };
+            let Some(tp) = g.ent(sys, target).map(|e| e.pos) else { return };
             g.handle(p.conn, ClientMsg::SetTarget(Some(target)));
             let mut c = steer(pos, rot, tp, stats.weapon_range * 0.55, stats.turn);
-            if over && turrets > 0 {
+            // The turret ship to hide from: the target if it has turrets, else the nearest one whose
+            // turrets reach us — its escorts are fought from its blind side too (Wren killed a leviathan's
+            // Wardens over its back, in reach of six batteries, then crossed its flank to the belly).
+            let threat = g.ent(sys, target).filter(|e| e.stats.turrets > 0).or_else(|| {
+                g.systems[&sys].ents.values()
+                    .filter(|e| !e.dead && e.hull_class.is_none() && e.stats.turrets > 0 && e.pos.distance(pos) <= e.stats.turret_range + e.stats.radius + 300.0)
+                    .min_by(|a, b| a.pos.distance(pos).total_cmp(&b.pos.distance(pos)))
+            }).map(|e| (e.pos, e.rot, e.stats.turrets, e.stats.beam_turrets, e.stats.radius));
+            if over && let Some((hp, trot, turrets, beam, tr)) = threat {
                 // Get over or under its hull at fighting range — the side fewer of its batteries reach
                 // (a leviathan's blind belly), else the side we are on: fly there first, then hold it
                 // with the thrusters while the nose stays on the target.
@@ -425,11 +433,11 @@ impl Pilot {
                 let side = match reach(1.0).cmp(&reach(-1.0)) {
                     std::cmp::Ordering::Less => 1.0,
                     std::cmp::Ordering::Greater => -1.0,
-                    _ if (pos - tp).dot(up) >= 0.0 => 1.0,
+                    _ if (pos - hp).dot(up) >= 0.0 => 1.0,
                     _ => -1.0,
                 };
                 // Close over it: a capital's long guns would put that point far out, slow to reach.
-                let want = tp + up * side * (stats.weapon_range * 0.55).min(tr + 250.0);
+                let want = hp + up * side * (stats.weapon_range * 0.55).min(tr + 250.0);
                 if pos.distance(want) > 200.0 {
                     c = steer(pos, rot, want, 0.0, stats.turn);
                 } else {
@@ -550,7 +558,9 @@ impl Pilot {
                         if !self.escorts_attacking(g) {
                             self.send(g, ClientMsg::EscortCommand { attack: true });
                         }
-                        let target = wave.iter().filter_map(|w| g.ent(sys, *w).filter(|e| !e.dead).map(|e| (e.id, e.pos.distance(pos)))).min_by(|a, b| a.1.total_cmp(&b.1)).map(|(id, _)| id).or(attacker);
+                        // Nearest first; in 3D its escorts before a turret ship, fought from under its belly
+                        // (hiding there made the leviathan the nearest, and its Wardens shot us meanwhile).
+                        let target = wave.iter().filter_map(|w| g.ent(sys, *w).filter(|e| !e.dead).map(|e| ((over && e.stats.turrets > 0, e.pos.distance(pos)), e.id))).min_by(|a, b| a.0.0.cmp(&b.0.0).then(a.0.1.total_cmp(&b.0.1))).map(|(_, id)| id).or(attacker);
                         match target {
                             Some(tid) => fight(self, g, tid),
                             // The wave spawns on arrival; after a death it is waiting where we left it.
