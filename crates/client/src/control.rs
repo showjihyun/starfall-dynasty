@@ -192,6 +192,7 @@ fn flight_input(
         c.strafe_y = k(KeyCode::KeyZ) - k(KeyCode::ControlLeft);
         c.boost = keys.pressed(KeyCode::ShiftLeft);
         c.fire = keys.pressed(KeyCode::Space) || (mouse.pressed(MouseButton::Left) && !over_ui);
+        c.hold_post = s.hold_post;
         // Mouse steering: hold the right button, steer toward the cursor.
         if mouse.pressed(MouseButton::Right)
             && let Ok(w) = windows.single()
@@ -259,6 +260,12 @@ fn action_keys(keys: Res<ButtonInput<KeyCode>>, wants: Option<Res<EguiWantsInput
     if pressed(KeyCode::KeyC) {
         cs.first_person = !cs.first_person;
         s.toast(if cs.first_person { "시점: 1인칭 (함교)" } else { "시점: 3인칭 (추적)" }, now);
+    }
+    if pressed(KeyCode::KeyP) {
+        s.hold_post = !s.hold_post;
+        let what = if s.fleet_formation == shared::formation::Formation::Free { " — 함대장이 진형을 정하면 작동" } else { "" };
+        let msg = if s.hold_post { format!("진형 자리 지키기: 켬 (조준·사격은 직접){what}") } else { "진형 자리 지키기: 끔".into() };
+        s.toast(msg, now);
     }
     if pressed(KeyCode::KeyB) {
         net.send(ClientMsg::EscortCommand { attack: true });

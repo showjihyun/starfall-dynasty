@@ -71,6 +71,9 @@ pub struct Controls {
     pub roll: f32,
     pub boost: bool,
     pub fire: bool,
+    /// Hold my fleet formation post (P): the server flies thrust and strafe toward the ◆ post and
+    /// matches the leader's speed; yaw, pitch, roll and fire stay mine. Ignored outside a formation.
+    pub hold_post: bool,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

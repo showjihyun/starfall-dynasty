@@ -206,18 +206,8 @@ pub fn steer(g: &mut Game, caps: &mut [Captain], tick: u64, d: &Doctrine) {
 
 fn steer_doctrine(g: &mut Game, caps: &mut [Captain], tick: u64, d: &Doctrine) {
     let sys = &g.systems[&SYSTEM];
-    // Formation posts of fleet members (not leaders), from their leader's ship.
-    let spacing = g.tuning.ships.formation_spacing;
-    let mut posts: std::collections::BTreeMap<ConnId, Vec3> = Default::default();
-    for f in g.fleets.values() {
-        let Some(l) = g.player_entity(f.leader).and_then(|(_, id)| sys.ents.get(&id)) else { continue };
-        let others = f.members.iter().filter(|m| **m != f.leader);
-        for (k, m) in others.enumerate() {
-            if let (Some(conn), Some(post)) = (g.conn_of.get(m), f.formation.post_at(k + 1, l.pos, l.rot, spacing)) {
-                posts.insert(*conn, post);
-            }
-        }
-    }
+    // Fleet members (not leaders) of fleets in a formation.
+    let posts: std::collections::BTreeSet<ConnId> = g.fleets.values().filter(|f| f.formation != shared::formation::Formation::Free).flat_map(|f| f.members.iter().filter(|m| **m != f.leader).filter_map(|m| g.conn_of.get(m).copied())).collect();
     let side_of: std::collections::BTreeMap<PlayerId, usize> = caps.iter().filter_map(|c| Some((g.sessions[&c.conn].player?, c.side))).collect();
     let ships: Vec<(EntityId, Vec3, usize, bool)> = sys.ents.values().filter_map(|e| Some((e.id, e.pos, *side_of.get(&e.owner?)?, e.kind == EntityKind::Player))).collect();
     let mut orders = vec![];
@@ -249,20 +239,10 @@ fn steer_doctrine(g: &mut Game, caps: &mut [Captain], tick: u64, d: &Doctrine) {
         if local.z > 0.0 {
             ctl.yaw = if local.x >= 0.0 { 1.0 } else { -1.0 };
         }
-        // A fleet member keeps its formation post (the ◆ on its HUD): nose-first while far, else
-        // nose on the target and sliding into the post.
-        if let Some(post) = posts.get(&c.conn) {
-            let err = *post - me.pos;
-            if err.length() > 800.0 {
-                let l = me.rot.inverse() * err.normalize_or_zero();
-                ctl = Controls { yaw: (l.x * 4.0).clamp(-1.0, 1.0), pitch: (l.y * 4.0).clamp(-1.0, 1.0), thrust: 1.0, fire: false, ..Default::default() };
-                if l.z > 0.0 {
-                    ctl.yaw = if l.x >= 0.0 { 1.0 } else { -1.0 };
-                }
-            } else {
-                let l = me.rot.inverse() * err / 150.0;
-                (ctl.strafe_x, ctl.strafe_y, ctl.thrust) = (l.x.clamp(-1.0, 1.0), l.y.clamp(-1.0, 1.0), (-l.z).clamp(-1.0, 1.0));
-            }
+        // A fleet member keeps its formation post the way a player does: P (`hold_post`) flies it there,
+        // the captain only aims and fires.
+        if posts.contains(&c.conn) {
+            ctl.hold_post = true;
             orders.push((c.conn, retarget, ctl));
             continue;
         }

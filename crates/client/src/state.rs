@@ -69,6 +69,8 @@ pub struct Session {
     /// The fleet's formation and leader's name (`ServerMsg::Fleet`); members are in post order.
     pub fleet_formation: shared::formation::Formation,
     pub fleet_leader: String,
+    /// P: hold my fleet formation post (`Controls::hold_post`).
+    pub hold_post: bool,
     pub alliances: Vec<AllianceInfo>,
     pub my_alliance: Option<AllianceId>,
     pub alliance_invite: Option<(String, AllianceId, String)>,

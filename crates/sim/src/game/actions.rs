@@ -17,7 +17,7 @@ impl Game {
             ClientMsg::Controls(c) => {
                 if let Some(e) = eid.and_then(|e| self.ent_mut(sys, e)) {
                     let clamp = |v: f32| if v.is_finite() { v.clamp(-1.0, 1.0) } else { 0.0 };
-                    e.controls = Controls { thrust: clamp(c.thrust), strafe_x: clamp(c.strafe_x), strafe_y: clamp(c.strafe_y), yaw: clamp(c.yaw), pitch: clamp(c.pitch), roll: clamp(c.roll), boost: c.boost, fire: c.fire };
+                    e.controls = Controls { thrust: clamp(c.thrust), strafe_x: clamp(c.strafe_x), strafe_y: clamp(c.strafe_y), yaw: clamp(c.yaw), pitch: clamp(c.pitch), roll: clamp(c.roll), boost: c.boost, fire: c.fire, hold_post: c.hold_post };
                 }
             }
             ClientMsg::SetTarget(t) => {

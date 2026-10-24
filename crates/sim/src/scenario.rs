@@ -190,6 +190,9 @@ pub enum Check {
     Count { system: SystemId, kind: String, #[serde(default)] min: Option<u32>, #[serde(default)] max: Option<u32> },
     /// The captain is in this system.
     InSystem { captain: String, system: SystemId },
+    /// Distance between two captains' flagships (u); with `right`, only its part along `to`'s right
+    /// (+x in `to`'s frame, negative = left) — where a formation post puts it.
+    Distance { captain: String, to: String, #[serde(default)] right: bool, #[serde(default)] min: Option<f32>, #[serde(default)] max: Option<f32> },
     /// Chronicle entries whose kind contains this text (case-insensitive, e.g. "bounty", "SHIP_DESTROYED").
     History { kind: String, #[serde(default)] min: Option<u32>, #[serde(default)] max: Option<u32> },
     /// An engagement is (not) running in the system.
@@ -339,6 +342,14 @@ fn evaluate(run: &Run, c: &Check) -> (bool, String) {
             let (ok, s) = range(v, *min, *max);
             (ok, format!("system {system} {kind} count {s}"))
         }
+        Check::Distance { captain, to, right, min, max } => match (run.flagship(captain), run.flagship(to)) {
+            (Some(a), Some(b)) => {
+                let d = if *right { (b.rot.inverse() * (a.pos - b.pos)).x } else { a.pos.distance(b.pos) };
+                let (ok, s) = range(d.round(), *min, *max);
+                (ok, format!("{captain} {} {to} {s}", if *right { "right of" } else { "from" }))
+            }
+            _ => (false, format!("{captain} or {to} not in space")),
+        },
         Check::InSystem { captain, system } => {
             let at = run.pid(captain).and_then(|p| g.player_entity(p)).map(|(s, _)| s);
             (at == Some(*system), format!("{captain} in system {at:?} (want {system})"))

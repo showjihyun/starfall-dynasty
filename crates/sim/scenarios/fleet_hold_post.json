@@ -1,0 +1,24 @@
+{
+  "name": "fleet_hold_post",
+  "description": "넓은 대회전(최종 목표): 함대장이 진형을 횡대로 정하면 함대원 HUD에 ◆ 진형 자리(함대장 오른쪽 400 u, ships.ron formation_spacing)가 뜨고, P(Controls hold_post)를 켠 함대원은 서버가 그 자리로 몰아 주며 함대장의 속도를 따라간다 — 조준·사격은 함대원 몫. 켜지 않은 함대원(Drifter)은 제자리에 남는다",
+  "captains": [
+    { "name": "Lead", "hull": "Talon", "level": 5, "system": 5, "pos": [0, 0, 6000] },
+    { "name": "Wing", "hull": "Wren", "level": 5, "system": 5, "pos": [-300, 100, 6300] },
+    { "name": "Drifter", "hull": "Seer", "level": 5, "system": 5, "pos": [300, -100, 6300] }
+  ],
+  "script": [
+    { "at": 0.2, "captain": "Lead", "msg": { "FleetInvite": { "name": "Wing" } } },
+    { "at": 0.4, "captain": "Wing", "msg": { "FleetAccept": { "fleet": 1 } } },
+    { "at": 0.5, "captain": "Lead", "msg": { "FleetInvite": { "name": "Drifter" } } },
+    { "at": 0.7, "captain": "Drifter", "msg": { "FleetAccept": { "fleet": 1 } } },
+    { "at": 1.0, "captain": "Lead", "msg": { "FleetFormation": { "formation": "Line" } } },
+    { "at": 1.0, "captain": "Lead", "msg": { "Controls": { "thrust": 0.5 } }, "repeat_every": 0.5, "until": 30 },
+    { "at": 1.0, "captain": "Wing", "msg": { "Controls": { "hold_post": true } }, "repeat_every": 0.5, "until": 30 }
+  ],
+  "run_secs": 30,
+  "expect": [
+    { "at": 25, "check": "distance", "captain": "Wing", "to": "Lead", "right": true, "min": 330, "max": 470 },
+    { "at": 25, "check": "distance", "captain": "Wing", "to": "Lead", "min": 330, "max": 470 },
+    { "at": 25, "check": "distance", "captain": "Drifter", "to": "Lead", "min": 1000 }
+  ]
+}

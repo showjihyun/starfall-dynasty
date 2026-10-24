@@ -46,6 +46,26 @@ impl Game {
         tier.pvp_allowed() || (tier != RiskTier::Core && self.at_war(a, b))
     }
 
+    /// Fleet members in `sys` holding their formation post (`Controls::hold_post`): entity → (post,
+    /// leader's velocity). The leader must be in the same system.
+    fn held_posts(&self, sys: SystemId) -> std::collections::BTreeMap<EntityId, (Vec3, Vec3)> {
+        let mut out = std::collections::BTreeMap::new();
+        let spacing = self.tuning.ships.formation_spacing;
+        for f in self.fleets.values().filter(|f| f.formation != shared::formation::Formation::Free) {
+            let Some(l) = self.player_entity(f.leader).filter(|(s, _)| *s == sys).and_then(|(_, id)| self.ent(sys, id)) else { continue };
+            for (k, m) in f.members.iter().filter(|m| **m != f.leader).enumerate() {
+                if let Some((s, id)) = self.player_entity(*m)
+                    && s == sys
+                    && self.ent(sys, id).is_some_and(|e| e.controls.hold_post && !e.dead && !e.docked)
+                    && let Some(post) = f.formation.post_at(k + 1, l.pos, l.rot, spacing)
+                {
+                    out.insert(id, (post, l.vel));
+                }
+            }
+        }
+        out
+    }
+
     pub fn tick(&mut self, dt: f32, unix: u64) {
         self.now += dt as f64;
         self.unix = unix;
@@ -235,6 +255,7 @@ impl Game {
         drop(p);
         let p = prof::span("flight");
         let roll_rate = self.tuning.combat.roll_rate;
+        let posts = self.held_posts(sys);
         for &id in &ids {
             let now = self.now;
             let Some(e) = self.systems.get_mut(&sys).unwrap().ents.get_mut(&id) else { continue };
@@ -250,12 +271,20 @@ impl Game {
                 continue;
             }
             // Flight model with flight-assist.
-            let c = e.controls;
+            let mut c = e.controls;
+            // Holding a formation post: thrust and strafe toward it (full speed beyond 300 u, easing in).
+            let mut carry = Vec3::ZERO;
+            if let Some(&(post, leader_vel)) = posts.get(&id) {
+                let err = post - e.pos;
+                let l = e.rot.inverse() * err.normalize_or_zero() * (err.length() / 300.0).min(1.0);
+                (c.thrust, c.strafe_x, c.strafe_y) = ((-l.z).clamp(-1.0, 1.0), (l.x / 0.6).clamp(-1.0, 1.0), (l.y / 0.6).clamp(-1.0, 1.0));
+                carry = leader_vel;
+            }
             let rate = e.stats.turn * dt;
             e.rot = (e.rot * Quat::from_rotation_y(-c.yaw * rate) * Quat::from_rotation_x(c.pitch * rate) * Quat::from_rotation_z(-c.roll * rate * roll_rate)).normalize();
             let (fwd, right, up) = (e.rot * Vec3::NEG_Z, e.rot * Vec3::X, e.rot * Vec3::Y);
             let boost = if c.boost { 1.7 } else { 1.0 };
-            let desired = (fwd * c.thrust + right * c.strafe_x * 0.6 + up * c.strafe_y * 0.6) * e.stats.speed * boost;
+            let desired = (fwd * c.thrust + right * c.strafe_x * 0.6 + up * c.strafe_y * 0.6) * e.stats.speed * boost + carry;
             let dv = desired - e.vel;
             let max_dv = e.stats.accel * boost * dt;
             e.vel += if dv.length() > max_dv { dv.normalize() * max_dv } else { dv };

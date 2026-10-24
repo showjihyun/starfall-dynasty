@@ -351,7 +351,7 @@ fn hud(ctx: &egui::Context, s: &mut Session, net: &Net, env: &Env, vis: &Visuals
             if let (Some(me), Some(latest)) = (s.player_id, s.latest())
                 && let Some((post, label)) = view::hud::formation_post(s.fleet_formation, &s.fleet_members, me, latest.ents.values(), shared::tuning::get().ships.formation_spacing)
             {
-                marks.push((post, label, GOLD));
+                marks.push((post, if s.hold_post { format!("{label} (P: 지키는 중)") } else { format!("{label} (P: 자동으로 지키기)") }, GOLD));
             }
             for (pos, name, col) in marks {
                 if let Some(sp) = project(pos) {
