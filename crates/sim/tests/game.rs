@@ -1299,6 +1299,11 @@ fn target_panel_turret_count_matches_the_server() {
         let rot = Quat::from_array(st.rot);
         assert_eq!(shared::ships::batteries_reaching(&st, p + rot * Vec3::X * 500.0), n, "{a:?} level");
         assert_eq!(shared::ships::batteries_reaching(&st, p + rot * Vec3::Y * 500.0), n.div_ceil(2), "{a:?} above");
+        // Under it only the ventral batteries; beam mounts on the flanks leave a blind belly.
+        assert_eq!(shared::ships::batteries_reaching(&st, p - rot * Vec3::Y * 500.0), n / 2 - e.stats.beam_turrets, "{a:?} under");
+        if a == NpcArchetype::Sentinel {
+            assert!(shared::ships::batteries_reaching(&st, p - rot * Vec3::Y * 500.0) < n / 2, "the leviathan's belly is its blind side");
+        }
     }
 }
 

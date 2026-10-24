@@ -1,0 +1,26 @@
+{
+  "name": "pve_leviathan_belly",
+  "description": "3D PvE(최종 목표): 리바이어던 센티넬은 배 아래에 포탑 1문만 단다(npcs.ron ventral_turrets: Some(1), 나머지 배쪽 5문은 옆면) — 옆에서는 12문, 위에서는 등 6문, 배 아래에서는 1문이 닿는다. 같은 Lv7 Talon 셋이 각자 센티넬 하나를 옆·위·배 아래에서 공격한다. 배 아래로 파고든 쪽은 옆에서 쏜 쪽 피해의 절반 아래만 받는다(2026-10-24: 옆 4830 · 위 3817 · 배 아래 2259, 자리 잡는 동안과 전방포 포함)",
+  "captains": [
+    { "name": "Level", "hull": "Talon", "level": 7, "system": 9, "pos": [-9400, 0, 6000] },
+    { "name": "Over", "hull": "Talon", "level": 7, "system": 9, "pos": [0, 600, 6000] },
+    { "name": "Under", "hull": "Talon", "level": 7, "system": 9, "pos": [10000, -600, 6000] }
+  ],
+  "npcs": [
+    { "archetype": "Sentinel", "level": 3, "system": 9, "pos": [-10000, 0, 6000] },
+    { "archetype": "Sentinel", "level": 3, "system": 9, "pos": [0, 0, 6000] },
+    { "archetype": "Sentinel", "level": 3, "system": 9, "pos": [10000, 0, 6000] }
+  ],
+  "script": [
+    { "at": 0.5, "captain": "Level", "target_nearest": "npc", "aim": true, "msg": { "Controls": { "fire": true } }, "repeat_every": 0.1, "until": 15 },
+    { "at": 0.5, "captain": "Over", "target_nearest": "npc", "aim": true, "hold_over": true, "msg": { "Controls": { "fire": true } }, "repeat_every": 0.1, "until": 15 },
+    { "at": 0.5, "captain": "Under", "target_nearest": "npc", "aim": true, "hold_over": true, "msg": { "Controls": { "fire": true } }, "repeat_every": 0.1, "until": 15 }
+  ],
+  "run_secs": 15,
+  "expect": [
+    { "check": "taken", "captain": "Under", "max": 2800 },
+    { "check": "taken", "captain": "Over", "min": 3000, "max": 4300 },
+    { "check": "taken", "captain": "Level", "min": 4300 },
+    { "check": "alive", "captain": "Under" }
+  ]
+}

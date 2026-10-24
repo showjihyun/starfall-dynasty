@@ -242,8 +242,20 @@ pub struct NpcDef {
     pub turn: f32,
     pub radius: f32,
     pub turrets: u8,
+    /// Batteries under the hull; the rest of the ventral half sits on the flanks and reaches only what
+    /// is level with it (`ships::battery_covers`). Missing: half the batteries, as on every ship.
+    #[serde(default)]
+    pub ventral_turrets: Option<u8>,
     /// Credits are multiplied by (1 + level); the materials are fixed.
     pub bounty: Materials,
+}
+
+impl NpcDef {
+    /// Odd (ventral-half) batteries that are beam mounts instead (`ships::battery_covers`).
+    pub fn beam_turrets(&self) -> u8 {
+        let ventral = self.turrets / 2;
+        ventral - self.ventral_turrets.unwrap_or(ventral).min(ventral)
+    }
 }
 
 /// Ore market (`economy.ron`).

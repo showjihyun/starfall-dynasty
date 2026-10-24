@@ -206,9 +206,16 @@ fn elevation_text_reads_above_and_below() {
 #[test]
 fn target_panel_tells_how_many_turrets_reach_me() {
     // 3D combat: diving above or below a capital ship halves the batteries that can answer.
-    assert_eq!(view::hud::battery_text(3, 0), None, "no turrets, no line");
-    assert_eq!(view::hud::battery_text(8, 8).unwrap(), "포탑 8문 모두 나를 겨눔 — 위·아래로 파고들면 절반");
-    assert_eq!(view::hud::battery_text(4, 8).unwrap(), "포탑 4/8문만 닿음 — 사격호 밖");
+    assert_eq!(view::hud::battery_text(3, 0, 0), None, "no turrets, no line");
+    assert_eq!(view::hud::battery_text(8, 8, 4).unwrap(), "포탑 8문 모두 나를 겨눔 — 위·아래로 파고들면 절반");
+    assert_eq!(view::hud::battery_text(4, 8, 4).unwrap(), "포탑 4/8문만 닿음 — 사격호 밖");
+    // A leviathan with a nearly blind belly (npcs.ron ventral_turrets): point the captain under it.
+    assert_eq!(view::hud::battery_text(12, 12, 1).unwrap(), "포탑 12문 모두 나를 겨눔 — 배 아래로 파고들면 1문");
+    assert_eq!(view::hud::battery_text(6, 12, 1).unwrap(), "포탑 6/12문만 닿음 — 배 아래로 가면 1문");
+    assert_eq!(view::hud::battery_text(1, 12, 1).unwrap(), "포탑 1/12문만 닿음 — 사격호 밖", "already under it");
+    // The panel reads the server's layout: the chapter-5 Sentinel shows the belly hint.
+    let sentinel = shared::tuning::get().npcs.archetypes[&shared::missions::NpcArchetype::Sentinel].clone();
+    assert!((sentinel.turrets / 2 - sentinel.beam_turrets()) * 2 < sentinel.turrets, "the Sentinel's belly is its weak side");
 }
 
 #[test]

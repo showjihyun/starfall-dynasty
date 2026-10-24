@@ -724,6 +724,7 @@ impl Game {
             radius,
             // Warlords and Sentinels are capital ships: they carry turret batteries too.
             turrets: def.turrets,
+            beam_turrets: def.beam_turrets(),
             turret_damage: damage * n.turret_damage,
             turret_interval: n.turret_interval,
             turret_range: weapon_range * n.turret_range,

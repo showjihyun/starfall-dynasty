@@ -40,7 +40,12 @@
         // hundreds of m/s and nobody could get out of its turret arcs (docs/3D_전투_설계.md 「PvE」).
         Warlord:  (hull: 1900.0, shield: 700.0,  damage: 26.0, fire_interval: 0.35, speed: 65.0, turn: 0.25, radius: 30.0, turrets: 6,
                    bounty: (credits: 1500, alloy: 20, datacore: 4, relic: 1)),
-        Sentinel: (hull: 5200.0, shield: 2200.0, damage: 38.0, fire_interval: 0.3,  speed: 55.0, turn: 0.25, radius: 60.0, turrets: 12,
+        // Sentinel ventral_turrets 1 (2026-10-24): one battery under its belly, the other five of the ventral
+        // half on the flanks — 12 reach a ship level with it, 6 one above it, 1 one under it. Halving its
+        // fire from above was never enough against chapter 5 (a Lv7 cruiser took it to 70% before dying).
+        // Chapter 5 from under the belly: Lv6–7 instead of Lv8; 0 under it made chapter 5 a 1.5 min fight
+        // for every hull, 2 left almost no gain (docs/3D_전투_설계.md 「PvE」).
+        Sentinel: (hull: 5200.0, shield: 2200.0, damage: 38.0, fire_interval: 0.3,  speed: 55.0, turn: 0.25, radius: 60.0, turrets: 12, ventral_turrets: Some(1),
                    bounty: (credits: 5400, alloy: 40, crystal: 30, datacore: 10, relic: 3)),
     },
 )

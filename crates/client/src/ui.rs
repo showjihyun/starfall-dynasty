@@ -421,7 +421,7 @@ fn hud(ctx: &egui::Context, s: &mut Session, net: &Net, env: &Env, vis: &Visuals
                 if let Some(m) = &me {
                     ui.label(format!("거리 {:.0}u", Vec3::from(t.pos).distance(Vec3::from(m.pos))));
                     let total = shared::ships::turret_batteries(&t);
-                    if let Some(line) = view::hud::battery_text(shared::ships::batteries_reaching(&t, Vec3::from(m.pos)), total) {
+                    if let Some(line) = view::hud::battery_text(shared::ships::batteries_reaching(&t, Vec3::from(m.pos)), total, shared::ships::batteries_under(&t)) {
                         ui.label(RichText::new(line).size(12.0).color(DIM));
                     }
                     if let Some(line) = view::hud::roll_hint(shared::ships::batteries_reaching(m, Vec3::from(t.pos)), shared::ships::turret_batteries(m)) {

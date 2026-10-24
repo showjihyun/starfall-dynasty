@@ -413,15 +413,23 @@ impl Pilot {
         let over = o.over;
         // Someone shooting at us outside a planned fight: answer.
         let fight = |p: &mut Pilot, g: &mut Game, target: EntityId| {
-            let Some((tp, trot, turrets)) = g.ent(sys, target).map(|e| (e.pos, e.rot, e.stats.turrets)) else { return };
+            let Some((tp, trot, turrets, beam, tr)) = g.ent(sys, target).map(|e| (e.pos, e.rot, e.stats.turrets, e.stats.beam_turrets, e.stats.radius)) else { return };
             g.handle(p.conn, ClientMsg::SetTarget(Some(target)));
             let mut c = steer(pos, rot, tp, stats.weapon_range * 0.55, stats.turn);
             if over && turrets > 0 {
-                // Get over (or under) its hull, whichever side we are on, at fighting range: fly there
-                // first, then hold it with the thrusters while the nose stays on the target.
+                // Get over or under its hull at fighting range — the side fewer of its batteries reach
+                // (a leviathan's blind belly), else the side we are on: fly there first, then hold it
+                // with the thrusters while the nose stays on the target.
                 let up = trot * Vec3::Y;
-                let side = if (pos - tp).dot(up) >= 0.0 { 1.0 } else { -1.0 };
-                let want = tp + up * side * stats.weapon_range * 0.55;
+                let reach = |u: f32| (0..turrets as usize).filter(|i| shared::ships::battery_covers(*i, turrets as usize, beam, u, g.tuning.combat.turret_arc_overlap)).count();
+                let side = match reach(1.0).cmp(&reach(-1.0)) {
+                    std::cmp::Ordering::Less => 1.0,
+                    std::cmp::Ordering::Greater => -1.0,
+                    _ if (pos - tp).dot(up) >= 0.0 => 1.0,
+                    _ => -1.0,
+                };
+                // Close over it: a capital's long guns would put that point far out, slow to reach.
+                let want = tp + up * side * (stats.weapon_range * 0.55).min(tr + 250.0);
                 if pos.distance(want) > 200.0 {
                     c = steer(pos, rot, want, 0.0, stats.turn);
                 } else {

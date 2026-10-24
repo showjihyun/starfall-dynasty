@@ -93,12 +93,19 @@ pub fn elevation_text(me: Vec3, it: Vec3) -> String {
 }
 
 /// Target panel line on its turret arcs (`shared::ships::batteries_reaching`): how many of its
-/// batteries can reach me, and the hint to dive when all of them can. None: it has no turrets.
-pub fn battery_text(reach: u8, total: u8) -> Option<String> {
+/// batteries can reach me, and the hint to dive when all of them can — under its belly when fewer
+/// than half reach there (`under`, `shared::ships::batteries_under`). None: it has no turrets.
+pub fn battery_text(reach: u8, total: u8, under: u8) -> Option<String> {
     if total == 0 {
         return None;
     }
-    Some(if reach >= total { format!("포탑 {total}문 모두 나를 겨눔 — 위·아래로 파고들면 절반") } else { format!("포탑 {reach}/{total}문만 닿음 — 사격호 밖") })
+    let belly = (under as u16 * 2) < total as u16;
+    Some(match (reach >= total, belly) {
+        (true, false) => format!("포탑 {total}문 모두 나를 겨눔 — 위·아래로 파고들면 절반"),
+        (true, true) => format!("포탑 {total}문 모두 나를 겨눔 — 배 아래로 파고들면 {under}문"),
+        (false, true) if reach > under => format!("포탑 {reach}/{total}문만 닿음 — 배 아래로 가면 {under}문"),
+        _ => format!("포탑 {reach}/{total}문만 닿음 — 사격호 밖"),
+    })
 }
 
 /// The defender's side of the same rule: when my own batteries cannot all reach my target (it sits

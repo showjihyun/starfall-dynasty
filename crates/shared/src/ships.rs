@@ -269,6 +269,7 @@ impl Ship {
             cargo: b.cargo * (1.0 + g.cargo * lv(Module::Cargo)) * k.hp.sqrt(),
             radius: b.radius * k.size,
             turrets: c.turrets + c.turrets_per_rank * above,
+            beam_turrets: 0,
             turret_damage: damage * bat.turret_damage,
             turret_interval: bat.turret_interval / (1.0 + g.reactor_fire_rate * reactor),
             turret_range: weapon_range * bat.turret_range,
@@ -355,6 +356,9 @@ pub struct Stats {
     pub radius: f32,
     /// Auto-aiming turret batteries (cruisers and capitals).
     pub turrets: u8,
+    /// Of those, odd (ventral) batteries mounted on the flanks instead (`battery_covers`).
+    #[serde(default)]
+    pub beam_turrets: u8,
     pub turret_damage: f32,
     pub turret_interval: f32,
     pub turret_range: f32,
@@ -378,10 +382,27 @@ pub enum WeaponKind {
 }
 
 /// Turret firing arcs (`combat.ron` turret_arc_overlap): batteries alternate dorsal (even `i`) and
-/// ventral (odd). Whether battery `i` reaches something `up` above the hull's plane (the direction's
-/// y in the ship's own frame, −1..1).
-pub fn battery_covers(i: usize, up: f32, overlap: f32) -> bool {
-    if i.is_multiple_of(2) { up >= -overlap } else { up <= overlap }
+/// ventral (odd); of `n` batteries the last `beam` odd ones are beam mounts on the flanks instead,
+/// which reach only what is level with the hull (a leviathan's blind belly, `npcs.ron`
+/// `ventral_turrets`). Whether battery `i` reaches something `up` above the hull's plane (the
+/// direction's y in the ship's own frame, −1..1).
+pub fn battery_covers(i: usize, n: usize, beam: u8, up: f32, overlap: f32) -> bool {
+    if i.is_multiple_of(2) {
+        up >= -overlap
+    } else if i / 2 + beam as usize >= n / 2 {
+        up.abs() <= overlap
+    } else {
+        up <= overlap
+    }
+}
+
+/// Of a ship's odd (ventral) batteries, how many are beam mounts instead (`battery_covers`):
+/// NPCs by archetype (`ventral_turrets`), every other ship none.
+pub fn beam_batteries(st: &crate::protocol::EntityState) -> u8 {
+    match st.kind {
+        crate::protocol::EntityKind::Npc(a) => crate::tuning::get().npcs.archetypes.get(&a).map(|d| d.beam_turrets()).unwrap_or(0),
+        _ => 0,
+    }
 }
 
 /// Turret batteries on a ship as other captains see it (the server gives it exactly this many):
@@ -401,7 +422,14 @@ pub fn batteries_reaching(st: &crate::protocol::EntityState, at: glam::Vec3) -> 
     let rot = glam::Quat::from_array(st.rot);
     let up = (rot.inverse() * (at - glam::Vec3::from(st.pos))).normalize_or_zero().y;
     let overlap = crate::tuning::get().combat.turret_arc_overlap;
-    (0..turret_batteries(st) as usize).filter(|i| battery_covers(*i, up, overlap)).count() as u8
+    let (n, beam) = (turret_batteries(st) as usize, beam_batteries(st));
+    (0..n).filter(|i| battery_covers(*i, n, beam, up, overlap)).count() as u8
+}
+
+/// How many of `st`'s batteries reach straight under its hull (0 under a leviathan's blind belly).
+pub fn batteries_under(st: &crate::protocol::EntityState) -> u8 {
+    let rot = glam::Quat::from_array(st.rot);
+    batteries_reaching(st, glam::Vec3::from(st.pos) - rot * glam::Vec3::Y * 500.0)
 }
 
 #[cfg(test)]
