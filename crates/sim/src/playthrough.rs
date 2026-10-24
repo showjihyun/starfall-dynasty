@@ -271,11 +271,14 @@ fn next_hop(from: SystemId, to: SystemId, range: f32) -> Option<SystemId> {
     None
 }
 
-/// Controls that turn the nose toward `goal` and fly there, stopping `stop` short of it.
-fn steer(pos: Vec3, rot: shared::glam::Quat, goal: Vec3, stop: f32) -> Controls {
+/// Controls that turn the nose toward `goal` and fly there, stopping `stop` short of it. `turn` is the
+/// ship's turn rate (rad/s): the nose is turned by about the remaining error until the next decision,
+/// so an agile hull does not swing past the target and back (Wren lost every fight that way).
+fn steer(pos: Vec3, rot: shared::glam::Quat, goal: Vec3, stop: f32, turn: f32) -> Controls {
     let to = goal - pos;
     let local = rot.inverse() * to.normalize_or_zero();
-    let mut c = Controls { yaw: (local.x * 4.0).clamp(-1.0, 1.0), pitch: (local.y * 4.0).clamp(-1.0, 1.0), ..Default::default() };
+    let gain = (TICK_HZ / (THINK as f32 * turn.max(0.1))).min(4.0);
+    let mut c = Controls { yaw: (local.x * gain).clamp(-1.0, 1.0), pitch: (local.y * gain).clamp(-1.0, 1.0), ..Default::default() };
     if local.z > 0.0 {
         c.yaw = if local.x >= 0.0 { 1.0 } else { -1.0 };
     }
@@ -408,7 +411,7 @@ impl Pilot {
         let fight = |p: &mut Pilot, g: &mut Game, target: EntityId| {
             let Some(tp) = g.ent(sys, target).map(|e| e.pos) else { return };
             g.handle(p.conn, ClientMsg::SetTarget(Some(target)));
-            let mut c = steer(pos, rot, tp, stats.weapon_range * 0.55);
+            let mut c = steer(pos, rot, tp, stats.weapon_range * 0.55, stats.turn);
             let local = rot.inverse() * (tp - pos).normalize_or_zero();
             c.fire = -local.z > 0.9 && pos.distance(tp) < stats.weapon_range * 1.05;
             g.handle(p.conn, ClientMsg::Controls(c));
@@ -444,7 +447,7 @@ impl Pilot {
                 let fresh = g.systems[&sys].layout.pois.iter().filter(|p| !prof.scanned.contains(&(sys, p.id))).min_by(|a, b| a.pos.distance(pos).total_cmp(&b.pos.distance(pos))).map(|p| (p.id, p.pos));
                 if let Some((poi, at)) = fresh {
                     if pos.distance(at) > stats.scan_range * 0.7 {
-                        self.send(g, ClientMsg::Controls(steer(pos, rot, at, stats.scan_range * 0.5)));
+                        self.send(g, ClientMsg::Controls(steer(pos, rot, at, stats.scan_range * 0.5, stats.turn)));
                     } else {
                         self.send(g, ClientMsg::Controls(Controls::default()));
                         self.send(g, ClientMsg::Scan { poi });
@@ -456,12 +459,12 @@ impl Pilot {
                 let used: u32 = prof.cargo.values().sum();
                 // Whole units: full once another one would not fit.
                 if used as f32 + 1.0 > stats.cargo {
-                    return self.dock(g, pos, rot, station, stats.radius);
+                    return self.dock(g, pos, rot, station, stats.radius, stats.turn);
                 }
                 let a = layout.asteroids.iter().filter(|a| ore.is_none_or(|o| a.ore == o)).min_by(|a, b| a.pos.distance(station).total_cmp(&b.pos.distance(station))).cloned()?;
                 let reach = a.radius + stats.radius + 60.0;
                 if pos.distance(a.pos) > reach + 80.0 {
-                    self.send(g, ClientMsg::Controls(steer(pos, rot, a.pos, reach)));
+                    self.send(g, ClientMsg::Controls(steer(pos, rot, a.pos, reach, stats.turn)));
                 } else {
                     self.send(g, ClientMsg::Controls(Controls::default()));
                     if g.ent(sys, eid).is_some_and(|e| e.mining.is_none()) {
@@ -478,7 +481,7 @@ impl Pilot {
                     }
                     if self.affordable_upgrade(&prof, cap).is_some() && !in_combat {
                         let station = g.systems[&sys].layout.station;
-                        return self.dock(g, pos, rot, station, stats.radius);
+                        return self.dock(g, pos, rot, station, stats.radius, stats.turn);
                     }
                     self.send(g, ClientMsg::StartScenario { id: prof.scenarios_completed });
                     return None;
@@ -506,7 +509,7 @@ impl Pilot {
                         }
                         let Some(poi) = pick_poi(g, sys, kind, &prof.scanned, pos) else { return Some(format!("no {kind:?} site in system {sys}")) };
                         if pos.distance(poi.1) > stats.scan_range * 0.7 {
-                            self.send(g, ClientMsg::Controls(steer(pos, rot, poi.1, stats.scan_range * 0.5)));
+                            self.send(g, ClientMsg::Controls(steer(pos, rot, poi.1, stats.scan_range * 0.5, stats.turn)));
                         } else {
                             self.send(g, ClientMsg::Controls(Controls::default()));
                             self.send(g, ClientMsg::Scan { poi: poi.0 });
@@ -557,9 +560,9 @@ impl Pilot {
         }
     }
 
-    fn dock(&mut self, g: &mut Game, pos: Vec3, rot: shared::glam::Quat, station: Vec3, radius: f32) -> Option<String> {
+    fn dock(&mut self, g: &mut Game, pos: Vec3, rot: shared::glam::Quat, station: Vec3, radius: f32, turn: f32) -> Option<String> {
         if pos.distance(station) > radius + 120.0 {
-            self.send(g, ClientMsg::Controls(steer(pos, rot, station, radius + 60.0)));
+            self.send(g, ClientMsg::Controls(steer(pos, rot, station, radius + 60.0, turn)));
         } else {
             self.send(g, ClientMsg::Controls(Controls::default()));
             self.send(g, ClientMsg::Dock);
