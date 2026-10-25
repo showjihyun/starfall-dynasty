@@ -64,18 +64,21 @@
 
     // Cost to raise a module from level l to l + 1: credits = round(credits × l^credits_exp),
     // each material (per, after) = per × (l − after) once l > after.
+    // Combat modules (Hull, Reactor, Shield, Weapons) alloy 4 → 5, every module datacore 2 × (l − 3)
+    // (2026-10-25, campaign QA docs/QA_CAMPAIGN.md 「3D 캠페인 길이」, medians of 7 seeds): mining loop v2 made
+    // the 3D campaign 9–22 min; now 3D 16–27, head-on 54–62. Datacore had no sink (100–160 piled up), now 10–90.
     upgrade: (
         credits: 350.0,
         credits_exp: 1.65,
         modules: {
-            Hull:     (alloy: (4, 0), relic: (1, 6)),
-            Reactor:  (alloy: (4, 0), crystal: (3, 0), relic: (1, 6)),
-            Engine:   (alloy: (4, 0), relic: (1, 6)),
-            WarpCore: (alloy: (4, 0), crystal: (2, 0), datacore: (1, 2), relic: (1, 6)),
-            Shield:   (alloy: (4, 0), crystal: (3, 0), relic: (1, 6)),
-            Weapons:  (alloy: (4, 0), datacore: (2, 3), relic: (1, 6)),
+            Hull:     (alloy: (5, 0), datacore: (2, 3), relic: (1, 6)),
+            Reactor:  (alloy: (5, 0), crystal: (3, 0), datacore: (2, 3), relic: (1, 6)),
+            Engine:   (alloy: (4, 0), datacore: (2, 3), relic: (1, 6)),
+            WarpCore: (alloy: (4, 0), crystal: (2, 0), datacore: (2, 3), relic: (1, 6)),
+            Shield:   (alloy: (5, 0), crystal: (3, 0), datacore: (2, 3), relic: (1, 6)),
+            Weapons:  (alloy: (5, 0), datacore: (2, 3), relic: (1, 6)),
             Scanner:  (alloy: (4, 0), datacore: (2, 3), relic: (1, 6)),
-            Cargo:    (alloy: (4, 0), relic: (1, 6)),
+            Cargo:    (alloy: (4, 0), datacore: (2, 3), relic: (1, 6)),
         },
     ),
 

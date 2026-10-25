@@ -38,11 +38,14 @@ pub struct Options {
     /// Fight ships with turrets from straight over (or under) their hull, outside the turret arcs,
     /// as `hold_over` in the scenario specs (docs/3D_전투_설계.md) — what a 3D player does.
     pub over: bool,
+    /// The world runs this many seconds before the captain starts (not counted): game randomness
+    /// follows the tick, so each seed is another campaign — a single run swings ±10 min.
+    pub seed: u32,
 }
 
 impl Default for Options {
     fn default() -> Self {
-        Options { species: Species::Human, profession: Profession::CombatPilot, hull: HullClass::Talon, max_secs: 10.0 * 3600.0, max_deaths: 20, unix: 1_760_000_000, chapter: 0, level: 1, only: false, over: false }
+        Options { species: Species::Human, profession: Profession::CombatPilot, hull: HullClass::Talon, max_secs: 10.0 * 3600.0, max_deaths: 20, unix: 1_760_000_000, chapter: 0, level: 1, only: false, over: false, seed: 0 }
     }
 }
 
@@ -238,6 +241,13 @@ pub fn play(o: &Options) -> Report {
     }
     let mut p = Pilot { conn, pid, mode: Mode::Play, step_deaths: 0, step: None, upgrades_at_last_retreat: 0, upgrades: 0, missile_cd: 0.0, last_attacker: String::new(), at: 0, avoid: Default::default() };
     let dt = 1.0 / TICK_HZ;
+    let warm = o.seed as u64 * TICK_HZ as u64;
+    for tick in 0..warm {
+        g.tick(dt, o.unix + tick / TICK_HZ as u64);
+        g.out.clear();
+        g.kicked.clear();
+    }
+    let unix = o.unix + o.seed as u64;
     let total = (o.max_secs * TICK_HZ) as u64;
     let mut was_dead = false;
     for tick in 0..total {
@@ -275,7 +285,7 @@ pub fn play(o: &Options) -> Report {
         if let Some(c) = rep.chapters.last_mut().filter(|c| c.finished.is_none()) {
             c.time[Activity::of(&g, conn) as usize] += dt;
         }
-        g.tick(dt, o.unix + tick / TICK_HZ as u64);
+        g.tick(dt, unix + tick / TICK_HZ as u64);
         g.out.clear();
         g.kicked.clear();
         rep.secs = t + dt;
