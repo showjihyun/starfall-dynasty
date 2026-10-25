@@ -32,6 +32,32 @@ pub const CONTROLS: &[(&str, &[(&str, &str)])] = &[
 pub const KEY_HINTS: [&str; 2] = ["W/S 추진 · A/D 선회 · R/F 상하 · Q/E 롤 · Shift 부스트", "Space 사격 · T 목표 · X 미사일 · M 지도 · F1 모든 조작"];
 
 /// Draws `KEY_HINTS` in the bottom-right corner (clear of the chat and the ship status panel).
+/// Widest the death panel's hint line runs before it wraps.
+pub const DEATH_HINT_W: f32 = 520.0;
+
+/// The "ship sunk" panel (screen centre) with how to beat the wave next time, if the server sent one
+/// (`ServerMsg::Died::hint`). Returns true when the rebuild button was clicked.
+pub fn death_panel(ctx: &egui::Context, killer: &str, hint: Option<&str>) -> bool {
+    use crate::palette::{DIM, RED, chrome};
+    let mut rebuild = false;
+    egui::Area::new("dead".into()).anchor(Align2::CENTER_CENTER, EVec2::ZERO).show(ctx, |ui| {
+        egui::Frame::popup(ui.style()).fill(chrome::DEATH).show(ui, |ui| {
+            ui.set_max_width(DEATH_HINT_W);
+            ui.vertical_centered(|ui| {
+                ui.label(RichText::new("함선 격침").size(30.0).color(RED).strong());
+                ui.label(format!("{killer}에게 격침당했습니다. 이 사건은 은하 연대기에 기록됩니다."));
+                ui.label(RichText::new("잔해는 며칠간 남아, 누구든 조사해 진실을 밝힐 수 있습니다.").color(DIM));
+                if let Some(h) = hint {
+                    ui.add_space(8.0);
+                    ui.label(RichText::new(format!("💡 {h}")).color(ACCENT).size(15.0));
+                }
+                rebuild = ui.button(RichText::new("모항에서 재건 (Enter)").size(18.0)).clicked();
+            });
+        });
+    });
+    rebuild
+}
+
 pub fn key_hints(ctx: &egui::Context) {
     egui::Area::new("keys".into()).anchor(Align2::RIGHT_BOTTOM, EVec2::new(-CHAT_MARGIN, -CHAT_MARGIN)).interactable(false).show(ctx, |ui| {
         ui.with_layout(egui::Layout::top_down(egui::Align::Max), |ui| {

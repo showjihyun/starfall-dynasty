@@ -516,19 +516,10 @@ fn hud(ctx: &egui::Context, s: &mut Session, net: &Net, env: &Env, vis: &Visuals
     // Key hints (bottom right; every control is in the help window).
     view::hud::key_hints(ctx);
 
-    if let Some(killer) = s.dead.clone() {
-        egui::Area::new("dead".into()).anchor(Align2::CENTER_CENTER, EVec2::ZERO).show(ctx, |ui| {
-            egui::Frame::popup(ui.style()).fill(chrome::DEATH).show(ui, |ui| {
-                ui.vertical_centered(|ui| {
-                    ui.label(RichText::new("함선 격침").size(30.0).color(RED).strong());
-                    ui.label(format!("{killer}에게 격침당했습니다. 이 사건은 은하 연대기에 기록됩니다."));
-                    ui.label(RichText::new("잔해는 며칠간 남아, 누구든 조사해 진실을 밝힐 수 있습니다.").color(DIM));
-                    if ui.button(RichText::new("모항에서 재건 (Enter)").size(18.0)).clicked() {
-                        net.send(ClientMsg::Respawn);
-                    }
-                });
-            });
-        });
+    if let Some(killer) = s.dead.clone()
+        && view::hud::death_panel(ctx, &killer, s.dead_hint.as_deref())
+    {
+        net.send(ClientMsg::Respawn);
     }
     if let Some(r) = &s.disconnected {
         egui::Area::new("dc".into()).anchor(Align2::CENTER_TOP, EVec2::new(0.0, 120.0)).show(ctx, |ui| {

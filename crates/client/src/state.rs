@@ -62,6 +62,8 @@ pub struct Session {
     pub scan: Option<(u32, f32)>,
     pub scanned: HashSet<u32>,
     pub dead: Option<String>,
+    /// How to beat the wave that just sank us again (`ServerMsg::Died::hint`), shown on the death panel.
+    pub dead_hint: Option<String>,
     pub chronicle: Option<(Vec<HistoricalEvent>, Vec<Evidence>, Vec<Headline>)>,
     pub biography: Option<(String, Vec<BioEntry>, Vec<BioEntry>)>,
     pub fleet: Option<FleetId>,
@@ -304,6 +306,7 @@ fn apply(s: &mut Session, m: ServerMsg, now: f64, next: &mut NextState<Screen>) 
             s.system_epoch += 1;
             s.snaps.clear();
             s.dead = None;
+            s.dead_hint = None;
             s.target = None;
             s.warp = None;
             s.scan = None;
@@ -324,8 +327,9 @@ fn apply(s: &mut Session, m: ServerMsg, now: f64, next: &mut NextState<Screen>) 
             s.scan = if (0.0..1.0).contains(&frac) { Some((poi, frac)) } else { None };
         }
         ServerMsg::Scanned { pois } => s.scanned = pois.into_iter().collect(),
-        ServerMsg::Died { killer, .. } => {
+        ServerMsg::Died { killer, hint, .. } => {
             s.dead = Some(killer);
+            s.dead_hint = hint;
             s.me = None;
         }
         ServerMsg::Chronicle { events, evidence, herald } => s.chronicle = Some((events, evidence, herald)),

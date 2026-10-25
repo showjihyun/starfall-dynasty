@@ -306,7 +306,7 @@ fn losing_a_boss_wave_twice_tells_where_its_turrets_do_not_reach() {
     g.handle(1, ClientMsg::StartScenario { id: 4 });
     let fight = shared::missions::scenarios()[4].steps.iter().position(|s| matches!(s, shared::missions::Step::Defeat { .. })).unwrap();
     g.store.profile_mut(pid).unwrap().scenario.as_mut().unwrap().step = fight;
-    let hints = |g: &Game| g.out.iter().filter(|(c, m)| *c == 1 && matches!(m, ServerMsg::Toast { text } if text.contains("배 아래"))).count();
+    let hints = |g: &Game| g.out.iter().filter(|(c, m)| *c == 1 && matches!(m, ServerMsg::Died { hint: Some(h), .. } if h.contains("배 아래"))).count();
     for death in 1..=2 {
         move_to_system(&mut g, 1, 9);
         let wave = g.sessions[&1].wave.clone();

@@ -803,12 +803,13 @@ impl Game {
                     s.dead = true;
                     s.warp = None;
                     s.scan = None;
-                    if !s.wave.is_empty() {
+                    let lost_wave = !s.wave.is_empty();
+                    if lost_wave {
                         s.wave_losses += 1;
-                        self.wave_hint(c);
                     }
+                    let hint = if lost_wave { self.wave_hint(c) } else { None };
                     self.clear_wave(c);
-                    self.send(c, ServerMsg::Died { killer: killer_name.clone(), wreck: wid });
+                    self.send(c, ServerMsg::Died { killer: killer_name.clone(), wreck: wid, hint });
                 }
                 // Engagement loss bookkeeping.
                 let vkey = self.side_key(vpid, e.fleet, e.alliance).0;

@@ -686,13 +686,14 @@ impl Game {
     }
 
     /// After `npcs.hint_after` deaths in a row to a chapter wave, its ships' hints (where their
-    /// turrets do not reach) — head-on a cruiser beats chapter 5 only near the level cap.
-    pub(super) fn wave_hint(&mut self, conn: ConnId) {
+    /// turrets do not reach) — head-on a cruiser beats chapter 5 only near the level cap. Shown on the
+    /// death panel until the captain rebuilds (a toast would fade while they read it).
+    pub(super) fn wave_hint(&self, conn: ConnId) -> Option<String> {
         let s = &self.sessions[&conn];
         let every = self.tuning.npcs.hint_after;
-        let (Some(pid), Some(sys)) = (s.player, s.wave_system) else { return };
+        let sys = s.wave_system?;
         if every == 0 || !s.wave_losses.is_multiple_of(every) {
-            return;
+            return None;
         }
         let mut hints: Vec<String> = vec![];
         for w in &s.wave {
@@ -703,9 +704,7 @@ impl Game {
                 hints.push(h);
             }
         }
-        for h in hints {
-            self.toast(pid, format!("💡 {h}"));
-        }
+        (!hints.is_empty()).then(|| hints.join("\n"))
     }
 
     pub(super) fn clear_wave(&mut self, conn: ConnId) {

@@ -475,3 +475,37 @@ fn a_fleet_member_sees_its_formation_post_around_the_leader() {
     assert!(hud::formation_post(Formation::Free, &members, 11, [&leader], 400.0).is_none(), "free: no post");
     assert!(hud::formation_post(Formation::Line, &members, 11, [], 400.0).is_none(), "leader out of sight");
 }
+
+#[test]
+fn boosting_says_the_guns_and_shields_are_off() {
+    let ship = Ship::new("Aegis".into(), HullClass::Bastion, 1);
+    let mut m = me(1.0, 1.0);
+    m.boosting = true;
+    let d = frame(|ctx| {
+        egui::Area::new("ship".into()).anchor(egui::Align2::CENTER_BOTTOM, Vec2::new(0.0, -36.0)).show(ctx, |ui| {
+            egui::Frame::popup(ui.style()).show(ui, |ui| hud::ship_status(ui, &ship, 0, Some(&m), [1.0, 1.0]));
+        });
+    });
+    let (_, r) = d.text("⚡ 무기·실드 정지").unwrap_or_else(|| panic!("boost warning missing: {:?}", d.texts));
+    assert!(Rect::from_min_size(Pos2::ZERO, SCREEN).contains_rect(*r), "on screen: {r:?}");
+}
+
+#[test]
+fn death_panel_keeps_the_boss_hint_inside_it_above_the_rebuild_button() {
+    let hint = "리바이어던 센티넬의 포대는 옆구리와 등에 몰려 있고 배 아래에는 1문뿐입니다 — 배 아래로 파고들어 싸우세요 (Ctrl 하강)";
+    let d = frame(|ctx| {
+        hud::death_panel(ctx, "Leviathan Sentinel", Some(hint));
+    });
+    let (_, h) = d.text("💡 리바이어던").unwrap_or_else(|| panic!("hint missing: {:?}", d.texts));
+    let (_, b) = d.text("모항에서 재건").expect("rebuild button");
+    assert!(h.width() <= hud::DEATH_HINT_W + 0.5, "hint wraps inside the panel: {h:?}");
+    assert!(h.height() > 20.0, "a long hint wraps onto more lines");
+    assert!(h.bottom() <= b.top(), "hint above the button");
+    for (t, r) in &d.texts {
+        assert!(Rect::from_min_size(Pos2::ZERO, SCREEN).contains_rect(*r), "{t} off screen at {r:?}");
+    }
+    let plain = frame(|ctx| {
+        hud::death_panel(ctx, "Raider", None);
+    });
+    assert!(plain.text("💡").is_none(), "no hint, no line");
+}

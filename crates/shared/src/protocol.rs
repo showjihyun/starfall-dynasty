@@ -341,7 +341,8 @@ pub enum ServerMsg {
     ScanProgress { poi: u32, frac: f32 },
     /// Pois already scanned by this player in the current system.
     Scanned { pois: Vec<u32> },
-    Died { killer: String, wreck: EntityId },
+    /// `hint`: after losing a chapter wave again, where its ships' turrets do not reach (`npcs.hint_after`).
+    Died { killer: String, wreck: EntityId, #[serde(default)] hint: Option<String> },
     Chronicle { events: Vec<HistoricalEvent>, evidence: Vec<Evidence>, herald: Vec<Headline> },
     Biography { name: String, character: Vec<BioEntry>, ship: Vec<BioEntry> },
     FleetInvite { from: String, fleet: FleetId },
