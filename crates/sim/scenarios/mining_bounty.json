@@ -1,0 +1,22 @@
+{
+  "name": "mining_bounty",
+  "description": "채굴 빔을 켠 채 잡은 해적은 현상금의 일부만(economy mining_bounty) — 같은 Lv5 순양함이 채굴하지 않고 포탑으로 잡으면 전액. 소행성에 세워 두고 포탑이 버는 현상금이 채굴보다 커지지 않게",
+  "captains": [
+    { "name": "Miner", "hull": "Talon", "level": 5, "system": 5, "pos": [1107, 202, 3490], "undocked": true },
+    { "name": "Hunter", "hull": "Talon", "level": 5, "system": 5, "pos": [-726, 89, 3990], "undocked": true }
+  ],
+  "npcs": [
+    { "archetype": "Raider", "level": 2, "system": 5, "pos": [1107, 202, 3890], "count": 2, "spacing": 80 },
+    { "archetype": "Raider", "level": 2, "system": 5, "pos": [-726, 89, 4390], "count": 2, "spacing": 80 }
+  ],
+  "script": [
+    { "at": 0.5, "captain": "Miner", "fill_nearest": "asteroid", "msg": { "Mine": { "asteroid": null } } }
+  ],
+  "run_secs": 60,
+  "expect": [
+    { "check": "kills", "captain": "Miner", "min": 2 },
+    { "check": "kills", "captain": "Hunter", "min": 2 },
+    { "check": "credits", "captain": "Miner", "max": 1700 },
+    { "check": "credits", "captain": "Hunter", "min": 1850 }
+  ]
+}

@@ -300,6 +300,14 @@ pub struct EconomyTuning {
     /// (recordings made before it existed): the rewards that were code constants until then.
     #[serde(default = "old_chapter_rewards")]
     pub chapter_rewards: Vec<Materials>,
+    /// Share of a pirate's bounty paid when the killer's mining beam is on (turrets and escorts
+    /// fight on their own while a cruiser mines). Missing (older recordings): 1, the full bounty.
+    #[serde(default = "full")]
+    pub mining_bounty: f32,
+}
+
+fn full() -> f32 {
+    1.0
 }
 
 fn old_chapter_rewards() -> Vec<Materials> {

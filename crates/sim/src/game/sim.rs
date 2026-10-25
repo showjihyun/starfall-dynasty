@@ -685,6 +685,12 @@ impl Game {
                     let mut reward = arch.bounty(level);
                     let mult = tier.bounty_mult() * if self.store.profile(kpid).is_some_and(|p| p.profession == Profession::CombatPilot) { 1.3 } else { 1.0 };
                     reward.credits = (reward.credits as f32 * mult * self.home_turf(kpid, sys)) as u64;
+                    if self.player_entity(kpid).and_then(|(s, k)| self.ent(s, k)).is_some_and(|k| k.mining.is_some()) {
+                        let share = self.tuning.economy.mining_bounty;
+                        let cut = |v: u32| (v as f32 * share).round() as u32;
+                        reward.credits = (reward.credits as f32 * share).round() as u64;
+                        (reward.alloy, reward.crystal, reward.datacore, reward.relic) = (cut(reward.alloy), cut(reward.crystal), cut(reward.datacore), cut(reward.relic));
+                    }
                     let group = self.credit_group(kpid, sys);
                     for (i, pid) in group.iter().enumerate() {
                         let mut r = reward.clone();

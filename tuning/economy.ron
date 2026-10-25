@@ -19,6 +19,10 @@
     // Wild/WarZone/Deep 1.5/1.8/2.6 → 0.95/1.15/1.6 — more and tougher pirates already pay more there;
     // Wild hunting was ~2× Wild mining, now ~1.3×.
     bounty_risk: { Core: 1.0, Frontier: 1.0, Wild: 0.95, WarZone: 1.15, Deep: 1.6 },
+    // Share of a bounty paid while the killer's mining beam is on (2026-10-25, mining QA docs/QA_CAMPAIGN.md
+    // 「채굴 중 현상금」, spec mining_bounty): a Lv5 cruiser parked on a Deep asteroid made 77% of its 5.6k CR/min
+    // from pirates its turrets killed on their own. Stop mining to fight for the full bounty.
+    mining_bounty: 0.3,
 
     // Seconds for ore sold at a station to weigh half as much on its price (scarcity above).
     // Was a fixed ×0.9995/s (≈ 1386 s): one captain selling a hold every few minutes held a core
