@@ -338,7 +338,13 @@ pub fn ship_status(ui: &mut egui::Ui, ship: &Ship, cargo_used: u32, me: Option<&
         bar_with_loss(ui, m.shield, lag[0], crate::palette::SHIELD, format!("에너지 실드 {:.0}/{:.0}", m.shield * st.max_shield, st.max_shield), STATUS_BAR_W, 22.0);
         bar_with_loss(ui, m.hull, lag[1], hull_color(m.hull, 1.0), format!("선체 내구도 {:.0}/{:.0}", m.hull * st.max_hull, st.max_hull), STATUS_BAR_W, 22.0);
         let speed = Vec3::from(m.vel).length();
-        ui.label(RichText::new(format!("속도 {:.0} u/s{} · 화물 {}/{:.0} · 워프 {:.2} ly{}", speed, if m.boosting { " ⚡" } else { "" }, cargo_used, st.cargo, st.warp_range, if m.docked { " · 도킹 중" } else { "" })).size(12.0));
+        // Boosting takes the weapons' and shields' power (`combat.boost_power`): say so where the speed is.
+        let boost = match (m.boosting, shared::tuning::get().combat.boost_power) {
+            (true, true) => " ⚡ 무기·실드 정지",
+            (true, false) => " ⚡",
+            _ => "",
+        };
+        ui.label(RichText::new(format!("속도 {:.0} u/s{} · 화물 {}/{:.0} · 워프 {:.2} ly{}", speed, boost, cargo_used, st.cargo, st.warp_range, if m.docked { " · 도킹 중" } else { "" })).size(12.0));
     }
 }
 

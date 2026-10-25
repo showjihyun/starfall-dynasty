@@ -70,7 +70,7 @@ impl Game {
 
     pub(super) fn fire_forward_guns(&mut self, sys: SystemId, id: EntityId, shots: &mut Vec<Shot>) {
         let Some(e) = self.ent(sys, id) else { return };
-        if e.dead || e.docked || !e.is_ship() || e.fire_cd > 0.0 {
+        if e.dead || e.docked || !e.is_ship() || e.fire_cd > 0.0 || self.boost_cut(e) {
             return;
         }
         // Big player ships trade fighter lasers for turrets + the main gun.
@@ -175,7 +175,7 @@ impl Game {
 
     pub(super) fn fire_turrets(&mut self, sys: SystemId, id: EntityId, dt: f32, shots: &mut Vec<Shot>) {
         let Some(e) = self.ent(sys, id) else { return };
-        if e.turret_cds.is_empty() || e.dead || e.docked {
+        if e.turret_cds.is_empty() || e.dead || e.docked || self.boost_cut(e) {
             return;
         }
         let (target, searched) = self.turret_target(sys, e);
@@ -232,10 +232,16 @@ impl Game {
         }
     }
 
+    /// Boosting takes the weapons' and shields' power (`combat.boost_power`).
+    pub(super) fn boost_cut(&self, e: &Ent) -> bool {
+        self.tuning.combat.boost_power && e.controls.boost
+    }
+
     pub(super) fn fire_main_gun(&mut self, sys: SystemId, id: EntityId, dt: f32, shots: &mut Vec<Shot>) {
+        let power = self.tuning.combat.boost_power;
         let Some(e) = self.ent_mut(sys, id) else { return };
         e.main_cd = (e.main_cd - dt).max(0.0);
-        if e.stats.main_damage <= 0.0 || e.dead || e.docked || e.kind != EntityKind::Player || !e.controls.fire || e.main_cd > 0.0 {
+        if e.stats.main_damage <= 0.0 || e.dead || e.docked || e.kind != EntityKind::Player || !e.controls.fire || e.main_cd > 0.0 || (power && e.controls.boost) {
             return;
         }
         e.main_cd = e.stats.main_interval;

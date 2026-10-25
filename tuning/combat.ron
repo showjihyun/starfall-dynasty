@@ -25,5 +25,8 @@
     // this share of top speed, a warp drive charges this many seconds (a hit cancels it).
     boost: 1.7,
     strafe: 0.6,
+    // Boosting takes the weapons' and shields' power (2026-10-25, spec boost_power): no gun, turret, main gun or
+    // missile fires and shields do not regenerate while it is held. Boost was free, so holding it was always right.
+    boost_power: true,
     warp_charge: 4.0,
 )

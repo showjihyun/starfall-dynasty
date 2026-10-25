@@ -536,6 +536,8 @@ impl Pilot {
             }
             let local = rot.inverse() * (tp - pos).normalize_or_zero();
             c.fire = -local.z > 0.9 && pos.distance(tp) < stats.weapon_range * 1.05;
+            // Boosting takes the guns' and shields' power: let go of it once the target is in reach.
+            c.boost &= pos.distance(tp) > stats.weapon_range.max(stats.turret_range) * 1.1;
             g.handle(p.conn, ClientMsg::Controls(c));
             if p.missile_cd <= 0.0 && c.fire {
                 g.handle(p.conn, ClientMsg::FireMissile);

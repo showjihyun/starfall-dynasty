@@ -255,7 +255,7 @@ impl Game {
         drop(p);
         let p = prof::span("flight");
         let roll_rate = self.tuning.combat.roll_rate;
-        let (boost_k, strafe) = (self.tuning.combat.boost, self.tuning.combat.strafe);
+        let (boost_k, strafe, boost_power) = (self.tuning.combat.boost, self.tuning.combat.strafe, self.tuning.combat.boost_power);
         let posts = self.held_posts(sys);
         for &id in &ids {
             let now = self.now;
@@ -300,8 +300,8 @@ impl Game {
                 e.hull -= 40.0 * dt;
                 e.last_hit = now;
             }
-            // Shield regeneration after a quiet period.
-            if now - e.last_hit > 4.0 {
+            // Shield regeneration after a quiet period (not while boosting, `combat.boost_power`).
+            if now - e.last_hit > 4.0 && !(boost_power && c.boost) {
                 e.shield = (e.shield + e.stats.shield_regen * dt).min(e.stats.max_shield);
             }
             if e.hull <= 0.0 && !e.dead {

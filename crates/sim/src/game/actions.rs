@@ -211,6 +211,9 @@ impl Game {
         if e.docked || e.missile_cd > 0.0 {
             return;
         }
+        if self.boost_cut(e) {
+            return self.toast(pid, "부스트 중 — 무기 동력이 엔진에 있습니다 (Shift를 떼세요)");
+        }
         let Some(tid) = e.target else {
             return self.toast(pid, "미사일: 목표를 먼저 지정하세요 (T)");
         };

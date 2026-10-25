@@ -603,6 +603,10 @@ pub struct CombatTuning {
     pub boost: f32,
     #[serde(default = "strafe")]
     pub strafe: f32,
+    /// Boosting takes the weapons' and shields' power: no gun, turret, main gun or missile fires
+    /// and shields do not regenerate while it is held — run or fight. Default false (recordings).
+    #[serde(default)]
+    pub boost_power: bool,
     /// Seconds a warp drive charges before the jump (a hit cancels it). Default 4.
     #[serde(default = "warp_charge")]
     pub warp_charge: f32,

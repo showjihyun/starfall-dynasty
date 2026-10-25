@@ -1,0 +1,21 @@
+{
+  "name": "boost_power",
+  "description": "부스트는 무기와 실드에 갈 동력을 엔진에 쓴다(combat.boost_power): 부스트를 누른 채 사격하는 함장은 한 발도 쏘지 못하고, 같은 자리에서 부스트 없이 쏘는 함장은 맞힌다 — 도주와 교전 중 하나를 고른다",
+  "captains": [
+    { "name": "Runner", "hull": "Talon", "level": 3, "system": 5, "pos": [142, -52, 4600], "undocked": true },
+    { "name": "Gunner", "hull": "Talon", "level": 3, "system": 5, "pos": [1142, -52, 4600], "undocked": true }
+  ],
+  "npcs": [
+    { "archetype": "Raider", "level": 1, "system": 5, "pos": [142, -52, 4250] },
+    { "archetype": "Raider", "level": 1, "system": 5, "pos": [1142, -52, 4250] }
+  ],
+  "script": [
+    { "at": 0.2, "captain": "Runner", "msg": { "Controls": { "boost": true, "fire": true } }, "repeat_every": 0.25, "until": 12 },
+    { "at": 0.2, "captain": "Gunner", "msg": { "Controls": { "fire": true } }, "repeat_every": 0.25, "until": 12 }
+  ],
+  "run_secs": 12,
+  "expect": [
+    { "check": "dealt", "captain": "Runner", "max": 0 },
+    { "check": "dealt", "captain": "Gunner", "min": 100 }
+  ]
+}
