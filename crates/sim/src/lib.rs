@@ -18,3 +18,4 @@ pub mod mining;
 pub mod playthrough;
 pub mod scenario;
 pub mod store;
+pub mod war;

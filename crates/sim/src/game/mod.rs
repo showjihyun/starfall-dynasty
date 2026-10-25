@@ -767,10 +767,17 @@ impl Game {
             .collect();
         for m in &members_ids {
             self.send_player(*m, ServerMsg::Fleet { id: Some(fid), members: members.clone(), formation, leader: leader_name.clone() });
-            if let Some((s, e)) = self.player_entity(*m)
-                && let Some(ent) = self.ent_mut(s, e)
-            {
-                ent.fleet = Some(fid);
+            self.set_ships_fleet(*m, Some(fid));
+        }
+    }
+
+    /// A captain's flagship and escorts join (or leave) a fleet together — escorts that kept the fleet
+    /// they spawned with were fair game for their own fleet-mates' turrets (war QA; pvp_two_angles_beat_roll).
+    pub(super) fn set_ships_fleet(&mut self, pid: PlayerId, fleet: Option<FleetId>) {
+        let Some((s, _)) = self.player_entity(pid) else { return };
+        if let Some(sys) = self.systems.get_mut(&s) {
+            for e in sys.ents.values_mut().filter(|e| e.owner == Some(pid) && matches!(e.kind, EntityKind::Player | EntityKind::Escort)) {
+                e.fleet = fleet;
             }
         }
     }

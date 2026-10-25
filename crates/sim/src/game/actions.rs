@@ -821,18 +821,11 @@ impl Game {
         } else if f.leader == pid {
             f.leader = rest[0];
         }
-        if let Some((s, e)) = self.player_entity(pid)
-            && let Some(ent) = self.ent_mut(s, e)
-        {
-            ent.fleet = None;
-        }
+        self.set_ships_fleet(pid, None);
         self.send_player(pid, ServerMsg::Fleet { id: None, members: vec![], formation: Default::default(), leader: String::new() });
         for m in rest {
-            if !self.fleets.contains_key(&fid)
-                && let Some((s, e)) = self.player_entity(m)
-                && let Some(ent) = self.ent_mut(s, e)
-            {
-                ent.fleet = None;
+            if !self.fleets.contains_key(&fid) {
+                self.set_ships_fleet(m, None);
             }
             self.broadcast_fleet(m);
         }
