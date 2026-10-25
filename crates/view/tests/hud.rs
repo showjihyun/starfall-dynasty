@@ -77,6 +77,7 @@ fn me(shield: f32, hull: f32) -> EntityState {
         fleet: None,
         wanted: false,
         boosting: false,
+        warping: false,
         mining: None,
         docked: false,
         owner: Some(7),

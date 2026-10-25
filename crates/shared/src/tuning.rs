@@ -610,6 +610,16 @@ pub struct CombatTuning {
     /// Seconds a warp drive charges before the jump (a hit cancels it). Default 4.
     #[serde(default = "warp_charge")]
     pub warp_charge: f32,
+    /// Warp arrival: a ship drops out this many u from the warp point on the side of the system it
+    /// came from (galaxy map direction), scattered within `warp_arrive_spread` u, sliding in along its
+    /// way at `warp_arrive_speed` × its top speed (flight assist brakes it). All 0 (recordings from
+    /// before it): every ship on the warp point itself, at 60 u/s towards the station.
+    #[serde(default)]
+    pub warp_arrive_dist: f32,
+    #[serde(default)]
+    pub warp_arrive_spread: f32,
+    #[serde(default)]
+    pub warp_arrive_speed: f32,
 }
 
 fn one() -> f32 {

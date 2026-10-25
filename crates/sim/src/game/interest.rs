@@ -187,7 +187,9 @@ impl Game {
                         Fx::Shot { from, to, .. } => (pos_of(*from)?, at(*from), if *to != 0 { at(*to) } else { None }),
                         Fx::MissileLaunch { from, missile } => (pos_of(*from)?, at(*from), at(*missile)),
                         Fx::Explosion { pos, .. } => (Vec3::from(*pos), None, None),
-                        Fx::ShieldHit { entity, .. } | Fx::WarpOut { entity } | Fx::WarpIn { entity } => (pos_of(*entity)?, at(*entity), None),
+                        Fx::ShieldHit { entity, .. } | Fx::WarpIn { entity, .. } => (pos_of(*entity)?, at(*entity), None),
+                        // The ship has left: the flash is where it was (it was dropped here before).
+                        Fx::WarpOut { pos, .. } => (Vec3::from(*pos), None, None),
                     };
                     Some(FxAt { fx: f.clone(), pos, a, b })
                 })

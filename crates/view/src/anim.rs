@@ -118,9 +118,49 @@ pub fn battery_mount(k: usize, n: usize, beam: u8, radius: f32, target_x: f32) -
     }
 }
 
+/// Seconds a ship dropping out of warp takes to settle from its streak into its hull.
+pub const WARP_IN_SECS: f32 = 0.7;
+/// How long a ship looks along its way the moment it drops out of warp (times its length).
+pub const WARP_IN_STRETCH: f32 = 8.0;
+
+/// A ship dropping out of warp, `since` seconds ago: how stretched along its way it is drawn —
+/// `WARP_IN_STRETCH` at once, easing out to its own length (1) by `WARP_IN_SECS`.
+pub fn warp_stretch(since: f64) -> f32 {
+    let x = since as f32 / WARP_IN_SECS;
+    if !(0.0..1.0).contains(&x) {
+        return 1.0;
+    }
+    1.0 + (WARP_IN_STRETCH - 1.0) * (1.0 - x).powi(3)
+}
+
+/// A warp drive charging for `charge` seconds, `since` seconds in: the glow around the ship (0..1),
+/// building with the square of the charge and beating faster towards the jump (2 → 8 beats a second).
+pub fn warp_spool(since: f64, charge: f32) -> f32 {
+    let t = since.max(0.0) as f32;
+    let x = (t / charge.max(0.1)).min(1.0);
+    let beat = 0.5 + 0.5 * (std::f32::consts::TAU * (2.0 + 6.0 * x) * t).sin();
+    x * x * (0.7 + 0.3 * beat)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn warp_streak_settles_into_the_hull_and_the_spool_builds_to_the_jump() {
+        assert_eq!(warp_stretch(0.0), WARP_IN_STRETCH);
+        assert_eq!(warp_stretch(WARP_IN_SECS as f64), 1.0);
+        assert_eq!(warp_stretch(-1.0), 1.0, "before the event: the hull as it is");
+        let s: Vec<f32> = (0..=7).map(|k| warp_stretch(k as f64 * 0.1)).collect();
+        assert!(s.windows(2).all(|w| w[1] <= w[0]), "eases out without bouncing: {s:?}");
+        assert_eq!(warp_spool(0.0, 4.0), 0.0);
+        for k in 0..=50 {
+            let v = warp_spool(k as f64 * 0.1, 4.0);
+            assert!((0.0..=1.0).contains(&v), "{v}");
+        }
+        // Brighter towards the jump, whatever the beat.
+        assert!(warp_spool(1.0, 4.0) < 0.07 && warp_spool(3.9, 4.0) > 0.65);
+    }
 
     #[test]
     fn battery_mounts_sit_on_the_side_of_the_hull_that_fires() {

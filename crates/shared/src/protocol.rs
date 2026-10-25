@@ -10,7 +10,7 @@ use crate::ships::{HullClass, Materials, Module, Ship, SizeClass, WeaponKind};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
-pub const PROTOCOL_VERSION: u32 = 3;
+pub const PROTOCOL_VERSION: u32 = 4;
 pub const DEFAULT_PORT: u16 = 7777;
 pub const TICK_HZ: f32 = 20.0;
 
@@ -216,6 +216,9 @@ pub struct EntityState {
     pub fleet: Option<FleetId>,
     pub wanted: bool,
     pub boosting: bool,
+    /// Its warp drive is charging.
+    #[serde(default)]
+    pub warping: bool,
     pub mining: Option<u32>,
     pub docked: bool,
     pub owner: Option<PlayerId>,
@@ -236,8 +239,12 @@ pub enum Fx {
     MissileLaunch { from: EntityId, missile: EntityId },
     Explosion { pos: [f32; 3], size: f32 },
     ShieldHit { entity: EntityId, dir: [f32; 3] },
-    WarpOut { entity: EntityId },
-    WarpIn { entity: EntityId },
+    /// A ship jumped away: where it was (it is gone from the snapshot that carries this). Its heading
+    /// and size come from the snapshots before — kept out of here so `Fx` stays 16 bytes: the server
+    /// copies every effect to every viewer (a 32-byte `Fx` cost a 1000-ship battle 11% per viewer).
+    WarpOut { entity: EntityId, pos: [f32; 3] },
+    /// A ship dropped out of warp, sliding in along `dir`.
+    WarpIn { entity: EntityId, dir: [f32; 3] },
 }
 
 /// Who a side is in a war-zone report: an alliance, else a fleet, else a lone captain; pirates apart.
@@ -391,11 +398,12 @@ pub type DynState = [i32; 15];
 const F_BOOST: i32 = 1;
 const F_DOCKED: i32 = 2;
 const F_WANTED: i32 = 4;
+const F_WARP: i32 = 8;
 
 pub fn pack(e: &EntityState) -> (EntityInfo, DynState) {
     let q = |v: f32, k: f32| (v * k).round() as i32;
     let info = EntityInfo { id: e.id, kind: e.kind, name: e.name.clone(), hull_class: e.hull_class, rank: e.rank, livery: e.livery, radius: e.radius, fleet: e.fleet, owner: e.owner, alliance: e.alliance, class: e.class, species: e.species };
-    let flags = (e.boosting as i32 * F_BOOST) | (e.docked as i32 * F_DOCKED) | (e.wanted as i32 * F_WANTED);
+    let flags = (e.boosting as i32 * F_BOOST) | (e.docked as i32 * F_DOCKED) | (e.wanted as i32 * F_WANTED) | (e.warping as i32 * F_WARP);
     let d = [
         e.id as i32,
         q(e.pos[0], 10.0),
@@ -436,6 +444,7 @@ pub fn unpack(i: &EntityInfo, d: &DynState) -> EntityState {
         fleet: i.fleet,
         wanted: d[13] & F_WANTED != 0,
         boosting: d[13] & F_BOOST != 0,
+        warping: d[13] & F_WARP != 0,
         mining: (d[14] >= 0).then_some(d[14] as u32),
         docked: d[13] & F_DOCKED != 0,
         owner: i.owner,
@@ -631,13 +640,15 @@ fn put_fx(b: &mut Vec<u8>, f: &Fx) {
             b.extend_from_slice(&entity.to_le_bytes());
             b.extend(dir.iter().map(|v| (v.clamp(-1.0, 1.0) * 127.0).round() as i8 as u8));
         }
-        Fx::WarpOut { entity } => {
+        Fx::WarpOut { entity, pos } => {
             b.push(4);
             b.extend_from_slice(&entity.to_le_bytes());
+            f32s(b, pos);
         }
-        Fx::WarpIn { entity } => {
+        Fx::WarpIn { entity, dir } => {
             b.push(5);
             b.extend_from_slice(&entity.to_le_bytes());
+            b.extend(dir.iter().map(|v| (v.clamp(-1.0, 1.0) * 127.0).round() as i8 as u8));
         }
     }
 }
@@ -656,16 +667,9 @@ fn get_fx(r: &mut Reader) -> Option<Fx> {
         }
         1 => Fx::MissileLaunch { from: r.u32()?, missile: r.u32()? },
         2 => Fx::Explosion { pos: [r.f32()?, r.f32()?, r.f32()?], size: r.f32()? },
-        3 => {
-            let entity = r.u32()?;
-            let mut dir = [0.0; 3];
-            for v in &mut dir {
-                *v = r.u8()? as i8 as f32 / 127.0;
-            }
-            Fx::ShieldHit { entity, dir }
-        }
-        4 => Fx::WarpOut { entity: r.u32()? },
-        5 => Fx::WarpIn { entity: r.u32()? },
+        3 => Fx::ShieldHit { entity: r.u32()?, dir: r.dir()? },
+        4 => Fx::WarpOut { entity: r.u32()?, pos: [r.f32()?, r.f32()?, r.f32()?] },
+        5 => Fx::WarpIn { entity: r.u32()?, dir: r.dir()? },
         _ => return None,
     })
 }
@@ -699,6 +703,10 @@ impl<'a> Reader<'a> {
     fn f32(&mut self) -> Option<f32> {
         Some(f32::from_le_bytes(self.take(4)?.try_into().ok()?))
     }
+    /// A unit direction as three signed bytes (×127).
+    fn dir(&mut self) -> Option<[f32; 3]> {
+        Some([self.u8()? as i8 as f32 / 127.0, self.u8()? as i8 as f32 / 127.0, self.u8()? as i8 as f32 / 127.0])
+    }
 }
 
 pub fn encode<T: Serialize>(m: &T) -> String {
@@ -715,7 +723,7 @@ mod tests {
 
     #[test]
     fn snapshot_pack_roundtrip_and_cache() {
-        let e = EntityState { id: 7, kind: EntityKind::Player, name: "A".into(), hull_class: Some(HullClass::Talon), rank: 3, livery: 2, pos: [1234.56, -7.25, 9000.0], rot: [0.0, std::f32::consts::FRAC_1_SQRT_2, 0.0, std::f32::consts::FRAC_1_SQRT_2], vel: [12.3, 0.0, -4.5], hull: 0.5, shield: 0.25, radius: 11.0, fleet: None, wanted: true, boosting: true, mining: Some(3), docked: false, owner: Some(1), alliance: Some(2), class: Some(SizeClass::Cruiser), species: Some(Species::Kharz) };
+        let e = EntityState { id: 7, kind: EntityKind::Player, name: "A".into(), hull_class: Some(HullClass::Talon), rank: 3, livery: 2, pos: [1234.56, -7.25, 9000.0], rot: [0.0, std::f32::consts::FRAC_1_SQRT_2, 0.0, std::f32::consts::FRAC_1_SQRT_2], vel: [12.3, 0.0, -4.5], hull: 0.5, shield: 0.25, radius: 11.0, fleet: None, wanted: true, boosting: true, warping: false, mining: Some(3), docked: false, owner: Some(1), alliance: Some(2), class: Some(SizeClass::Cruiser), species: Some(Species::Kharz) };
         let (info, d) = pack(&e);
         let back = unpack(&info, &d);
         assert!((back.pos[0] - e.pos[0]).abs() < 0.06 && back.wanted && back.boosting && back.mining == Some(3) && !back.docked);
@@ -733,8 +741,10 @@ mod tests {
             Fx::Shot { from: 7, to: 9, weapon: WeaponKind::MainBeam, mount: 255, hit: true },
             Fx::Explosion { pos: [1.0, 2.0, 3.0], size: 2.5 },
             Fx::ShieldHit { entity: 7, dir: [0.0, -1.0, 0.0] },
-            Fx::WarpIn { entity: 3 },
+            Fx::WarpIn { entity: 3, dir: [1.0, 0.0, -1.0] },
+            Fx::WarpOut { entity: 4, pos: [10.0, -20.0, 30.5] },
         ];
+        assert!(std::mem::size_of::<Fx>() <= 20, "every effect is copied to every viewer: keep Fx small");
         let m = ServerMsg::Snapshot { tick: 42, full: true, infos: vec![info], gone: vec![5, 6], dynamic: vec![d], fx: fx.clone() };
         let bin = encode_snapshot(&m).unwrap();
         let Some(ServerMsg::Snapshot { tick, full, infos, gone, dynamic, fx: fx2 }) = decode_snapshot(&bin) else { panic!("decode") };

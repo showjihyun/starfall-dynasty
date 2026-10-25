@@ -9,14 +9,17 @@ use crate::state::{Screen, Session};
 use bevy::light::NotShadowCaster;
 use bevy::prelude::*;
 use crate::audio::{Sfx, SfxQueue};
-use shared::protocol::Fx;
+use shared::protocol::{EntityId, Fx};
 use shared::ships::WeaponKind;
+use std::collections::HashMap;
 
 pub struct FxPlugin;
 
 impl Plugin for FxPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(Startup, setup).add_systems(Update, (spawn_fx, tick_fx, mining_beams, warp_tunnel).run_if(in_state(Screen::Playing)));
+        // Outside the Update graph: a new Update system reorders it and moves the art-check scenes a frame.
+        app.add_systems(PostUpdate, warp_spool.before(bevy::transform::TransformSystems::Propagate).run_if(in_state(Screen::Playing)));
     }
 }
 
@@ -202,13 +205,27 @@ fn spawn_fx(
                     sfx.play(Sfx::ShieldHit, ships.get(*e).ok().map(|(_, t)| t.translation));
                 }
             }
-            Fx::WarpOut { entity } | Fx::WarpIn { entity } => {
-                let Some(e) = vis.map.get(&entity) else { continue };
-                let Ok((sv, t)) = ships.get(*e) else { continue };
-                sfx.play(Sfx::WarpJump, Some(t.translation));
-                let r = sv.radius * 6.0;
-                let m = glows.add(GlowMat { p: GlowParams { color: Vec4::new(0.5, 0.75, 1.0, 8.0), center: t.translation.extend(sv.radius), shape: Vec4::new(2.5, 0.0, r, 0.0) } });
-                commands.spawn((Ttl { born, total: 0.9 }, GlowFx(m.clone(), sv.radius), NotShadowCaster, Mesh3d(assets.sphere.clone()), MeshMaterial3d(m), Transform::from_translation(t.translation).with_scale(Vec3::splat(r))));
+            // Jumping away: the ship is already gone, the event says where it was. A flash, and a streak
+            // shooting off ahead of it the way it went.
+            Fx::WarpOut { entity, pos } => {
+                // Heading and size from the last snapshot that still had it.
+                let last = s.snaps.iter().rev().find_map(|sn| sn.ents.get(&entity));
+                let d = last.map_or(Vec3::NEG_Z, |e| Quat::from_array(e.rot) * Vec3::NEG_Z);
+                let radius = last.map_or(12.0, |e| e.radius);
+                let p = Vec3::from(pos);
+                sfx.play(Sfx::WarpJump, Some(p));
+                warp_flash(&mut commands, &assets, &mut glows, born, p, radius);
+                spawn_beam(&mut commands, &assets, &mut beams, &mut pool, (t, born), p, p + d * warp_streak_len(radius), view::palette::WARP, (radius * 0.5).max(3.0), 0.35);
+            }
+            // Dropping in: the ship is drawn stretched along its way while it settles (ships.rs), with a
+            // flash where it appears and a streak trailing back the way it came.
+            Fx::WarpIn { entity, dir } => {
+                s.arrivals.insert(entity, now);
+                let Some(st) = s.latest().and_then(|sn| sn.ents.get(&entity)) else { continue };
+                let (p, d, radius) = (Vec3::from(st.pos), Vec3::from(dir).normalize_or(Vec3::NEG_Z), st.radius);
+                sfx.play(Sfx::WarpJump, Some(p));
+                warp_flash(&mut commands, &assets, &mut glows, born, p, radius);
+                spawn_beam(&mut commands, &assets, &mut beams, &mut pool, (t, born), p - d * warp_streak_len(radius), p, view::palette::WARP, (radius * 0.5).max(3.0), 0.45);
             }
             Fx::MissileLaunch { from, .. } => {
                 let at = vis.map.get(&from).and_then(|e| ships.get(*e).ok()).map(|(_, t)| t.translation);
@@ -227,6 +244,67 @@ fn spawn_fx(
             }
         }
     }
+}
+
+/// The streak a jumping ship leaves: long for a fighter against its size, a few hulls for a capital.
+fn warp_streak_len(radius: f32) -> f32 {
+    300.0 + radius * 25.0
+}
+
+/// The blue-white flash of a ship entering or leaving warp (fades and swells over 0.9 s, `tick_fx`).
+fn warp_flash(commands: &mut Commands, assets: &FxAssets, glows: &mut Assets<GlowMat>, born: f64, p: Vec3, radius: f32) {
+    let r = radius * 6.0;
+    let c = view::palette::WARP;
+    let m = glows.add(GlowMat { p: GlowParams { color: Vec4::new(c[0], c[1], c[2], 8.0), center: p.extend(radius), shape: Vec4::new(2.5, 0.0, r, 0.0) } });
+    commands.spawn((Ttl { born, total: 0.9 }, GlowFx(m.clone(), radius), NotShadowCaster, Mesh3d(assets.sphere.clone()), MeshMaterial3d(m), Transform::from_translation(p).with_scale(Vec3::splat(r))));
+}
+
+/// A charging warp drive: a glow round the ship that builds and beats faster towards the jump
+/// (`view::anim::warp_spool`), one per charging ship, gone when it jumps or the charge breaks.
+#[allow(clippy::type_complexity)]
+fn warp_spool(
+    mut commands: Commands,
+    mut s: ResMut<Session>,
+    time: Res<Time<Real>>,
+    assets: Res<FxAssets>,
+    ships: Query<(&ShipVis, &Transform)>,
+    mut glows: ResMut<Assets<GlowMat>>,
+    mut live: Local<HashMap<EntityId, (Entity, Handle<GlowMat>)>>,
+) {
+    let _prof = shared::prof::span("fx::warp_spool");
+    let now = time.elapsed_secs_f64();
+    // Arrival stretches last under a second.
+    s.arrivals.retain(|_, at| now - *at < 3.0);
+    let charge = shared::tuning::get().combat.warp_charge;
+    let mut seen = vec![];
+    for (sv, tf) in &ships {
+        let Some(at) = sv.warp_since else { continue };
+        seen.push(sv.id);
+        let k = view::anim::warp_spool(now - at, charge);
+        let r = sv.radius * (2.0 + 2.5 * k);
+        let c = view::palette::WARP;
+        let params = GlowParams { color: Vec4::new(c[0], c[1], c[2], 6.0 * k), center: tf.translation.extend(sv.radius), shape: Vec4::new(2.5, 0.0, r, 0.0) };
+        match live.get(&sv.id) {
+            Some((e, h)) => {
+                if let Some(mut m) = glows.get_mut(h) {
+                    m.p = params;
+                }
+                commands.entity(*e).insert(Transform::from_translation(tf.translation).with_scale(Vec3::splat(r)));
+            }
+            None => {
+                let h = glows.add(GlowMat { p: params });
+                let e = commands.spawn((NotShadowCaster, Mesh3d(assets.sphere.clone()), MeshMaterial3d(h.clone()), Transform::from_translation(tf.translation).with_scale(Vec3::splat(r)))).id();
+                live.insert(sv.id, (e, h));
+            }
+        }
+    }
+    live.retain(|id, (e, _)| {
+        let keep = seen.contains(id);
+        if !keep {
+            commands.entity(*e).despawn();
+        }
+        keep
+    });
 }
 
 #[allow(clippy::too_many_arguments)]

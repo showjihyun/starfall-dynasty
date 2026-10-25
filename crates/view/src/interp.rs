@@ -68,6 +68,7 @@ pub(crate) mod tests {
             fleet: None,
             wanted: false,
             boosting: false,
+            warping: false,
             mining: None,
             docked: false,
             owner: None,

@@ -98,6 +98,40 @@ fn warp_range_gates_exploration() {
 }
 
 #[test]
+fn warp_spools_up_in_sight_and_leaves_a_flash_where_the_ship_was() {
+    let mut g = game();
+    join(&mut g, 1, "Arin", Species::Human, HullClass::Talon, Profession::Explorer);
+    join(&mut g, 2, "Bex", Species::Human, HullClass::Talon, Profession::Explorer);
+    g.handle(1, ClientMsg::Undock);
+    g.handle(2, ClientMsg::Undock);
+    run(&mut g, 0.5);
+    let (sys, me) = ent_of(&g, 1);
+    let was = g.ent(sys, me).unwrap().pos;
+    g.handle(1, ClientMsg::Warp { system: 2 });
+    run(&mut g, 1.0);
+    assert!(g.ent(sys, me).unwrap().state().warping, "charging shows on the ship");
+    // A hit cancels the charge and the spool-up with it (Sol Haven is a safe zone: mark the hit by hand).
+    let now = g.now;
+    g.ent_mut(sys, me).unwrap().last_hit = now;
+    run(&mut g, 0.2);
+    assert!(g.sessions[&1].warp.is_none() && !g.ent(sys, me).unwrap().warping);
+    run(&mut g, 6.0);
+    g.handle(1, ClientMsg::Warp { system: 2 });
+    g.out.clear();
+    run(&mut g, 4.5);
+    assert_eq!(g.sessions[&1].system, 2);
+    // Bex, left behind, sees the jump flash at the spot the ship left from (it is gone by then).
+    let flash = g.out.iter().find_map(|(c, m)| match m {
+        ServerMsg::Snapshot { fx, .. } if *c == 2 => fx.iter().find_map(|f| if let Fx::WarpOut { entity, pos, .. } = f { (*entity == me).then_some(Vec3::from(*pos)) } else { None }),
+        _ => None,
+    });
+    assert!(flash.is_some_and(|p| p.distance(was) < 60.0), "warp-out flash reaches the system left: {flash:?}");
+    let (s2, arrived) = ent_of(&g, 1);
+    let a = g.ent(s2, arrived).unwrap();
+    assert!(!a.warping && a.vel.length() > a.stats.speed, "drops out sliding fast: {}", a.vel.length());
+}
+
+#[test]
 fn pve_kill_pays_bounty_and_progresses_daily() {
     let mut g = game();
     let pid = join(&mut g, 1, "Arin", Species::Human, HullClass::Bastion, Profession::CombatPilot);

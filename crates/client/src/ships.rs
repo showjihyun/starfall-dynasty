@@ -216,6 +216,8 @@ pub struct ShipVis {
     pub muzzles: Vec<Entity>,
     pub rank: u8,
     pub boost: view::anim::Ramp,
+    /// Since when its warp drive has been charging (the spool-up glow, `view::anim::warp_spool`).
+    pub warp_since: Option<f64>,
     pub throttle: f32,
     pub last_pos: Vec3,
     pub seed: f32,
@@ -271,6 +273,7 @@ impl ShipVis {
             muzzles: vec![],
             rank: st.rank,
             boost: view::anim::Ramp::default(),
+            warp_since: None,
             throttle: 0.0,
             last_pos: pos,
             seed: (st.id as f32 * 0.618).fract() * 10.0,
@@ -459,6 +462,18 @@ fn sync_visuals(
         v.last_pos = pos;
         tf.translation = pos;
         tf.rotation = rot;
+        // Dropping out of warp: drawn stretched along its way (its nose: the server turns it that way),
+        // thinning as it lengthens, settling into its hull. On the interpolated clock, so it starts
+        // when the ship first shows.
+        let k = s.arrivals.get(&id).map_or(1.0, |at| view::anim::warp_stretch(t - at));
+        let scale = Vec3::new(1.0 / k.sqrt(), 1.0 / k.sqrt(), k);
+        if tf.scale != scale {
+            tf.scale = scale;
+        }
+        if k > 1.0 {
+            // The nose stays where the ship is; the hull trails back the way it came.
+            tf.translation += rot * Vec3::Z * v.radius * (k - 1.0);
+        }
         // Docked ships vanish into the station; in a fighter's cockpit view our own hull is hidden.
         let cockpit = Some(id) == me && first_person && v.class == SizeClass::Small;
         let want = if st2.docked || cockpit { Visibility::Hidden } else { Visibility::Inherited };
@@ -722,7 +737,15 @@ fn update_ship_fx(
         let side = view::palette::side::of(v.hostile);
         let flash = view::anim::fade(now - v.flash_at, 4.0);
         let hit_age = (now - v.hit_at).min(3.0) as f32;
-        let boost = v.boost.value(now, BOOST_UP, BOOST_DOWN);
+        // A charging warp drive: remember since when (the spool glow in fx.rs), and the engines flare
+        // with it as with a boost.
+        match (st.warping, v.warp_since) {
+            (true, None) => v.warp_since = Some(now),
+            (false, Some(_)) => v.warp_since = None,
+            _ => {}
+        }
+        let spool = v.warp_since.map_or(0.0, |at| view::anim::warp_spool(now - at, shared::tuning::get().combat.warp_charge));
+        let boost = v.boost.value(now, BOOST_UP, BOOST_DOWN).max(spool);
         let q = |x: f32, step: f32| (x / step).round() * step;
         let hull_state = Vec4::new(q(1.0 - st.hull, 0.02), q(flash, 0.02), q(boost, 0.05), v.seed);
         if hull_state != v.sent.0 {
@@ -858,7 +881,7 @@ mod tests {
     use super::*;
 
     fn ship(id: EntityId) -> EntityState {
-        EntityState { id, kind: EntityKind::Player, name: "T".into(), hull_class: Some(HullClass::Bastion), rank: 1, livery: 0, pos: [0.0; 3], rot: [0.0, 0.0, 0.0, 1.0], vel: [0.0, 0.0, -90.0], hull: 0.55, shield: 0.8, radius: 20.0, fleet: None, wanted: false, boosting: true, mining: None, docked: false, owner: None, alliance: None, class: Some(SizeClass::Capital), species: None }
+        EntityState { id, kind: EntityKind::Player, name: "T".into(), hull_class: Some(HullClass::Bastion), rank: 1, livery: 0, pos: [0.0; 3], rot: [0.0, 0.0, 0.0, 1.0], vel: [0.0, 0.0, -90.0], hull: 0.55, shield: 0.8, radius: 20.0, fleet: None, wanted: false, boosting: true, warping: false, mining: None, docked: false, owner: None, alliance: None, class: Some(SizeClass::Capital), species: None }
     }
 
     /// Everything the shaders get from one ship's slot, without its pattern seed.

@@ -82,6 +82,8 @@ pub struct Ent {
     pub mining: Option<u32>,
     pub mine_acc: f32,
     pub docked: bool,
+    /// The warp drive is charging (everyone sees the ship spool up).
+    pub warping: bool,
     pub ai: Option<Ai>,
     pub missile: Option<Missile>,
     /// (attacker entity, attacker player, time) — for kill credit, assists, self-defence.
@@ -127,6 +129,7 @@ impl Ent {
             wanted: false,
             mining: None,
             mine_acc: 0.0,
+            warping: false,
             docked: false,
             ai: None,
             missile: None,
@@ -171,6 +174,7 @@ impl Ent {
             fleet: self.fleet,
             wanted: self.wanted,
             boosting: self.controls.boost,
+            warping: self.warping,
             mining: self.mining,
             docked: self.docked,
             owner: self.owner,

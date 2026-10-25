@@ -203,3 +203,7 @@ pub fn species_livery(s: shared::galaxy::Species) -> u8 {
 /// RGB, and the emissive strength that keeps its hue instead of blowing out to white.
 pub const ANCIENT: [f32; 3] = [0.2, 0.9, 0.8];
 pub const ANCIENT_GLOW: f32 = 2.2;
+
+/// Warp light (a drive spooling up, the jump flash, the streak a ship leaves; linear RGB): the
+/// blue-white of the warp tunnel, whichever side the ship is on — a jump is not a shot.
+pub const WARP: [f32; 3] = [0.5, 0.75, 1.0];

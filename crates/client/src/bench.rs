@@ -73,7 +73,7 @@ fn setup(mut s: ResMut<Session>, mut cfg: ResMut<BenchCfg>, mut next: ResMut<Nex
         id += 1;
         let phase = id as f32 * 0.37;
         cfg.start.push((id, pos, phase));
-        ents.insert(id, EntityState { id, kind, name: format!("B{id}"), hull_class: hull, rank, livery, pos: pos.to_array(), rot: [0.0, 0.0, 0.0, 1.0], vel: [0.0, 0.0, -60.0], hull: 0.6 + (phase.sin() * 0.4).abs(), shield: 0.7, radius, fleet: None, wanted: false, boosting: id % 3 == 0, mining: None, docked: false, owner: Some(id as u64), alliance: None, class, species: None });
+        ents.insert(id, EntityState { id, kind, name: format!("B{id}"), hull_class: hull, rank, livery, pos: pos.to_array(), rot: [0.0, 0.0, 0.0, 1.0], vel: [0.0, 0.0, -60.0], hull: 0.6 + (phase.sin() * 0.4).abs(), shield: 0.7, radius, fleet: None, wanted: false, boosting: id % 3 == 0, warping: false, mining: None, docked: false, owner: Some(id as u64), alliance: None, class, species: None });
     };
     for layer in 0..scale() {
         // Extra layers stack further out and deeper, like a battle line seen end-on.

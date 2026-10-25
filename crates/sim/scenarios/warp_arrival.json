@@ -1,0 +1,19 @@
+{
+  "name": "warp_arrival",
+  "description": "워프 도착은 한 점이 아니다: 출발 성계 쪽에서(서쪽 Lumen Reach, 동쪽 Kharz Forge) 워프 지점 둘레로 흩어져 고속으로 미끄러져 들어온다(combat.warp_arrive_*). 같은 순간 도착한 두 함장이 겹치지 않고 수백 u 떨어져, 도착 지점 하나를 지키는 매복이 모두를 잡지 못한다",
+  "captains": [
+    { "name": "West", "hull": "Wren", "level": 3, "system": 1, "undocked": true },
+    { "name": "East", "hull": "Wren", "level": 3, "system": 2, "undocked": true }
+  ],
+  "script": [
+    { "at": 0.5, "captain": "West", "msg": { "Warp": { "system": 3 } } },
+    { "at": 0.5, "captain": "East", "msg": { "Warp": { "system": 3 } } }
+  ],
+  "run_secs": 12,
+  "expect": [
+    { "at": 6, "check": "in_system", "captain": "West", "system": 3 },
+    { "at": 6, "check": "in_system", "captain": "East", "system": 3 },
+    { "at": 5, "check": "distance", "captain": "West", "to": "East", "min": 600 },
+    { "check": "distance", "captain": "West", "to": "East", "min": 300 }
+  ]
+}

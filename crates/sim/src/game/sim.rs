@@ -132,6 +132,9 @@ impl Game {
                 let hit_recently = self.ent(sys, eid).is_some_and(|e| self.now - e.last_hit < 0.5);
                 if hit_recently {
                     self.sessions.get_mut(&conn).unwrap().warp = None;
+                    if let Some(e) = self.ent_mut(sys, eid) {
+                        e.warping = false;
+                    }
                     self.send(conn, ServerMsg::WarpCharging { system: target, seconds: -1.0 });
                     self.toast(pid, "피격으로 워프가 취소되었습니다");
                 } else if t <= 0.0 {
@@ -170,25 +173,46 @@ impl Game {
 
     fn complete_warp(&mut self, pid: PlayerId, from: SystemId, eid: EntityId, to: SystemId) {
         let (hull, shield) = self.ent(from, eid).map(|e| (e.hull, e.shield)).unwrap_or((1.0, 1.0));
-        self.fx(from, Fx::WarpOut { entity: eid });
+        // The way out of here and into there: the galaxy map direction from the old system to the new one.
+        let (a, b) = (galaxy::system(from).map_pos, galaxy::system(to).map_pos);
+        let way = Vec3::new(b[0] - a[0], 0.0, b[2] - a[2]).normalize_or(Vec3::NEG_Z);
+        // The ship is gone before the snapshot goes out, so the flash carries where it was.
+        if let Some(pos) = self.ent(from, eid).map(|e| e.pos.to_array()) {
+            self.fx(from, Fx::WarpOut { entity: eid, pos });
+        }
         if let Some(c) = self.conn_of.get(&pid).copied() {
             self.sessions.get_mut(&c).unwrap().warp = None;
         }
         self.spawn_player(pid, to, false);
         if let Some((s, e)) = self.player_entity(pid) {
-            if let Some(ent) = self.ent_mut(s, e) {
-                ent.hull = hull.min(ent.stats.max_hull);
-                ent.shield = shield.min(ent.stats.max_shield);
-                // Arrive facing the station.
-                let st = self.systems[&s].layout.station;
-                let ent = self.ent_mut(s, e).unwrap();
-                let dir = (st - ent.pos).normalize_or_zero();
-                if dir != Vec3::ZERO {
-                    ent.rot = Quat::from_rotation_arc(Vec3::NEG_Z, dir);
-                }
-                ent.vel = dir * 60.0;
+            let t = self.tuning.combat;
+            let layout = &self.systems[&s].layout;
+            let (jump, station) = (layout.jump_point, layout.station);
+            // Drop out on the side we came from, scattered, sliding in along the way.
+            let jitter = shared::rng::Rng::from_parts(&[0x3A2B, self.tick, pid]).in_sphere() * t.warp_arrive_spread;
+            let at = jump - way * t.warp_arrive_dist + jitter;
+            let ent = self.ent_mut(s, e).unwrap();
+            ent.hull = hull.min(ent.stats.max_hull);
+            ent.shield = shield.min(ent.stats.max_shield);
+            let dir = if t.warp_arrive_speed > 0.0 {
+                ent.pos = at;
+                ent.vel = way * ent.stats.speed * t.warp_arrive_speed;
+                way
+            } else {
+                // Before arrival tuning: on the warp point, drifting at the station.
+                let d = (station - ent.pos).normalize_or_zero();
+                ent.vel = d * 60.0;
+                d
+            };
+            if dir != Vec3::ZERO {
+                ent.rot = Quat::from_rotation_arc(Vec3::NEG_Z, dir);
             }
-            self.fx(s, Fx::WarpIn { entity: e });
+            if t.warp_arrive_speed > 0.0 {
+                // Escorts were placed around the warp point: form them up on the flagship's new spot.
+                self.despawn_escorts(pid);
+                self.spawn_escorts(pid);
+            }
+            self.fx(s, Fx::WarpIn { entity: e, dir: dir.to_array() });
         }
         let name = galaxy::system(to).name;
         let tier = galaxy::system(to).tier.label();

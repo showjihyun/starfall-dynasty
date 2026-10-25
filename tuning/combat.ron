@@ -29,4 +29,11 @@
     // missile fires and shields do not regenerate while it is held. Boost was free, so holding it was always right.
     boost_power: true,
     warp_charge: 4.0,
+    // Warp arrival (2026-10-25, spec warp_arrival): every ship used to appear on the warp point itself — two
+    // arrivals stacked at 0 u and one ambush covered them all. Now from the side of the system it came from,
+    // 650 u out, scattered 350 u, sliding in at 2× top speed and braking short of the warp point (Talon Lv1
+    // 230 u/s → ~310 u, a cruiser ~400 u, a capital ~300 u), so ships from opposite sides do not meet in the middle.
+    warp_arrive_dist: 650.0,
+    warp_arrive_spread: 350.0,
+    warp_arrive_speed: 2.0,
 )

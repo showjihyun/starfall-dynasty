@@ -83,6 +83,9 @@ pub struct Session {
     pub chat: VecDeque<(String, String)>,
     pub target: Option<EntityId>,
     pub fx: Vec<Fx>,
+    /// Ships that dropped out of warp and when (real time): drawn stretched along their way while
+    /// they settle (`view::anim::warp_stretch`). Old ones are dropped by the fx system.
+    pub arrivals: HashMap<EntityId, f64>,
     pub ui: UiFlags,
     pub disconnected: Option<String>,
     pub ping_ms: f32,

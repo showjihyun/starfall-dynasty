@@ -263,6 +263,9 @@ impl Game {
         }
         let charge = self.tuning.combat.warp_charge;
         self.sessions.get_mut(&conn).unwrap().warp = Some((target, charge));
+        if let Some(e) = eid.and_then(|e| self.ent_mut(sys, e)) {
+            e.warping = true;
+        }
         self.send(conn, ServerMsg::WarpCharging { system: target, seconds: charge });
         let _ = pid;
     }

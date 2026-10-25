@@ -212,6 +212,7 @@ fn showroom(s: &mut Session, args: &Args) {
                 fleet: None,
                 wanted: false,
                 boosting: i == 2,
+                warping: false,
                 mining: None,
                 docked: false,
                 owner: None,
@@ -225,7 +226,7 @@ fn showroom(s: &mut Session, args: &Args) {
     // A pirate for scale and hostile livery.
     ents.insert(
         200,
-        EntityState { id: 200, kind: EntityKind::Npc(shared::missions::NpcArchetype::Raider), name: "Raider".into(), hull_class: None, rank: 1, livery: 7, pos: (base + Vec3::new(40.0, 40.0, -320.0)).to_array(), rot: Quat::from_rotation_y(2.5).to_array(), vel: [0.0; 3], hull: 0.7, shield: 0.5, radius: 9.0, fleet: None, wanted: false, boosting: true, mining: None, docked: false, owner: None, alliance: None, class: None, species: None },
+        EntityState { id: 200, kind: EntityKind::Npc(shared::missions::NpcArchetype::Raider), name: "Raider".into(), hull_class: None, rank: 1, livery: 7, pos: (base + Vec3::new(40.0, 40.0, -320.0)).to_array(), rot: Quat::from_rotation_y(2.5).to_array(), vel: [0.0; 3], hull: 0.7, shield: 0.5, radius: 9.0, fleet: None, wanted: false, boosting: true, warping: false, mining: None, docked: false, owner: None, alliance: None, class: None, species: None },
     );
     // `--leviathan`: a Sentinel with a Talon over its back, one level with its flank and one under its
     // belly — its batteries fire at whichever they reach (`battery_covers`), from that side of its hull.
@@ -234,12 +235,12 @@ fn showroom(s: &mut Session, args: &Args) {
         let c = layout.station + Vec3::new(0.0, 300.0, -1400.0);
         let r = shared::tuning::get().npcs.archetypes[&shared::missions::NpcArchetype::Sentinel].radius;
         let rot = Quat::from_rotation_y(1.2);
-        ents.insert(LEVIATHAN, EntityState { id: LEVIATHAN, kind: EntityKind::Npc(shared::missions::NpcArchetype::Sentinel), name: "Leviathan Sentinel".into(), hull_class: None, rank: 3, livery: 7, pos: c.to_array(), rot: rot.to_array(), vel: [0.0; 3], hull: 0.8, shield: 0.6, radius: r, fleet: None, wanted: false, boosting: false, mining: None, docked: false, owner: None, alliance: None, class: None, species: None });
+        ents.insert(LEVIATHAN, EntityState { id: LEVIATHAN, kind: EntityKind::Npc(shared::missions::NpcArchetype::Sentinel), name: "Leviathan Sentinel".into(), hull_class: None, rank: 3, livery: 7, pos: c.to_array(), rot: rot.to_array(), vel: [0.0; 3], hull: 0.8, shield: 0.6, radius: r, fleet: None, wanted: false, boosting: false, warping: false, mining: None, docked: false, owner: None, alliance: None, class: None, species: None });
         for (i, off) in [Vec3::new(0.0, 260.0, 60.0), rot * Vec3::new(320.0, 0.0, -40.0), Vec3::new(30.0, -260.0, -60.0)].into_iter().enumerate() {
             let id = LEVIATHAN + 1 + i as u32;
             let st = Ship::new("Talon".into(), HullClass::Talon, 0).stats();
             let face = Quat::from_rotation_arc(Vec3::NEG_Z, -off.normalize());
-            ents.insert(id, EntityState { id, kind: EntityKind::Player, name: ["위", "옆", "배 아래"][i].into(), hull_class: Some(HullClass::Talon), rank: 0, livery: 1, pos: (c + off).to_array(), rot: face.to_array(), vel: [0.0; 3], hull: 1.0, shield: 1.0, radius: st.radius, fleet: None, wanted: false, boosting: false, mining: None, docked: false, owner: None, alliance: None, class: None, species: Some(shared::galaxy::Species::Human) });
+            ents.insert(id, EntityState { id, kind: EntityKind::Player, name: ["위", "옆", "배 아래"][i].into(), hull_class: Some(HullClass::Talon), rank: 0, livery: 1, pos: (c + off).to_array(), rot: face.to_array(), vel: [0.0; 3], hull: 1.0, shield: 1.0, radius: st.radius, fleet: None, wanted: false, boosting: false, warping: false, mining: None, docked: false, owner: None, alliance: None, class: None, species: Some(shared::galaxy::Species::Human) });
         }
     }
     s.me = if args.look.is_some() { None } else { args.hull }.map(showroom_id);
@@ -303,6 +304,29 @@ fn automation(
         if crossed(5.0, 2.0) && s.snaps.back().is_some_and(|sn| sn.ents.contains_key(&200)) {
             let p = Vec3::from(s.snaps.back().unwrap().ents[&200].pos) + Vec3::new(-60.0, -10.0, -80.0);
             s.fx.push(Fx::Explosion { pos: p.to_array(), size: 2.0 });
+        }
+        // `--warp-demo`: the warp effects on the showroom fleet (its own flag, so the art-check scenes
+        // stay as they are): every ship but the second keeps its drive charging, the second drops in
+        // every 3 s and a jump flash leaves beside the fleet in between.
+        if std::env::args().any(|a| a == "--warp-demo") {
+            let ents = s.snaps.back().map(|sn| (sn.ents.get(&103).cloned(), sn.ents.get(&101).cloned()));
+            if let Some(snap) = s.snaps.back_mut() {
+                for id in [100, 102, 103, 104] {
+                    if let Some(e) = snap.ents.get_mut(&id) {
+                        e.warping = true;
+                    }
+                }
+            }
+            if let Some((Some(charging), Some(arriving))) = ents {
+                let fwd = |e: &shared::protocol::EntityState| (Quat::from_array(e.rot) * Vec3::NEG_Z).to_array();
+                if crossed(3.0, 0.5) {
+                    s.fx.push(Fx::WarpIn { entity: 101, dir: fwd(&arriving) });
+                }
+                if crossed(3.0, 2.0) {
+                    let p = Vec3::from(charging.pos) + Vec3::new(-90.0, 50.0, -160.0);
+                    s.fx.push(Fx::WarpOut { entity: 103, pos: p.to_array() });
+                }
+            }
         }
     }
     *prev = t;

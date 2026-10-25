@@ -184,7 +184,7 @@ fn captain_ship(ship: &Ship, species: Species) -> EntityState {
 }
 
 fn entity(id: u32, kind: EntityKind, hull: Option<HullClass>, ship: &Ship, livery: u8, species: Option<Species>) -> EntityState {
-    EntityState { id, kind, name: String::new(), hull_class: hull, rank: ship.rank(), livery, pos: [0.0; 3], rot: [0.0, 0.0, 0.0, 1.0], vel: [0.0, 0.0, -40.0], hull: 1.0, shield: 1.0, radius: ship.stats().radius, fleet: None, wanted: false, boosting: false, mining: None, docked: false, owner: None, alliance: None, class: Some(ship.size_class()), species }
+    EntityState { id, kind, name: String::new(), hull_class: hull, rank: ship.rank(), livery, pos: [0.0; 3], rot: [0.0, 0.0, 0.0, 1.0], vel: [0.0, 0.0, -40.0], hull: 1.0, shield: 1.0, radius: ship.stats().radius, fleet: None, wanted: false, boosting: false, warping: false, mining: None, docked: false, owner: None, alliance: None, class: Some(ship.size_class()), species }
 }
 
 /// Two battle lines facing each other across `center` (the war shot).
