@@ -258,8 +258,9 @@ impl Game {
         if dist > e.stats.warp_range + 1e-3 {
             return self.error(conn, format!("워프 거리 부족: {:.2} ly 필요, 현재 {:.2} ly (워프 코어 업그레이드 필요)", dist, e.stats.warp_range));
         }
-        self.sessions.get_mut(&conn).unwrap().warp = Some((target, WARP_CHARGE));
-        self.send(conn, ServerMsg::WarpCharging { system: target, seconds: WARP_CHARGE });
+        let charge = self.tuning.combat.warp_charge;
+        self.sessions.get_mut(&conn).unwrap().warp = Some((target, charge));
+        self.send(conn, ServerMsg::WarpCharging { system: target, seconds: charge });
         let _ = pid;
     }
 

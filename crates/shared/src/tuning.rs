@@ -597,10 +597,31 @@ pub struct CombatTuning {
     /// Default 1 (recordings from before it).
     #[serde(default = "one")]
     pub war_pvp_damage: f32,
+    /// Flight: boost (Shift) multiplies top speed and acceleration; strafing (A/D, Z/Ctrl) moves at
+    /// this share of top speed. Defaults: 1.7 and 0.6, the values before they moved here.
+    #[serde(default = "boost")]
+    pub boost: f32,
+    #[serde(default = "strafe")]
+    pub strafe: f32,
+    /// Seconds a warp drive charges before the jump (a hit cancels it). Default 4.
+    #[serde(default = "warp_charge")]
+    pub warp_charge: f32,
 }
 
 fn one() -> f32 {
     1.0
+}
+
+fn boost() -> f32 {
+    1.7
+}
+
+fn strafe() -> f32 {
+    0.6
+}
+
+fn warp_charge() -> f32 {
+    4.0
 }
 
 fn no_arcs() -> f32 {

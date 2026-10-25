@@ -372,7 +372,8 @@ pub(crate) fn steer(pos: Vec3, rot: shared::glam::Quat, goal: Vec3, stop: f32, t
     // Facing it: full ahead while far, easing off near the stop distance (flight assist brakes).
     let facing = -local.z;
     c.thrust = if d > stop { ((d - stop) / 300.0).clamp(0.2, 1.0) * facing.max(0.2) } else { 0.0 };
-    c.boost = d > stop + 2500.0 && facing > 0.9;
+    // Boost costs nothing, so a player holds it on every leg (beyond 2500 u only, travel was 28% of a campaign).
+    c.boost = d > stop + 600.0 && facing > 0.9;
     c
 }
 

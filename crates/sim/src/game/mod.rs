@@ -24,7 +24,6 @@ use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque};
 pub type ConnId = u64;
 
 pub const RESPAWN_FEE_PER_RANK: u64 = 150;
-pub const WARP_CHARGE: f32 = 4.0;
 pub const COMBAT_LOCK: f64 = 5.0;
 pub const ENGAGEMENT_TIMEOUT: f64 = 20.0;
 pub const WRECK_TTL_SECS: u64 = 7 * 86_400;

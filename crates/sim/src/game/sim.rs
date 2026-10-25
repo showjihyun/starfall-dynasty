@@ -255,6 +255,7 @@ impl Game {
         drop(p);
         let p = prof::span("flight");
         let roll_rate = self.tuning.combat.roll_rate;
+        let (boost_k, strafe) = (self.tuning.combat.boost, self.tuning.combat.strafe);
         let posts = self.held_posts(sys);
         for &id in &ids {
             let now = self.now;
@@ -277,14 +278,14 @@ impl Game {
             if let Some(&(post, leader_vel)) = posts.get(&id) {
                 let err = post - e.pos;
                 let l = e.rot.inverse() * err.normalize_or_zero() * (err.length() / 300.0).min(1.0);
-                (c.thrust, c.strafe_x, c.strafe_y) = ((-l.z).clamp(-1.0, 1.0), (l.x / 0.6).clamp(-1.0, 1.0), (l.y / 0.6).clamp(-1.0, 1.0));
+                (c.thrust, c.strafe_x, c.strafe_y) = ((-l.z).clamp(-1.0, 1.0), (l.x / strafe).clamp(-1.0, 1.0), (l.y / strafe).clamp(-1.0, 1.0));
                 carry = leader_vel;
             }
             let rate = e.stats.turn * dt;
             e.rot = (e.rot * Quat::from_rotation_y(-c.yaw * rate) * Quat::from_rotation_x(c.pitch * rate) * Quat::from_rotation_z(-c.roll * rate * roll_rate)).normalize();
             let (fwd, right, up) = (e.rot * Vec3::NEG_Z, e.rot * Vec3::X, e.rot * Vec3::Y);
-            let boost = if c.boost { 1.7 } else { 1.0 };
-            let desired = (fwd * c.thrust + right * c.strafe_x * 0.6 + up * c.strafe_y * 0.6) * e.stats.speed * boost + carry;
+            let boost = if c.boost { boost_k } else { 1.0 };
+            let desired = (fwd * c.thrust + right * c.strafe_x * strafe + up * c.strafe_y * strafe) * e.stats.speed * boost + carry;
             let dv = desired - e.vel;
             let max_dv = e.stats.accel * boost * dt;
             e.vel += if dv.length() > max_dv { dv.normalize() * max_dv } else { dv };

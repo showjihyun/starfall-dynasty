@@ -21,4 +21,9 @@
     // 90% of ships sunk at 46 s → 3 min, docs/3D_전투_설계.md 「대규모 교전의 넓이」). Pirates, bosses and
     // PvP outside war zones are unchanged.
     war_pvp_damage: 0.15,
+    // Flight (moved out of code 2026-10-25): boost multiplies top speed and acceleration, strafing moves at
+    // this share of top speed, a warp drive charges this many seconds (a hit cancels it).
+    boost: 1.7,
+    strafe: 0.6,
+    warp_charge: 4.0,
 )
