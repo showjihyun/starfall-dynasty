@@ -19,7 +19,7 @@ fn line(o: &Options, r: &Report) -> String {
     let secs = t.secs().max(1e-3);
     let (cr, refined) = r.per_min();
     format!(
-        "{:<8} Lv{:<2} hold {:>4.0} full in {:>4.0} s · trip {:>4.0} s (mine {:>3.0}% fly {:>3.0}% fight {:>3.0}%) · {:>5.0} CR/min (ore {:>4.0}){} · {} deaths",
+        "{:<8} Lv{:<2} hold {:>4.0} full in {:>4.0} s · trip {:>4.0} s (mine {:>3.0}% fly {:>3.0}% fight {:>3.0}%) · {:>5.0} CR/min (ore {:>4.0}){} · {} fled · {} deaths",
         format!("{:?}", o.hull),
         o.level,
         r.cargo,
@@ -31,6 +31,7 @@ fn line(o: &Options, r: &Report) -> String {
         cr,
         t.ore_credits as f32 / (secs / 60.0),
         if refined > 0.0 { format!(" {refined:.1} refined/min") } else { String::new() },
+        t.fled,
         t.deaths,
     )
 }

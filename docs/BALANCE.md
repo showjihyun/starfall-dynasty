@@ -73,7 +73,7 @@ Phase 2·3 수입원을 한 표로 모았다. 사냥·채굴은 시뮬레이션�
 | Talon | 1 | Hollow Crown (Wild) | 0 | 0 CR | 0 | 20초에 격침 |
 | Talon | 5 | Hollow Crown (Wild) | 92 | 25232 CR | 100928 | 끝까지 |
 | Talon | 9 | Hollow Crown (Wild) | 92 | 25232 CR | 100928 | 끝까지 |
-| Talon | 1 | Vesta Front (War Zone) | 4 | 1683 CR | 55560 | 109초에 격침 |
+| Talon | 1 | Vesta Front (War Zone) | 4 | 1683 CR | 53429 | 113초에 격침 |
 | Talon | 5 | Vesta Front (War Zone) | 71 | 30762 CR | 123048 | 끝까지 |
 | Talon | 9 | Vesta Front (War Zone) | 71 | 30762 CR | 123048 | 끝까지 |
 
@@ -83,12 +83,12 @@ Phase 2·3 수입원을 한 표로 모았다. 사냥·채굴은 시뮬레이션�
 
 | 함선 | Lv | 성계 | 광석 | 화물 | 채굴 시간 | 판매액 | 시간당 CR |
 |---|---|---|---|---|---|---|---|
-| Mule | 1 | Sol Haven (Core) | Lumen | 90 | 134초 | 377 CR | 8829 |
-| Mule | 5 | Sol Haven (Core) | Lumen | 331 | 191초 | 892 CR | 15126 |
-| Mule | 1 | Orion Drift (Frontier) | Xenite | 90 | 134초 | 1415 CR | 32980 |
-| Mule | 5 | Orion Drift (Frontier) | Xenite | 331 | 191초 | 3344 CR | 56491 |
-| Mule | 1 | Hollow Crown (Wild) | Xenite | 90 | 134초 | 1752 CR | 39641 |
-| Mule | 5 | Hollow Crown (Wild) | Xenite | 331 | 191초 | 4140 CR | 68320 |
+| Mule | 1 | Sol Haven (Core) | Lumen | 90 | 64초 | 1132 CR | 48476 |
+| Mule | 5 | Sol Haven (Core) | Lumen | 331 | 46초 | 2675 CR | 143200 |
+| Mule | 1 | Orion Drift (Frontier) | Xenite | 90 | 64초 | 2122 CR | 90077 |
+| Mule | 5 | Orion Drift (Frontier) | Xenite | 331 | 46초 | 5016 CR | 265351 |
+| Mule | 1 | Hollow Crown (Wild) | Xenite | 90 | 64초 | 2627 CR | 105716 |
+| Mule | 5 | Hollow Crown (Wild) | Xenite | 331 | 46초 | 6211 CR | 305882 |
 
 ### 고고학 (60일 표본)
 
@@ -174,8 +174,8 @@ Phase 2·3 수입원을 한 표로 모았다. 사냥·채굴은 시뮬레이션�
 
 | 전투 | 함장 | 명중 | 위·아래 명중 | 평균 고도각 |
 |---|---|---|---|---|
-| 해적 사냥 15분 (Frontier) | Hunter | 675 | 41% | 20.2° |
-| 해적 사냥 15분 (Wild) | Hunter | 1621 | 62% | 28.5° |
+| 해적 사냥 15분 (Frontier) | Hunter | 663 | 38% | 19.9° |
+| 해적 사냥 15분 (Wild) | Hunter | 1645 | 60% | 27.3° |
 | 시나리오 capital_vs_raiders | Ares | 46 | 0% | 2.6° |
 | 시나리오 fighter_duel_gunship | Wing | 31 | 55% | 18.3° |
 | 시나리오 war_shifts_control | Raider | 64 | 0% | 0.0° |

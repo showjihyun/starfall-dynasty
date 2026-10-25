@@ -179,6 +179,8 @@ pub struct Expect {
 pub enum Check {
     /// The captain's flagship is (not) in space.
     Alive { captain: String, #[serde(default = "yes")] alive: bool },
+    /// The captain's flagship is (not) docked at the station.
+    Docked { captain: String, #[serde(default = "yes")] docked: bool },
     /// Hull fraction 0..1 of the flagship (0 when destroyed).
     Hull { captain: String, #[serde(default)] min: Option<f32>, #[serde(default)] max: Option<f32> },
     /// Hull points lost so far (max hull − hull; the whole hull when destroyed).
@@ -311,6 +313,10 @@ fn evaluate(run: &Run, c: &Check) -> (bool, String) {
         Check::Alive { captain, alive } => {
             let is = run.flagship(captain).is_some();
             (is == *alive, format!("{captain} alive={is} (want {alive})"))
+        }
+        Check::Docked { captain, docked } => {
+            let is = run.flagship(captain).is_some_and(|e| e.docked);
+            (is == *docked, format!("{captain} docked={is} (want {docked})"))
         }
         Check::Hull { captain, min, max } => {
             let h = run.flagship(captain).map(|e| e.hull / e.stats.max_hull.max(1.0)).unwrap_or(0.0);

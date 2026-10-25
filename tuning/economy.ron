@@ -3,7 +3,10 @@
 // scarcity = 1 / (1 + recent supply sold here ÷ scarcity_supply); supply decays over time.
 (
     // Economy rebalance v1 (2026-10-17, docs/BALANCE.md 「사회 경제」): prices 6/14/48 → 3/7/20, scarcity 250 → 120.
-    ore_prices: { Ferrite: 3.0, Lumen: 7.0, Xenite: 20.0 },
+    // Mining loop v2 (2026-10-25, docs/QA_CAMPAIGN.md 「채굴 루프」): ×3 → 9/21/60 — a starter's hold sold for
+    // ~110 CR, a third of one scan, and a Lv4→5 module took 40 min of mining; a trip now pays like a scan.
+    // Xenite only ×1.5 (20 → 30): found only outside Core, at ×3 a Frontier hold paid 4× a Core one at almost no risk.
+    ore_prices: { Ferrite: 9.0, Lumen: 21.0, Xenite: 30.0 },
     tier_base: 0.8,
     tier_step: 0.25,
     scarcity_supply: 120.0,

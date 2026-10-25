@@ -86,6 +86,10 @@ pub struct Growth {
     pub scanner_speed: f32,
     pub scanner_mining: f32,
     pub cargo: f32,
+    /// Mining rate per cargo level, so a bigger hold does not take longer to fill (0 in recordings
+    /// made before it existed).
+    #[serde(default)]
+    pub cargo_mining: f32,
 }
 
 /// One size class: the rank it starts at, how it scales the hull's stats and which batteries it carries.
@@ -209,11 +213,15 @@ pub struct Ambient {
     /// pirates leave that captain alone unless shot at: the chapter's fight is the one it was
     /// measured as (docs/QA_CAMPAIGN.md).
     pub leave_waves: bool,
+    /// Roaming pirates do not pick captains this close to the station (unless shot at by them), so
+    /// one who runs home can dock once the combat lock runs out (0: they chase to the dock).
+    #[serde(default)]
+    pub station_leash: f32,
 }
 
 impl Default for Ambient {
     fn default() -> Self {
-        Ambient { base: 2, per_level: 2, interval: 18.0, leave_waves: false }
+        Ambient { base: 2, per_level: 2, interval: 18.0, leave_waves: false, station_leash: 0.0 }
     }
 }
 

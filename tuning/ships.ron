@@ -6,17 +6,20 @@
 (
     // Level-1 stats of each hull, before size-class scaling. warp is in light-years.
     // Economy rebalance v1 (2026-10-17): mine_rate ×0.2 (Mule 2.4 → 0.48) — a full hold took 27–38 s.
+    // Mining loop v2 (2026-10-25, docs/QA_CAMPAIGN.md 「채굴 루프」): mine_rate set so a Lv1 hold fills in 75–90 s
+    // (was 125–200 s, 9/10 of every trip parked at the rock): Wren 0.24 → 0.40, Talon 0.2 → 0.33, Bastion 0.2 → 0.45,
+    // Mule 0.48 → 1.0, Seer 0.26 → 0.45.
     // Wren hull 260 → 320, damage 14 → 17 (2026-10-24, campaign QA): it lost chapter 2 until every module
     // reached Lv4 and chapter 5 even at the Lv9 cap. Still the thinnest hull (hull + shield 500, Talon 580).
     // Bastion damage 30 → 26 (2026-10-24, campaign QA): a tank that fired almost as hard as Talon was a level
     // ahead in every PvE fight — the only Lv5 hull to beat the Lv4 Warlord, and with 3D tactics it skipped the
     // whole chapter 4–5 grind (campaign 0:06). Chapter 4 stays its easy one (Lv4), chapter 5 grinds like the rest.
     hulls: {
-        Wren:    (hull: 320.0, shield: 180.0, speed: 130.0, accel: 95.0, turn: 2.6, warp: 2.2, damage: 17.0, fire_interval: 0.30, weapon_range: 520.0, missile_damage: 70.0,  scan_range: 900.0,  mine_rate: 0.24, cargo: 30.0, radius: 9.0),
-        Talon:   (hull: 360.0, shield: 220.0, speed: 115.0, accel: 85.0, turn: 2.3, warp: 1.7, damage: 19.0, fire_interval: 0.24, weapon_range: 560.0, missile_damage: 95.0,  scan_range: 600.0,  mine_rate: 0.2, cargo: 25.0, radius: 11.0),
-        Bastion: (hull: 620.0, shield: 300.0, speed: 80.0,  accel: 50.0, turn: 1.4, warp: 1.6, damage: 26.0, fire_interval: 0.42, weapon_range: 640.0, missile_damage: 140.0, scan_range: 600.0,  mine_rate: 0.2, cargo: 40.0, radius: 16.0),
-        Mule:    (hull: 440.0, shield: 200.0, speed: 90.0,  accel: 60.0, turn: 1.7, warp: 1.7, damage: 15.0, fire_interval: 0.34, weapon_range: 500.0, missile_damage: 80.0,  scan_range: 700.0,  mine_rate: 0.48, cargo: 90.0, radius: 14.0),
-        Seer:    (hull: 320.0, shield: 340.0, speed: 105.0, accel: 75.0, turn: 2.0, warp: 2.0, damage: 16.0, fire_interval: 0.28, weapon_range: 600.0, missile_damage: 85.0,  scan_range: 1400.0, mine_rate: 0.26, cargo: 35.0, radius: 12.0),
+        Wren:    (hull: 320.0, shield: 180.0, speed: 130.0, accel: 95.0, turn: 2.6, warp: 2.2, damage: 17.0, fire_interval: 0.30, weapon_range: 520.0, missile_damage: 70.0,  scan_range: 900.0,  mine_rate: 0.40, cargo: 30.0, radius: 9.0),
+        Talon:   (hull: 360.0, shield: 220.0, speed: 115.0, accel: 85.0, turn: 2.3, warp: 1.7, damage: 19.0, fire_interval: 0.24, weapon_range: 560.0, missile_damage: 95.0,  scan_range: 600.0,  mine_rate: 0.33, cargo: 25.0, radius: 11.0),
+        Bastion: (hull: 620.0, shield: 300.0, speed: 80.0,  accel: 50.0, turn: 1.4, warp: 1.6, damage: 26.0, fire_interval: 0.42, weapon_range: 640.0, missile_damage: 140.0, scan_range: 600.0,  mine_rate: 0.45, cargo: 40.0, radius: 16.0),
+        Mule:    (hull: 440.0, shield: 200.0, speed: 90.0,  accel: 60.0, turn: 1.7, warp: 1.7, damage: 15.0, fire_interval: 0.34, weapon_range: 500.0, missile_damage: 80.0,  scan_range: 700.0,  mine_rate: 1.0, cargo: 90.0, radius: 14.0),
+        Seer:    (hull: 320.0, shield: 340.0, speed: 105.0, accel: 75.0, turn: 2.0, warp: 2.0, damage: 16.0, fire_interval: 0.28, weapon_range: 600.0, missile_damage: 85.0,  scan_range: 1400.0, mine_rate: 0.45, cargo: 35.0, radius: 12.0),
     },
 
     // What each module level above 1 adds, as a share of the base value (warp_ly is added light-years).
@@ -38,6 +41,10 @@
         scanner_speed: 0.1,
         scanner_mining: 0.1,
         cargo: 0.25,
+        // Mining rate per cargo level, equal to `cargo` (2026-10-25, mining QA docs/QA_CAMPAIGN.md 「채굴 루프」):
+        // a bigger hold used to take longer to fill (Talon 125 s at Lv1 → 179 s at Lv5); now the fill time only
+        // shortens, with the scanner.
+        cargo_mining: 0.25,
     ),
 
     // Rank = (total module levels − 8) / 7, 0..10. A class covers ranks from its min_rank up to the next class.

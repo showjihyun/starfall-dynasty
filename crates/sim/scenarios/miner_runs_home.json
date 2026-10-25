@@ -1,0 +1,22 @@
+{
+  "name": "miner_runs_home",
+  "description": "Wild 성계에서 해적에게 쫓긴 소형 채굴선이 정거장으로 도망치면 해적이 정거장 500u 안에서 손을 떼고, 교전 잠금이 풀리면 도킹한다",
+  "captains": [
+    { "name": "Mole", "hull": "Talon", "level": 1, "system": 5, "pos": [142, -52, 5300] }
+  ],
+  "npcs": [
+    { "archetype": "Raider", "level": 2, "system": 5, "pos": [142, -52, 5800], "count": 2, "spacing": 80 }
+  ],
+  "script": [
+    { "at": 0.5, "captain": "Mole", "msg": { "SetTarget": null } },
+    { "at": 3.0, "captain": "Mole", "msg": { "Controls": { "thrust": 1.0 } }, "repeat_every": 0.25, "until": 18 },
+    { "at": 18.0, "captain": "Mole", "msg": { "Controls": {} } },
+    { "at": 15.0, "captain": "Mole", "msg": "Dock", "repeat_every": 0.5, "until": 50 }
+  ],
+  "run_secs": 50,
+  "expect": [
+    { "at": 6, "check": "taken", "captain": "Mole", "min": 1 },
+    { "check": "alive", "captain": "Mole" },
+    { "check": "docked", "captain": "Mole" }
+  ]
+}

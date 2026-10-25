@@ -70,6 +70,8 @@ pub struct Trip {
     pub refined: u32,
     pub specimens: u32,
     pub deaths: u32,
+    /// Times the captain ran for the station before the hold was full.
+    pub fled: u32,
     /// Lowest hull share during the trip.
     pub low_hull: f32,
 }
@@ -113,6 +115,7 @@ impl Report {
             s.refined += t.refined;
             s.specimens += t.specimens;
             s.deaths += t.deaths;
+            s.fled += t.fled;
             s.low_hull = s.low_hull.min(t.low_hull);
         }
         s
@@ -155,7 +158,7 @@ impl Report {
                 t.specimen_credits,
                 if t.refined > 0 { format!(", {} refined", t.refined) } else { String::new() },
                 if t.specimens > 0 { format!(", {} specimens", t.specimens) } else { String::new() },
-                if t.deaths > 0 { format!(", {} deaths (hull low {:.0}%)", t.deaths, t.low_hull * 100.0) } else if t.low_hull < 1.0 { format!(", hull low {:.0}%", t.low_hull * 100.0) } else { String::new() },
+                if t.fled > 0 { format!(", fled {}", t.fled) } else { String::new() } + &if t.deaths > 0 { format!(", {} deaths (hull low {:.0}%)", t.deaths, t.low_hull * 100.0) } else if t.low_hull < 1.0 { format!(", hull low {:.0}%", t.low_hull * 100.0) } else { String::new() },
             );
         }
         let t = self.total();
@@ -260,7 +263,10 @@ pub fn run(o: &Options) -> Report {
             } else if let Some(e) = s.entity.and_then(|id| g.ent(here, id)) {
                 let (pos, rot, docked, mining, hull) = (e.pos, e.rot, e.docked, e.mining.is_some(), e.hull / e.stats.max_hull.max(1.0));
                 let in_combat = g.now - e.last_hit < COMBAT_LOCK;
-                let attacker = e.attackers.iter().rev().find(|(a, _, at)| g.now - at < 8.0 && g.ent(here, *a).is_some_and(|x| !x.dead)).and_then(|(a, _, _)| g.ent(here, *a)).map(|x| x.pos);
+                let shooting: std::collections::BTreeSet<_> = e.attackers.iter().filter(|(a, _, at)| g.now - at < 8.0 && g.ent(here, *a).is_some_and(|x| !x.dead)).map(|(a, _, _)| *a).collect();
+                let attacker = e.attackers.iter().rev().find(|(a, ..)| shooting.contains(a)).and_then(|(a, _, _)| g.ent(here, *a)).map(|x| x.pos);
+                // Outnumbered or hurt: run for the station with what is in the hold, as a player would.
+                let flee = !shooting.is_empty() && (shooting.len() >= 2 || hull < 0.5);
                 trip.low_hull = trip.low_hull.min(hull);
                 let prof = g.store.profile(pid).unwrap().clone();
                 let full = prof.cargo_used() as f32 + 1.0 > stats.cargo;
@@ -302,6 +308,17 @@ pub fn run(o: &Options) -> Report {
                     }
                     leg = Leg::Out;
                     g.handle(conn, ClientMsg::Undock);
+                } else if flee {
+                    if leg != Leg::Back {
+                        trip.fled += 1;
+                    }
+                    leg = Leg::Back;
+                    let mut c = steer(pos, rot, station, stats.radius + 60.0, stats.turn);
+                    c.boost = pos.distance(station) > stats.radius + 400.0;
+                    g.handle(conn, ClientMsg::Controls(c));
+                    if pos.distance(station) < stats.radius + 200.0 {
+                        g.handle(conn, ClientMsg::Dock);
+                    }
                 } else if let Some(tp) = attacker {
                     // A miner shoots back: no docking or quiet mining while under fire.
                     let mut c = steer(pos, rot, tp, stats.weapon_range * 0.55, stats.turn);

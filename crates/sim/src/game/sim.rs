@@ -421,6 +421,7 @@ impl Game {
             // Captains fighting their chapter's wave here, whom roaming pirates leave alone.
             let busy: Vec<PlayerId> = if ai.scenario_owner.is_none() && self.tuning.npcs.ambient.leave_waves { self.sessions.values().filter(|s| s.wave_system == Some(sys) && !s.wave.is_empty()).filter_map(|s| s.player).collect() } else { vec![] };
             let mut best: Option<(EntityId, f32)> = None;
+            let (station, leash) = (self.systems[&sys].layout.station, self.tuning.npcs.ambient.station_leash);
             for (tid, t) in &self.systems[&sys].ents {
                 if t.kind != EntityKind::Player || t.dead || t.docked {
                     continue;
@@ -428,7 +429,7 @@ impl Game {
                 let d = t.pos.distance(e.pos);
                 let is_owner_side = ai.scenario_owner.is_some() && (t.owner == ai.scenario_owner || (fleet_of_owner.is_some() && t.fleet == fleet_of_owner));
                 let attacked_me = e.attackers.iter().any(|(a, _, time)| a == tid && self.now - time < 20.0);
-                let ok = if ai.scenario_owner.is_some() { is_owner_side || attacked_me } else { (d < aggro && !t.owner.is_some_and(|o| busy.contains(&o))) || attacked_me };
+                let ok = if ai.scenario_owner.is_some() { is_owner_side || attacked_me } else { (d < aggro && !t.owner.is_some_and(|o| busy.contains(&o)) && t.pos.distance(station) >= leash) || attacked_me };
                 if ok && best.is_none_or(|(_, bd)| d < bd) {
                     best = Some((*tid, d));
                 }

@@ -265,7 +265,7 @@ impl Ship {
             missile_cooldown: g.missile_cooldown / (1.0 + g.reactor_missile * reactor),
             scan_range: b.scan_range * (1.0 + g.scanner_range * lv(Module::Scanner)) * k.range,
             scan_time: g.scan_time / (1.0 + g.scanner_speed * lv(Module::Scanner)),
-            mine_rate: b.mine_rate * (1.0 + g.scanner_mining * lv(Module::Scanner)) * k.hp.sqrt(),
+            mine_rate: b.mine_rate * (1.0 + g.scanner_mining * lv(Module::Scanner)) * (1.0 + g.cargo_mining * lv(Module::Cargo)) * k.hp.sqrt(),
             cargo: b.cargo * (1.0 + g.cargo * lv(Module::Cargo)) * k.hp.sqrt(),
             radius: b.radius * k.size,
             turrets: c.turrets + c.turrets_per_rank * above,
