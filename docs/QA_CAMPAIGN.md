@@ -116,6 +116,8 @@ Deep에서 Talon Lv5 채굴 5.6k CR/분 중 77%가 그 현상금이었다. 규�
 
 **남은 위험 — 정면 Wren·Mule은 상한 가까이에서야 5장을 넘는다**: 시드 일부에서 모든 전투 모듈 Lv9(상한)로 겨우 이기고, 데이터코어
 3·(l−3) 시험에서는 Wren 한 판이 Lv9에서도 진다. 오늘 바꾼 것 이전(A안 그대로)부터 그렇다.
+→ **보스 힌트**: 같은 장 웨이브에 2번 연속 지면(`npcs.hint_after`) 웨이브의 Warlord·Sentinel이 포탑이 닿지 않는 곳을 알려 준다
+(`npcs.ron` 아키타입 `hint`, 테스트 `losing_a_boss_wave_twice_tells_where_its_turrets_do_not_reach`). 3D 이득은 그대로, 막다른 길만 없앤다.
 
 ## 플레이 시간은 어디로 가나 (2026-10-24)
 

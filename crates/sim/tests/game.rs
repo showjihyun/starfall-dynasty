@@ -299,6 +299,29 @@ fn scenario_one_full_run_unlocks_tier() {
 }
 
 #[test]
+fn losing_a_boss_wave_twice_tells_where_its_turrets_do_not_reach() {
+    let mut g = game();
+    let pid = join(&mut g, 1, "Arin", Species::Human, HullClass::Wren, Profession::CombatPilot);
+    g.store.profile_mut(pid).unwrap().scenarios_completed = 4;
+    g.handle(1, ClientMsg::StartScenario { id: 4 });
+    let fight = shared::missions::scenarios()[4].steps.iter().position(|s| matches!(s, shared::missions::Step::Defeat { .. })).unwrap();
+    g.store.profile_mut(pid).unwrap().scenario.as_mut().unwrap().step = fight;
+    let hints = |g: &Game| g.out.iter().filter(|(c, m)| *c == 1 && matches!(m, ServerMsg::Toast { text } if text.contains("배 아래"))).count();
+    for death in 1..=2 {
+        move_to_system(&mut g, 1, 9);
+        let wave = g.sessions[&1].wave.clone();
+        assert!(!wave.is_empty(), "chapter 5 wave spawned");
+        let (_, me) = ent_of(&g, 1);
+        g.out.clear();
+        g.apply_damage(9, wave[0], me, 1e6);
+        g.tick(DT, T0);
+        assert!(g.sessions[&1].dead);
+        assert_eq!(hints(&g), if death == 2 { 1 } else { 0 }, "hint only on the second death in a row");
+        g.handle(1, ClientMsg::Respawn);
+    }
+}
+
+#[test]
 fn mining_selling_and_market_prices() {
     let mut g = game();
     let pid = join(&mut g, 1, "Mira", Species::Veyr, HullClass::Mule, Profession::Miner);

@@ -802,6 +802,10 @@ impl Game {
                     s.dead = true;
                     s.warp = None;
                     s.scan = None;
+                    if !s.wave.is_empty() {
+                        s.wave_losses += 1;
+                        self.wave_hint(c);
+                    }
                     self.clear_wave(c);
                     self.send(c, ServerMsg::Died { killer: killer_name.clone(), wreck: wid });
                 }

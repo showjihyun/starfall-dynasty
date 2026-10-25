@@ -226,6 +226,8 @@ pub struct Session {
     pub invite: Option<FleetId>,
     pub wave: Vec<EntityId>,
     pub wave_system: Option<SystemId>,
+    /// Deaths to the current chapter step's wave in a row (reset when the step is done).
+    pub wave_losses: u32,
     pub dead: bool,
     pub escorts: Vec<EntityId>,
     pub escort_attack: bool,

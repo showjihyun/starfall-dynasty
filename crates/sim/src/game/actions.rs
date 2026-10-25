@@ -681,6 +681,29 @@ impl Game {
         }
     }
 
+    /// After `npcs.hint_after` deaths in a row to a chapter wave, its ships' hints (where their
+    /// turrets do not reach) — head-on a cruiser beats chapter 5 only near the level cap.
+    pub(super) fn wave_hint(&mut self, conn: ConnId) {
+        let s = &self.sessions[&conn];
+        let every = self.tuning.npcs.hint_after;
+        let (Some(pid), Some(sys)) = (s.player, s.wave_system) else { return };
+        if every == 0 || !s.wave_losses.is_multiple_of(every) {
+            return;
+        }
+        let mut hints: Vec<String> = vec![];
+        for w in &s.wave {
+            if let Some(EntityKind::Npc(arch)) = self.ent(sys, *w).map(|e| e.kind)
+                && let Some(h) = self.tuning.npcs.archetypes.get(&arch).and_then(|d| d.hint.clone())
+                && !hints.contains(&h)
+            {
+                hints.push(h);
+            }
+        }
+        for h in hints {
+            self.toast(pid, format!("💡 {h}"));
+        }
+    }
+
     pub(super) fn clear_wave(&mut self, conn: ConnId) {
         let s = self.sessions.get_mut(&conn).unwrap();
         let wave = std::mem::take(&mut s.wave);
@@ -694,6 +717,9 @@ impl Game {
 
     fn advance_scenario(&mut self, pid: PlayerId) {
         let Some(sp) = self.store.profile(pid).unwrap().scenario.clone() else { return };
+        if let Some(s) = self.conn_of.get(&pid).copied().and_then(|c| self.sessions.get_mut(&c)) {
+            s.wave_losses = 0;
+        }
         let sc = scenarios().into_iter().find(|s| s.id == sp.id).unwrap();
         let next = sp.step + 1;
         if next >= sc.steps.len() {

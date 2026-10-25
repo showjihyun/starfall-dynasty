@@ -198,6 +198,10 @@ pub struct NpcTuning {
     /// fixed numbers.
     #[serde(default)]
     pub ambient: Ambient,
+    /// After this many deaths in a row to the same chapter step, the wave's ships with a `hint`
+    /// tell the captain how to beat them. Missing or 0: no hints.
+    #[serde(default)]
+    pub hint_after: u32,
 }
 
 /// Free-roaming pirate groups in Frontier and wilder systems with a captain in them.
@@ -268,6 +272,10 @@ pub struct NpcDef {
     pub ventral_turrets: Option<u8>,
     /// Credits are multiplied by (1 + level); the materials are fixed.
     pub bounty: Materials,
+    /// Told to a captain who keeps losing a chapter wave this ship is in (`NpcTuning::hint_after`):
+    /// where its turrets do not reach.
+    #[serde(default)]
+    pub hint: Option<String>,
 }
 
 impl NpcDef {
