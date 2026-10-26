@@ -32,7 +32,9 @@ impl Game {
     pub(super) fn gain_influence(&mut self, pid: PlayerId, sys: SystemId, points: f32) {
         let Some(a) = self.alliance_of(pid) else { return };
         if points > 0.0 {
-            self.shift_influence(a, sys, points);
+            // Someone else's ground: hunting and trade barely move it — battles do (`battle_influence`).
+            let foreign = self.controller(sys).is_some_and(|c| c != a);
+            self.shift_influence(a, sys, if foreign { points * self.tuning.social.foreign_gain } else { points });
         }
     }
 
@@ -48,7 +50,7 @@ impl Game {
 
     /// Add (or, negative, take away) an alliance's influence in a system, then re-check control.
     /// Gains shrink with every other system the alliance already holds (overreach).
-    fn shift_influence(&mut self, a: AllianceId, sys: SystemId, points: f32) {
+    pub(super) fn shift_influence(&mut self, a: AllianceId, sys: SystemId, points: f32) {
         if galaxy::system(sys).tier == RiskTier::Core {
             return;
         }
@@ -202,30 +204,49 @@ impl Game {
         self.store.dirty = true;
     }
 
-    /// Hourly upkeep from each alliance's treasury; one that cannot pay abandons its weakest system.
+    /// Hourly: each alliance's systems pay into its treasury (`system_income`), then upkeep is due; one
+    /// that cannot pay abandons its weakest system — or, with `abandon_until_paid`, as many as it takes.
     fn collect_upkeep(&mut self) {
+        let t = self.tuning.social;
         let ids: Vec<AllianceId> = self.store.data.alliances.iter().map(|a| a.id).collect();
         for a in ids {
-            let held = self.held_by(a);
-            let cost = self.upkeep(held.len());
-            if cost == 0 {
-                continue;
+            let mut held = self.held_by(a);
+            let income = t.system_income * held.len() as u64;
+            if let Some(al) = self.store.data.alliances.iter_mut().find(|x| x.id == a) {
+                al.treasury += income;
             }
-            let Some(al) = self.store.data.alliances.iter_mut().find(|x| x.id == a) else { continue };
-            if al.treasury >= cost {
-                al.treasury -= cost;
-                continue;
+            loop {
+                let cost = self.upkeep(held.len());
+                if cost == 0 {
+                    break;
+                }
+                let Some(al) = self.store.data.alliances.iter_mut().find(|x| x.id == a) else { break };
+                if al.treasury >= cost {
+                    al.treasury -= cost;
+                    break;
+                }
+                if !t.abandon_until_paid {
+                    al.treasury = 0;
+                }
+                let (tag, leader) = (al.tag.clone(), al.leader);
+                let Some(weakest) = held.iter().copied().min_by(|x, y| self.influence(*x, a).total_cmp(&self.influence(*y, a)).then(x.cmp(y))) else { break };
+                // Abandoned: the garrison leaves and half the standing goes with it — and, with
+                // `abandon_until_paid`, at least to below the threshold, or the same alliance takes it back
+                // at once and the abandonment does nothing.
+                if let Some(v) = self.store.data.influence.get_mut(&weakest).and_then(|m| m.get_mut(&a)) {
+                    *v *= 0.5;
+                    if t.abandon_until_paid {
+                        *v = v.min(t.control_threshold * 0.9);
+                    }
+                }
+                self.change_controller(weakest, None, Some("금고 부족"));
+                self.update_control(weakest);
+                self.toast(leader, format!("[{tag}] 금고가 바닥나 유지비 {cost} CR을 내지 못해 {}에서 철수했습니다", galaxy::system(weakest).name));
+                if !t.abandon_until_paid {
+                    break;
+                }
+                held.retain(|s| *s != weakest);
             }
-            al.treasury = 0;
-            let (tag, leader) = (al.tag.clone(), al.leader);
-            let Some(weakest) = held.into_iter().min_by(|x, y| self.influence(*x, a).total_cmp(&self.influence(*y, a)).then(x.cmp(y))) else { continue };
-            // Abandoned: the garrison leaves and half the standing goes with it.
-            if let Some(v) = self.store.data.influence.get_mut(&weakest).and_then(|m| m.get_mut(&a)) {
-                *v *= 0.5;
-            }
-            self.change_controller(weakest, None, Some("금고 부족"));
-            self.update_control(weakest);
-            self.toast(leader, format!("[{tag}] 금고가 바닥나 유지비 {cost} CR을 내지 못해 {}에서 철수했습니다", galaxy::system(weakest).name));
         }
     }
 

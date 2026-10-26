@@ -1,0 +1,195 @@
+{
+  "name": "upkeep_caps_empire",
+  "description": "영토마다 금고 수입(social.system_income 300/시간)이 들어오고 유지비는 150×(n−1)^1.5라 감당할 수 있는 크기가 정해진다: 4곳(수입 1200, 유지비 779)은 지키고, 8곳(수입 2400, 유지비 2778)은 낼 수 있을 때까지 가장 약한 곳(과확장으로 가장 적게 쌓인 14번 성계)부터 철수해 7곳(유지비 2204)이 된다(social.abandon_until_paid). 장기 전쟁 QA에서 금고 0인 동맹이 한 시간에 한 곳만 내놓으며 24곳(52%)까지 불었다",
+  "dev": true,
+  "captains": [
+    {
+      "name": "Modest",
+      "hull": "Wren",
+      "level": 1,
+      "system": 0,
+      "undocked": false
+    },
+    {
+      "name": "Greedy",
+      "hull": "Wren",
+      "level": 1,
+      "system": 0,
+      "undocked": false
+    }
+  ],
+  "script": [
+    {
+      "at": 0.2,
+      "captain": "Modest",
+      "msg": {
+        "AllianceCreate": {
+          "name": "Modest League",
+          "tag": "MOD"
+        }
+      }
+    },
+    {
+      "at": 0.2,
+      "captain": "Greedy",
+      "msg": {
+        "AllianceCreate": {
+          "name": "Greedy Empire",
+          "tag": "GRD"
+        }
+      }
+    },
+    {
+      "at": 0.4,
+      "captain": "Modest",
+      "msg": {
+        "Chat": {
+          "text": "/influence 200 3"
+        }
+      }
+    },
+    {
+      "at": 0.4,
+      "captain": "Modest",
+      "msg": {
+        "Chat": {
+          "text": "/influence 200 4"
+        }
+      }
+    },
+    {
+      "at": 0.4,
+      "captain": "Modest",
+      "msg": {
+        "Chat": {
+          "text": "/influence 200 5"
+        }
+      }
+    },
+    {
+      "at": 0.4,
+      "captain": "Modest",
+      "msg": {
+        "Chat": {
+          "text": "/influence 200 6"
+        }
+      }
+    },
+    {
+      "at": 0.4,
+      "captain": "Greedy",
+      "msg": {
+        "Chat": {
+          "text": "/influence 400 7"
+        }
+      }
+    },
+    {
+      "at": 0.4,
+      "captain": "Greedy",
+      "msg": {
+        "Chat": {
+          "text": "/influence 400 8"
+        }
+      }
+    },
+    {
+      "at": 0.4,
+      "captain": "Greedy",
+      "msg": {
+        "Chat": {
+          "text": "/influence 400 9"
+        }
+      }
+    },
+    {
+      "at": 0.4,
+      "captain": "Greedy",
+      "msg": {
+        "Chat": {
+          "text": "/influence 400 10"
+        }
+      }
+    },
+    {
+      "at": 0.4,
+      "captain": "Greedy",
+      "msg": {
+        "Chat": {
+          "text": "/influence 400 11"
+        }
+      }
+    },
+    {
+      "at": 0.4,
+      "captain": "Greedy",
+      "msg": {
+        "Chat": {
+          "text": "/influence 400 12"
+        }
+      }
+    },
+    {
+      "at": 0.4,
+      "captain": "Greedy",
+      "msg": {
+        "Chat": {
+          "text": "/influence 400 13"
+        }
+      }
+    },
+    {
+      "at": 0.4,
+      "captain": "Greedy",
+      "msg": {
+        "Chat": {
+          "text": "/influence 400 14"
+        }
+      }
+    }
+  ],
+  "run_secs": 3700,
+  "expect": [
+    {
+      "at": 1,
+      "check": "controller",
+      "system": 7,
+      "tag": "GRD"
+    },
+    {
+      "at": 1,
+      "check": "controller",
+      "system": 14,
+      "tag": "GRD"
+    },
+    {
+      "check": "controller",
+      "system": 3,
+      "tag": "MOD"
+    },
+    {
+      "check": "controller",
+      "system": 6,
+      "tag": "MOD"
+    },
+    {
+      "check": "treasury",
+      "tag": "MOD",
+      "min": 400
+    },
+    {
+      "check": "controller",
+      "system": 14
+    },
+    {
+      "check": "controller",
+      "system": 13,
+      "tag": "GRD"
+    },
+    {
+      "check": "controller",
+      "system": 7,
+      "tag": "GRD"
+    }
+  ]
+}

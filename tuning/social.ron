@@ -25,6 +25,14 @@
     upkeep_base: 150,           // hourly treasury upkeep = upkeep_base × (held − free_systems)^upkeep_exponent;
     upkeep_exponent: 1.5,       // unpaid → the weakest held system is abandoned
 
+    // Living-war rules (2026-10-25, war QA docs/QA_WAR.md: one alliance grew 4 → 24 systems (52%) in a day with an
+    // empty treasury, 152 changes of hands came mostly from out-hunting pirates, and an enemy at a home station
+    // killed its captains as they rebuilt — 2354 losses in 8 h).
+    foreign_gain: 0.2,          // hunting/trade/contracts/donations earn 20% in a system another alliance controls (battles full)
+    system_income: 300,         // hourly treasury income per controlled system: holding pays up to ~6–7 systems
+    abandon_until_paid: true,   // unpaid upkeep: weakest systems go until the rest is affordable (was one an hour)
+    station_guard: (range: 900.0, dps: 220.0),  // controller's station batteries vs captains at war with it: the docking approach, short of the belts (~900–1200 u)
+
     // Player institutions (research institutes / museums). Rebalance v1 (2026-10-17): visit 20+10n → 60+30n.
     institute_cost: 5000,       // credits to found one (one per captain)
     visit_base: 60,             // founder's income per distinct visitor per day…

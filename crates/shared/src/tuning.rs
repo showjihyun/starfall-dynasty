@@ -518,6 +518,31 @@ pub struct SocialTuning {
     pub visit_base: u64,
     pub visit_per_exhibit: u64,
     pub exhibit_reputation: i32,
+    /// Share of influence that hunting, trade, contracts and donations earn in a system another
+    /// alliance controls (battles count in full): someone else's ground is taken by war. Missing
+    /// (recordings from before it): 1, the same everywhere.
+    #[serde(default = "one")]
+    pub foreign_gain: f32,
+    /// Hourly treasury income per controlled system, before upkeep. Missing: 0.
+    #[serde(default)]
+    pub system_income: u64,
+    /// Unpaid upkeep: give up the weakest systems until the rest is affordable (false, recordings
+    /// from before it: one system an hour).
+    #[serde(default)]
+    pub abandon_until_paid: bool,
+    /// The controlling alliance's station batteries fire on captains at war with it inside `range`
+    /// u of the station. Missing: no batteries.
+    #[serde(default)]
+    pub station_guard: StationGuard,
+}
+
+/// Station batteries of a controlled system (`SocialTuning::station_guard`); dps 0 = none.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct StationGuard {
+    pub range: f32,
+    /// Damage per second to the one enemy ship it engages (the nearest).
+    pub dps: f32,
 }
 
 impl SocialTuning {

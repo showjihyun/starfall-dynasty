@@ -1006,8 +1006,11 @@ impl Game {
             Some("/influence") => {
                 let n: f32 = it.next().and_then(|v| v.parse().ok()).unwrap_or(80.0);
                 let here = self.player_entity(pid).map(|(s, _)| s);
-                if let Some(sys) = it.next().and_then(|v| v.parse::<SystemId>().ok()).or(here) {
-                    self.gain_influence(pid, sys, n);
+                if let Some(sys) = it.next().and_then(|v| v.parse::<SystemId>().ok()).or(here)
+                    && let Some(a) = self.alliance_of(pid)
+                {
+                    // Straight in (overreach applies, the foreign-ground discount does not: it sets up a test).
+                    self.shift_influence(a, sys, n);
                     self.send_influence(pid);
                 }
             }

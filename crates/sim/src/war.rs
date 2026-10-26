@@ -291,8 +291,16 @@ pub fn run(o: &Options) -> Report {
         *rep.events.entry(e.kind.clone()).or_default() += 1;
         // Captain losses: to whom (another captain or the rest), and where.
         if e.kind == "SHIP_DESTROYED" {
-            let by_captain = e.actors.get(1).is_some_and(|k| sides.iter().any(|s| k.contains(&format!("{}-", s.tag))));
-            *rep.deaths_by.entry(if by_captain { "captain" } else { "pirate" }.into()).or_default() += 1;
+            let killer = e.actors.get(1).cloned().unwrap_or_default();
+            // No attacker entity: an enemy's station batteries (social.station_guard) or the star.
+            let by = if sides.iter().any(|s| killer.contains(&format!("{}-", s.tag))) {
+                "captain"
+            } else if killer == "우주의 위험" {
+                "station"
+            } else {
+                "pirate"
+            };
+            *rep.deaths_by.entry(by.into()).or_default() += 1;
             if let Some(s) = e.actors.first().and_then(|v| sides.iter().find(|s| v.contains(&format!("{}-", s.tag)))) {
                 *rep.deaths_by.entry(format!("lost by {}", s.tag)).or_default() += 1;
             }
@@ -392,11 +400,19 @@ fn fly(g: &mut Game, c: &mut Captain, goal: SystemId) {
     // not a neutral captain in lawless space (that is a crime, `wild_crime_bounty`).
     let look = if c.role == Role::Hunter { 4000.0 } else { 1200.0 };
     let mine = g.alliance_of(c.pid);
+    // An enemy's station batteries (social.station_guard): a player keeps out of their reach.
+    let station = g.systems[&here].layout.station;
+    let guarded = if g.controller(here).is_some_and(|o| g.at_war(mine, Some(o))) { g.tuning.social.station_guard.range + 300.0 } else { 0.0 };
     let shot_me: Vec<EntityId> = e.attackers.iter().filter(|(_, _, at)| g.now - at < 10.0).map(|(a, _, _)| *a).collect();
+    if guarded > 0.0 && pos.distance(station) < guarded {
+        let away = pos + (pos - station).normalize_or(shared::glam::Vec3::Z) * 600.0;
+        g.handle(c.conn, ClientMsg::Controls(steer(pos, rot, away, 0.0, stats.turn)));
+        return;
+    }
     let foe = g.systems[&here]
         .ents
         .values()
-        .filter(|t| t.is_ship() && !t.dead && t.pos.distance(pos) < look && g.can_damage(here, me, t.id))
+        .filter(|t| t.is_ship() && !t.dead && t.pos.distance(pos) < look && t.pos.distance(station) >= guarded && g.can_damage(here, me, t.id))
         .filter(|t| t.owner.is_none() || shot_me.contains(&t.id) || g.at_war(mine, t.alliance))
         .min_by(|a, b| a.pos.distance(pos).total_cmp(&b.pos.distance(pos)).then(a.id.cmp(&b.id)))
         .map(|t| (t.id, t.pos));
@@ -427,13 +443,15 @@ fn fly(g: &mut Game, c: &mut Captain, goal: SystemId) {
         return;
     }
     let layout = &g.systems[&here].layout;
-    let station = layout.station;
-    let mut rocks: Vec<(f32, Vec3Key)> = layout.asteroids.iter().map(|a| (a.pos.distance(station), Vec3Key(a.pos, a.radius, a.id))).collect();
+    // Rocks outside an enemy station's batteries.
+    let mut rocks: Vec<(f32, Vec3Key)> = layout.asteroids.iter().map(|a| (a.pos.distance(station), Vec3Key(a.pos, a.radius, a.id))).filter(|(d, _)| *d >= guarded).collect();
     rocks.sort_by(|a, b| a.0.total_cmp(&b.0).then(a.1.2.cmp(&b.1.2)));
     if rocks.is_empty() {
         return;
     }
-    match c.role {
+    // A miner cannot sell at an enemy's station: in enemy-held space it hunts instead.
+    let role = if guarded > 0.0 { Role::Hunter } else { c.role };
+    match role {
         Role::Hunter => {
             // Sweep the belts (pirates anchor at asteroids), a different rock every few minutes.
             let k = (c.patrol + (g.now / 240.0) as usize) % rocks.len().min(6);

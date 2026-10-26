@@ -1,0 +1,31 @@
+{
+  "name": "station_guard",
+  "description": "지배 동맹의 정거장 포대가 접근로(social.station_guard 반경 900 u)의 전쟁 상대를 쏜다: 정거장 700 u 앞에서 기다리던 적 Talon Lv5는 20초 안에 격침되고, 1500 u 밖의 적은 맞지 않는다. 전쟁이 아닌 동맹은 쏘지 않는다. 장기 전쟁 QA에서 모항 앞에 선 적에게 부활하자마자 격침되는 고리(8시간 2354번)가 생겼다",
+  "dev": true,
+  "captains": [
+    { "name": "Keeper", "hull": "Wren", "level": 1, "system": 4, "undocked": false },
+    { "name": "Camper", "hull": "Talon", "level": 5, "system": 4, "undocked": true },
+    { "name": "Watcher", "hull": "Talon", "level": 5, "system": 4, "undocked": true },
+    { "name": "Neutral", "hull": "Talon", "level": 5, "system": 4, "undocked": true }
+  ],
+  "script": [
+    { "at": 0.2, "captain": "Keeper", "msg": { "AllianceCreate": { "name": "Corridor Guild", "tag": "OWN" } } },
+    { "at": 0.2, "captain": "Camper", "msg": { "AllianceCreate": { "name": "Raiders", "tag": "RAI" } } },
+    { "at": 0.3, "captain": "Camper", "msg": { "AllianceInvite": { "name": "Watcher" } } },
+    { "at": 0.35, "captain": "Watcher", "msg": { "AllianceAccept": { "alliance": 2 } } },
+    { "at": 0.2, "captain": "Neutral", "msg": { "AllianceCreate": { "name": "Bystanders", "tag": "BYS" } } },
+    { "at": 0.4, "captain": "Keeper", "msg": { "Chat": { "text": "/influence 80" } } },
+    { "at": 0.5, "captain": "Camper", "msg": { "AllianceDeclareWar": { "target": 1 } } },
+    { "at": 0.6, "captain": "Camper", "msg": { "Chat": { "text": "/tp station 0 0 580" } } },
+    { "at": 0.6, "captain": "Watcher", "msg": { "Chat": { "text": "/tp station 0 0 1380" } } },
+    { "at": 0.6, "captain": "Neutral", "msg": { "Chat": { "text": "/tp station 0 300 580" } } }
+  ],
+  "run_secs": 60,
+  "expect": [
+    { "at": 0.8, "check": "controller", "system": 4, "tag": "OWN" },
+    { "at": 10, "check": "hull", "captain": "Camper", "max": 0.95 },
+    { "check": "deaths", "captain": "Camper", "min": 1 },
+    { "check": "hull", "captain": "Watcher", "min": 1 },
+    { "check": "hull", "captain": "Neutral", "min": 1 }
+  ]
+}

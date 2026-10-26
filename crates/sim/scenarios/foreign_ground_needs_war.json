@@ -1,0 +1,31 @@
+{
+  "name": "foreign_ground_needs_war",
+  "description": "남이 지배하는 성계는 해적 사냥으로 빼앗을 수 없다(social.foreign_gain): 같은 Lv5 순양함이 해적 4척을 잡아도 무주지(Orion Drift)에서는 영향력 +20, 다른 동맹이 지배하는 Vesta Corridor에서는 +4. 남의 땅은 교전에서 이겨야(전쟁) 넘어온다 — 장기 전쟁 QA에서 주인 변경 152번이 대부분 사냥 경쟁이었다",
+  "dev": true,
+  "captains": [
+    { "name": "Owner", "hull": "Wren", "level": 1, "system": 4, "undocked": false },
+    { "name": "FreeHunter", "hull": "Talon", "level": 5, "system": 3, "pos": [0, 0, 6000], "undocked": true },
+    { "name": "Intruder", "hull": "Talon", "level": 5, "system": 4, "pos": [0, 0, 6000], "undocked": true }
+  ],
+  "npcs": [
+    { "archetype": "Raider", "level": 1, "system": 3, "pos": [0, 0, 5600], "count": 4, "spacing": 70 },
+    { "archetype": "Raider", "level": 1, "system": 4, "pos": [0, 0, 5600], "count": 4, "spacing": 70 }
+  ],
+  "script": [
+    { "at": 0.2, "captain": "Owner", "msg": { "AllianceCreate": { "name": "Corridor Guild", "tag": "OWN" } } },
+    { "at": 0.2, "captain": "FreeHunter", "msg": { "AllianceCreate": { "name": "Free Hunters", "tag": "FRE" } } },
+    { "at": 0.2, "captain": "Intruder", "msg": { "AllianceCreate": { "name": "Intruders", "tag": "INT" } } },
+    { "at": 0.4, "captain": "Owner", "msg": { "Chat": { "text": "/influence 80" } } },
+    { "at": 1.0, "captain": "FreeHunter", "msg": { "Controls": { "fire": true } }, "repeat_every": 0.25, "until": 40 },
+    { "at": 1.0, "captain": "Intruder", "msg": { "Controls": { "fire": true } }, "repeat_every": 0.25, "until": 40 }
+  ],
+  "run_secs": 40,
+  "expect": [
+    { "at": 0.8, "check": "controller", "system": 4, "tag": "OWN" },
+    { "check": "kills", "captain": "FreeHunter", "min": 4 },
+    { "check": "kills", "captain": "Intruder", "min": 4 },
+    { "check": "influence", "system": 3, "tag": "FRE", "min": 19 },
+    { "check": "influence", "system": 4, "tag": "INT", "max": 5 },
+    { "check": "controller", "system": 4, "tag": "OWN" }
+  ]
+}

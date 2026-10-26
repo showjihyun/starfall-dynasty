@@ -244,6 +244,36 @@ impl Game {
         }
     }
 
+    /// The controlling alliance's station batteries (`social.station_guard`): the nearest captain's ship
+    /// at war with it inside the range takes steady fire, so an enemy cannot sit off a home station and
+    /// sink its captains as they rebuild (war QA). No kill credit — the wreck says "우주의 위험".
+    fn station_guard(&mut self, sys: SystemId, dt: f32) {
+        let guard = self.tuning.social.station_guard;
+        let Some(owner) = self.controller(sys).filter(|_| guard.dps > 0.0) else { return };
+        let station = self.systems[&sys].layout.station;
+        let Some(id) = self.systems[&sys]
+            .ents
+            .values()
+            .filter(|e| matches!(e.kind, EntityKind::Player | EntityKind::Escort) && !e.dead && !e.docked && e.pos.distance(station) <= guard.range + e.stats.radius && self.at_war(Some(owner), e.alliance))
+            .min_by(|a, b| a.pos.distance(station).total_cmp(&b.pos.distance(station)).then(a.id.cmp(&b.id)))
+            .map(|e| e.id)
+        else {
+            return;
+        };
+        let (bleed, now, tick) = (self.tuning.combat.shield_bleed, self.now, self.tick);
+        let t = self.ent_mut(sys, id).unwrap();
+        let dmg = guard.dps * dt;
+        let absorbed = (dmg * (1.0 - bleed)).min(t.shield);
+        t.shield -= absorbed;
+        t.hull -= dmg - absorbed;
+        t.last_hit = now;
+        let pos = t.pos;
+        // A hit spark on the target every half second (the batteries are part of the station model).
+        if tick.is_multiple_of(10) {
+            self.fx(sys, Fx::Explosion { pos: pos.to_array(), size: 0.3 });
+        }
+    }
+
     fn tick_system(&mut self, sys: SystemId, dt: f32) {
         let has_players = self.sessions.values().any(|s| s.system == sys && s.player.is_some());
         let tier = galaxy::system(sys).tier;
@@ -400,6 +430,7 @@ impl Game {
             self.tick_mining(sys, id, dt);
         }
         drop(p);
+        self.station_guard(sys, dt);
 
         self.lap(4, &mut lap);
         // Deaths.

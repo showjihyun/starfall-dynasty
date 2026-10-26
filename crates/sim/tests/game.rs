@@ -957,13 +957,19 @@ fn influence_takes_control_with_a_margin_and_fades() {
     let member = price(&mut g, 1, a);
     let outsider = price(&mut g, 3, loner);
     assert!(member > outsider && (member as f32 / outsider as f32 - 1.1 / 0.95).abs() < 0.03, "{member} vs {outsider}");
-    // EMP edges ahead but not by the 20% margin: control stays.
+    // Trade on someone else's ground counts a fifth (social.foreign_gain): EMP cannot buy FPA out.
     sell(&mut g, 2, b, 3, 400);
+    let (f, e) = (g.influence(3, fpa), g.influence(3, emp));
+    assert!((e - 80.0 * g.tuning.social.foreign_gain).abs() < 0.01 && e < f, "{e} vs {f}");
+    assert_eq!(g.controller(3), Some(fpa));
+    // EMP edges ahead but not by the 20% margin: control stays.
+    g.dev_mode = true;
+    g.handle(2, ClientMsg::Chat { text: format!("/influence {} 3", f - e + 1.0) });
     let (f, e) = (g.influence(3, fpa), g.influence(3, emp));
     assert!(e > f && e <= f * 1.2, "{e} vs {f}");
     assert_eq!(g.controller(3), Some(fpa), "no flicker on a narrow lead");
     // A clear lead flips it — a Historic change of hands.
-    sell(&mut g, 2, b, 3, 100);
+    g.handle(2, ClientMsg::Chat { text: "/influence 20 3".into() });
     assert_eq!(g.controller(3), Some(emp));
     let flip = g.history.events.iter().rev().find(|e| e.kind == "SYSTEM_CONTROL").unwrap();
     assert_eq!(flip.importance, shared::chronicle::Importance::Historic);
@@ -1067,14 +1073,17 @@ fn upkeep_is_paid_from_the_treasury_while_it_lasts() {
         g.tick = (g.tick / hour + 1) * hour - 1;
         g.tick(DT, T0);
     };
+    // Each held system pays in (social.system_income), then upkeep is due.
+    let income = g.tuning.social.system_income;
     run_hour(&mut g);
-    assert_eq!(g.alliance(emp).unwrap().treasury, 250, "paid");
-    run_hour(&mut g);
-    assert_eq!(g.alliance(emp).unwrap().treasury, 100);
-    assert_eq!(g.held_by(emp).len(), 2, "still paying");
+    assert_eq!(g.alliance(emp).unwrap().treasury, 400 + 2 * income - 150, "paid out of the systems' income");
+    assert_eq!(g.held_by(emp).len(), 2);
+    // No income and not enough in the treasury: the weakest system goes, the rest is kept.
+    std::sync::Arc::make_mut(&mut g.tuning).social.system_income = 0;
+    g.store.data.alliances.iter_mut().find(|a| a.id == emp).unwrap().treasury = 100;
     run_hour(&mut g);
     assert_eq!(g.held_by(emp).len(), 1, "could not pay: the weakest system is abandoned");
-    assert_eq!(g.alliance(emp).unwrap().treasury, 0);
+    assert!(g.influence(4, emp) < g.tuning.social.control_threshold, "abandoned below the threshold, not taken back at once");
     run_hour(&mut g);
     assert_eq!(g.held_by(emp).len(), 1, "the home system costs nothing");
 }
@@ -1212,7 +1221,8 @@ fn withdrawal_news_dividend_records_and_no_seizure_between_allies() {
     let emp = g.alliance_of(lord).unwrap();
     g.handle(1, ClientMsg::AllianceInvite { name: "Ally".into() });
     g.handle(2, ClientMsg::AllianceAccept { alliance: emp });
-    // Two systems, an empty treasury: the first hourly upkeep forces a withdrawal, reported as such.
+    // Two systems, an empty treasury and no income: the first hourly upkeep forces a withdrawal, reported as such.
+    std::sync::Arc::make_mut(&mut g.tuning).social.system_income = 0;
     g.spawn_player(lord, 3, false);
     for sys in [3, 4] {
         g.handle(1, ClientMsg::Chat { text: format!("/influence 100 {sys}") });
