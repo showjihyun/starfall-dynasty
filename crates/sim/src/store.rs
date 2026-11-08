@@ -153,18 +153,40 @@ impl Store {
         Ok(Store { data, by_name, path: Some(path), dirty: false })
     }
 
-    /// Atomic save: write to a temp file then rename over the old snapshot.
+    /// Atomic save: write to a temp file, flush it to disk, then rename over the old snapshot (a crash
+    /// or power cut leaves the old world or the new one, never half of one).
     pub fn save(&mut self) -> std::io::Result<()> {
         if let Some(p) = &self.path {
             if let Some(dir) = p.parent() {
                 std::fs::create_dir_all(dir)?;
             }
             let tmp = p.with_extension("json.tmp");
-            std::fs::write(&tmp, serde_json::to_string(&self.data).map_err(std::io::Error::other)?)?;
+            {
+                use std::io::Write;
+                let mut f = std::fs::File::create(&tmp)?;
+                f.write_all(serde_json::to_string(&self.data).map_err(std::io::Error::other)?.as_bytes())?;
+                f.sync_all()?;
+            }
             std::fs::rename(&tmp, p)?;
         }
         self.dirty = false;
         Ok(())
+    }
+
+    /// Copy the saved world to `backups/world_<unix>.json` beside it and keep the newest `keep` copies
+    /// (an operator can roll back a day of play after a bad bug). Returns the copy written, if any.
+    pub fn backup(&self, unix: u64, keep: usize) -> std::io::Result<Option<PathBuf>> {
+        let Some(p) = self.path.as_ref().filter(|p| p.exists()) else { return Ok(None) };
+        let dir = p.parent().map(|d| d.join("backups")).unwrap_or_else(|| PathBuf::from("backups"));
+        std::fs::create_dir_all(&dir)?;
+        let to = dir.join(format!("world_{unix}.json"));
+        std::fs::copy(p, &to)?;
+        let mut all: Vec<PathBuf> = std::fs::read_dir(&dir)?.filter_map(Result::ok).map(|e| e.path()).filter(|f| f.file_name().and_then(|n| n.to_str()).is_some_and(|n| n.starts_with("world_") && n.ends_with(".json"))).collect();
+        all.sort();
+        while all.len() > keep {
+            let _ = std::fs::remove_file(all.remove(0));
+        }
+        Ok(Some(to))
     }
 
     pub fn find_by_name(&self, name: &str) -> Option<PlayerId> {

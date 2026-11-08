@@ -1880,3 +1880,23 @@ fn the_operator_kicks_bans_and_speaks_from_the_console() {
     assert!(admin(&mut g, "say 10분 뒤 점검").starts_with("said to 2"));
     assert!(g.out.iter().any(|(c, m)| *c == 2 && matches!(m, ServerMsg::Toast { text } if text.contains("10분 뒤 점검"))));
 }
+
+#[test]
+fn the_world_is_saved_atomically_and_backed_up_in_rotation() {
+    let dir = std::env::temp_dir().join(format!("sfd-backup-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    let mut store = Store::open(dir.join("profiles.json")).unwrap();
+    assert_eq!(store.backup(1, 2).unwrap(), None, "nothing saved yet, nothing to copy");
+    store.create_account("Keeper", "t".into());
+    store.save().unwrap();
+    assert!(!dir.join("profiles.json.tmp").exists(), "the temp file is renamed over the world");
+    for t in [1_800_000_001u64, 1_800_003_601, 1_800_007_201] {
+        store.backup(t, 2).unwrap();
+    }
+    let mut kept: Vec<String> = std::fs::read_dir(dir.join("backups")).unwrap().map(|e| e.unwrap().file_name().to_string_lossy().into_owned()).collect();
+    kept.sort();
+    assert_eq!(kept, vec!["world_1800003601.json", "world_1800007201.json"], "the newest two");
+    let back = Store::open(dir.join("backups").join("world_1800007201.json")).unwrap();
+    assert!(back.find_by_name("Keeper").is_some(), "a backup opens as a world");
+    let _ = std::fs::remove_dir_all(&dir);
+}

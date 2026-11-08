@@ -31,6 +31,10 @@ const FLOOD_KICK: u32 = 2000;
 /// the server holding its backlog in memory.
 const SEND_BACKLOG: usize = 400;
 
+/// World backups: one an hour, two days kept.
+const BACKUP_EVERY_SECS: u64 = 3600;
+const BACKUPS_KEPT: usize = 48;
+
 /// A connection's outbound channel and how many frames wait in it.
 struct Out {
     tx: mpsc::UnboundedSender<Message>,
@@ -136,6 +140,7 @@ async fn main() -> std::io::Result<()> {
     let mut interval = tokio::time::interval(Duration::from_secs_f32(dt));
     interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
     let mut last_save = std::time::Instant::now();
+    let mut last_backup = std::time::Instant::now();
     // Load report every 10 s while anyone is connected: tick cost and outbound bandwidth.
     let (mut stat_at, mut stat_ticks, mut stat_ns, mut stat_max, mut stat_bytes) = (std::time::Instant::now(), 0u32, 0u128, 0u128, 0usize);
     let shutdown = tokio::signal::ctrl_c();
@@ -240,6 +245,15 @@ async fn main() -> std::io::Result<()> {
                 if last_save.elapsed() > Duration::from_secs(15) {
                     game.persist_tick();
                     last_save = std::time::Instant::now();
+                }
+                // An hourly copy of the world, the last two days kept (data/backups/).
+                if last_backup.elapsed() > Duration::from_secs(BACKUP_EVERY_SECS) {
+                    last_backup = std::time::Instant::now();
+                    match game.store.backup(unix_now(), BACKUPS_KEPT) {
+                        Ok(Some(p)) => println!("[starfall] backup {}", p.display()),
+                        Ok(None) => {}
+                        Err(e) => eprintln!("[starfall] backup failed: {e}"),
+                    }
                 }
             }
             _ = &mut shutdown => {
