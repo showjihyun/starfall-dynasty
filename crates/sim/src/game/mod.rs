@@ -280,6 +280,8 @@ pub struct Game {
     pub kicked: Vec<ConnId>,
     /// Replies to console commands (`admin`), for the server to print.
     pub admin_replies: Vec<String>,
+    /// Each captain's last chat lines, attached to a report (not saved).
+    pub recent_chat: BTreeMap<PlayerId, Vec<String>>,
     pub pending_fx: BTreeMap<SystemId, Vec<Fx>>,
     /// (hitter side, victim side) → last time: self-defence checks without scanning the system.
     pub hostility: HashMap<(PlayerId, PlayerId), f64>,
@@ -316,6 +318,7 @@ impl Game {
             next_fleet: 1,
             kicked: Vec::new(),
             admin_replies: vec![],
+            recent_chat: BTreeMap::new(),
             pending_fx: BTreeMap::new(),
             hostility: HashMap::new(),
             prof: [0; 8],

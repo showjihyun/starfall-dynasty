@@ -89,6 +89,9 @@ impl Game {
                 if text.trim().is_empty() {
                     return;
                 }
+                if self.chat_command(pid, &text) {
+                    return;
+                }
                 if self.dev_mode && text.starts_with('/') {
                     return self.dev_command(pid, &text);
                 }
@@ -103,8 +106,11 @@ impl Game {
                     }
                     s.chat_tokens -= 1.0;
                 }
+                self.remember_chat(pid, &text);
                 let from = self.store.profile(pid).unwrap().name.clone();
-                let conns: Vec<ConnId> = self.conn_of.values().copied().collect();
+                // Not to those who blocked the speaker (`/block`).
+                let blocks = &self.store.data.blocks;
+                let conns: Vec<ConnId> = self.conn_of.iter().filter(|(p, _)| !blocks.get(p).is_some_and(|b| b.contains(&pid))).map(|(_, c)| *c).collect();
                 for c in conns {
                     self.send(c, ServerMsg::Chat { from: from.clone(), text: text.clone() });
                 }

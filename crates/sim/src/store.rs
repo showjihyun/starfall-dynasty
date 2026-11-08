@@ -73,6 +73,12 @@ pub struct StoreData {
     /// deadline) for the next alliance they found or join (`social.betrayal.defect_share`).
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub defectors: BTreeMap<PlayerId, (SystemId, f32, u64)>,
+    /// Who has blocked whom: captain → the captains whose chat they do not receive (`/block`).
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub blocks: BTreeMap<PlayerId, std::collections::BTreeSet<PlayerId>>,
+    /// Player reports for the operator (`/report`, console `reports`), oldest first.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub reports: Vec<Report>,
     /// Captain names (lowercase) the operator banned (`ban` on the server console).
     #[serde(default, skip_serializing_if = "std::collections::BTreeSet::is_empty")]
     pub banned: std::collections::BTreeSet<String>,
@@ -87,6 +93,16 @@ pub struct StoreData {
     /// Institute → (visitor, day) visits of the current day.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub institute_visits: BTreeMap<u64, Vec<(PlayerId, u32)>>,
+}
+
+/// A captain's report of another, with what the reported captain last said.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct Report {
+    pub unix: u64,
+    pub reporter: String,
+    pub target: String,
+    pub reason: String,
+    pub lines: Vec<String>,
 }
 
 /// A controlled system's station batteries. Belong to `owner`: when the system changes hands the

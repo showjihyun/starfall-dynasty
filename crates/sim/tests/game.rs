@@ -1900,3 +1900,41 @@ fn the_world_is_saved_atomically_and_backed_up_in_rotation() {
     assert!(back.find_by_name("Keeper").is_some(), "a backup opens as a world");
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn captains_block_and_report_from_chat() {
+    use sim::game::ADMIN_CONN;
+    let mut g = game();
+    join(&mut g, 1, "Rude", Species::Human, HullClass::Talon, Profession::CombatPilot);
+    join(&mut g, 2, "Target", Species::Human, HullClass::Talon, Profession::CombatPilot);
+    join(&mut g, 3, "Other", Species::Human, HullClass::Talon, Profession::CombatPilot);
+    let chat_to = |g: &mut Game, c: ConnId| g.out.iter().filter(|(x, m)| *x == c && matches!(m, ServerMsg::Chat { .. })).count();
+    g.out.clear();
+    g.handle(1, ClientMsg::Chat { text: "first".into() });
+    assert_eq!((chat_to(&mut g, 2), chat_to(&mut g, 3)), (1, 1));
+    // Blocking is the blocker's own: the others still hear; a command is not chat.
+    g.out.clear();
+    g.handle(2, ClientMsg::Chat { text: "/block rude".into() });
+    assert_eq!(chat_to(&mut g, 1) + chat_to(&mut g, 3), 0, "commands are not broadcast");
+    g.handle(1, ClientMsg::Chat { text: "second".into() });
+    assert_eq!((chat_to(&mut g, 2), chat_to(&mut g, 3)), (0, 1));
+    g.out.clear();
+    g.handle(2, ClientMsg::Chat { text: "/unblock Rude".into() });
+    g.handle(1, ClientMsg::Chat { text: "third".into() });
+    assert_eq!(chat_to(&mut g, 2), 1);
+    // A report carries what was said; the same report is not filed twice within the hour.
+    g.handle(2, ClientMsg::Chat { text: "/report Rude 욕설을 계속합니다".into() });
+    g.handle(2, ClientMsg::Chat { text: "/report Rude 또".into() });
+    assert_eq!(g.store.data.reports.len(), 1);
+    let r = &g.store.data.reports[0];
+    assert_eq!((r.reporter.as_str(), r.target.as_str(), r.reason.as_str()), ("Target", "Rude", "욕설을 계속합니다"));
+    assert_eq!(r.lines, vec!["first", "second", "third"]);
+    g.handle(ADMIN_CONN, ClientMsg::Admin { command: "reports".into() });
+    let reply = std::mem::take(&mut g.admin_replies).join("");
+    assert!(reply.starts_with("1 reports") && reply.contains("Target -> Rude") && reply.contains("second"), "{reply}");
+    // Not yourself, not a name that does not exist.
+    g.handle(2, ClientMsg::Chat { text: "/block Target".into() });
+    g.handle(2, ClientMsg::Chat { text: "/report Nobody x".into() });
+    assert!(g.store.data.blocks.is_empty());
+    assert_eq!(g.store.data.reports.len(), 1);
+}

@@ -666,6 +666,7 @@ fn windows(ctx: &egui::Context, s: &mut Session, net: &Net, env: &Env) {
     egui::Window::new("도움말 (F1)").open(&mut open).default_pos([280.0, 20.0]).default_width(640.0).max_width(640.0).show(ctx, |ui| egui::ScrollArea::vertical().max_height(ctx.content_rect().height() * 0.75).show(ui, |ui| {
         ui.label(RichText::new("조작").strong());
         view::hud::controls(ui, &s.keys);
+        ui.label(RichText::new("채팅 명령: /block 이름 · /unblock 이름 · /report 이름 사유").size(12.0).color(DIM));
         ui.label(RichText::new("게임패드").strong());
         ui.horizontal_wrapped(|ui| {
             for (b, what) in view::pad::HELP {
