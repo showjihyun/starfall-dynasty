@@ -133,7 +133,9 @@ fn rebind(mut commands: Commands, cs: Res<ClientSettings>, binds: Option<Res<Key
 /// Graphics quality (`view::settings::Quality`): sun shadows, bloom and multisampling on the main camera.
 /// Runs for automated runs too (a bench may ask for `--quality low`); their default is High, the art
 /// reference look.
-fn apply_quality(mut commands: Commands, cs: Res<ClientSettings>, mut suns: Query<&mut DirectionalLight, With<crate::scene::StarLight>>, cams: Query<(Entity, Has<bevy::post_process::bloom::Bloom>, Option<&Msaa>), With<crate::control::MainCamera>>) {
+type MainCams<'w, 's> = Query<'w, 's, (Entity, Has<bevy::post_process::bloom::Bloom>, Option<&'static Msaa>), With<crate::control::MainCamera>>;
+
+fn apply_quality(mut commands: Commands, cs: Res<ClientSettings>, mut suns: Query<&mut DirectionalLight, With<crate::scene::StarLight>>, cams: MainCams) {
     let (shadows, bloom, msaa) = cs.s.quality.features();
     let shadows = shadows && std::env::var("STARFALL_NO_SHADOWS").is_err();
     for mut l in &mut suns {
