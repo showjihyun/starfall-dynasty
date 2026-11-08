@@ -304,6 +304,9 @@ pub struct AllianceInfo {
     /// Member name → the captain they back as leader (a coup when a majority agrees).
     #[serde(default)]
     pub votes: Vec<(String, String)>,
+    /// The hegemon (`social.hegemon_share`): war on it is free and breaks no truce.
+    #[serde(default)]
+    pub hegemon: bool,
 }
 
 /// One system's political standing: who controls it and every alliance's influence there.

@@ -1,0 +1,158 @@
+{
+  "name": "hegemon_coalition",
+  "description": "패권과 연합: 지배 성계의 30% 이상(그리고 4곳 이상)을 쥔 동맹은 패권 동맹(social.hegemon_share/hegemon_min)이 되어, 누구든 금고 없이(선전포고 비용 0) 선전포고할 수 있고, 휴전 중이어도 패권 동맹을 치는 것은 배신으로 기록되지 않는다(악명 없음). EMP가 5곳 중 4곳, FRE는 1곳·금고 0 — 평소라면 500 CR이 없어 선전포고할 수 없다. 24시간 전쟁 QA에서 최대 점유 40%, 선두 교체 하루 1번으로 세력도가 굳었다",
+  "dev": true,
+  "captains": [
+    {
+      "name": "Emperor",
+      "hull": "Wren",
+      "level": 1,
+      "system": 0,
+      "undocked": false
+    },
+    {
+      "name": "Rebel",
+      "hull": "Wren",
+      "level": 1,
+      "system": 0,
+      "undocked": false
+    }
+  ],
+  "script": [
+    {
+      "at": 0.2,
+      "captain": "Emperor",
+      "msg": {
+        "AllianceCreate": {
+          "name": "Grand Empire",
+          "tag": "EMP"
+        }
+      }
+    },
+    {
+      "at": 0.2,
+      "captain": "Rebel",
+      "msg": {
+        "AllianceCreate": {
+          "name": "Free Worlds",
+          "tag": "FRE"
+        }
+      }
+    },
+    {
+      "at": 0.3,
+      "captain": "Emperor",
+      "msg": {
+        "Chat": {
+          "text": "/influence 200 3"
+        }
+      }
+    },
+    {
+      "at": 0.3,
+      "captain": "Emperor",
+      "msg": {
+        "Chat": {
+          "text": "/influence 200 4"
+        }
+      }
+    },
+    {
+      "at": 0.3,
+      "captain": "Emperor",
+      "msg": {
+        "Chat": {
+          "text": "/influence 200 5"
+        }
+      }
+    },
+    {
+      "at": 0.3,
+      "captain": "Emperor",
+      "msg": {
+        "Chat": {
+          "text": "/influence 200 6"
+        }
+      }
+    },
+    {
+      "at": 0.3,
+      "captain": "Rebel",
+      "msg": {
+        "Chat": {
+          "text": "/influence 200 8"
+        }
+      }
+    },
+    {
+      "at": 0.5,
+      "captain": "Rebel",
+      "msg": {
+        "AllianceDeclareWar": {
+          "target": 1
+        }
+      }
+    },
+    {
+      "at": 1.0,
+      "captain": "Rebel",
+      "msg": {
+        "AlliancePeace": {
+          "target": 1
+        }
+      }
+    },
+    {
+      "at": 1.5,
+      "captain": "Rebel",
+      "msg": {
+        "AllianceDeclareWar": {
+          "target": 1
+        }
+      }
+    }
+  ],
+  "run_secs": 3,
+  "expect": [
+    {
+      "at": 0.4,
+      "check": "controller",
+      "system": 6,
+      "tag": "EMP"
+    },
+    {
+      "at": 0.4,
+      "check": "controller",
+      "system": 8,
+      "tag": "FRE"
+    },
+    {
+      "at": 0.4,
+      "check": "treasury",
+      "tag": "FRE",
+      "max": 0
+    },
+    {
+      "at": 0.7,
+      "check": "history",
+      "kind": "WAR",
+      "min": 1
+    },
+    {
+      "check": "history",
+      "kind": "WAR",
+      "min": 2,
+      "max": 2
+    },
+    {
+      "check": "history",
+      "kind": "BETRAYAL",
+      "max": 0
+    },
+    {
+      "check": "treasury",
+      "tag": "FRE",
+      "max": 0
+    }
+  ]
+}

@@ -231,13 +231,15 @@ fn influence_table_lists_contested_systems_only() {
     assert_eq!(panels::batteries_label(0, 1.0, true), "포대 침묵");
     // Declaring war: priced by held systems and infamy; inside a truce it is a breach and dearer.
     let t = shared::tuning::get().social;
-    let (label, cost, breach) = panels::war_offer(2, 0.0, None, 1000);
+    let (label, cost, breach) = panels::war_offer(2, 0.0, None, 1000, false);
     assert_eq!((cost, breach), (t.war_cost_for(2, 0.0), false));
     assert_eq!(label, format!("선전포고 ({cost} CR)"));
-    let (label, cost, breach) = panels::war_offer(2, 0.0, Some(5000), 1000);
+    let (label, cost, breach) = panels::war_offer(2, 0.0, Some(5000), 1000, false);
     assert!(breach && cost > t.war_cost_for(2, 0.0) && label.starts_with("휴전 파기"), "{label}");
-    assert!(!panels::war_offer(2, 0.0, Some(900), 1000).2, "an expired truce binds no one");
-    assert_eq!(panels::war_offer(0, 0.0, None, 0).0, "선전포고");
+    assert!(!panels::war_offer(2, 0.0, Some(900), 1000, false).2, "an expired truce binds no one");
+    assert_eq!(panels::war_offer(0, 0.0, None, 0, false).0, "선전포고");
+    // The hegemon: free, never a breach.
+    assert_eq!(panels::war_offer(5, 2.0, Some(5000), 1000, true), ("선전포고".to_string(), 0, false));
     assert_eq!(panels::truce_left(1000 + 7200, 1000).as_deref(), Some("☮ 휴전 2시간 남음"));
     assert_eq!(panels::truce_left(1000, 1000), None);
     let (t, _) = frame(|ui| -> Option<()> {

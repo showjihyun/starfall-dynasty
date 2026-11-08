@@ -1066,6 +1066,9 @@ fn alliance(ui: &mut egui::Ui, s: &mut Session, net: &Net) {
                 ui.horizontal(|ui| {
                     let at_war = a.wars.contains(&other.id);
                     ui.label(RichText::new(format!("[{}] {} ({}명)", other.tag, other.name, other.members.len())).color(if at_war { RED } else { Color32::WHITE }));
+                    if other.hegemon {
+                        ui.label(RichText::new("👑 패권").color(GOLD)).on_hover_text("지배 성계의 큰 몫을 쥔 동맹: 누구든 비용 없이, 휴전 중이어도 배신 없이 선전포고할 수 있습니다(연합)");
+                    }
                     if at_war {
                         ui.label(RichText::new("⚔ 전쟁 중").color(RED));
                         if leader && ui.button("강화 제의").clicked() {
@@ -1078,7 +1081,7 @@ fn alliance(ui: &mut egui::Ui, s: &mut Session, net: &Net) {
                         }
                         if leader {
                             let held = s.influence.iter().filter(|x| x.controller.as_ref().is_some_and(|c| c.0 == a.id)).count();
-                            let (label, cost, breach) = view::panels::war_offer(held, a.infamy, truce, now);
+                            let (label, cost, breach) = view::panels::war_offer(held, a.infamy, truce, now, other.hegemon);
                             let hover = if breach { "휴전 중입니다: 선전포고하면 조약을 깬 배신으로 연대기에 남고 악명이 쌓입니다" } else { "비용은 우리가 지배하는 성계 수(와 악명)에 비례해 금고에서 나갑니다" };
                             if ui.add_enabled(a.treasury >= cost, egui::Button::new(RichText::new(label).color(if breach { RED } else { Color32::WHITE }))).on_hover_text(hover).clicked() {
                                 net.send(ClientMsg::AllianceDeclareWar { target: other.id });

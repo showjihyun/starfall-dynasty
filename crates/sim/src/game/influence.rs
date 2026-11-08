@@ -80,6 +80,24 @@ impl Game {
         }
     }
 
+    /// The hegemon: the alliance holding at least `hegemon_share` of all controlled systems (and
+    /// `hegemon_min`), the most if two qualify. Others may declare war on it freely (a coalition).
+    pub fn hegemon(&self) -> Option<AllianceId> {
+        let t = self.tuning.social;
+        if t.hegemon_share <= 0.0 {
+            return None;
+        }
+        let mut held: BTreeMap<AllianceId, usize> = BTreeMap::new();
+        for a in self.store.data.controllers.values() {
+            *held.entry(*a).or_default() += 1;
+        }
+        let total: usize = held.values().sum();
+        held.into_iter()
+            .filter(|(a, n)| self.alliance(*a).is_some() && *n >= t.hegemon_min && *n as f32 >= t.hegemon_share * total as f32)
+            .max_by(|x, y| x.1.cmp(&y.1).then(y.0.cmp(&x.0)))
+            .map(|(a, _)| a)
+    }
+
     /// Systems an alliance controls.
     pub fn held_by(&self, a: AllianceId) -> Vec<SystemId> {
         self.store.data.controllers.iter().filter(|(_, c)| **c == a).map(|(s, _)| *s).collect()

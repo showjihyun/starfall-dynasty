@@ -276,10 +276,11 @@ pub fn influence(ui: &mut egui::Ui, systems: &[SystemStanding], mine: Option<&st
 
 /// The leader's declaration against another alliance: button label, treasury cost, and whether it
 /// breaks a truce standing until `truce_end` (unix) — then infamy is added first and the cost grows.
-pub fn war_offer(held: usize, infamy: f32, truce_end: Option<u64>, now: u64) -> (String, u64, bool) {
+/// Against the hegemon it is free and no breach.
+pub fn war_offer(held: usize, infamy: f32, truce_end: Option<u64>, now: u64, hegemon: bool) -> (String, u64, bool) {
     let t = shared::tuning::get().social;
-    let breach = truce_end.is_some_and(|end| end > now);
-    let cost = t.war_cost_for(held, infamy + if breach { t.betrayal.breach_infamy } else { 0.0 });
+    let breach = !hegemon && truce_end.is_some_and(|end| end > now);
+    let cost = if hegemon { 0 } else { t.war_cost_for(held, infamy + if breach { t.betrayal.breach_infamy } else { 0.0 }) };
     let price = if cost > 0 { format!(" ({cost} CR)") } else { String::new() };
     let label = if breach { format!("휴전 파기{price}") } else { format!("선전포고{price}") };
     (label, cost, breach)

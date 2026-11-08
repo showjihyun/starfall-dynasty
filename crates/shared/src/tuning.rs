@@ -543,6 +543,12 @@ pub struct SocialTuning {
     /// more to open a front). Missing: free.
     #[serde(default)]
     pub war_cost: u64,
+    /// An alliance holding at least this share of all controlled systems (and `hegemon_min` of them)
+    /// is the hegemon: anyone may declare war on it for free, truce or not (a coalition). 0: none.
+    #[serde(default)]
+    pub hegemon_share: f32,
+    #[serde(default)]
+    pub hegemon_min: usize,
     /// Betrayal and rebellion. Missing (recordings from before them): none of it.
     #[serde(default)]
     pub betrayal: Betrayal,

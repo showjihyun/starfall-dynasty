@@ -10,7 +10,7 @@ pub const ALLIANCE_COST: u64 = 1000;
 impl Game {
     pub fn alliance_info(&self, a: &Alliance) -> AllianceInfo {
         let name = |p: &PlayerId| self.store.profile(*p).map(|x| x.name.clone()).unwrap_or_default();
-        AllianceInfo { id: a.id, name: a.name.clone(), tag: a.tag.clone(), leader: name(&a.leader), members: a.members.iter().map(name).collect(), wars: a.wars.clone(), treasury: a.treasury, infamy: (a.infamy * 10.0).round() / 10.0, truces: a.truces.clone(), votes: a.votes.iter().map(|(v, c)| (name(v), name(c))).collect() }
+        AllianceInfo { id: a.id, name: a.name.clone(), tag: a.tag.clone(), leader: name(&a.leader), members: a.members.iter().map(name).collect(), wars: a.wars.clone(), treasury: a.treasury, infamy: (a.infamy * 10.0).round() / 10.0, truces: a.truces.clone(), votes: a.votes.iter().map(|(v, c)| (name(v), name(c))).collect(), hegemon: self.hegemon() == Some(a.id) }
     }
 
     pub fn send_alliances(&mut self, pid: PlayerId) {
@@ -186,10 +186,12 @@ impl Game {
         // Declaring inside a truce breaks the treaty: infamy, which makes this and later wars dearer.
         let b = self.tuning.social.betrayal;
         let unix = self.unix;
-        let breach = war && self.alliance(aid).is_some_and(|a| a.truces.iter().any(|(t, end)| *t == target && *end > unix));
+        // War on the hegemon is a coalition's right: free, and no betrayal even inside a truce.
+        let on_hegemon = war && self.hegemon() == Some(target);
+        let breach = war && !on_hegemon && self.alliance(aid).is_some_and(|a| a.truces.iter().any(|(t, end)| *t == target && *end > unix));
         let infamy = self.alliance(aid).map_or(0.0, |a| a.infamy) + if breach { b.breach_infamy } else { 0.0 };
         // A war costs the treasury per system we hold (a newcomer declares for free).
-        let cost = if war { self.tuning.social.war_cost_for(self.held_by(aid).len(), infamy) } else { 0 };
+        let cost = if war && !on_hegemon { self.tuning.social.war_cost_for(self.held_by(aid).len(), infamy) } else { 0 };
         if cost > 0 {
             let a = self.store.data.alliances.iter_mut().find(|a| a.id == aid).unwrap();
             if a.treasury < cost {

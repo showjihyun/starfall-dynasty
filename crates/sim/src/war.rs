@@ -74,6 +74,8 @@ struct Side {
     /// Systems held at the last plan, and the latest one taken (with the hour): held a while longer.
     last_held: Vec<SystemId>,
     fresh: Option<(SystemId, f32)>,
+    /// Game hour this side last made peace with each alliance (no new war on it for `war_hours`).
+    peace_at: BTreeMap<AllianceId, f32>,
     /// Captains lost so far, and at the last plan (war weariness).
     losses: usize,
     losses_at_plan: usize,
@@ -266,7 +268,7 @@ pub fn run(o: &Options) -> Report {
         }
         let leader = caps.iter().find(|c| c.side == si).unwrap();
         let id = g.alliance_of(leader.pid).expect("alliance founded");
-        sides.push(Side { id, tag, leader: leader.conn, home, target: home, wars: BTreeMap::new(), peak: 0, shaken: 0.0, last_held: vec![], fresh: None, losses: 0, losses_at_plan: 0 });
+        sides.push(Side { id, tag, leader: leader.conn, home, target: home, wars: BTreeMap::new(), peak: 0, shaken: 0.0, last_held: vec![], fresh: None, peace_at: BTreeMap::new(), losses: 0, losses_at_plan: 0 });
     }
     g.out.clear();
     let mut rep = Report { tags: sides.iter().map(|s| s.tag.clone()).collect(), homes: home_of.clone(), ..Default::default() };
@@ -409,6 +411,14 @@ fn plan(g: &mut Game, sides: &mut [Side], hour: f32, war_hours: f32) {
         // War on the biggest holder once it holds more than we do, or on whoever holds our target.
         let biggest = ids.iter().filter(|a| **a != s.id).max_by_key(|a| (held[*a].len(), std::cmp::Reverse(**a))).copied();
         let rival = g.controller(s.target).filter(|c| *c != s.id).or(biggest.filter(|b| held[b].len() >= 2 && held[b].len() > mine.len()));
+        // A coalition: everyone else goes to war with the hegemon (free, social.hegemon_share).
+        let rested = |s: &Side, r: AllianceId| s.peace_at.get(&r).is_none_or(|at| hour - at >= war_hours);
+        if let Some(h) = g.hegemon().filter(|h| *h != s.id && !g.at_war(Some(s.id), Some(*h)) && rested(s, *h)) {
+            g.handle(s.leader, ClientMsg::AllianceDeclareWar { target: h });
+            if g.at_war(Some(s.id), Some(h)) {
+                s.wars.insert(h, (hour, mine.len()));
+            }
+        }
         // Inside a truce only a much bigger rival is worth breaking the treaty for (social.betrayal).
         let unix = g.unix;
         let truce = |r: AllianceId| g.alliance(s.id).is_some_and(|a| a.truces.iter().any(|(x, end)| *x == r && *end > unix));
@@ -416,6 +426,7 @@ fn plan(g: &mut Game, sides: &mut [Side], hour: f32, war_hours: f32) {
         if let Some(r) = rival
             && !g.at_war(Some(s.id), Some(r))
             && worth(r)
+            && rested(s, r)
         {
             // Refused when the treasury cannot pay (social.war_cost per held system).
             g.handle(s.leader, ClientMsg::AllianceDeclareWar { target: r });
@@ -448,6 +459,7 @@ fn plan(g: &mut Game, sides: &mut [Side], hour: f32, war_hours: f32) {
         for r in tired {
             if g.at_war(Some(s.id), Some(r)) {
                 g.handle(s.leader, ClientMsg::AlliancePeace { target: r });
+                s.peace_at.insert(r, hour);
             }
             s.wars.remove(&r);
         }
@@ -520,7 +532,7 @@ fn secession(g: &mut Game, sides: &mut Vec<Side>, caps: &mut [Captain], hour: f3
         }
         sides[si].shaken = hour;
         caps[k].side = sides.len();
-        sides.push(Side { id, tag: tag.clone(), leader: conn, home: sys, target: sys, wars: BTreeMap::new(), peak: 1, shaken: hour, last_held: vec![sys], fresh: None, losses: 0, losses_at_plan: 0 });
+        sides.push(Side { id, tag: tag.clone(), leader: conn, home: sys, target: sys, wars: BTreeMap::new(), peak: 1, shaken: hour, last_held: vec![sys], fresh: None, peace_at: BTreeMap::new(), losses: 0, losses_at_plan: 0 });
         return Some((tag, sys));
     }
     None
