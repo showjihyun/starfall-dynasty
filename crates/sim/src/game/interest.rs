@@ -32,7 +32,8 @@ pub struct Probe {
     pub fleet: Option<FleetId>,
     pub alliance: Option<AllianceId>,
     pub docked: bool,
-    /// An NPC with a target (pirates hunting someone).
+    /// An NPC with a target (pirates hunting someone). Not an escort: one chasing a pirate made other
+    /// captains' turrets take it for a hunter and open fire (QA_WAR: a vendetta of 837 losses at peace).
     pub hunting: bool,
 }
 
@@ -56,7 +57,7 @@ impl Grid {
         });
         for e in ents {
             if e.is_ship() && !e.dead {
-                let p = Probe { id: e.id, pos: e.pos, radius: e.stats.radius, side: e.side(), fleet: e.fleet, alliance: e.alliance, docked: e.docked, hunting: e.ai.as_ref().is_some_and(|a| a.target.is_some()) };
+                let p = Probe { id: e.id, pos: e.pos, radius: e.stats.radius, side: e.side(), fleet: e.fleet, alliance: e.alliance, docked: e.docked, hunting: e.side().is_none() && e.ai.as_ref().is_some_and(|a| a.target.is_some()) };
                 self.map.entry(Self::cell(e.pos)).or_default().push(p);
             }
         }

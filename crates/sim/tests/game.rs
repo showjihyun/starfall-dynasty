@@ -1566,6 +1566,43 @@ fn stray_turret_fire(same_fleet: bool) -> bool {
 }
 
 #[test]
+fn escort_turrets_leave_bystanders_alone() {
+    // My escorts fight the pirate I hunt; a neutral captain beside us is not theirs to shoot, even in
+    // lawless space — the player cannot hold an escort's trigger for it (QA_WAR: two alliances at peace
+    // traded 837 losses in one Wild system, the vendetta starting with escort turrets).
+    let mut g = game();
+    let me = join(&mut g, 1, "Me", Species::Human, HullClass::Bastion, Profession::CombatPilot);
+    join(&mut g, 2, "Mate", Species::Human, HullClass::Bastion, Profession::CombatPilot);
+    for c in [1, 2] {
+        grow(&mut g, c, 9, 5);
+    }
+    clear_npcs(&mut g, 5);
+    let at = galaxy::system_layout(5).station + Vec3::new(0.0, 0.0, 4000.0);
+    place(&mut g, 1, at, at + Vec3::NEG_Z);
+    place(&mut g, 2, at + Vec3::X * 700.0, at + Vec3::X * 700.0 + Vec3::NEG_Z);
+    let pirate = g.spawn_npc(5, NpcArchetype::Raider, 1, at + Vec3::Y * 900.0, None);
+    let (s, flag) = ent_of(&g, 1);
+    let (_, mate) = ent_of(&g, 2);
+    let escorts: Vec<EntityId> = g.systems[&s].ents.values().filter(|e| e.kind == EntityKind::Escort && e.owner == Some(me)).map(|e| e.id).collect();
+    assert!(!escorts.is_empty(), "a Bastion Lv9 has escorts");
+    for (i, e) in escorts.iter().enumerate() {
+        let x = g.ent_mut(s, *e).unwrap();
+        x.pos = at + Vec3::new(-300.0 - 150.0 * i as f32, 0.0, 200.0);
+        x.vel = Vec3::ZERO;
+    }
+    g.ent_mut(s, flag).unwrap().target = Some(pirate);
+    g.handle(1, ClientMsg::EscortCommand { attack: true });
+    g.out.clear();
+    run(&mut g, 6.0);
+    let shots = |from_set: &[EntityId]| g.out.iter().any(|(_, m)| matches!(m, ServerMsg::Snapshot { fx, .. } if fx.iter().any(|f| matches!(f, Fx::Shot { from, to, .. } if from_set.contains(from) && *to == mate))));
+    assert!(g.out.iter().any(|(_, m)| matches!(m, ServerMsg::Snapshot { fx, .. } if fx.iter().any(|f| matches!(f, Fx::Shot { from, to, .. } if *to == pirate)))), "the pirate is fought");
+    assert!(!shots(&escorts), "no escort shoots the neutral captain");
+    let mate_shots = g.out.iter().any(|(_, m)| matches!(m, ServerMsg::Snapshot { fx, .. } if fx.iter().any(|f| matches!(f, Fx::Shot { from, to, .. } if *from == mate && escorts.contains(to)))));
+    assert!(!mate_shots, "nor does the neutral captain take my pirate-hunting escorts for pirates");
+    assert_eq!(g.store.profile(me).unwrap().bounty, 0, "no crime");
+}
+
+#[test]
 fn turrets_shoot_captains_outside_the_fleet() {
     // The target panel's warning (view::hud::stray_fire_warning): with the pirate overhead, my ventral
     // half has nothing to shoot but the captain beside me — unless we fly as one fleet.

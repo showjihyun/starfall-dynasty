@@ -203,7 +203,15 @@ impl Game {
 
     fn change_controller(&mut self, sys: SystemId, new: Option<AllianceId>, reason: Option<&str>) {
         let name_of = |g: &Game, a: Option<AllianceId>| a.and_then(|a| g.alliance(a)).map(|a| format!("[{}] {}", a.tag, a.name));
-        let previous = name_of(self, self.controller(sys));
+        let old = self.controller(sys);
+        let previous = name_of(self, old);
+        // Conquest purges the old holder's administration (`social.conquest_purge`).
+        if let (Some(o), Some(n)) = (old, new)
+            && o != n
+            && let Some(v) = self.store.data.influence.get_mut(&sys).and_then(|m| m.get_mut(&o))
+        {
+            *v *= self.tuning.social.conquest_purge;
+        }
         match new {
             Some(a) => {
                 self.store.data.controllers.insert(sys, a);

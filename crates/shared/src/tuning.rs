@@ -534,6 +534,11 @@ pub struct SocialTuning {
     /// u of the station. Missing: no batteries.
     #[serde(default)]
     pub station_guard: StationGuard,
+    /// When a system passes from one alliance to another, the old holder's influence there is
+    /// multiplied by this (its administration is purged; retaking needs more than a quick return).
+    /// Missing: 1, kept.
+    #[serde(default = "one")]
+    pub conquest_purge: f32,
     /// Treasury cost of declaring a war, per system the declaring alliance holds (an empire pays
     /// more to open a front). Missing: free.
     #[serde(default)]

@@ -161,6 +161,10 @@ impl Game {
                 return;
             }
             let engaged = match side {
+                // An escort's held trigger opens up on NPCs and the alliance's enemies only — the player
+                // cannot let go of it when a neutral captain drifts into reach (the stray-fire warning is
+                // about their own flagship).
+                Some(_) if e.kind == EntityKind::Escort => t.hunting || recent.contains(&t.id) || (e.controls.fire && (t.side.is_none() || self.at_war(e.alliance, t.alliance))),
                 // Player side: shoot pirates that are hunting us, anyone who hit us, or anything if trigger held.
                 Some(_) => e.controls.fire || t.hunting || recent.contains(&t.id),
                 // NPC capital ships shoot any player-side ship in reach.

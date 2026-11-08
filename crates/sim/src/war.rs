@@ -71,7 +71,20 @@ struct Side {
     peak: usize,
     /// Game hour of the last coup or secession (alliances are not shaken more than every 6 h).
     shaken: f32,
+    /// Systems held at the last plan, and the latest one taken (with the hour): held a while longer.
+    last_held: Vec<SystemId>,
+    fresh: Option<(SystemId, f32)>,
+    /// Captains lost so far, and at the last plan (war weariness).
+    losses: usize,
+    losses_at_plan: usize,
 }
+
+/// A conquest is held this long (h) before the captains move on (QA_WAR: conquerors left at once
+/// and 99 of 288 changes of hands were retaken within the hour).
+const CONSOLIDATE_HOURS: f32 = 0.5;
+/// Captains lost per captain between two plans (15 min) without gaining ground: the leader makes
+/// peace (QA_WAR: two alliances traded 1100 losses in 5 h over a system neither took).
+const WEARY_LOSSES: usize = 1;
 
 /// Hours between an alliance's coups or secessions.
 const UNREST_HOURS: f32 = 6.0;
@@ -106,6 +119,12 @@ pub struct Report {
     pub by_siege: usize,
     /// A system taken back by the alliance that held it before, within the hour (siege ping-pong).
     pub retaken: usize,
+    /// …of which the system had fallen to nobody in between (influence flickering at the threshold),
+    /// not to another alliance.
+    pub retaken_from_nobody: usize,
+    /// Captain losses per (system, victim's tag, killer's tag) — tags from the captains' names, i.e.
+    /// the alliance they started in.
+    pub fights: BTreeMap<(SystemId, String, String), usize>,
     /// Station battery levels bought, per alliance (at the end).
     pub fortified: Vec<u8>,
     pub wall_secs: f32,
@@ -164,7 +183,7 @@ impl Report {
             self.lead_changes(),
             self.peak_share() * 100.0
         );
-        s += &format!("taken by siege {} · retaken within the hour {} · battery levels held at the end {}\n", self.by_siege, self.retaken, self.fortified.iter().map(|x| x.to_string()).collect::<Vec<_>>().join("/"));
+        s += &format!("taken by siege {} · retaken within the hour {} (from nobody {}) · battery levels held at the end {}\n", self.by_siege, self.retaken, self.retaken_from_nobody, self.fortified.iter().map(|x| x.to_string()).collect::<Vec<_>>().join("/"));
         s += &format!("captain deaths {} · kills {} · chronicle: {}\n", self.deaths, self.kills, self.events.iter().map(|(k, n)| format!("{k} {n}")).collect::<Vec<_>>().join(", "));
         let mut worst: Vec<(&SystemId, &usize)> = self.deaths_in.iter().collect();
         worst.sort_by(|a, b| b.1.cmp(a.1).then(a.0.cmp(b.0)));
@@ -173,6 +192,9 @@ impl Report {
             self.deaths_by.iter().map(|(k, n)| format!("{k} {n}")).collect::<Vec<_>>().join(", "),
             worst.iter().take(4).map(|(x, n)| format!("{} ({}) {n}", galaxy::system(**x).name, galaxy::system(**x).tier.label())).collect::<Vec<_>>().join(", ")
         );
+        let mut fights: Vec<(&(SystemId, String, String), &usize)> = self.fights.iter().collect();
+        fights.sort_by(|a, b| b.1.cmp(a.1).then(a.0.cmp(b.0)));
+        s += &format!("worst fights (system: victim ← killer): {}\n", fights.iter().take(5).map(|((x, v, k), n)| format!("{}: {v} ← {k} {n}", galaxy::system(*x).name)).collect::<Vec<_>>().join(", "));
         s += &format!("({:.1} s wall clock)\n", self.wall_secs);
         s
     }
@@ -244,7 +266,7 @@ pub fn run(o: &Options) -> Report {
         }
         let leader = caps.iter().find(|c| c.side == si).unwrap();
         let id = g.alliance_of(leader.pid).expect("alliance founded");
-        sides.push(Side { id, tag, leader: leader.conn, home, target: home, wars: BTreeMap::new(), peak: 0, shaken: 0.0 });
+        sides.push(Side { id, tag, leader: leader.conn, home, target: home, wars: BTreeMap::new(), peak: 0, shaken: 0.0, last_held: vec![], fresh: None, losses: 0, losses_at_plan: 0 });
     }
     g.out.clear();
     let mut rep = Report { tags: sides.iter().map(|s| s.tag.clone()).collect(), homes: home_of.clone(), ..Default::default() };
@@ -274,6 +296,7 @@ pub fn run(o: &Options) -> Report {
                 let dead = g.sessions[&c.conn].dead;
                 if dead && !was_dead.get(&c.conn).copied().unwrap_or(false) {
                     rep.deaths += 1;
+                    sides[c.side].losses += 1;
                 }
                 was_dead.insert(c.conn, dead);
                 let target = sides[c.side].target;
@@ -296,6 +319,9 @@ pub fn run(o: &Options) -> Report {
                         && tick - at < per_hour
                     {
                         rep.retaken += 1;
+                        if before.is_none() {
+                            rep.retaken_from_nobody += 1;
+                        }
                     }
                     last_change.insert(x.id, (tick, before));
                     let t = rep.turnover.entry(x.id).or_default();
@@ -335,6 +361,9 @@ pub fn run(o: &Options) -> Report {
                 *rep.deaths_by.entry(format!("lost by {}", s.tag)).or_default() += 1;
             }
             *rep.deaths_in.entry(e.system).or_default() += 1;
+            let tag_of = |v: &str| sides.iter().find(|s| v.contains(&format!("{}-", s.tag))).map_or("-".to_string(), |s| s.tag.clone());
+            let victim = e.actors.first().map(|v| tag_of(v)).unwrap_or_default();
+            *rep.fights.entry((e.system, victim, if by == "captain" { tag_of(&killer) } else { by.to_string() })).or_default() += 1;
         }
     }
     let sieges: Vec<u64> = g.history.events[first_event..].iter().filter(|e| e.kind == "SIEGE").map(|e| e.id).collect();
@@ -354,7 +383,15 @@ fn plan(g: &mut Game, sides: &mut [Side], hour: f32, war_hours: f32) {
         let mine = &held[&s.id];
         // Defend a held system slipping towards losing it, else take home, else expand to the nearest.
         let sagging = mine.iter().copied().filter(|x| g.influence(*x, s.id) < t.control_threshold * 0.8).min_by(|a, b| g.influence(*a, s.id).total_cmp(&g.influence(*b, s.id)));
+        // A new system someone else still has a stake in (taken from them, or contested) is held a while.
+        let contested = |x: SystemId| ids.iter().any(|o| *o != s.id && g.influence(x, *o) >= t.control_threshold * 0.3);
+        if let Some(x) = mine.iter().copied().find(|x| !s.last_held.contains(x) && contested(*x)) {
+            s.fresh = Some((x, hour));
+        }
+        let fresh = s.fresh.filter(|(x, at)| mine.contains(x) && hour - at < CONSOLIDATE_HOURS).map(|(x, _)| x);
         s.target = if let Some(x) = sagging {
+            x
+        } else if let Some(x) = fresh {
             x
         } else if !mine.contains(&s.home) {
             s.home
@@ -399,8 +436,15 @@ fn plan(g: &mut Game, sides: &mut [Side], hour: f32, war_hours: f32) {
         {
             g.handle(s.leader, ClientMsg::AllianceFortify { system: x });
         }
-        // Peace after `war_hours` without gaining ground.
-        let tired: Vec<AllianceId> = s.wars.iter().filter(|(_, (since, had))| hour - since >= war_hours && mine.len() <= *had).map(|(a, _)| *a).collect();
+        // Wars declared on us count too (only our own declarations were remembered: the side attacked
+        // never tired of a war).
+        for r in g.alliance(s.id).map(|a| a.wars.clone()).unwrap_or_default() {
+            s.wars.entry(r).or_insert((hour, mine.len()));
+        }
+        // Peace after `war_hours` without gaining ground, or at once when bleeding captains for nothing.
+        let members = g.alliance(s.id).map_or(1, |a| a.members.len());
+        let bleeding = s.losses - s.losses_at_plan >= WEARY_LOSSES * members && mine.len() <= s.last_held.len();
+        let tired: Vec<AllianceId> = s.wars.iter().filter(|(_, (since, had))| (hour - since >= war_hours && mine.len() <= *had) || (bleeding && hour - since >= 0.5)).map(|(a, _)| *a).collect();
         for r in tired {
             if g.at_war(Some(s.id), Some(r)) {
                 g.handle(s.leader, ClientMsg::AlliancePeace { target: r });
@@ -409,6 +453,8 @@ fn plan(g: &mut Game, sides: &mut [Side], hour: f32, war_hours: f32) {
         }
         // Wars the other side ended.
         s.wars.retain(|r, _| g.at_war(Some(s.id), Some(*r)));
+        s.last_held = mine.clone();
+        s.losses_at_plan = s.losses;
     }
 }
 
@@ -474,7 +520,7 @@ fn secession(g: &mut Game, sides: &mut Vec<Side>, caps: &mut [Captain], hour: f3
         }
         sides[si].shaken = hour;
         caps[k].side = sides.len();
-        sides.push(Side { id, tag: tag.clone(), leader: conn, home: sys, target: sys, wars: BTreeMap::new(), peak: 1, shaken: hour });
+        sides.push(Side { id, tag: tag.clone(), leader: conn, home: sys, target: sys, wars: BTreeMap::new(), peak: 1, shaken: hour, last_held: vec![sys], fresh: None, losses: 0, losses_at_plan: 0 });
         return Some((tag, sys));
     }
     None

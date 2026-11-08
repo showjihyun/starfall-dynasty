@@ -39,6 +39,7 @@
         rebuild_secs: 120.0, rebuild_cost: 2000,  // back online after 2 min with no enemy on the approach, paid by the holder's treasury
         fortify_cost: 3000, fortify_step: 0.5, fortify_max: 3,  // treasury sink: level k costs 3000k, ×(1 + 0.5k) dps and integrity
     ),
+    conquest_purge: 0.5,        // taken from another alliance: the old holder keeps half its influence there (QA_WAR: 99 of 288 changes were retaken within the hour)
     war_cost: 500,              // treasury per system the declaring alliance holds (a newcomer declares for free)
     // Betrayal and rebellion (2026-11-08, QA_WAR: alliances were monoliths — the lead changed twice a day).
     betrayal: (

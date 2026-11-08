@@ -36,6 +36,7 @@
     { "at": 45, "check": "history", "kind": "SIEGE", "min": 1 },
     { "at": 200, "check": "controller", "system": 4, "tag": "RAI" },
     { "check": "history", "kind": "SIEGE", "max": 1 },
-    { "check": "controller", "system": 4, "tag": "RAI" }
+    { "check": "controller", "system": 4, "tag": "RAI" },
+    { "check": "influence", "system": 4, "tag": "OWN", "max": 26 }
   ]
 }
