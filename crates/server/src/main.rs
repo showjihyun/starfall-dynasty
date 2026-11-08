@@ -151,7 +151,8 @@ async fn main() -> std::io::Result<()> {
                 }
                 // Per-viewer snapshots are binary; encode the batch in parallel.
                 let enc = shared::prof::span("encode");
-                let frames: Vec<(ConnId, Message)> = game.out.par_drain(..).map(|(c, m)| (c, wire(&m))).collect();
+                // In batches of 32: a few frames are encoded on one thread (see PARALLEL_SNAPSHOT_WORK).
+                let frames: Vec<(ConnId, Message)> = game.out.par_drain(..).with_min_len(32).map(|(c, m)| (c, wire(&m))).collect();
                 drop(enc);
                 for (conn, frame) in frames {
                     if let Some(o) = outs.get(&conn) {

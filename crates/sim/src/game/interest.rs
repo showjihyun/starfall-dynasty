@@ -22,6 +22,10 @@ pub const NEW_BUDGET: usize = 128;
 
 type Cell = (i32, i32, i32);
 
+/// Viewers × entities in a system below which its snapshots are built on one thread (a performance
+/// threshold, not a game rule).
+const PARALLEL_SNAPSHOT_WORK: usize = 16_384;
+
 /// What targeting needs to know about a ship, packed so a search touches no hash maps.
 #[derive(Clone, Copy)]
 pub struct Probe {
@@ -206,9 +210,16 @@ impl Game {
                 })
                 .collect();
             drop(p);
-            // Per-viewer snapshots on the rayon pool (one span for the whole parallel batch).
+            // Per-viewer snapshots on the rayon pool (one span for the whole parallel batch) — only when
+            // there is enough work: a fork-join over a handful of small snapshots waits on the slowest
+            // worker, and one descheduled worker stalled whole ticks (soak QA: 100–200 ms ticks with 40
+            // captains and 45 entities, docs/QA_SOAK.md).
             let p = shared::prof::span("per-viewer");
-            let msgs: Vec<ServerMsg> = viewers.par_iter_mut().map(|v| build_snapshot(v, tick, &recs, &fx_at)).collect();
+            let msgs: Vec<ServerMsg> = if viewers.len() * recs.len().max(1) < PARALLEL_SNAPSHOT_WORK {
+                viewers.iter_mut().map(|v| build_snapshot(v, tick, &recs, &fx_at)).collect()
+            } else {
+                viewers.par_iter_mut().with_min_len(8).map(|v| build_snapshot(v, tick, &recs, &fx_at)).collect()
+            };
             drop(p);
             for (v, m) in viewers.into_iter().zip(msgs) {
                 self.sessions.get_mut(&v.conn).unwrap().view = v.view;

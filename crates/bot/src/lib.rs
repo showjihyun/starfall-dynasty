@@ -105,8 +105,9 @@ impl Bot {
         self.until(secs, |_| false).await;
     }
 
+    /// Log in (with `token` when set: a returning captain) and create the captain if there is none yet.
     pub async fn login_and_create(&mut self, hull: shared::ships::HullClass, species: shared::galaxy::Species, prof: Profession) -> Result<(), String> {
-        self.send(ClientMsg::Hello { version: PROTOCOL_VERSION, name: self.name.clone(), token: None }).await;
+        self.send(ClientMsg::Hello { version: PROTOCOL_VERSION, name: self.name.clone(), token: self.token.clone() }).await;
         match self.until(5.0, |m| matches!(m, ServerMsg::Welcome { .. } | ServerMsg::Error { .. })).await {
             Some(ServerMsg::Welcome { .. }) => {}
             other => return Err(format!("login failed: {other:?}")),
