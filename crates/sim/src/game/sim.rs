@@ -247,22 +247,114 @@ impl Game {
     /// The controlling alliance's station batteries (`social.station_guard`): the nearest captain's ship
     /// at war with it inside the range takes steady fire, so an enemy cannot sit off a home station and
     /// sink its captains as they rebuild (war QA). No kill credit — the wreck says "우주의 위험".
+    /// The controller's station batteries (`social.station_guard`): they shoot the nearest ship at war
+    /// with the holder on the approach, while every such ship wears them down (the siege). Silenced,
+    /// they come back after a quiet spell paid by the treasury; meanwhile attackers who outnumber the
+    /// defenders on the approach draw influence from the holder each second — how a system is taken by
+    /// fighting.
     fn station_guard(&mut self, sys: SystemId, dt: f32) {
         let guard = self.tuning.social.station_guard;
-        let Some(owner) = self.controller(sys).filter(|_| guard.dps > 0.0) else { return };
-        let station = self.systems[&sys].layout.station;
-        let Some(id) = self.systems[&sys]
-            .ents
-            .values()
-            .filter(|e| matches!(e.kind, EntityKind::Player | EntityKind::Escort) && !e.dead && !e.docked && e.pos.distance(station) <= guard.range + e.stats.radius && self.at_war(Some(owner), e.alliance))
-            .min_by(|a, b| a.pos.distance(station).total_cmp(&b.pos.distance(station)).then(a.id.cmp(&b.id)))
-            .map(|e| e.id)
-        else {
+        let Some(owner) = self.controller(sys).filter(|_| guard.dps > 0.0) else {
+            self.store.data.batteries.remove(&sys);
             return;
         };
+        let station = self.systems[&sys].layout.station;
+        // Ships on the approach: (id, distance, alliance, a captain — escorts draw fire but neither wear
+        // the batteries down nor hold the approach).
+        let near: Vec<(EntityId, f32, Option<AllianceId>, bool)> = self.systems[&sys]
+            .ents
+            .values()
+            .filter(|e| matches!(e.kind, EntityKind::Player | EntityKind::Escort) && !e.dead && !e.docked && e.pos.distance(station) <= guard.range + e.stats.radius)
+            .map(|e| (e.id, e.pos.distance(station), e.alliance, e.kind == EntityKind::Player))
+            .collect();
+        let attackers: Vec<&(EntityId, f32, Option<AllianceId>, bool)> = near.iter().filter(|(_, _, a, _)| self.at_war(Some(owner), *a)).collect();
+        let captains = attackers.iter().filter(|x| x.3).count();
+        let fresh = crate::store::Battery { owner, ..Default::default() };
+        let mut b = self.battery(sys).unwrap_or_else(|| fresh.clone());
+        if attackers.is_empty() && b.damage == 0.0 && !b.silenced {
+            return;
+        }
+        let k = guard.level_k(b.level);
+        let before = b.clone();
+        if b.silenced {
+            if attackers.is_empty() {
+                b.quiet += dt;
+                let treasury = self.alliance(owner).map_or(0, |a| a.treasury);
+                if b.quiet >= guard.rebuild_secs && treasury >= guard.rebuild_cost {
+                    if let Some(a) = self.store.data.alliances.iter_mut().find(|a| a.id == owner) {
+                        a.treasury -= guard.rebuild_cost;
+                    }
+                    b.silenced = false;
+                    b.damage = 0.0;
+                    let text = format!("{} 정거장 포대 재가동 (금고 −{} CR)", galaxy::system(sys).name, guard.rebuild_cost);
+                    for m in self.alliance(owner).map(|a| a.members.clone()).unwrap_or_default() {
+                        self.toast(m, text.clone());
+                    }
+                }
+            } else {
+                b.quiet = 0.0;
+                // The strongest attacking alliance on the approach, if it outnumbers the defenders.
+                let defenders = near.iter().filter(|(_, _, a, c)| *c && *a == Some(owner)).count();
+                let mut count: BTreeMap<AllianceId, usize> = BTreeMap::new();
+                for (_, _, a, c) in &attackers {
+                    if *c && let Some(a) = a {
+                        *count.entry(*a).or_default() += 1;
+                    }
+                }
+                if let Some((&att, &n)) = count.iter().max_by(|x, y| x.1.cmp(y.1).then(y.0.cmp(x.0)))
+                    && n > defenders
+                {
+                    self.store.data.batteries.insert(sys, b);
+                    // Once a second (a tick's worth is below the 0.1 that influence keeps).
+                    if self.tick.is_multiple_of(TICK_HZ as u64) {
+                        self.shift_influence(owner, sys, -guard.siege_drain);
+                        self.shift_influence(att, sys, guard.siege_gain);
+                    }
+                    return;
+                }
+            }
+        } else {
+            if guard.hp > 0.0 {
+                b.damage = if attackers.is_empty() { (b.damage - guard.siege_dps * dt).max(0.0) } else { b.damage + guard.siege_dps * captains as f32 * dt };
+            }
+            if let Some(&&(id, ..)) = attackers.iter().min_by(|a, b| a.1.total_cmp(&b.1).then(a.0.cmp(&b.0))) {
+                self.battery_fire(sys, id, guard.dps * k * dt);
+            }
+            if guard.hp > 0.0 && b.damage >= guard.hp * k {
+                b.silenced = true;
+                b.quiet = 0.0;
+                let name = |g: &Game, a: Option<AllianceId>| a.and_then(|a| g.alliance(a)).map(|a| format!("[{}] {}", a.tag, a.name)).unwrap_or_default();
+                let by = attackers.iter().filter_map(|x| x.2).min();
+                let (holder, by) = (name(self, Some(owner)), name(self, by));
+                self.history.record(self.unix, history::DomainEvent::StationSilenced { system: sys, holder: holder.clone(), by: by.clone() });
+                let text = format!("⚔ {by}이(가) {}의 {holder} 정거장 포대를 침묵시켰습니다", galaxy::system(sys).name);
+                let online: Vec<PlayerId> = self.conn_of.keys().copied().collect();
+                for p in online {
+                    self.toast(p, text.clone());
+                }
+            }
+        }
+        if b != before {
+            self.store.dirty = true;
+            if b == fresh {
+                self.store.data.batteries.remove(&sys);
+            } else {
+                self.store.data.batteries.insert(sys, b);
+            }
+            // Sieges move by the second; standings go out when the batteries change state.
+            if before.silenced != self.battery(sys).is_some_and(|x| x.silenced) || (before.damage == 0.0) != (self.battery(sys).map_or(0.0, |x| x.damage) == 0.0) {
+                let online: Vec<PlayerId> = self.conn_of.keys().copied().collect();
+                for p in online {
+                    self.send_influence(p);
+                }
+            }
+        }
+    }
+
+    /// A battery hit: shield bleed, then hull; no kill credit ("우주의 위험").
+    fn battery_fire(&mut self, sys: SystemId, id: EntityId, dmg: f32) {
         let (bleed, now, tick) = (self.tuning.combat.shield_bleed, self.now, self.tick);
         let t = self.ent_mut(sys, id).unwrap();
-        let dmg = guard.dps * dt;
         let absorbed = (dmg * (1.0 - bleed)).min(t.shield);
         t.shield -= absorbed;
         t.hull -= dmg - absorbed;

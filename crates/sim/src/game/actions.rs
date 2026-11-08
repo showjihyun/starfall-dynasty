@@ -112,6 +112,7 @@ impl Game {
             ClientMsg::DeliverContract { id } => self.deliver_contract(conn, pid, sys, eid, id),
             ClientMsg::RequestContracts => self.send_contracts(pid),
             ClientMsg::AllianceDividend => self.alliance_dividend(pid),
+            ClientMsg::AllianceFortify { system } => self.alliance_fortify(pid, system),
             ClientMsg::FoundInstitute { name } => self.found_institute(conn, pid, sys, eid, name),
             ClientMsg::DonateToInstitute { artifact, institute } => self.donate_to_institute(conn, pid, sys, eid, artifact, institute),
             ClientMsg::RequestInstitutes => self.send_institutes(pid),

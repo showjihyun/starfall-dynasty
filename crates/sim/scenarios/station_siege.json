@@ -1,0 +1,41 @@
+{
+  "name": "station_siege",
+  "description": "공방전: 지배 동맹(OWN, 영향력 80)의 정거장 접근로(900 u)에 전쟁 중인 RAI Talon Lv5 다섯 척이 함께 들어가면, 포대가 한 척씩 쏘는 동안 다섯 척이 포대 내구도(social.station_guard hp 4000, 척당 30/s)를 깎아 침묵시키고(연대기 SIEGE), 접근로를 지키는 동안 영향력이 초당 0.5씩 RAI로 넘어가 성계가 RAI의 것이 된다. 장기 전쟁 QA에서 영토는 교전이 아니라 사냥 경쟁과 유지비 철수로만 바뀌었다",
+  "dev": true,
+  "captains": [
+    { "name": "Keeper", "hull": "Wren", "level": 1, "system": 4, "undocked": false },
+    { "name": "Raid1", "hull": "Talon", "level": 5, "system": 4, "undocked": true },
+    { "name": "Raid2", "hull": "Talon", "level": 5, "system": 4, "undocked": true },
+    { "name": "Raid3", "hull": "Talon", "level": 5, "system": 4, "undocked": true },
+    { "name": "Raid4", "hull": "Talon", "level": 5, "system": 4, "undocked": true },
+    { "name": "Raid5", "hull": "Talon", "level": 5, "system": 4, "undocked": true }
+  ],
+  "script": [
+    { "at": 0.2, "captain": "Keeper", "msg": { "AllianceCreate": { "name": "Corridor Guild", "tag": "OWN" } } },
+    { "at": 0.2, "captain": "Raid1", "msg": { "AllianceCreate": { "name": "Raiders", "tag": "RAI" } } },
+    { "at": 0.3, "captain": "Raid1", "msg": { "AllianceInvite": { "name": "Raid2" } } },
+    { "at": 0.3, "captain": "Raid1", "msg": { "AllianceInvite": { "name": "Raid3" } } },
+    { "at": 0.3, "captain": "Raid1", "msg": { "AllianceInvite": { "name": "Raid4" } } },
+    { "at": 0.3, "captain": "Raid1", "msg": { "AllianceInvite": { "name": "Raid5" } } },
+    { "at": 0.35, "captain": "Raid2", "msg": { "AllianceAccept": { "alliance": 2 } } },
+    { "at": 0.35, "captain": "Raid3", "msg": { "AllianceAccept": { "alliance": 2 } } },
+    { "at": 0.35, "captain": "Raid4", "msg": { "AllianceAccept": { "alliance": 2 } } },
+    { "at": 0.35, "captain": "Raid5", "msg": { "AllianceAccept": { "alliance": 2 } } },
+    { "at": 0.4, "captain": "Keeper", "msg": { "Chat": { "text": "/influence 80" } } },
+    { "at": 0.5, "captain": "Raid1", "msg": { "AllianceDeclareWar": { "target": 1 } } },
+    { "at": 0.6, "captain": "Raid1", "msg": { "Chat": { "text": "/tp station 0 0 600" } } },
+    { "at": 0.6, "captain": "Raid2", "msg": { "Chat": { "text": "/tp station 300 0 600" } } },
+    { "at": 0.6, "captain": "Raid3", "msg": { "Chat": { "text": "/tp station -300 0 600" } } },
+    { "at": 0.6, "captain": "Raid4", "msg": { "Chat": { "text": "/tp station 0 300 600" } } },
+    { "at": 0.6, "captain": "Raid5", "msg": { "Chat": { "text": "/tp station 0 -300 600" } } }
+  ],
+  "run_secs": 400,
+  "expect": [
+    { "at": 0.8, "check": "controller", "system": 4, "tag": "OWN" },
+    { "at": 15, "check": "history", "kind": "SIEGE", "max": 0 },
+    { "at": 45, "check": "history", "kind": "SIEGE", "min": 1 },
+    { "at": 200, "check": "controller", "system": 4, "tag": "RAI" },
+    { "check": "history", "kind": "SIEGE", "max": 1 },
+    { "check": "controller", "system": 4, "tag": "RAI" }
+  ]
+}

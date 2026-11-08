@@ -949,8 +949,12 @@ fn fleet(ui: &mut egui::Ui, s: &mut Session, net: &Net) {
 
 fn alliance(ui: &mut egui::Ui, s: &mut Session, net: &Net) {
     {
-        let mine = s.alliances.iter().find(|a| Some(a.id) == s.my_alliance).map(|a| a.tag.clone());
-        view::panels::influence(ui, &s.influence, mine.as_deref(), s.influence_threshold);
+        let mine = s.alliances.iter().find(|a| Some(a.id) == s.my_alliance);
+        let treasury = mine.filter(|a| s.profile.as_ref().is_some_and(|p| p.name == a.leader)).map(|a| a.treasury);
+        let mine = mine.map(|a| a.tag.clone());
+        if let Some(system) = view::panels::influence(ui, &s.influence, mine.as_deref(), s.influence_threshold, treasury) {
+            net.send(ClientMsg::AllianceFortify { system });
+        }
         ui.separator();
     }
     if let Some((from, id, name)) = s.alliance_invite.clone() {
@@ -1006,7 +1010,13 @@ fn alliance(ui: &mut egui::Ui, s: &mut Session, net: &Net) {
                         if leader && ui.button("강화 제의").clicked() {
                             net.send(ClientMsg::AlliancePeace { target: other.id });
                         }
-                    } else if leader && ui.button("선전포고").clicked() {
+                    } else if leader && {
+                        let held = s.influence.iter().filter(|x| x.controller.as_ref().is_some_and(|c| c.0 == a.id)).count() as u64;
+                        let cost = shared::tuning::get().social.war_cost * held;
+                        ui.add_enabled(a.treasury >= cost, egui::Button::new(if cost > 0 { format!("선전포고 ({cost} CR)") } else { "선전포고".into() }))
+                            .on_hover_text("비용은 우리가 지배하는 성계 수에 비례해 금고에서 나갑니다")
+                            .clicked()
+                    } {
                         net.send(ClientMsg::AllianceDeclareWar { target: other.id });
                     }
                 });

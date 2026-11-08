@@ -206,12 +206,12 @@ fn prospectors_are_told_height_pays() {
 fn influence_table_lists_contested_systems_only() {
     use shared::protocol::SystemStanding;
     let systems = vec![
-        SystemStanding { system: 0, controller: None, standings: vec![] },
-        SystemStanding { system: 3, controller: Some((1, "FPA".into())), standings: vec![(1, "FPA".into(), 72.4), (2, "EMP".into(), 40.0)] },
-        SystemStanding { system: 4, controller: None, standings: vec![(2, "EMP".into(), 12.0)] },
+        SystemStanding { system: 0, controller: None, standings: vec![], batteries: None },
+        SystemStanding { system: 3, controller: Some((1, "FPA".into())), standings: vec![(1, "FPA".into(), 72.4), (2, "EMP".into(), 40.0)], batteries: Some((1, 0.25, false)) },
+        SystemStanding { system: 4, controller: None, standings: vec![(2, "EMP".into(), 12.0)], batteries: None },
     ];
     let (t, _) = frame(|ui| -> Option<()> {
-        panels::influence(ui, &systems, Some("FPA"), 60.0);
+        panels::influence(ui, &systems, Some("FPA"), 60.0, None);
         None
     }, None);
     assert!(t.iter().any(|s| s == "Orion Drift") && t.iter().any(|s| s == "Vesta Corridor"), "{t:?}");
@@ -219,8 +219,18 @@ fn influence_table_lists_contested_systems_only() {
     assert!(t.iter().any(|s| s == "지배 [FPA]"));
     assert!(t.iter().any(|s| s == "[FPA] 72 · [EMP] 40"));
     assert!(t.iter().any(|s| s == "무주지"));
+    // The holder's batteries; only a leader sees the fortify button (level 2 costs 2 × fortify_cost).
+    assert!(t.iter().any(|s| s == "포대 Lv1 25%"), "{t:?}");
+    assert!(!t.iter().any(|s| s.starts_with("포대 강화")));
+    let cost = shared::tuning::get().social.station_guard.fortify_cost * 2;
     let (t, _) = frame(|ui| -> Option<()> {
-        panels::influence(ui, &[], None, 60.0);
+        panels::influence(ui, &systems, Some("FPA"), 60.0, Some(cost));
+        None
+    }, None);
+    assert!(t.iter().any(|s| *s == format!("포대 강화 ({cost} CR)")), "{t:?}");
+    assert_eq!(panels::batteries_label(0, 1.0, true), "포대 침묵");
+    let (t, _) = frame(|ui| -> Option<()> {
+        panels::influence(ui, &[], None, 60.0, None);
         None
     }, None);
     assert!(t.iter().any(|s| s.starts_with("아직 어느 성계에도")));

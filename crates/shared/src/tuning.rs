@@ -534,6 +534,10 @@ pub struct SocialTuning {
     /// u of the station. Missing: no batteries.
     #[serde(default)]
     pub station_guard: StationGuard,
+    /// Treasury cost of declaring a war, per system the declaring alliance holds (an empire pays
+    /// more to open a front). Missing: free.
+    #[serde(default)]
+    pub war_cost: u64,
 }
 
 /// Station batteries of a controlled system (`SocialTuning::station_guard`); dps 0 = none.
@@ -543,6 +547,42 @@ pub struct StationGuard {
     pub range: f32,
     /// Damage per second to the one enemy ship it engages (the nearest).
     pub dps: f32,
+    /// Siege: the batteries' integrity. Every enemy ship inside `range` wears it down by `siege_dps`;
+    /// at zero they fall silent. 0 (missing): they cannot be silenced.
+    #[serde(default)]
+    pub hp: f32,
+    #[serde(default)]
+    pub siege_dps: f32,
+    /// Silenced batteries and more attackers than defenders on the approach: influence per second
+    /// moves from the holder to the strongest attacking alliance (the system can change hands).
+    #[serde(default)]
+    pub siege_drain: f32,
+    /// …and what the attacker gains per second (more than the holder loses, so a big enough lead
+    /// forms before the holder's grip breaks and the system falls to nobody).
+    #[serde(default)]
+    pub siege_gain: f32,
+    /// Silenced batteries come back once no enemy has been on the approach this long (s) and the
+    /// holder's treasury pays `rebuild_cost`.
+    #[serde(default)]
+    pub rebuild_secs: f32,
+    #[serde(default)]
+    pub rebuild_cost: u64,
+    /// Fortifying (the leader, from the treasury): level k costs `fortify_cost × k` and gives the
+    /// batteries `1 + fortify_step × k` times the dps and integrity; up to `fortify_max`. Lost when
+    /// the system changes hands.
+    #[serde(default)]
+    pub fortify_cost: u64,
+    #[serde(default)]
+    pub fortify_step: f32,
+    #[serde(default)]
+    pub fortify_max: u8,
+}
+
+impl StationGuard {
+    /// Dps and integrity multiplier at a fortification level.
+    pub fn level_k(&self, level: u8) -> f32 {
+        1.0 + self.fortify_step * level as f32
+    }
 }
 
 impl SocialTuning {

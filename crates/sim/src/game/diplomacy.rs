@@ -148,6 +148,15 @@ impl Game {
         if war == already {
             return self.toast(pid, if war { "이미 전쟁 중입니다" } else { "전쟁 중이 아닙니다" });
         }
+        // A war costs the treasury per system we hold (a newcomer declares for free).
+        let cost = if war { self.tuning.social.war_cost * self.held_by(aid).len() as u64 } else { 0 };
+        if cost > 0 {
+            let a = self.store.data.alliances.iter_mut().find(|a| a.id == aid).unwrap();
+            if a.treasury < cost {
+                return self.toast(pid, format!("선전포고에는 금고 {cost} CR이 필요합니다"));
+            }
+            a.treasury -= cost;
+        }
         for (x, y) in [(aid, target), (target, aid)] {
             let a = self.store.data.alliances.iter_mut().find(|a| a.id == x).unwrap();
             if war {

@@ -95,6 +95,10 @@ pub struct Report {
     pub deaths_in: BTreeMap<SystemId, usize>,
     /// Ships the captains destroyed (pirates and enemy captains).
     pub kills: u32,
+    /// Changes of hands that followed a siege (station batteries silenced) in that system.
+    pub by_siege: usize,
+    /// Station battery levels bought, per alliance (at the end).
+    pub fortified: Vec<u8>,
     pub wall_secs: f32,
 }
 
@@ -151,6 +155,7 @@ impl Report {
             self.lead_changes(),
             self.peak_share() * 100.0
         );
+        s += &format!("taken by siege {} · battery levels held at the end {}\n", self.by_siege, self.fortified.iter().map(|x| x.to_string()).collect::<Vec<_>>().join("/"));
         s += &format!("captain deaths {} · kills {} · chronicle: {}\n", self.deaths, self.kills, self.events.iter().map(|(k, n)| format!("{k} {n}")).collect::<Vec<_>>().join(", "));
         let mut worst: Vec<(&SystemId, &usize)> = self.deaths_in.iter().collect();
         worst.sort_by(|a, b| b.1.cmp(a.1).then(a.0.cmp(b.0)));
@@ -307,6 +312,9 @@ pub fn run(o: &Options) -> Report {
             *rep.deaths_in.entry(e.system).or_default() += 1;
         }
     }
+    let sieges: Vec<u64> = g.history.events[first_event..].iter().filter(|e| e.kind == "SIEGE").map(|e| e.id).collect();
+    rep.by_siege = g.history.events[first_event..].iter().filter(|e| e.kind == "SYSTEM_CONTROL" && e.causes.iter().any(|c| sieges.contains(c))).count();
+    rep.fortified = sides.iter().map(|s| g.held_by(s.id).iter().map(|x| g.battery(*x).map_or(0, |b| b.level)).sum()).collect();
     rep.kills = caps.iter().filter_map(|c| g.store.profile(c.pid)).map(|p| p.kills).sum();
     rep.wall_secs = start.elapsed().as_secs_f32();
     rep
@@ -342,8 +350,24 @@ fn plan(g: &mut Game, sides: &mut [Side], hour: f32, war_hours: f32) {
         if let Some(r) = rival
             && !g.at_war(Some(s.id), Some(r))
         {
+            // Refused when the treasury cannot pay (social.war_cost per held system).
             g.handle(s.leader, ClientMsg::AllianceDeclareWar { target: r });
-            s.wars.insert(r, (hour, mine.len()));
+            if g.at_war(Some(s.id), Some(r)) {
+                s.wars.insert(r, (hour, mine.len()));
+            }
+        }
+        // Spare treasury (beyond the next system's upkeep for three hours, a rebuild and a war) goes into
+        // the batteries of the held system nearest an enemy, lowest level first.
+        let guard = t.station_guard;
+        let treasury = g.alliance(s.id).map_or(0, |a| a.treasury);
+        let reserve = 3 * g.upkeep(mine.len() + 1) + guard.rebuild_cost + t.war_cost * mine.len() as u64;
+        let enemies: Vec<SystemId> = g.alliance(s.id).map(|a| a.wars.clone()).unwrap_or_default().iter().flat_map(|e| held.get(e).cloned().unwrap_or_default()).collect();
+        let exposed = |x: SystemId| enemies.iter().map(|e| galaxy::distance_ly(x, *e)).fold(f32::MAX, f32::min);
+        let level = |x: SystemId| g.battery(x).map_or(0, |b| b.level);
+        if let Some(x) = mine.iter().copied().filter(|x| level(*x) < guard.fortify_max).min_by(|a, b| level(*a).cmp(&level(*b)).then(exposed(*a).total_cmp(&exposed(*b))).then(a.cmp(b)))
+            && treasury >= reserve + guard.fortify_cost * (level(x) as u64 + 1)
+        {
+            g.handle(s.leader, ClientMsg::AllianceFortify { system: x });
         }
         // Peace after `war_hours` without gaining ground.
         let tired: Vec<AllianceId> = s.wars.iter().filter(|(_, (since, had))| hour - since >= war_hours && mine.len() <= *had).map(|(a, _)| *a).collect();
@@ -360,6 +384,11 @@ fn plan(g: &mut Game, sides: &mut [Side], hour: f32, war_hours: f32) {
 
 /// A captain stays docked while an enemy captain is this close to the station (u).
 const CAMP_RANGE: f32 = 2500.0;
+/// Captains gathered off an enemy station before they storm its batteries together (four silence
+/// fresh ones before the batteries sink them one by one: station_siege, station_siege_pair).
+const SIEGE_PARTY: usize = 4;
+/// The rally point, this far beyond the batteries' reach (u).
+const RALLY: f32 = 900.0;
 
 /// One captain's decision (every `THINK` ticks): fight what is hostile near, else do its job in the target system.
 fn fly(g: &mut Game, c: &mut Captain, goal: SystemId) {
@@ -389,8 +418,11 @@ fn fly(g: &mut Game, c: &mut Captain, goal: SystemId) {
         // loop — 2354 of 2801 deaths in 8 h at one alliance's home station; nothing defends a station).
         let mine = g.alliance_of(c.pid);
         let station = g.systems[&here].layout.station;
-        let camped = g.systems[&here].ents.values().any(|t| t.kind == shared::protocol::EntityKind::Player && !t.dead && g.at_war(mine, t.alliance) && t.pos.distance(station) < CAMP_RANGE);
-        if !camped {
+        let players = || g.systems[&here].ents.values().filter(|t| t.kind == shared::protocol::EntityKind::Player && !t.dead && t.pos.distance(station) < CAMP_RANGE);
+        let campers = players().filter(|t| g.at_war(mine, t.alliance)).count();
+        // Our batteries silenced: the system is being taken — sortie once we are as many as they are.
+        let besieged = mine.is_some() && g.controller(here) == mine && g.battery(here).is_some_and(|b| b.silenced);
+        if campers == 0 || (besieged && players().filter(|t| t.alliance == mine).count() >= campers) {
             g.handle(c.conn, ClientMsg::Undock);
         }
         return;
@@ -402,7 +434,16 @@ fn fly(g: &mut Game, c: &mut Captain, goal: SystemId) {
     let mine = g.alliance_of(c.pid);
     // An enemy's station batteries (social.station_guard): a player keeps out of their reach.
     let station = g.systems[&here].layout.station;
-    let guarded = if g.controller(here).is_some_and(|o| g.at_war(mine, Some(o))) { g.tuning.social.station_guard.range + 300.0 } else { 0.0 };
+    let reach = g.tuning.social.station_guard.range;
+    let mut guarded = if g.controller(here).is_some_and(|o| g.at_war(mine, Some(o))) { reach + 300.0 } else { 0.0 };
+    // The siege (social.station_guard hp): at the target, gather off the station and storm the batteries
+    // together; once they are silenced, hold the approach.
+    let at_siege = guarded > 0.0 && here == goal;
+    let party = g.systems[&here].ents.values().filter(|t| t.kind == shared::protocol::EntityKind::Player && !t.dead && !t.docked && t.alliance == mine && t.pos.distance(station) < reach + RALLY + 1500.0).count();
+    let storm = at_siege && (party >= SIEGE_PARTY || g.battery(here).is_some_and(|b| b.silenced));
+    if storm {
+        guarded = 0.0;
+    }
     let shot_me: Vec<EntityId> = e.attackers.iter().filter(|(_, _, at)| g.now - at < 10.0).map(|(a, _, _)| *a).collect();
     if guarded > 0.0 && pos.distance(station) < guarded {
         let away = pos + (pos - station).normalize_or(shared::glam::Vec3::Z) * 600.0;
@@ -440,6 +481,15 @@ fn fly(g: &mut Game, c: &mut Captain, goal: SystemId) {
         if !in_combat && let Some(hop) = next_hop(here, goal, stats.warp_range) {
             g.handle(c.conn, ClientMsg::Warp { system: hop });
         }
+        return;
+    }
+    if storm {
+        g.handle(c.conn, ClientMsg::Controls(steer(pos, rot, station, reach * 0.5, stats.turn)));
+        return;
+    }
+    if at_siege {
+        let rally = station + (pos - station).normalize_or(shared::glam::Vec3::Z) * (reach + RALLY);
+        g.handle(c.conn, ClientMsg::Controls(steer(pos, rot, rally, 100.0, stats.turn)));
         return;
     }
     let layout = &g.systems[&here].layout;

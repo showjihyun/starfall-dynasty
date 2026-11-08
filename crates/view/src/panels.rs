@@ -233,27 +233,51 @@ pub fn contracts(ui: &mut egui::Ui, list: &[Contract], me: u64, credits: u64, ch
 use shared::protocol::SystemStanding;
 
 /// Influence standings per system: who holds it and the top contenders, with `mine` (my alliance
-/// tag) highlighted. Systems nobody has any influence in are left out.
-pub fn influence(ui: &mut egui::Ui, systems: &[SystemStanding], mine: Option<&str>, threshold: f32) {
+/// tag) highlighted. Systems nobody has any influence in are left out. `treasury` is my alliance's
+/// when I lead it: the systems we hold get a fortify button; the system clicked is returned.
+pub fn influence(ui: &mut egui::Ui, systems: &[SystemStanding], mine: Option<&str>, threshold: f32, treasury: Option<u64>) -> Option<SystemId> {
+    let guard = shared::tuning::get().social.station_guard;
+    let mut out = None;
     ui.label(RichText::new("성계 영향력").strong());
-    ui.label(RichText::new(format!("동맹원이 성계에서 해적 소탕·광석 판매·계약 완수·박물관 기증을 하고 교전에서 이기면 영향력이 쌓입니다(지면 줄어듭니다). {threshold:.0} 이상이고 지배 세력보다 20% 앞서면 지배권을 가져옵니다. 지배 동맹원은 그 성계에서 현상금·판매가 +10%, 다른 함장의 광석 판매·현상금 5%는 지배 동맹 금고로 갑니다. 많이 쥘수록 새 성계 영향력은 덜 쌓이고, 둘째 성계부터 금고에서 시간당 유지비가 나갑니다(못 내면 가장 약한 성계부터 철수). 영향력은 매시간 줄어듭니다. Core 성계는 지배할 수 없습니다.")).size(11.0).color(DIM));
+    ui.label(RichText::new(format!("동맹원이 성계에서 해적 소탕·광석 판매·계약 완수·박물관 기증을 하고 교전에서 이기면 영향력이 쌓입니다(지면 줄어듭니다). {threshold:.0} 이상이고 지배 세력보다 20% 앞서면 지배권을 가져옵니다. 남이 지배하는 성계에서는 교전 말고는 영향력이 잘 쌓이지 않습니다 — 정거장 포대를 함대로 침묵시키고 접근로를 지키면 영향력이 공격 측으로 넘어옵니다. 지배 동맹원은 그 성계에서 현상금·판매가 +10%, 다른 함장의 광석 판매·현상금 5%는 지배 동맹 금고로 갑니다. 많이 쥘수록 새 성계 영향력은 덜 쌓이고, 둘째 성계부터 금고에서 시간당 유지비가 나갑니다(못 내면 가장 약한 성계부터 철수). 영향력은 매시간 줄어듭니다. Core 성계는 지배할 수 없습니다.")).size(11.0).color(DIM));
     let active: Vec<&SystemStanding> = systems.iter().filter(|s| s.controller.is_some() || !s.standings.is_empty()).collect();
     if active.is_empty() {
         ui.label(RichText::new("아직 어느 성계에도 영향력을 가진 동맹이 없습니다.").color(DIM));
-        return;
+        return None;
     }
-    egui::Grid::new("influence").striped(true).num_columns(3).show(ui, |ui| {
+    egui::Grid::new("influence").striped(true).num_columns(4).show(ui, |ui| {
         for s in active {
             ui.label(RichText::new(shared::galaxy::system(s.system).name).strong());
+            let ours = s.controller.as_ref().is_some_and(|(_, tag)| Some(tag.as_str()) == mine);
             match &s.controller {
-                Some((_, tag)) => ui.label(RichText::new(format!("지배 [{tag}]")).color(if Some(tag.as_str()) == mine { crate::palette::GREEN } else { GOLD })),
+                Some((_, tag)) => ui.label(RichText::new(format!("지배 [{tag}]")).color(if ours { crate::palette::GREEN } else { GOLD })),
                 None => ui.label(RichText::new("무주지").color(DIM)),
             };
             let top: Vec<String> = s.standings.iter().take(3).map(|(_, tag, v)| format!("[{tag}] {v:.0}")).collect();
             ui.label(RichText::new(top.join(" · ")).size(11.0));
+            ui.horizontal(|ui| {
+                if s.controller.is_some() {
+                    let (level, integrity, silenced) = s.batteries.unwrap_or((0, 1.0, false));
+                    let text = batteries_label(level, integrity, silenced);
+                    ui.label(RichText::new(text).size(11.0).color(if silenced { crate::palette::RED } else { DIM }));
+                    if ours && let Some(t) = treasury && level < guard.fortify_max && guard.fortify_cost > 0 {
+                        let cost = guard.fortify_cost * (level as u64 + 1);
+                        if ui.add_enabled(t >= cost, egui::Button::new(format!("포대 강화 ({cost} CR)"))).clicked() {
+                            out = Some(s.system);
+                        }
+                    }
+                }
+            });
             ui.end_row();
         }
     });
+    out
+}
+
+/// The holder's station batteries in a line: "포대 Lv1 25%", "포대 침묵".
+pub fn batteries_label(level: u8, integrity: f32, silenced: bool) -> String {
+    let lv = if level > 0 { format!(" Lv{level}") } else { String::new() };
+    if silenced { format!("포대{lv} 침묵") } else { format!("포대{lv} {:.0}%", integrity * 100.0) }
 }
 
 // ---- Institutes ---------------------------------------------------------------------------------

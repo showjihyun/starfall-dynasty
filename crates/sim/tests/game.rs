@@ -1089,6 +1089,68 @@ fn upkeep_is_paid_from_the_treasury_while_it_lasts() {
 }
 
 #[test]
+fn wars_fortifications_and_rebuilt_batteries_spend_the_treasury() {
+    let mut g = game();
+    g.dev_mode = true;
+    let lord = join(&mut g, 1, "Lord", Species::Human, HullClass::Talon, Profession::CombatPilot);
+    let raider = join(&mut g, 2, "Raider", Species::Human, HullClass::Talon, Profession::CombatPilot);
+    for p in [lord, raider] {
+        g.store.profile_mut(p).unwrap().wallet.credits = 5000;
+    }
+    g.handle(1, ClientMsg::AllianceCreate { name: "Grand Empire".into(), tag: "EMP".into() });
+    g.handle(2, ClientMsg::AllianceCreate { name: "Raiders".into(), tag: "RAI".into() });
+    let (emp, rai) = (g.alliance_of(lord).unwrap(), g.alliance_of(raider).unwrap());
+    g.spawn_player(lord, 4, true);
+    g.handle(1, ClientMsg::Chat { text: "/influence 100 4".into() });
+    assert_eq!(g.held_by(emp), vec![4]);
+    run(&mut g, 1.0); // the hour's income at tick 0 is in
+    let t = g.tuning.social;
+    let set_treasury = |g: &mut Game, n: u64| g.store.data.alliances.iter_mut().find(|a| a.id == emp).unwrap().treasury = n;
+    // A war costs war_cost per system the declaring alliance holds: nothing for a newcomer.
+    set_treasury(&mut g, t.war_cost - 1);
+    g.handle(1, ClientMsg::AllianceDeclareWar { target: rai });
+    assert!(!g.at_war(Some(emp), Some(rai)), "cannot pay for the war");
+    g.handle(2, ClientMsg::AllianceDeclareWar { target: emp });
+    assert!(g.at_war(Some(emp), Some(rai)), "holding nothing, a war is free");
+    g.handle(2, ClientMsg::AlliancePeace { target: emp });
+    set_treasury(&mut g, t.war_cost + 10);
+    g.handle(1, ClientMsg::AllianceDeclareWar { target: rai });
+    assert!(g.at_war(Some(emp), Some(rai)));
+    assert_eq!(g.alliance(emp).unwrap().treasury, 10);
+    // Fortifying: level k costs fortify_cost × k; only the leader, only a held system.
+    let guard = t.station_guard;
+    set_treasury(&mut g, guard.fortify_cost * 3);
+    g.handle(2, ClientMsg::AllianceFortify { system: 4 });
+    g.handle(1, ClientMsg::AllianceFortify { system: 5 });
+    assert_eq!(g.battery(4), None, "not their system / not ours");
+    g.handle(1, ClientMsg::AllianceFortify { system: 4 });
+    g.handle(1, ClientMsg::AllianceFortify { system: 4 });
+    assert_eq!(g.battery(4).unwrap().level, 2);
+    assert_eq!(g.alliance(emp).unwrap().treasury, 0);
+    let standing = g.standings().into_iter().find(|s| s.system == 4).unwrap();
+    assert_eq!(standing.batteries, Some((2, 1.0, false)), "players see the level and integrity");
+    // Silenced batteries come back after rebuild_secs without an enemy on the approach, if the
+    // treasury pays rebuild_cost — and keep their level.
+    let mut b = g.battery(4).unwrap();
+    b.silenced = true;
+    b.damage = guard.hp * guard.level_k(2);
+    g.store.data.batteries.insert(4, b);
+    run(&mut g, guard.rebuild_secs + 1.0);
+    assert!(g.battery(4).unwrap().silenced, "an empty treasury cannot rebuild them");
+    set_treasury(&mut g, guard.rebuild_cost + 5);
+    run(&mut g, 1.0);
+    let b = g.battery(4).unwrap();
+    assert!(!b.silenced && b.damage == 0.0 && b.level == 2, "{b:?}");
+    assert_eq!(g.alliance(emp).unwrap().treasury, 5);
+    // A fortification belongs to its holder: the next one starts afresh.
+    g.handle(1, ClientMsg::Chat { text: "/influence -100 4".into() });
+    assert_eq!(g.controller(4), None);
+    run(&mut g, 0.1);
+    g.handle(1, ClientMsg::Chat { text: "/influence 100 4".into() });
+    assert_eq!(g.battery(4), None, "fresh batteries");
+}
+
+#[test]
 fn institutes_one_per_captain_paid_by_daily_visitors() {
     use shared::artifacts::Holder;
     let mut g = game();

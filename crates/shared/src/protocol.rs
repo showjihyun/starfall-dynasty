@@ -137,6 +137,9 @@ pub enum ClientMsg {
     RequestContracts,
     /// Alliance leader: pay the treasury out to the members in equal shares.
     AllianceDividend,
+    /// Alliance leader: fortify the station batteries of a system the alliance holds, from the
+    /// treasury (`social.station_guard.fortify_*`).
+    AllianceFortify { system: SystemId },
     /// Found a research institute / museum at the station you are docked at (one per captain).
     FoundInstitute { name: String },
     /// Put an artifact you hold on display at an institute in this system (docked).
@@ -298,6 +301,10 @@ pub struct SystemStanding {
     pub controller: Option<(AllianceId, String)>,
     /// (alliance, tag, influence), strongest first.
     pub standings: Vec<(AllianceId, String, f32)>,
+    /// The holder's station batteries: (fortification level, integrity 0–1, silenced). Missing from
+    /// servers before sieges, and for systems nobody holds.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub batteries: Option<(u8, f32, bool)>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

@@ -1,0 +1,139 @@
+{
+  "name": "station_siege_pair",
+  "description": "공방전의 반대쪽: 전쟁 중인 RAI Talon Lv5 두 척만 정거장 접근로에 들어가면 포대(hp 4000, 함장당 30/s)가 한 척씩 격침해 침묵시키지 못한다 — 포대 내구도 1800 정도만 깎이고 둘 다 죽는다. 성계는 OWN에 남는다. 모항은 혼자씩 흘러 들어오는 함장에게는 넘어가지 않는다(4척 이상의 함대가 필요)",
+  "dev": true,
+  "captains": [
+    {
+      "name": "Keeper",
+      "hull": "Wren",
+      "level": 1,
+      "system": 4,
+      "undocked": false
+    },
+    {
+      "name": "Raid1",
+      "hull": "Talon",
+      "level": 5,
+      "system": 4,
+      "undocked": true
+    },
+    {
+      "name": "Raid2",
+      "hull": "Talon",
+      "level": 5,
+      "system": 4,
+      "undocked": true
+    }
+  ],
+  "script": [
+    {
+      "at": 0.2,
+      "captain": "Keeper",
+      "msg": {
+        "AllianceCreate": {
+          "name": "Corridor Guild",
+          "tag": "OWN"
+        }
+      }
+    },
+    {
+      "at": 0.2,
+      "captain": "Raid1",
+      "msg": {
+        "AllianceCreate": {
+          "name": "Raiders",
+          "tag": "RAI"
+        }
+      }
+    },
+    {
+      "at": 0.3,
+      "captain": "Raid1",
+      "msg": {
+        "AllianceInvite": {
+          "name": "Raid2"
+        }
+      }
+    },
+    {
+      "at": 0.35,
+      "captain": "Raid2",
+      "msg": {
+        "AllianceAccept": {
+          "alliance": 2
+        }
+      }
+    },
+    {
+      "at": 0.4,
+      "captain": "Keeper",
+      "msg": {
+        "Chat": {
+          "text": "/influence 80"
+        }
+      }
+    },
+    {
+      "at": 0.5,
+      "captain": "Raid1",
+      "msg": {
+        "AllianceDeclareWar": {
+          "target": 1
+        }
+      }
+    },
+    {
+      "at": 0.6,
+      "captain": "Raid1",
+      "msg": {
+        "Chat": {
+          "text": "/tp station 0 0 600"
+        }
+      }
+    },
+    {
+      "at": 0.6,
+      "captain": "Raid2",
+      "msg": {
+        "Chat": {
+          "text": "/tp station 300 0 600"
+        }
+      }
+    }
+  ],
+  "run_secs": 120,
+  "expect": [
+    {
+      "at": 0.8,
+      "check": "controller",
+      "system": 4,
+      "tag": "OWN"
+    },
+    {
+      "check": "deaths",
+      "captain": "Raid1",
+      "min": 1
+    },
+    {
+      "check": "deaths",
+      "captain": "Raid2",
+      "min": 1
+    },
+    {
+      "check": "history",
+      "kind": "SIEGE",
+      "max": 0
+    },
+    {
+      "check": "controller",
+      "system": 4,
+      "tag": "OWN"
+    },
+    {
+      "check": "influence",
+      "system": 4,
+      "tag": "OWN",
+      "min": 79
+    }
+  ]
+}

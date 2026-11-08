@@ -38,6 +38,48 @@ impl Game {
         }
     }
 
+    /// The holder's station batteries in a system, if fortified or worn (none: fresh, level 0).
+    pub fn battery(&self, sys: SystemId) -> Option<crate::store::Battery> {
+        let owner = self.controller(sys)?;
+        self.store.data.batteries.get(&sys).filter(|b| b.owner == owner).cloned()
+    }
+
+    /// The leader spends the treasury on a held system's station batteries (`station_guard.fortify_*`).
+    pub(super) fn alliance_fortify(&mut self, pid: PlayerId, sys: SystemId) {
+        let g = self.tuning.social.station_guard;
+        let Some(aid) = self.alliance_of(pid) else { return self.toast(pid, "동맹 소속이 아닙니다") };
+        let Some(a) = self.alliance(aid).cloned() else { return };
+        if a.leader != pid {
+            return self.toast(pid, "맹주만 포대를 강화할 수 있습니다");
+        }
+        if self.controller(sys) != Some(aid) {
+            return self.toast(pid, "우리 동맹이 지배하는 성계가 아닙니다");
+        }
+        let mut b = self.battery(sys).unwrap_or(crate::store::Battery { owner: aid, ..Default::default() });
+        if g.fortify_cost == 0 || b.level >= g.fortify_max {
+            return self.toast(pid, "더 강화할 수 없습니다");
+        }
+        let cost = g.fortify_cost * (b.level as u64 + 1);
+        if a.treasury < cost {
+            return self.toast(pid, format!("금고가 모자랍니다 ({cost} CR 필요)"));
+        }
+        if let Some(x) = self.store.data.alliances.iter_mut().find(|x| x.id == aid) {
+            x.treasury -= cost;
+        }
+        b.level += 1;
+        let level = b.level;
+        self.store.data.batteries.insert(sys, b);
+        self.store.dirty = true;
+        for m in &a.members {
+            self.toast(*m, format!("[{}] {} 정거장 포대 Lv{level} (금고 −{cost} CR)", a.tag, galaxy::system(sys).name));
+        }
+        let online: Vec<PlayerId> = self.conn_of.keys().copied().collect();
+        for p in online {
+            self.send_alliances(p);
+            self.send_influence(p);
+        }
+    }
+
     /// Systems an alliance controls.
     pub fn held_by(&self, a: AllianceId) -> Vec<SystemId> {
         self.store.data.controllers.iter().filter(|(_, c)| **c == a).map(|(s, _)| *s).collect()
@@ -258,7 +300,14 @@ impl Game {
                 let tag = |a: AllianceId| self.alliance(a).map(|x| x.tag.clone());
                 let mut standings: Vec<(AllianceId, String, f32)> = self.store.data.influence.get(&s.id).into_iter().flatten().filter_map(|(a, v)| Some((*a, tag(*a)?, (*v * 10.0).round() / 10.0))).collect();
                 standings.sort_by(|x, y| y.2.total_cmp(&x.2).then(x.0.cmp(&y.0)));
-                SystemStanding { system: s.id, controller: self.controller(s.id).and_then(|a| Some((a, tag(a)?))), standings }
+                let controller = self.controller(s.id).and_then(|a| Some((a, tag(a)?)));
+                let batteries = controller.as_ref().map(|_| {
+                    let b = self.battery(s.id).unwrap_or_default();
+                    let hp = self.tuning.social.station_guard.hp * self.tuning.social.station_guard.level_k(b.level);
+                    let integrity = if hp > 0.0 { (1.0 - b.damage / hp).clamp(0.0, 1.0) } else { 1.0 };
+                    (b.level, (integrity * 100.0).round() / 100.0, b.silenced)
+                });
+                SystemStanding { system: s.id, controller, standings, batteries }
             })
             .collect()
     }

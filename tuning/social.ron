@@ -31,7 +31,15 @@
     foreign_gain: 0.2,          // hunting/trade/contracts/donations earn 20% in a system another alliance controls (battles full)
     system_income: 300,         // hourly treasury income per controlled system: holding pays up to ~6–7 systems
     abandon_until_paid: true,   // unpaid upkeep: weakest systems go until the rest is affordable (was one an hour)
-    station_guard: (range: 900.0, dps: 220.0),  // controller's station batteries vs captains at war with it: the docking approach, short of the belts (~900–1200 u)
+    station_guard: (
+        range: 900.0, dps: 220.0,  // controller's station batteries vs captains at war with it: the docking approach, short of the belts (~900–1200 u)
+        // Siege (2026-10-26, QA_WAR: territory changed hands through hunting and upkeep, not battles).
+        hp: 4000.0, siege_dps: 30.0,  // each enemy captain on the approach wears the batteries down (escorts only draw fire): one dies first, a squadron silences them
+        siege_drain: 0.5, siege_gain: 1.0,  // influence/s holder → attacker while silenced and outnumbered there (captains): a 100-point hold falls in ~2 min
+        rebuild_secs: 120.0, rebuild_cost: 2000,  // back online after 2 min with no enemy on the approach, paid by the holder's treasury
+        fortify_cost: 3000, fortify_step: 0.5, fortify_max: 3,  // treasury sink: level k costs 3000k, ×(1 + 0.5k) dps and integrity
+    ),
+    war_cost: 500,              // treasury per system the declaring alliance holds (a newcomer declares for free)
 
     // Player institutions (research institutes / museums). Rebalance v1 (2026-10-17): visit 20+10n → 60+30n.
     institute_cost: 5000,       // credits to found one (one per captain)

@@ -69,6 +69,8 @@ pub enum DomainEvent {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         reason: Option<String>,
     },
+    /// `by`'s ships silenced `holder`'s station batteries in a system (the siege can now take it).
+    StationSilenced { system: SystemId, holder: String, by: String },
     /// An alliance paid its treasury out; each member got `share` credits.
     DividendPaid { alliance: String, share: u64, members: Vec<String> },
     InstituteFounded { institute_id: u64, name: String, founder: String, system: SystemId },
@@ -274,9 +276,17 @@ impl HistoryEngine {
                 }
                 None
             }
+            DomainEvent::StationSilenced { system, holder, by } => {
+                let sys = galaxy::system(system).name;
+                let id = self.push_event(unix, system, "SIEGE", format!("{by}, {sys} 정거장 포대 침묵시키다"), format!("{by}의 함대가 {holder}이(가) 지키던 {sys} 정거장의 포대를 침묵시켰다. 접근로를 지키는 쪽이 성계를 갖는다."), vec![by.clone(), holder.clone()], vec![], Importance::Major, vec![]);
+                let e = self.add_evidence(id, EvidenceKind::ArchiveRecord, &format!("{sys} 정거장 방어 기록"), format!("포대 정지. 공격 측 {by}."), 0.9);
+                self.attach(id, vec![e]);
+                Some(id)
+            }
             DomainEvent::SystemControlChanged { system, alliance, previous, reason } => {
                 let sys = galaxy::system(system).name;
-                let causes: Vec<EventId> = self.events.iter().rev().find(|e| e.kind == "SYSTEM_CONTROL" && e.system == system).map(|e| e.id).into_iter().collect();
+                // The system's last change of hands, or the siege that just opened it.
+                let causes: Vec<EventId> = self.events.iter().rev().find(|e| (e.kind == "SYSTEM_CONTROL" || e.kind == "SIEGE") && e.system == system).map(|e| e.id).into_iter().collect();
                 let (title, summary, imp) = match (&alliance, &previous) {
                     (None, Some(p)) if reason.is_some() => (format!("{p}, {sys}에서 철수 — {}", reason.as_deref().unwrap_or_default()), format!("{p}이(가) 영토 유지비를 감당하지 못해 {sys}에서 물러났다({}). 주인 없는 성계가 되었다.", reason.as_deref().unwrap_or_default()), Importance::Notable),
                     (Some(a), Some(p)) => (format!("{sys} 패권 교체"), format!("{a}이(가) {p}을(를) 밀어내고 {sys} 성계의 패권을 쥐었다."), Importance::Historic),

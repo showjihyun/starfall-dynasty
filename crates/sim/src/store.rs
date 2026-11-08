@@ -65,6 +65,10 @@ pub struct StoreData {
     /// System → controlling alliance.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub controllers: BTreeMap<SystemId, u32>,
+    /// Station batteries that are fortified, worn down or silenced (`social.station_guard`); a
+    /// system missing here has fresh batteries at level 0.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub batteries: BTreeMap<SystemId, Battery>,
     /// Player institutions (research institutes / museums).
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub institutes: BTreeMap<u64, shared::institutes::Institute>,
@@ -73,6 +77,19 @@ pub struct StoreData {
     /// Institute → (visitor, day) visits of the current day.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub institute_visits: BTreeMap<u64, Vec<(PlayerId, u32)>>,
+}
+
+/// A controlled system's station batteries. Belong to `owner`: when the system changes hands the
+/// new holder starts with fresh ones.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct Battery {
+    pub owner: u32,
+    pub level: u8,
+    /// Integrity lost to the siege.
+    pub damage: f32,
+    pub silenced: bool,
+    /// Seconds since an enemy was last on the approach (rebuilding silenced batteries).
+    pub quiet: f32,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
