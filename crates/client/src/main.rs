@@ -85,6 +85,7 @@ fn main() {
     let bench_secs: Option<f32> = std::env::args().position(|a| a == "--bench").map(|i| std::env::args().nth(i + 1).and_then(|v| v.parse().ok()).unwrap_or(20.0));
     // Screenshots, showroom, replays, cutscene renders and benches run on the default settings.
     let automated = bench_secs.is_some() || args.shot.is_some() || args.showroom || args.replay.is_some() || std::env::args().any(|a| a == "--cinematic" || a == "--clicks");
+    let player_settings = settings::ClientSettings::load(automated);
     let mut app = App::new();
     #[cfg(feature = "raytracing_dlss")]
     app.insert_resource(raytracing::dlss_project_id());
@@ -104,7 +105,8 @@ fn main() {
     )
     .add_plugins(EguiPlugin::default())
     .insert_resource(bevy_egui::EguiGlobalSettings { auto_create_primary_context: false, ..default() })
-    .insert_resource(settings::ClientSettings::load(automated))
+    .insert_resource(settings::KeyBinds::from(&player_settings.s))
+    .insert_resource(player_settings)
     .add_plugins(settings::SettingsPlugin)
     .add_plugins((materials::MaterialsPlugin, scene::ScenePlugin, ships::ShipsPlugin, fx::FxPlugin, control::ControlPlugin, audio::AudioFxPlugin, music::MusicPlugin, interior::InteriorPlugin, dust::DustPlugin, cinematic::CinematicPlugin, voice::VoicePlugin))
     .init_state::<Screen>()

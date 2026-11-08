@@ -289,9 +289,10 @@ fn key_hints_stay_clear_of_the_chat_and_the_ship_panel() {
         let mut panel = Rect::NOTHING;
         let d = frame_ko(size, |ctx| {
             panel = status_panel(ctx, &ship, &m);
-            hud::key_hints(ctx);
+            hud::key_hints(ctx, &Default::default());
         });
-        let hints: Vec<Rect> = hud::KEY_HINTS.iter().map(|l| d.text(l).unwrap_or_else(|| panic!("missing hint {l}")).1).collect();
+        let lines = hud::key_hint_lines(&Default::default());
+        let hints: Vec<Rect> = lines.iter().map(|l| d.text(l).unwrap_or_else(|| panic!("missing hint {l}")).1).collect();
         for r in &hints {
             assert!(Rect::from_min_size(Pos2::ZERO, size).contains_rect(*r), "hint off screen at {size:?}: {r:?}");
             assert!(!r.intersects(panel), "hint over the ship panel at {size:?}: {r:?} vs {panel:?}");
@@ -318,22 +319,40 @@ fn key_hints_stay_clear_of_the_chat_and_the_ship_panel() {
 #[test]
 fn the_help_window_lists_every_control() {
     let d = frame_ko(Vec2::new(1600.0, 900.0), |ctx| {
-        egui::Window::new("도움말 (F1)").show(ctx, hud::controls);
+        egui::Window::new("도움말 (F1)").show(ctx, |ui| hud::controls(ui, &Default::default()));
     });
+    let table = hud::controls_table(&Default::default());
     let right = d.texts.iter().map(|(_, r)| r.right()).fold(0.0, f32::max);
     let left = d.texts.iter().map(|(_, r)| r.left()).fold(f32::MAX, f32::min);
     assert!(right - left <= hud::CONTROLS_W + 1.0, "the rows wrap within {} px (spans {})", hud::CONTROLS_W, right - left);
-    for (group, keys) in hud::CONTROLS {
+    for (group, keys) in &table {
         assert!(d.text(group).is_some(), "group {group}");
-        for (k, what) in *keys {
+        for (k, what) in keys {
             assert!(d.text(k).is_some() && d.text(what).is_some(), "{k} {what}");
         }
     }
     // Every key the short hint names is explained in full there.
     for k in ["W/S", "A/D", "R/F", "Q/E", "Shift", "Space", "T", "X", "M", "F1"] {
         let spaced = k.replace('/', " / ");
-        assert!(hud::CONTROLS.iter().flat_map(|(_, ks)| ks.iter()).any(|(key, _)| key.starts_with(&spaced) || *key == k), "{k} missing from the help");
+        assert!(table.iter().flat_map(|(_, ks)| ks.iter()).any(|(key, _)| key.starts_with(&spaced) || *key == k), "{k} missing from the help");
     }
+}
+
+#[test]
+fn rebound_keys_show_in_the_help_the_hints_and_the_chapter_steps() {
+    use view::keymap::{Action, bind};
+    // The defaults read as they always did.
+    assert_eq!(hud::key_hint_lines(&Default::default()), ["W/S 추진 · A/D 선회 · R/F 상하 · Q/E 롤 · Shift 부스트".to_string(), "Space 사격 · T 목표 · X 미사일 · M 지도 · F1 모든 조작".to_string()]);
+    // An AZERTY player: Z forward, Q left; fire on F, map on Tab.
+    let mut keys = hud::Keys::new();
+    for (a, k) in [(Action::ThrustForward, "KeyZ"), (Action::TurnLeft, "KeyQ"), (Action::Fire, "KeyF"), (Action::Map, "Tab")] {
+        assert!(bind(&mut keys, a, k));
+    }
+    let lines = hud::key_hint_lines(&keys);
+    assert!(lines[0].starts_with("Z/S 추진 · Q/D 선회") && lines[1].starts_with("F 사격") && lines[1].contains("Tab 지도"), "{lines:?}");
+    assert!(hud::controls_table(&keys).iter().flat_map(|(_, ks)| ks.iter()).any(|(k, w)| k == "F / 좌클릭" && *w == "사격 · 주포"));
+    let reach = &shared::missions::scenarios()[0].steps[0];
+    assert_eq!(hud::step_hint(reach, true, &keys), "G 출항 → Tab 지도에서 성계를 골라 워프");
 }
 
 // ---- world labels around the crosshair
@@ -554,9 +573,9 @@ fn a_captain_with_no_chapter_running_is_told_what_to_do_next() {
     // Every step says which keys do it; a docked captain is told how to get out first.
     for sc in &all {
         for st in &sc.steps {
-            let h = hud::step_hint(st, false);
+            let h = hud::step_hint(st, false, &Default::default());
             assert!(h.chars().any(|c| c.is_ascii_uppercase()), "{}: {h}", st.describe());
-            assert!(hud::step_hint(st, true).starts_with("G 출항"));
+            assert!(hud::step_hint(st, true, &Default::default()).starts_with("G 출항"));
         }
     }
 }

@@ -21,7 +21,8 @@ use tokio_tungstenite::tungstenite::Message;
 /// closes the connection (the biggest real message, a chat line or a research thesis, is a few KB).
 const MAX_FRAME: usize = 64 * 1024;
 /// Messages a connection may send per second, and the burst: mouse steering sends Controls every frame,
-/// so 144 fps fits. Beyond it messages are dropped; `FLOOD_KICK` dropped in a row closes it.
+/// so 144 fps fits. Beyond it messages are dropped; `FLOOD_KICK` dropped within one second closes it
+/// (counting drops in a row never got there: a token trickling back in every 4 ms reset the count).
 const MSG_RATE: f64 = 240.0;
 const MSG_BURST: f64 = 480.0;
 const FLOOD_KICK: u32 = 2000;
@@ -248,8 +249,11 @@ async fn connection(id: ConnId, stream: TcpStream, tx: mpsc::UnboundedSender<Inb
     let (mut sink, mut source) = ws.split();
     let (otx, mut orx) = mpsc::unbounded_channel::<Message>();
     let queued = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
-    // Pings are answered right here so the HUD shows network round-trip, not tick queueing.
+    // Pings are answered right here so the HUD shows network round-trip, not tick queueing. Every frame
+    // into the channel counts in `queued` (the writer counts it down) — a pong that did not was counted
+    // down only, wrapped the counter and disconnected every client that pinged.
     let pong = otx.clone();
+    let pong_queued = queued.clone();
     tx.send(Inbound::Open(id, Out { tx: otx, queued: queued.clone() })).ok();
     let writer = tokio::spawn(async move {
         while let Some(m) = orx.recv().await {
@@ -262,11 +266,15 @@ async fn connection(id: ConnId, stream: TcpStream, tx: mpsc::UnboundedSender<Inb
         }
     });
     // Token bucket over the messages this client sends (MSG_RATE, MSG_BURST).
-    let (mut tokens, mut last, mut dropped) = (MSG_BURST, std::time::Instant::now(), 0u32);
+    let (mut tokens, mut last) = (MSG_BURST, std::time::Instant::now());
+    let (mut window, mut dropped) = (last, 0u32);
     while let Some(frame) = source.next().await {
         let now = std::time::Instant::now();
         tokens = (tokens + now.duration_since(last).as_secs_f64() * MSG_RATE).min(MSG_BURST);
         last = now;
+        if now.duration_since(window).as_secs_f64() >= 1.0 {
+            (window, dropped) = (now, 0);
+        }
         if tokens < 1.0 {
             dropped += 1;
             if dropped >= FLOOD_KICK {
@@ -276,7 +284,6 @@ async fn connection(id: ConnId, stream: TcpStream, tx: mpsc::UnboundedSender<Inb
             continue;
         }
         tokens -= 1.0;
-        dropped = 0;
         // A reset connection must still reach the game loop as a Close, or the ship stays as a ghost.
         let frame = match frame {
             Ok(f) => f,
@@ -288,6 +295,7 @@ async fn connection(id: ConnId, stream: TcpStream, tx: mpsc::UnboundedSender<Inb
         match frame {
             Message::Text(t) => match decode::<ClientMsg>(&t) {
                 Ok(ClientMsg::Ping { t }) => {
+                    pong_queued.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
                     pong.send(Message::text(encode(&ServerMsg::Pong { t }))).ok();
                 }
                 Ok(m) => {

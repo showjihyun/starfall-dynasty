@@ -169,8 +169,8 @@ pub fn run(o: &Options) -> Report {
     }
     stage(&mut rep, "장 끝 통신", comms.is_ok() && silent.is_empty(), if silent.is_empty() { format!("{} chapters close with a call", scenarios().len() - 1) } else { format!("no call after: {}", silent.join(", ")) });
     // …and which keys do it (a new player knows the goal, not yet the controls).
-    let first = all[0].steps.first().map(|s| view::hud::step_hint(s, true)).unwrap_or_default();
-    let keyless: Vec<String> = all.iter().flat_map(|sc| sc.steps.iter()).map(|s| view::hud::step_hint(s, false)).filter(|h| !h.chars().any(|c| c.is_ascii_uppercase())).collect();
+    let first = all[0].steps.first().map(|s| view::hud::step_hint(s, true, &Default::default())).unwrap_or_default();
+    let keyless: Vec<String> = all.iter().flat_map(|sc| sc.steps.iter()).map(|s| view::hud::step_hint(s, false, &Default::default())).filter(|h| !h.chars().any(|c| c.is_ascii_uppercase())).collect();
     stage(&mut rep, "단계 조작 힌트", keyless.is_empty() && first.starts_with("G 출항"), format!("first: {first}{}", if keyless.is_empty() { String::new() } else { format!(" · no keys: {}", keyless.join("; ")) }));
     stage(&mut rep, "단계 문구", vague.is_empty(), if vague.is_empty() { format!("{} steps, each says what to do", scenarios().iter().map(|s| s.steps.len()).sum::<usize>()) } else { vague.join("; ") });
     let mut done = profile.clone();

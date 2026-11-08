@@ -19,17 +19,32 @@ pub const STATUS_BAR_W: f32 = 420.0;
 pub const CHAT_MARGIN: f32 = 14.0;
 pub const CHAT_W: f32 = 380.0;
 
-/// Every control, grouped, for the help window (F1).
-pub const CONTROLS: &[(&str, &[(&str, &str)])] = &[
-    ("비행", &[("W / S", "추진 · 역추진"), ("A / D", "선회"), ("R / F", "기수 상하"), ("Q / E", "롤"), ("Z / Ctrl", "상승 · 하강"), ("Alt + A / D", "좌우 평행이동"), ("방향키", "선회 · 상하"), ("우클릭 누른 채", "커서 쪽으로 조종"), ("Shift", "부스트")]),
-    ("전투", &[("Space / 좌클릭", "사격 · 주포"), ("T", "목표 지정"), ("X", "미사일"), ("B", "호위함 공격 명령"), ("Y", "호위함 복귀"), ("P", "함대 진형 자리 지키기")]),
-    ("시점", &[("C", "1인칭 / 3인칭"), ("I", "함교 화면")]),
-    ("행동", &[("G", "도킹"), ("N", "채굴"), ("V", "스캔")]),
-    ("창", &[("M", "지도"), ("U", "정거장"), ("J", "미션"), ("O", "계약"), ("H", "연대기"), ("K", "함대"), ("L", "동맹"), ("F1", "도움말")]),
-];
+/// The player's key bindings (`Settings::keys`, action id → key name; empty: the defaults).
+pub type Keys = std::collections::BTreeMap<String, String>;
+
+/// Every control, grouped, for the help window (F1), with this player's keys.
+pub fn controls_table(keys: &Keys) -> Vec<(&'static str, Vec<(String, &'static str)>)> {
+    use crate::keymap::{Action as A, shown};
+    let k = |a| shown(keys, a);
+    let pair = |a, b| format!("{} / {}", k(a), k(b));
+    vec![
+        ("비행", vec![(pair(A::ThrustForward, A::ThrustBack), "추진 · 역추진"), (pair(A::TurnLeft, A::TurnRight), "선회"), (pair(A::NoseUp, A::NoseDown), "기수 상하"), (pair(A::RollLeft, A::RollRight), "롤"), (pair(A::Rise, A::Sink), "상승 · 하강"), (format!("Alt + {}", pair(A::TurnLeft, A::TurnRight)), "좌우 평행이동"), ("방향키".into(), "선회 · 상하"), ("우클릭 누른 채".into(), "커서 쪽으로 조종"), (k(A::Boost), "부스트")]),
+        ("전투", vec![(format!("{} / 좌클릭", k(A::Fire)), "사격 · 주포"), (k(A::Target), "목표 지정"), (k(A::Missile), "미사일"), (k(A::EscortAttack), "호위함 공격 명령"), (k(A::EscortReturn), "호위함 복귀"), (k(A::HoldPost), "함대 진형 자리 지키기")]),
+        ("시점", vec![(k(A::Camera), "1인칭 / 3인칭"), (k(A::Bridge), "함교 화면")]),
+        ("행동", vec![(k(A::Dock), "도킹"), (k(A::Mine), "채굴"), (k(A::Scan), "스캔")]),
+        ("창", vec![(k(A::Map), "지도"), (k(A::Station), "정거장"), (k(A::Missions), "미션"), (k(A::Contracts), "계약"), (k(A::Chronicle), "연대기"), (k(A::Fleet), "함대"), (k(A::Alliance), "동맹"), (k(A::Help), "도움말")]),
+    ]
+}
 
 /// The always-on hint: the controls a new captain needs first; the rest is in the help window.
-pub const KEY_HINTS: [&str; 2] = ["W/S 추진 · A/D 선회 · R/F 상하 · Q/E 롤 · Shift 부스트", "Space 사격 · T 목표 · X 미사일 · M 지도 · F1 모든 조작"];
+pub fn key_hint_lines(keys: &Keys) -> [String; 2] {
+    use crate::keymap::{Action as A, shown};
+    let k = |a| shown(keys, a);
+    [
+        format!("{}/{} 추진 · {}/{} 선회 · {}/{} 상하 · {}/{} 롤 · {} 부스트", k(A::ThrustForward), k(A::ThrustBack), k(A::TurnLeft), k(A::TurnRight), k(A::NoseUp), k(A::NoseDown), k(A::RollLeft), k(A::RollRight), k(A::Boost)),
+        format!("{} 사격 · {} 목표 · {} 미사일 · {} 지도 · {} 모든 조작", k(A::Fire), k(A::Target), k(A::Missile), k(A::Map), k(A::Help)),
+    ]
+}
 
 /// Draws `KEY_HINTS` in the bottom-right corner (clear of the chat and the ship status panel).
 /// Widest the death panel's hint line runs before it wraps.
@@ -51,15 +66,17 @@ pub fn next_goal(prof: &shared::protocol::Profile) -> Option<String> {
 
 /// How to do a chapter step, under it on the tracker (the step says what, this says which keys);
 /// starting docked, how to get out first.
-pub fn step_hint(step: &shared::missions::Step, docked: bool) -> String {
+pub fn step_hint(step: &shared::missions::Step, docked: bool, keys: &Keys) -> String {
+    use crate::keymap::{Action as A, shown};
     use shared::missions::Step;
+    let k = |a| shown(keys, a);
     let how = match step {
-        Step::Reach { .. } => "M 지도에서 성계를 골라 워프",
-        Step::ScanPoi { .. } => "화면의 표시를 따라가 가까이서 V 스캔",
-        Step::Defeat { .. } => "T 목표 지정 · Space 사격 · 밀리면 G 도킹해 수리",
-        Step::Dock { .. } => "정거장 가까이에서 G 도킹 — 수리되고, U로 정거장 창(판매·업그레이드)",
+        Step::Reach { .. } => format!("{} 지도에서 성계를 골라 워프", k(A::Map)),
+        Step::ScanPoi { .. } => format!("화면의 표시를 따라가 가까이서 {} 스캔", k(A::Scan)),
+        Step::Defeat { .. } => format!("{} 목표 지정 · {} 사격 · 밀리면 {} 도킹해 수리", k(A::Target), k(A::Fire), k(A::Dock)),
+        Step::Dock { .. } => format!("정거장 가까이에서 {} 도킹 — 수리되고, {}로 정거장 창(판매·업그레이드)", k(A::Dock), k(A::Station)),
     };
-    if docked { format!("G 출항 → {how}") } else { how.to_string() }
+    if docked { format!("{} 출항 → {how}", k(A::Dock)) } else { how }
 }
 
 /// The "ship sunk" panel (screen centre) with how to beat the wave next time, if the server sent one
@@ -91,10 +108,10 @@ pub fn death_panel(ctx: &egui::Context, killer: &str, hint: Option<&str>, wait: 
     rebuild
 }
 
-pub fn key_hints(ctx: &egui::Context) {
+pub fn key_hints(ctx: &egui::Context, keys: &Keys) {
     egui::Area::new("keys".into()).anchor(Align2::RIGHT_BOTTOM, EVec2::new(-CHAT_MARGIN, -CHAT_MARGIN)).interactable(false).show(ctx, |ui| {
         ui.with_layout(egui::Layout::top_down(egui::Align::Max), |ui| {
-            for l in KEY_HINTS {
+            for l in key_hint_lines(keys) {
                 ui.label(RichText::new(l).size(11.0).color(crate::palette::DIM));
             }
         });
@@ -105,17 +122,17 @@ pub fn key_hints(ctx: &egui::Context) {
 pub const CONTROLS_W: f32 = 600.0;
 
 /// The controls table for the help window.
-pub fn controls(ui: &mut egui::Ui) {
+pub fn controls(ui: &mut egui::Ui, bindings: &Keys) {
     // One wrapped row per group: group, then key (gold) and what it does, within CONTROLS_W.
     ui.set_max_width(CONTROLS_W);
-    for (group, keys) in CONTROLS {
+    for (group, keys) in controls_table(bindings) {
         ui.horizontal_wrapped(|ui| {
-            ui.add_sized([36.0, 18.0], egui::Label::new(RichText::new(*group).color(ACCENT).strong()));
-            for (k, what) in *keys {
+            ui.add_sized([36.0, 18.0], egui::Label::new(RichText::new(group).color(ACCENT).strong()));
+            for (k, what) in keys {
                 // A key and its meaning: one label that moves to the next line as a whole.
                 let mut job = egui::text::LayoutJob::default();
                 let font = egui::TextStyle::Body.resolve(ui.style());
-                job.append(k, 0.0, egui::TextFormat::simple(font.clone(), GOLD));
+                job.append(&k, 0.0, egui::TextFormat::simple(font.clone(), GOLD));
                 job.append(what, 6.0, egui::TextFormat::simple(font, ui.visuals().text_color()));
                 ui.add(egui::Label::new(job).wrap_mode(egui::TextWrapMode::Extend));
                 ui.add_space(8.0);

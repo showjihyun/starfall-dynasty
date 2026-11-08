@@ -109,11 +109,11 @@ fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>, mut mats: Re
     commands.insert_resource(Interior { show: false, panel, feed_mat, tex: None, kind: None, root: None, ready: false, anchor: None, look: None, holo: vec![], alert_mats: vec![], lights: vec![], visible: false });
 }
 
-fn toggle(keys: Res<ButtonInput<KeyCode>>, mut it: ResMut<Interior>, wants: Option<Res<bevy_egui::input::EguiWantsInput>>) {
+fn toggle(keys: Res<ButtonInput<KeyCode>>, mut it: ResMut<Interior>, wants: Option<Res<bevy_egui::input::EguiWantsInput>>, binds: Option<Res<crate::settings::KeyBinds>>) {
     if wants.is_some_and(|w| w.wants_any_keyboard_input()) {
         return;
     }
-    if keys.just_pressed(KeyCode::KeyI) {
+    if keys.just_pressed(binds.map_or(KeyCode::KeyI, |b| b.key(view::keymap::Action::Bridge))) {
         it.show = !it.show;
     }
 }

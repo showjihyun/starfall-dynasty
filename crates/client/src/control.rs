@@ -172,6 +172,7 @@ fn flight_input(
     net: Option<Res<Net>>,
     mut cs: ResMut<CamState>,
     s: Res<Session>,
+    binds: Res<crate::settings::KeyBinds>,
 ) {
     let _prof = shared::prof::span("control::flight_input");
     let Some(net) = net else { return };
@@ -179,19 +180,21 @@ fn flight_input(
     let over_ui = wants.as_ref().is_some_and(|w| w.is_pointer_over_area());
     let mut c = Controls::default();
     if !typing && s.me.is_some() {
+        use view::keymap::Action as A;
+        let b = |a| binds.key(a);
         let k = |code: KeyCode| if keys.pressed(code) { 1.0 } else { 0.0 };
-        c.thrust = k(KeyCode::KeyW) - k(KeyCode::KeyS);
-        // Alt + A/D slides sideways instead of turning (6DOF: strafe on all three axes).
+        c.thrust = k(b(A::ThrustForward)) - k(b(A::ThrustBack));
+        // Alt + the turn keys slides sideways instead of turning (6DOF: strafe on all three axes).
         let alt = keys.pressed(KeyCode::AltLeft) || keys.pressed(KeyCode::AltRight);
-        let ad = k(KeyCode::KeyD) - k(KeyCode::KeyA);
+        let ad = k(b(A::TurnRight)) - k(b(A::TurnLeft));
         c.yaw = if alt { 0.0 } else { ad } + k(KeyCode::ArrowRight) - k(KeyCode::ArrowLeft);
         c.strafe_x = if alt { ad } else { 0.0 };
-        c.pitch = k(KeyCode::ArrowUp) - k(KeyCode::ArrowDown) + k(KeyCode::KeyR) - k(KeyCode::KeyF);
-        c.roll = k(KeyCode::KeyE) - k(KeyCode::KeyQ);
-        // Z rises, Ctrl sinks (C is the camera toggle).
-        c.strafe_y = k(KeyCode::KeyZ) - k(KeyCode::ControlLeft);
-        c.boost = keys.pressed(KeyCode::ShiftLeft);
-        c.fire = keys.pressed(KeyCode::Space) || (mouse.pressed(MouseButton::Left) && !over_ui);
+        c.pitch = k(KeyCode::ArrowUp) - k(KeyCode::ArrowDown) + k(b(A::NoseUp)) - k(b(A::NoseDown));
+        c.roll = k(b(A::RollRight)) - k(b(A::RollLeft));
+        // Rise and sink (Z and Ctrl by default; C is the camera toggle).
+        c.strafe_y = k(b(A::Rise)) - k(b(A::Sink));
+        c.boost = keys.pressed(b(A::Boost));
+        c.fire = keys.pressed(b(A::Fire)) || (mouse.pressed(MouseButton::Left) && !over_ui);
         c.hold_post = s.hold_post;
         // Mouse steering: hold the right button, steer toward the cursor.
         if mouse.pressed(MouseButton::Right)
@@ -215,66 +218,68 @@ fn flight_input(
 
 /// Discrete actions: targeting, missiles, docking, mining, scanning, investigating, windows.
 #[allow(clippy::too_many_arguments)]
-fn action_keys(keys: Res<ButtonInput<KeyCode>>, wants: Option<Res<EguiWantsInput>>, net: Option<Res<Net>>, mut s: ResMut<Session>, env: Res<Env>, time: Res<Time<Real>>, mut cs: ResMut<CamState>) {
+fn action_keys(keys: Res<ButtonInput<KeyCode>>, wants: Option<Res<EguiWantsInput>>, net: Option<Res<Net>>, mut s: ResMut<Session>, env: Res<Env>, time: Res<Time<Real>>, mut cs: ResMut<CamState>, binds: Res<crate::settings::KeyBinds>) {
     let _prof = shared::prof::span("control::action_keys");
     let Some(net) = net else { return };
     if wants.as_ref().is_some_and(|w| w.wants_any_keyboard_input()) {
         return;
     }
     let now = time.elapsed_secs_f64();
+    use view::keymap::Action as A;
     let pressed = |k: KeyCode| keys.just_pressed(k);
+    let act = |a: A| keys.just_pressed(binds.key(a));
     // Windows.
-    if pressed(KeyCode::KeyM) {
+    if act(A::Map) {
         s.ui.map = !s.ui.map;
     }
-    if pressed(KeyCode::KeyU) {
+    if act(A::Station) {
         s.ui.station = !s.ui.station;
     }
-    if pressed(KeyCode::KeyJ) {
+    if act(A::Missions) {
         s.ui.missions = !s.ui.missions;
     }
-    if pressed(KeyCode::KeyO) {
+    if act(A::Contracts) {
         s.ui.contracts = !s.ui.contracts;
         if s.ui.contracts {
             net.send(ClientMsg::RequestContracts);
         }
     }
-    if pressed(KeyCode::KeyH) {
+    if act(A::Chronicle) {
         s.ui.chronicle = !s.ui.chronicle;
         if s.ui.chronicle {
             net.send(ClientMsg::RequestChronicle);
         }
     }
-    if pressed(KeyCode::KeyK) {
+    if act(A::Fleet) {
         s.ui.fleet = !s.ui.fleet;
     }
-    if pressed(KeyCode::F1) {
+    if act(A::Help) {
         s.ui.help = !s.ui.help;
     }
-    if pressed(KeyCode::KeyL) {
+    if act(A::Alliance) {
         s.ui.alliance = !s.ui.alliance;
         if s.ui.alliance {
             net.send(ClientMsg::RequestAlliances);
         }
     }
-    if pressed(KeyCode::KeyC) {
+    if act(A::Camera) {
         cs.first_person = !cs.first_person;
         s.toast(if cs.first_person { "시점: 1인칭 (함교)" } else { "시점: 3인칭 (추적)" }, now);
     }
-    if pressed(KeyCode::KeyP) {
+    if act(A::HoldPost) {
         s.hold_post = !s.hold_post;
         let what = if s.fleet_formation == shared::formation::Formation::Free { " — 함대장이 진형을 정하면 작동" } else { "" };
         let msg = if s.hold_post { format!("진형 자리 지키기: 켬 (조준·사격은 직접){what}") } else { "진형 자리 지키기: 끔".into() };
         s.toast(msg, now);
     }
-    if pressed(KeyCode::KeyB) {
+    if act(A::EscortAttack) {
         net.send(ClientMsg::EscortCommand { attack: true });
     }
-    if pressed(KeyCode::KeyY) {
+    if act(A::EscortReturn) {
         net.send(ClientMsg::EscortCommand { attack: false });
     }
     if s.dead.is_some() {
-        if pressed(KeyCode::Enter) {
+        if act(A::Rebuild) {
             net.send(ClientMsg::Respawn);
         }
         return;
@@ -283,7 +288,7 @@ fn action_keys(keys: Res<ButtonInput<KeyCode>>, wants: Option<Res<EguiWantsInput
     let my_pos = Vec3::from(me.pos);
     let fwd = Quat::from_array(me.rot) * Vec3::NEG_Z;
     let latest = s.latest().map(|l| l.ents.values().cloned().collect::<Vec<_>>()).unwrap_or_default();
-    if pressed(KeyCode::KeyT) {
+    if act(A::Target) {
         // Target the hostile closest to the crosshair, weighted by distance.
         let best = latest
             .iter()
@@ -306,11 +311,11 @@ fn action_keys(keys: Res<ButtonInput<KeyCode>>, wants: Option<Res<EguiWantsInput
             s.ui.escape();
         }
     }
-    if pressed(KeyCode::KeyX) {
+    if act(A::Missile) {
         net.send(ClientMsg::FireMissile);
     }
     let Some(layout) = &env.layout else { return };
-    if pressed(KeyCode::KeyG) {
+    if act(A::Dock) {
         if me.docked {
             net.send(ClientMsg::Undock);
         } else if my_pos.distance(layout.station) < DOCK_RANGE + 80.0 + me.radius {
@@ -320,7 +325,7 @@ fn action_keys(keys: Res<ButtonInput<KeyCode>>, wants: Option<Res<EguiWantsInput
             s.toast(format!("정거장까지 {:.0}u — 더 접근하세요", my_pos.distance(layout.station) - DOCK_RANGE), now);
         }
     }
-    if pressed(KeyCode::KeyN) {
+    if act(A::Mine) {
         if me.mining.is_some() {
             net.send(ClientMsg::Mine { asteroid: None });
         } else {
@@ -337,7 +342,7 @@ fn action_keys(keys: Res<ButtonInput<KeyCode>>, wants: Option<Res<EguiWantsInput
             }
         }
     }
-    if pressed(KeyCode::KeyV) {
+    if act(A::Scan) {
         // Scan the nearest point of interest, or investigate the nearest wreck if closer.
         let poi = layout.pois.iter().min_by(|a, b| a.pos.distance(my_pos).total_cmp(&b.pos.distance(my_pos)));
         let wreck = latest.iter().filter(|e| e.kind == EntityKind::Wreck).min_by(|a, b| Vec3::from(a.pos).distance(my_pos).total_cmp(&Vec3::from(b.pos).distance(my_pos)));

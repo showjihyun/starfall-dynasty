@@ -58,9 +58,10 @@ async fn a_huge_frame_or_a_flood_closes_only_that_connection() {
     let _ = big.send(Message::text(format!("{{\"Chat\":{{\"text\":\"{}\"}}}}", "x".repeat(1 << 20)))).await;
     assert!(closed_within(&mut big, 5).await, "a 1 MB frame closes the connection");
 
-    // Thousands of messages as fast as the socket takes them.
+    // Thousands of messages as fast as the socket takes them (not pings: their pongs would fill the send
+    // backlog and close the connection for another reason).
     let (mut flood, _) = tokio_tungstenite::connect_async(&url).await.unwrap();
-    let ping = encode(&ClientMsg::Ping { t: 0.0 });
+    let ping = encode(&ClientMsg::RequestAlliances);
     let mut sent = 0;
     for _ in 0..20_000 {
         if flood.send(Message::text(ping.clone())).await.is_err() {
@@ -71,7 +72,12 @@ async fn a_huge_frame_or_a_flood_closes_only_that_connection() {
     assert!(sent > 2_000, "the flood went out ({sent})");
     assert!(closed_within(&mut flood, 10).await, "a flood closes the connection");
 
-    // The honest captain still plays: a round trip works.
+    // The honest captain still plays — pinging as the real client does every second (a pong once wrapped
+    // the send-backlog counter and disconnected every client that pinged): a round trip works.
+    for i in 0..30 {
+        good.send(ClientMsg::Ping { t: i as f64 }).await;
+        good.pump(0.1).await;
+    }
     good.send(ClientMsg::RequestAlliances).await;
     assert!(good.until(5.0, |m| matches!(m, ServerMsg::Alliances { .. })).await.is_some(), "the server still answers others");
 }

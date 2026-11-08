@@ -3,7 +3,8 @@
 //! headless; the client stores the file in the per-user config dir and applies it to the mixer and
 //! the window.
 
-use crate::palette::{DIM, GOLD};
+use crate::keymap::{self, Action};
+use crate::palette::{DIM, GOLD, RED};
 use egui::RichText;
 use serde::{Deserialize, Serialize};
 
@@ -41,12 +42,14 @@ pub struct Settings {
     pub vsync: bool,
     /// Frame rate next to the ping, top left (off for players by default).
     pub show_fps: bool,
+    /// Key bindings the player changed: action id → key name (`view::keymap`; the rest are defaults).
+    pub keys: std::collections::BTreeMap<String, String>,
 }
 
 impl Default for Settings {
     fn default() -> Self {
         // Music under the effects, as the mix was tuned (music.rs used 0.45).
-        Settings { master: 1.0, music: 0.45, effects: 1.0, voice: 1.0, muted: false, display: Display::Windowed, vsync: true, show_fps: false }
+        Settings { master: 1.0, music: 0.45, effects: 1.0, voice: 1.0, muted: false, display: Display::Windowed, vsync: true, show_fps: false, keys: Default::default() }
     }
 }
 
@@ -67,6 +70,8 @@ impl Settings {
         for v in [&mut self.master, &mut self.music, &mut self.effects, &mut self.voice] {
             *v = if v.is_finite() { v.clamp(0.0, 1.0) } else { 1.0 };
         }
+        // Unknown actions (an older or newer file) and reserved keys are dropped.
+        self.keys.retain(|id, key| Action::from_id(id).is_some() && !keymap::RESERVED.contains(&key.as_str()));
     }
 
     fn gain(&self, level: f32) -> f32 {
@@ -88,7 +93,9 @@ impl Settings {
 }
 
 /// The settings window's contents; true when something changed (the client then saves and applies).
-pub fn settings_ui(ui: &mut egui::Ui, s: &mut Settings) -> bool {
+/// `listening`: the action waiting for its new key — clicking a key sets it, the client fills it from
+/// the next key pressed (`keymap::bind`).
+pub fn settings_ui(ui: &mut egui::Ui, s: &mut Settings, listening: &mut Option<Action>) -> bool {
     let before = s.clone();
     ui.label(RichText::new("소리").strong());
     egui::Grid::new("sound").num_columns(2).show(ui, |ui| {
@@ -108,6 +115,30 @@ pub fn settings_ui(ui: &mut egui::Ui, s: &mut Settings) -> bool {
     });
     ui.checkbox(&mut s.vsync, "수직 동기화");
     ui.checkbox(&mut s.show_fps, "프레임 수(FPS) 표시");
+    ui.separator();
+    let clash: Vec<Action> = keymap::conflicts(&s.keys).into_iter().flat_map(|(a, b)| [a, b]).collect();
+    // Folded until opened (or while a key is awaited): the window then fits a 720-line screen.
+    egui::CollapsingHeader::new(RichText::new("조작 키").strong()).open(listening.is_some().then_some(true)).show(ui, |ui| {
+        if !s.keys.is_empty() && ui.small_button("모두 기본값으로").clicked() {
+            s.keys.clear();
+        }
+        egui::ScrollArea::vertical().max_height(260.0).show(ui, |ui| {
+            egui::Grid::new("keys").num_columns(2).striped(true).show(ui, |ui| {
+                for a in Action::ALL {
+                    ui.label(RichText::new(a.label()).color(if clash.contains(&a) { RED } else { ui.visuals().text_color() }));
+                    let text = if *listening == Some(a) { "키를 누르세요…".to_string() } else { keymap::shown(&s.keys, a) };
+                    if ui.add_sized([120.0, 20.0], egui::Button::new(text)).clicked() {
+                        *listening = if *listening == Some(a) { None } else { Some(a) };
+                    }
+                    ui.end_row();
+                }
+            });
+        });
+        if !clash.is_empty() {
+            ui.label(RichText::new("빨간 동작은 같은 키를 쓰고 있습니다 — 둘 다 그 키에 반응합니다.").size(11.0).color(RED));
+        }
+        ui.label(RichText::new("화살표 키는 언제나 선회·기수, Alt + 선회 키는 좌우 평행이동입니다. Esc·F2·−·=는 바꿀 수 없습니다.").size(11.0).color(DIM));
+    });
     ui.label(RichText::new("설정은 바로 적용되고 저장됩니다.").size(11.0).color(DIM));
     s.clamp();
     *s != before

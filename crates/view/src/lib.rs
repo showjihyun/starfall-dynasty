@@ -25,6 +25,7 @@ pub mod fonts;
 pub mod gauge;
 pub mod hud;
 pub mod interp;
+pub mod keymap;
 pub mod mapview;
 pub mod palette;
 pub mod panels;

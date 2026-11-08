@@ -4,7 +4,7 @@ use view::settings::{Display, Settings, settings_ui, system_menu};
 
 #[test]
 fn a_settings_file_round_trips_and_a_broken_one_never_stops_the_game() {
-    let mut s = Settings { master: 0.8, music: 0.3, effects: 0.6, voice: 0.9, muted: false, display: Display::Borderless, vsync: false, show_fps: true };
+    let mut s = Settings { master: 0.8, music: 0.3, effects: 0.6, voice: 0.9, muted: false, display: Display::Borderless, vsync: false, show_fps: true, keys: [("fire".to_string(), "KeyF".to_string())].into_iter().collect() };
     assert_eq!(Settings::parse(&s.to_text()), s);
     assert_eq!(Settings::parse("this is not ron"), Settings::default());
     assert_eq!(Settings::parse(""), Settings::default());
@@ -28,11 +28,30 @@ fn the_settings_window_and_the_menu_draw_without_input() {
     let mut picked = Some(view::settings::MenuChoice::Quit);
     for _ in 0..2 {
         ctx.begin_pass(egui::RawInput::default());
-        egui::Area::new("settings".into()).show(&ctx, |ui| changed = settings_ui(ui, &mut s));
+        egui::Area::new("settings".into()).show(&ctx, |ui| changed = settings_ui(ui, &mut s, &mut None));
         picked = system_menu(&ctx);
         let _ = ctx.end_pass();
     }
     assert!(!changed, "nothing touched, nothing to save");
     assert_eq!(picked, None);
     assert_eq!(s, Settings::default());
+}
+
+#[test]
+fn keys_can_be_rebound_and_clashes_are_found() {
+    use view::keymap::{self, Action};
+    let mut s = Settings::default();
+    assert_eq!(keymap::shown(&s.keys, Action::Fire), "Space");
+    assert_eq!(keymap::shown(&s.keys, Action::Boost), "Shift");
+    assert!(keymap::conflicts(&s.keys).is_empty(), "the defaults never clash");
+    assert!(keymap::bind(&mut s.keys, Action::Fire, "KeyF"));
+    assert_eq!(keymap::shown(&s.keys, Action::Fire), "F");
+    assert_eq!(keymap::conflicts(&s.keys), vec![(Action::NoseDown, Action::Fire)], "F was nose-down");
+    assert!(!keymap::bind(&mut s.keys, Action::Map, "Escape"), "Esc is the menu");
+    // Back to the default: no override is stored; a file with an unknown action or a reserved key loads clean.
+    assert!(keymap::bind(&mut s.keys, Action::Fire, "Space"));
+    assert!(s.keys.is_empty());
+    let odd = Settings::parse("(keys: {\"warp_drive\": \"KeyW\", \"map\": \"Escape\", \"scan\": \"KeyQ\"})");
+    assert_eq!(odd.keys.len(), 1);
+    assert_eq!(keymap::shown(&odd.keys, Action::Scan), "Q");
 }

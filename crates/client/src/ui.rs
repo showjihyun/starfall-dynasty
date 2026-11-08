@@ -65,6 +65,7 @@ pub fn ui_system(
     cam: Query<(&Camera, &GlobalTransform), With<crate::control::MainCamera>>,
     time: Res<Time<Real>>,
     mut cs: ResMut<crate::settings::ClientSettings>,
+    mut listening: ResMut<crate::settings::Listening>,
 ) -> Result {
     let _prof = shared::prof::span("ui::ui_system");
     let ctx = contexts.ctx_mut()?;
@@ -90,18 +91,19 @@ pub fn ui_system(
         Screen::Create => create(ctx, &mut form, &s, &net, &args),
         Screen::Playing => {
             s.show_fps = cs.s.show_fps;
+            s.keys = cs.s.keys.clone();
             hud(ctx, &mut s, &net, &env, &vis, &ships, &cam, now);
             crate::comms::show(ctx, &mut s, now);
             windows(ctx, &mut s, &net, &env);
             crate::starmap::draw(ctx, &mut s, &net, &env, now);
         }
     }
-    system_menu(ctx, &mut s, &mut cs);
+    system_menu(ctx, &mut s, &mut cs, &mut listening.0);
     Ok(())
 }
 
 /// The Esc menu and the settings window (also reachable from the login screen).
-fn system_menu(ctx: &egui::Context, s: &mut Session, cs: &mut crate::settings::ClientSettings) {
+fn system_menu(ctx: &egui::Context, s: &mut Session, cs: &mut crate::settings::ClientSettings, listening: &mut Option<view::keymap::Action>) {
     use view::settings::MenuChoice;
     if s.ui.menu {
         match view::settings::system_menu(ctx) {
@@ -115,11 +117,14 @@ fn system_menu(ctx: &egui::Context, s: &mut Session, cs: &mut crate::settings::C
     if s.ui.settings {
         let mut open = true;
         egui::Window::new("설정").open(&mut open).collapsible(false).resizable(false).anchor(Align2::CENTER_CENTER, EVec2::ZERO).show(ctx, |ui| {
-            if view::settings::settings_ui(ui, &mut cs.s) {
+            if view::settings::settings_ui(ui, &mut cs.s, listening) {
                 cs.changed();
             }
         });
         s.ui.settings = open;
+        if !open {
+            *listening = None;
+        }
     }
 }
 
@@ -501,7 +506,7 @@ fn hud(ctx: &egui::Context, s: &mut Session, net: &Net, env: &Env, vis: &Visuals
                 ui.label(RichText::new(sc.title).color(GOLD).strong());
                 if let Some(step) = sc.steps.get(sp.step) {
                     ui.label(format!("▶ {}", step.describe()));
-                    ui.label(RichText::new(view::hud::step_hint(step, me.as_ref().is_some_and(|m| m.docked))).size(11.0).color(DIM));
+                    ui.label(RichText::new(view::hud::step_hint(step, me.as_ref().is_some_and(|m| m.docked), &s.keys)).size(11.0).color(DIM));
                 }
                 ui.separator();
             } else if let Some(goal) = view::hud::next_goal(&prof) {
@@ -581,7 +586,7 @@ fn hud(ctx: &egui::Context, s: &mut Session, net: &Net, env: &Env, vis: &Visuals
     });
 
     // Key hints (bottom right; every control is in the help window).
-    view::hud::key_hints(ctx);
+    view::hud::key_hints(ctx, &s.keys);
 
     if let Some(killer) = s.dead.clone()
         && view::hud::death_panel(ctx, &killer, s.dead_hint.as_deref(), (s.dead_until - now) as f32)
@@ -654,7 +659,7 @@ fn windows(ctx: &egui::Context, s: &mut Session, net: &Net, env: &Env) {
     // Controls first (what a new captain needs), then how the ship grows; scrolls on small screens.
     egui::Window::new("도움말 (F1)").open(&mut open).default_pos([280.0, 20.0]).default_width(640.0).max_width(640.0).show(ctx, |ui| egui::ScrollArea::vertical().max_height(ctx.content_rect().height() * 0.75).show(ui, |ui| {
         ui.label(RichText::new("조작").strong());
-        view::hud::controls(ui);
+        view::hud::controls(ui, &s.keys);
         ui.separator();
         ui.label("당신은 평생 단 한 척의 함선만 가집니다. 그 함선을 키우는 길:");
         ui.label("• 일일 미션(J) — 매일 바뀌는 4개의 임무. 완료 후 보상 수령.");
