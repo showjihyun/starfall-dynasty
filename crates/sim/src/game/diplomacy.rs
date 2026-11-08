@@ -10,7 +10,7 @@ pub const ALLIANCE_COST: u64 = 1000;
 impl Game {
     pub fn alliance_info(&self, a: &Alliance) -> AllianceInfo {
         let name = |p: &PlayerId| self.store.profile(*p).map(|x| x.name.clone()).unwrap_or_default();
-        AllianceInfo { id: a.id, name: a.name.clone(), tag: a.tag.clone(), leader: name(&a.leader), members: a.members.iter().map(name).collect(), wars: a.wars.clone(), treasury: a.treasury }
+        AllianceInfo { id: a.id, name: a.name.clone(), tag: a.tag.clone(), leader: name(&a.leader), members: a.members.iter().map(name).collect(), wars: a.wars.clone(), treasury: a.treasury, infamy: (a.infamy * 10.0).round() / 10.0, truces: a.truces.clone(), votes: a.votes.iter().map(|(v, c)| (name(v), name(c))).collect() }
     }
 
     pub fn send_alliances(&mut self, pid: PlayerId) {
@@ -66,11 +66,12 @@ impl Game {
         }
         self.store.data.next_alliance += 1;
         let id = self.store.data.next_alliance;
-        self.store.data.alliances.push(Alliance { id, name: name.clone(), tag: tag.clone(), leader: pid, members: vec![pid], wars: vec![], treasury: 0 });
+        self.store.data.alliances.push(Alliance { id, name: name.clone(), tag: tag.clone(), leader: pid, members: vec![pid], wars: vec![], treasury: 0, infamy: 0.0, truces: vec![], votes: BTreeMap::new() });
         let founder = self.store.profile(pid).unwrap().name.clone();
         self.history.record(self.unix, DomainEvent::AllianceFounded { alliance: format!("[{tag}] {name}"), founder });
         self.refresh_members(&[pid]);
         self.toast(pid, format!("동맹 [{tag}] {name} 창설!"));
+        self.bring_defection(pid);
         self.push_profile(pid);
         self.broadcast_alliances();
     }
@@ -113,13 +114,47 @@ impl Game {
         for m in members {
             self.toast(m, format!("{me}이(가) {label}에 합류했습니다"));
         }
+        self.bring_defection(pid);
         self.broadcast_alliances();
+    }
+
+    /// A captain who left an alliance at one of its stations brings the influence they carried out.
+    fn bring_defection(&mut self, pid: PlayerId) {
+        let Some((sys, points, until)) = self.store.data.defectors.remove(&pid) else { return };
+        let Some(aid) = self.alliance_of(pid) else { return };
+        if self.unix <= until {
+            self.shift_influence(aid, sys, points);
+            self.toast(pid, format!("{}에서 가지고 나온 영향력 {points:.0}이(가) 새 동맹의 것이 되었습니다", galaxy::system(sys).name));
+            let online: Vec<PlayerId> = self.conn_of.keys().copied().collect();
+            for p in online {
+                self.send_influence(p);
+            }
+        }
     }
 
     pub(super) fn alliance_leave(&mut self, pid: PlayerId) {
         let Some(aid) = self.alliance_of(pid) else { return };
+        // Leaving while docked at a station the alliance controls: a governor's secession — a share of
+        // its influence there goes with them (`social.betrayal`).
+        let b = self.tuning.social.betrayal;
+        let docked_at = self.player_entity(pid).filter(|(s, e)| self.ent(*s, *e).is_some_and(|x| x.docked) && self.controller(*s) == Some(aid)).map(|(s, _)| s);
+        if let Some(sys) = docked_at.filter(|_| b.defect_share > 0.0) {
+            let points = self.influence(sys, aid) * b.defect_share;
+            let label = self.alliance(aid).map(|a| format!("[{}] {}", a.tag, a.name)).unwrap_or_default();
+            let who = self.store.profile(pid).map(|p| p.name.clone()).unwrap_or_default();
+            self.shift_influence(aid, sys, -points);
+            self.store.data.defectors.insert(pid, (sys, points, self.unix + (b.defect_hours * 3600.0) as u64));
+            self.history.record(self.unix, DomainEvent::AllianceDefection { player: who.clone(), alliance: label.clone(), system: sys, points });
+            let text = format!("⚑ {who}이(가) {}에서 {label}을(를) 등지고 영향력 {points:.0}을(를) 가지고 나갔습니다", galaxy::system(sys).name);
+            let online: Vec<PlayerId> = self.conn_of.keys().copied().collect();
+            for p in online {
+                self.toast(p, text.clone());
+                self.send_influence(p);
+            }
+        }
         let a = self.store.data.alliances.iter_mut().find(|a| a.id == aid).unwrap();
         a.members.retain(|m| *m != pid);
+        a.votes.retain(|v, c| *v != pid && *c != pid);
         if a.members.is_empty() {
             self.store.data.alliances.retain(|a| a.id != aid);
             for other in &mut self.store.data.alliances {
@@ -148,8 +183,13 @@ impl Game {
         if war == already {
             return self.toast(pid, if war { "이미 전쟁 중입니다" } else { "전쟁 중이 아닙니다" });
         }
+        // Declaring inside a truce breaks the treaty: infamy, which makes this and later wars dearer.
+        let b = self.tuning.social.betrayal;
+        let unix = self.unix;
+        let breach = war && self.alliance(aid).is_some_and(|a| a.truces.iter().any(|(t, end)| *t == target && *end > unix));
+        let infamy = self.alliance(aid).map_or(0.0, |a| a.infamy) + if breach { b.breach_infamy } else { 0.0 };
         // A war costs the treasury per system we hold (a newcomer declares for free).
-        let cost = if war { self.tuning.social.war_cost * self.held_by(aid).len() as u64 } else { 0 };
+        let cost = if war { self.tuning.social.war_cost_for(self.held_by(aid).len(), infamy) } else { 0 };
         if cost > 0 {
             let a = self.store.data.alliances.iter_mut().find(|a| a.id == aid).unwrap();
             if a.treasury < cost {
@@ -157,28 +197,94 @@ impl Game {
             }
             a.treasury -= cost;
         }
+        let truce_end = unix + (b.truce_hours * 3600.0) as u64;
         for (x, y) in [(aid, target), (target, aid)] {
             let a = self.store.data.alliances.iter_mut().find(|a| a.id == x).unwrap();
+            a.truces.retain(|(t, _)| *t != y);
             if war {
                 a.wars.push(y);
             } else {
                 a.wars.retain(|w| *w != y);
+                if b.truce_hours > 0.0 {
+                    a.truces.push((y, truce_end));
+                }
             }
+        }
+        if breach && let Some(a) = self.store.data.alliances.iter_mut().find(|a| a.id == aid) {
+            a.infamy = infamy;
         }
         let label = |g: &Game, id| g.alliance(id).map(|a| format!("[{}] {}", a.tag, a.name)).unwrap_or_default();
         let (me, them) = (label(self, aid), label(self, target));
         let by = self.store.profile(pid).unwrap().name.clone();
+        if breach {
+            self.history.record(self.unix, DomainEvent::TreatyBroken { breaker: me.clone(), victim: them.clone(), by: by.clone() });
+        }
         if war {
             self.history.record(self.unix, DomainEvent::WarDeclared { aggressor: me.clone(), target: them.clone(), by });
         } else {
             self.history.record(self.unix, DomainEvent::PeaceMade { a: me.clone(), b: them.clone(), by });
         }
-        let text = if war { format!("⚔ {me}이(가) {them}에 선전포고! CORE를 제외한 모든 성계에서 교전 가능") } else { format!("☮ {me}과(와) {them} 강화 성립") };
+        let text = match (war, breach) {
+            (true, true) => format!("⚔ {me}이(가) 휴전을 깨고 {them}에 선전포고! (악명 {infamy:.1})"),
+            (true, false) => format!("⚔ {me}이(가) {them}에 선전포고! CORE를 제외한 모든 성계에서 교전 가능"),
+            _ => format!("☮ {me}과(와) {them} 강화 성립 — 휴전 {:.0}시간", b.truce_hours),
+        };
         let online: Vec<PlayerId> = self.conn_of.keys().copied().collect();
         for p in online {
             self.toast(p, text.clone());
         }
         self.store.dirty = true;
         self.broadcast_alliances();
+    }
+
+    /// Back a fellow member as leader (`AllianceVote`); a majority makes them leader.
+    pub(super) fn alliance_vote(&mut self, pid: PlayerId, name: &str) {
+        let Some(aid) = self.alliance_of(pid) else { return self.toast(pid, "동맹 소속이 아닙니다") };
+        let Some(cand) = self.store.find_by_name(name) else { return self.toast(pid, "그런 함장은 없습니다") };
+        let a = self.alliance(aid).cloned().unwrap();
+        if !a.members.contains(&cand) {
+            return self.toast(pid, "같은 동맹의 함장만 추대할 수 있습니다");
+        }
+        let x = self.store.data.alliances.iter_mut().find(|x| x.id == aid).unwrap();
+        if cand == pid {
+            x.votes.remove(&pid);
+        } else {
+            x.votes.insert(pid, cand);
+        }
+        // The candidate stands for themself unless they back someone else.
+        let backers: Vec<PlayerId> = a.members.iter().copied().filter(|m| x.votes.get(m) == Some(&cand) || (*m == cand && !x.votes.contains_key(m))).collect();
+        let needed = (a.members.len() as f32 * self.tuning.social.betrayal.coup_majority).floor() as usize + 1;
+        self.store.dirty = true;
+        if cand != a.leader && backers.len() >= needed && a.members.len() >= 2 {
+            x.leader = cand;
+            x.votes.clear();
+            let name = |g: &Game, p: PlayerId| g.store.profile(p).map(|p| p.name.clone()).unwrap_or_default();
+            let (old, new) = (name(self, a.leader), name(self, cand));
+            let label = format!("[{}] {}", a.tag, a.name);
+            // The leader's own vote is a handover, not a coup.
+            if !backers.contains(&a.leader) {
+                let names = backers.iter().map(|p| name(self, *p)).collect();
+                self.history.record(self.unix, DomainEvent::LeaderOverthrown { alliance: label.clone(), old: old.clone(), new: new.clone(), backers: names });
+            }
+            for m in &a.members {
+                self.toast(*m, format!("{label}의 새 맹주: {new} ({old} 축출)"));
+            }
+        } else {
+            self.toast(pid, format!("{}을(를) 맹주로 추대 — {}/{needed}명", self.store.profile(cand).map(|p| p.name.clone()).unwrap_or_default(), backers.len()));
+        }
+        self.broadcast_alliances();
+    }
+
+    /// Once an hour: infamy fades, truces and carried influence run out.
+    pub(super) fn hourly_betrayal(&mut self) {
+        let (k, unix) = (self.tuning.social.betrayal.infamy_decay_hourly, self.unix);
+        for a in &mut self.store.data.alliances {
+            a.infamy *= k;
+            if a.infamy < 0.05 {
+                a.infamy = 0.0;
+            }
+            a.truces.retain(|(_, end)| *end > unix);
+        }
+        self.store.data.defectors.retain(|_, (_, _, until)| *until >= unix);
     }
 }

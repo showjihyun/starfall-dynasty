@@ -274,6 +274,22 @@ pub fn influence(ui: &mut egui::Ui, systems: &[SystemStanding], mine: Option<&st
     out
 }
 
+/// The leader's declaration against another alliance: button label, treasury cost, and whether it
+/// breaks a truce standing until `truce_end` (unix) — then infamy is added first and the cost grows.
+pub fn war_offer(held: usize, infamy: f32, truce_end: Option<u64>, now: u64) -> (String, u64, bool) {
+    let t = shared::tuning::get().social;
+    let breach = truce_end.is_some_and(|end| end > now);
+    let cost = t.war_cost_for(held, infamy + if breach { t.betrayal.breach_infamy } else { 0.0 });
+    let price = if cost > 0 { format!(" ({cost} CR)") } else { String::new() };
+    let label = if breach { format!("휴전 파기{price}") } else { format!("선전포고{price}") };
+    (label, cost, breach)
+}
+
+/// A truce's remaining time: "휴전 3시간 남음" (none once over).
+pub fn truce_left(end: u64, now: u64) -> Option<String> {
+    (end > now).then(|| format!("☮ 휴전 {}시간 남음", (end - now).div_ceil(3600)))
+}
+
 /// The holder's station batteries in a line: "포대 Lv1 25%", "포대 침묵".
 pub fn batteries_label(level: u8, integrity: f32, silenced: bool) -> String {
     let lv = if level > 0 { format!(" Lv{level}") } else { String::new() };

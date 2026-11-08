@@ -1,0 +1,97 @@
+{
+  "name": "treaty_breach",
+  "description": "조약 파기: 강화는 12시간 휴전(social.betrayal.truce_hours)이다. 그 안에 다시 선전포고하면 휴전을 깬 배신으로 연대기에 남고(BETRAYAL, 역사적 사건) 악명 1이 쌓여 이후 선전포고 비용이 늘어난다. 휴전을 지킨 쪽은 기록이 없다",
+  "dev": true,
+  "captains": [
+    {
+      "name": "Hawk",
+      "hull": "Talon",
+      "level": 1,
+      "system": 4,
+      "undocked": false
+    },
+    {
+      "name": "Dove",
+      "hull": "Talon",
+      "level": 1,
+      "system": 4,
+      "undocked": false
+    }
+  ],
+  "script": [
+    {
+      "at": 0.2,
+      "captain": "Hawk",
+      "msg": {
+        "AllianceCreate": {
+          "name": "Hawks",
+          "tag": "HWK"
+        }
+      }
+    },
+    {
+      "at": 0.2,
+      "captain": "Dove",
+      "msg": {
+        "AllianceCreate": {
+          "name": "Doves",
+          "tag": "DOV"
+        }
+      }
+    },
+    {
+      "at": 0.5,
+      "captain": "Hawk",
+      "msg": {
+        "AllianceDeclareWar": {
+          "target": 2
+        }
+      }
+    },
+    {
+      "at": 1.0,
+      "captain": "Dove",
+      "msg": {
+        "AlliancePeace": {
+          "target": 1
+        }
+      }
+    },
+    {
+      "at": 2.0,
+      "captain": "Hawk",
+      "msg": {
+        "AllianceDeclareWar": {
+          "target": 2
+        }
+      }
+    }
+  ],
+  "run_secs": 3,
+  "expect": [
+    {
+      "at": 1.5,
+      "check": "history",
+      "kind": "PEACE",
+      "min": 1
+    },
+    {
+      "at": 1.5,
+      "check": "history",
+      "kind": "BETRAYAL",
+      "max": 0
+    },
+    {
+      "check": "history",
+      "kind": "WAR",
+      "min": 2,
+      "max": 2
+    },
+    {
+      "check": "history",
+      "kind": "BETRAYAL",
+      "min": 1,
+      "max": 1
+    }
+  ]
+}

@@ -96,6 +96,9 @@ impl Game {
         if self.tick % (3600 * TICK_HZ as u64) == 0 && !self.store.data.influence.is_empty() {
             self.decay_influence();
         }
+        if self.tick.is_multiple_of(3600 * TICK_HZ as u64) {
+            self.hourly_betrayal();
+        }
         if self.tick % 1200 == 0 {
             let day = missions::day_index(self.unix);
             let online: Vec<PlayerId> = self.conn_of.keys().copied().collect();

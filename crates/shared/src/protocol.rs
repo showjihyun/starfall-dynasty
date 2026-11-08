@@ -114,6 +114,9 @@ pub enum ClientMsg {
     AllianceLeave,
     AllianceDeclareWar { target: AllianceId },
     AlliancePeace { target: AllianceId },
+    /// Back a fellow member as leader (your own name: withdraw). More than `betrayal.coup_majority`
+    /// of the members behind one captain makes them leader.
+    AllianceVote { name: String },
     RequestAlliances,
     EscortCommand { attack: bool },
     /// Station services for artifacts (docked): reveal the true name and value, sell to collectors,
@@ -292,6 +295,15 @@ pub struct AllianceInfo {
     /// Credits collected as tax in the systems it controls.
     #[serde(default)]
     pub treasury: u64,
+    /// Broken treaties weigh on it (`social.betrayal`): war costs more.
+    #[serde(default)]
+    pub infamy: f32,
+    /// (alliance, unix end) of truces after peace: declaring war on them before then breaks a treaty.
+    #[serde(default)]
+    pub truces: Vec<(AllianceId, u64)>,
+    /// Member name → the captain they back as leader (a coup when a majority agrees).
+    #[serde(default)]
+    pub votes: Vec<(String, String)>,
 }
 
 /// One system's political standing: who controls it and every alliance's influence there.

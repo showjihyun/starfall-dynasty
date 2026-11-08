@@ -69,6 +69,10 @@ pub struct StoreData {
     /// system missing here has fresh batteries at level 0.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub batteries: BTreeMap<SystemId, Battery>,
+    /// Captains who left an alliance at one of its stations: (system, influence carried, unix
+    /// deadline) for the next alliance they found or join (`social.betrayal.defect_share`).
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub defectors: BTreeMap<PlayerId, (SystemId, f32, u64)>,
     /// Player institutions (research institutes / museums).
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub institutes: BTreeMap<u64, shared::institutes::Institute>,
@@ -104,6 +108,15 @@ pub struct Alliance {
     /// Tax collected in the systems it controls.
     #[serde(default, skip_serializing_if = "is_zero")]
     pub treasury: u64,
+    /// Broken treaties (`social.betrayal`).
+    #[serde(default, skip_serializing_if = "is_zero_f")]
+    pub infamy: f32,
+    /// (alliance, unix end) truces after peace.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub truces: Vec<(u32, u64)>,
+    /// Member → the member they back as leader.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub votes: BTreeMap<PlayerId, PlayerId>,
 }
 
 pub struct Store {
@@ -204,6 +217,10 @@ impl Store {
 
 fn is_zero(v: &u64) -> bool {
     *v == 0
+}
+
+fn is_zero_f(v: &f32) -> bool {
+    *v == 0.0
 }
 
 /// 256-bit login token from the OS CSPRNG.

@@ -67,7 +67,14 @@ struct Side {
     target: SystemId,
     /// Enemy → (game hour the war began, systems held then).
     wars: BTreeMap<AllianceId, (f32, usize)>,
+    /// Most systems held since the last coup.
+    peak: usize,
+    /// Game hour of the last coup or secession (alliances are not shaken more than every 6 h).
+    shaken: f32,
 }
+
+/// Hours between an alliance's coups or secessions.
+const UNREST_HOURS: f32 = 6.0;
 
 /// One game hour, at its end.
 #[derive(Clone, Debug, Default)]
@@ -97,6 +104,8 @@ pub struct Report {
     pub kills: u32,
     /// Changes of hands that followed a siege (station batteries silenced) in that system.
     pub by_siege: usize,
+    /// A system taken back by the alliance that held it before, within the hour (siege ping-pong).
+    pub retaken: usize,
     /// Station battery levels bought, per alliance (at the end).
     pub fortified: Vec<u8>,
     pub wall_secs: f32,
@@ -155,7 +164,7 @@ impl Report {
             self.lead_changes(),
             self.peak_share() * 100.0
         );
-        s += &format!("taken by siege {} · battery levels held at the end {}\n", self.by_siege, self.fortified.iter().map(|x| x.to_string()).collect::<Vec<_>>().join("/"));
+        s += &format!("taken by siege {} · retaken within the hour {} · battery levels held at the end {}\n", self.by_siege, self.retaken, self.fortified.iter().map(|x| x.to_string()).collect::<Vec<_>>().join("/"));
         s += &format!("captain deaths {} · kills {} · chronicle: {}\n", self.deaths, self.kills, self.events.iter().map(|(k, n)| format!("{k} {n}")).collect::<Vec<_>>().join(", "));
         let mut worst: Vec<(&SystemId, &usize)> = self.deaths_in.iter().collect();
         worst.sort_by(|a, b| b.1.cmp(a.1).then(a.0.cmp(b.0)));
@@ -235,13 +244,15 @@ pub fn run(o: &Options) -> Report {
         }
         let leader = caps.iter().find(|c| c.side == si).unwrap();
         let id = g.alliance_of(leader.pid).expect("alliance founded");
-        sides.push(Side { id, tag, leader: leader.conn, home, target: home, wars: BTreeMap::new() });
+        sides.push(Side { id, tag, leader: leader.conn, home, target: home, wars: BTreeMap::new(), peak: 0, shaken: 0.0 });
     }
     g.out.clear();
     let mut rep = Report { tags: sides.iter().map(|s| s.tag.clone()).collect(), homes: home_of.clone(), ..Default::default() };
     let first_event = g.history.events.len();
     let mut was_dead: BTreeMap<ConnId, bool> = BTreeMap::new();
     let mut holders: BTreeMap<SystemId, Option<AllianceId>> = BTreeMap::new();
+    // System → (tick of its last change of hands, the holder before it).
+    let mut last_change: BTreeMap<SystemId, (u64, Option<AllianceId>)> = BTreeMap::new();
     let total = (o.hours * 3600.0 * TICK_HZ) as u64;
     let per_hour = (3600.0 * TICK_HZ) as u64;
     let per_plan = (900.0 * TICK_HZ) as u64;
@@ -252,6 +263,11 @@ pub fn run(o: &Options) -> Report {
         let hour = tick as f32 / per_hour as f32;
         if tick % per_plan == 0 {
             plan(&mut g, &mut sides, hour, o.war_hours);
+            coups(&mut g, &mut sides, &caps, hour);
+            if let Some((tag, home)) = secession(&mut g, &mut sides, &mut caps, hour, &tags) {
+                rep.tags.push(tag);
+                rep.homes.push(home);
+            }
         }
         if tick % THINK == 0 {
             for c in caps.iter_mut() {
@@ -271,8 +287,17 @@ pub fn run(o: &Options) -> Report {
         if tick % TICK_HZ as u64 == 0 {
             for x in galaxy::systems() {
                 let now = g.controller(x.id);
-                if holders.get(&x.id).copied().flatten() != now {
+                let before = holders.get(&x.id).copied().flatten();
+                if before != now {
                     holders.insert(x.id, now);
+                    if let Some((at, prev)) = last_change.get(&x.id)
+                        && now.is_some()
+                        && *prev == now
+                        && tick - at < per_hour
+                    {
+                        rep.retaken += 1;
+                    }
+                    last_change.insert(x.id, (tick, before));
                     let t = rep.turnover.entry(x.id).or_default();
                     t.0 += 1;
                     if let Some(tag) = now.and_then(|a| sides.iter().find(|s| s.id == a)).map(|s| s.tag.clone())
@@ -347,8 +372,13 @@ fn plan(g: &mut Game, sides: &mut [Side], hour: f32, war_hours: f32) {
         // War on the biggest holder once it holds more than we do, or on whoever holds our target.
         let biggest = ids.iter().filter(|a| **a != s.id).max_by_key(|a| (held[*a].len(), std::cmp::Reverse(**a))).copied();
         let rival = g.controller(s.target).filter(|c| *c != s.id).or(biggest.filter(|b| held[b].len() >= 2 && held[b].len() > mine.len()));
+        // Inside a truce only a much bigger rival is worth breaking the treaty for (social.betrayal).
+        let unix = g.unix;
+        let truce = |r: AllianceId| g.alliance(s.id).is_some_and(|a| a.truces.iter().any(|(x, end)| *x == r && *end > unix));
+        let worth = |r: AllianceId| !truce(r) || held[&r].len() * 2 >= mine.len() * 3 + 2;
         if let Some(r) = rival
             && !g.at_war(Some(s.id), Some(r))
+            && worth(r)
         {
             // Refused when the treasury cannot pay (social.war_cost per held system).
             g.handle(s.leader, ClientMsg::AllianceDeclareWar { target: r });
@@ -380,6 +410,74 @@ fn plan(g: &mut Game, sides: &mut [Side], hour: f32, war_hours: f32) {
         // Wars the other side ended.
         s.wars.retain(|r, _| g.at_war(Some(s.id), Some(*r)));
     }
+}
+
+/// Coups: an alliance down to half the systems it held at its peak raises its most decorated captain
+/// (the rest of the members back them, `AllianceVote`); the new leader makes peace with everyone.
+fn coups(g: &mut Game, sides: &mut [Side], caps: &[Captain], hour: f32) {
+    for (si, s) in sides.iter_mut().enumerate() {
+        let held = g.held_by(s.id).len();
+        s.peak = s.peak.max(held);
+        let Some(a) = g.alliance(s.id).cloned() else { continue };
+        if hour - s.shaken < UNREST_HOURS || s.peak < 4 || held * 2 > s.peak || a.members.len() < 3 {
+            continue;
+        }
+        let kills = |p: PlayerId| g.store.profile(p).map_or(0, |x| x.kills);
+        let Some(challenger) = a.members.iter().copied().filter(|m| *m != a.leader).max_by(|x, y| kills(*x).cmp(&kills(*y)).then(y.cmp(x))) else { continue };
+        let name = g.store.profile(challenger).map(|p| p.name.clone()).unwrap_or_default();
+        for c in caps.iter().filter(|c| c.side == si && c.pid != a.leader && c.pid != challenger) {
+            g.handle(c.conn, ClientMsg::AllianceVote { name: name.clone() });
+        }
+        if g.alliance(s.id).map(|x| x.leader) == Some(challenger) {
+            s.leader = caps.iter().find(|c| c.pid == challenger).map_or(s.leader, |c| c.conn);
+            s.shaken = hour;
+            s.peak = held;
+            for r in g.alliance(s.id).map(|x| x.wars.clone()).unwrap_or_default() {
+                g.handle(s.leader, ClientMsg::AlliancePeace { target: r });
+            }
+            s.wars.clear();
+        }
+    }
+}
+
+/// Secession: an alliance that cannot pay its upkeep loses a governor — a member docked at one of its
+/// stations away from home leaves with the influence there and founds an alliance of their own.
+fn secession(g: &mut Game, sides: &mut Vec<Side>, caps: &mut [Captain], hour: f32, tags: &[&str]) -> Option<(String, SystemId)> {
+    if sides.len() >= tags.len() {
+        return None;
+    }
+    for si in 0..sides.len() {
+        let s = &sides[si];
+        let held = g.held_by(s.id);
+        let treasury = g.alliance(s.id).map_or(0, |a| a.treasury);
+        if hour - s.shaken < UNREST_HOURS || held.len() < 6 || treasury >= g.upkeep(held.len()) {
+            continue;
+        }
+        let leader = g.alliance(s.id).map(|a| a.leader);
+        let gov = caps.iter().position(|c| {
+            let sess = &g.sessions[&c.conn];
+            c.side == si && Some(c.pid) != leader && held.contains(&sess.system) && sess.system != s.home && sess.entity.and_then(|e| g.ent(sess.system, e)).is_some_and(|e| e.docked)
+        });
+        let Some(k) = gov else { continue };
+        let (conn, pid) = (caps[k].conn, caps[k].pid);
+        let sys = g.sessions[&conn].system;
+        let tag = tags[sides.len()].to_string();
+        // A rebel governor can afford a flag.
+        if let Some(p) = g.store.profile_mut(pid) {
+            p.wallet.credits = p.wallet.credits.max(crate::game::ALLIANCE_COST);
+        }
+        g.handle(conn, ClientMsg::AllianceLeave);
+        g.handle(conn, ClientMsg::AllianceCreate { name: format!("{tag} 자유령"), tag: tag.clone() });
+        let id = g.alliance_of(pid)?;
+        if let Some(p) = g.store.profile_mut(pid) {
+            p.home = sys;
+        }
+        sides[si].shaken = hour;
+        caps[k].side = sides.len();
+        sides.push(Side { id, tag: tag.clone(), leader: conn, home: sys, target: sys, wars: BTreeMap::new(), peak: 1, shaken: hour });
+        return Some((tag, sys));
+    }
+    None
 }
 
 /// A captain stays docked while an enemy captain is this close to the station (u).

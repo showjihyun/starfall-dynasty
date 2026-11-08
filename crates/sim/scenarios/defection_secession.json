@@ -1,0 +1,157 @@
+{
+  "name": "defection_secession",
+  "description": "반역(분리 독립): OWN이 지배하는 성계(영향력 110)의 정거장에 정박한 동맹원 Governor가 탈퇴하면 그곳 영향력의 60%(social.betrayal.defect_share)를 가지고 나가고, 한 시간 안에 새로 창설한 REB에 넘겨 REB가 성계를 갖는다(66 대 44, 연대기 DEFECTION). 우주에 떠 있다 탈퇴한 Drifter는 아무것도 가져가지 못한다. 24시간 전쟁 QA에서 동맹은 쪼개지지 않는 덩어리였고 선두는 하루 두 번 바뀌었다",
+  "dev": true,
+  "captains": [
+    {
+      "name": "Keeper",
+      "hull": "Wren",
+      "level": 1,
+      "system": 4,
+      "undocked": false
+    },
+    {
+      "name": "Governor",
+      "hull": "Talon",
+      "level": 1,
+      "system": 4,
+      "undocked": false
+    },
+    {
+      "name": "Drifter",
+      "hull": "Talon",
+      "level": 1,
+      "system": 4,
+      "undocked": true
+    }
+  ],
+  "script": [
+    {
+      "at": 0.2,
+      "captain": "Keeper",
+      "msg": {
+        "AllianceCreate": {
+          "name": "Corridor Guild",
+          "tag": "OWN"
+        }
+      }
+    },
+    {
+      "at": 0.3,
+      "captain": "Keeper",
+      "msg": {
+        "AllianceInvite": {
+          "name": "Governor"
+        }
+      }
+    },
+    {
+      "at": 0.3,
+      "captain": "Keeper",
+      "msg": {
+        "AllianceInvite": {
+          "name": "Drifter"
+        }
+      }
+    },
+    {
+      "at": 0.35,
+      "captain": "Governor",
+      "msg": {
+        "AllianceAccept": {
+          "alliance": 1
+        }
+      }
+    },
+    {
+      "at": 0.35,
+      "captain": "Drifter",
+      "msg": {
+        "AllianceAccept": {
+          "alliance": 1
+        }
+      }
+    },
+    {
+      "at": 0.4,
+      "captain": "Keeper",
+      "msg": {
+        "Chat": {
+          "text": "/influence 110"
+        }
+      }
+    },
+    {
+      "at": 1.0,
+      "captain": "Drifter",
+      "msg": "AllianceLeave"
+    },
+    {
+      "at": 1.5,
+      "captain": "Governor",
+      "msg": "AllianceLeave"
+    },
+    {
+      "at": 2.0,
+      "captain": "Governor",
+      "msg": {
+        "AllianceCreate": {
+          "name": "Free Corridor",
+          "tag": "REB"
+        }
+      }
+    }
+  ],
+  "run_secs": 5,
+  "expect": [
+    {
+      "at": 0.8,
+      "check": "controller",
+      "system": 4,
+      "tag": "OWN"
+    },
+    {
+      "at": 1.2,
+      "check": "influence",
+      "system": 4,
+      "tag": "OWN",
+      "min": 109
+    },
+    {
+      "at": 1.2,
+      "check": "history",
+      "kind": "DEFECTION",
+      "max": 0
+    },
+    {
+      "at": 1.8,
+      "check": "influence",
+      "system": 4,
+      "tag": "OWN",
+      "max": 45
+    },
+    {
+      "at": 1.8,
+      "check": "controller",
+      "system": 4,
+      "tag": "OWN"
+    },
+    {
+      "check": "history",
+      "kind": "DEFECTION",
+      "min": 1,
+      "max": 1
+    },
+    {
+      "check": "influence",
+      "system": 4,
+      "tag": "REB",
+      "min": 65
+    },
+    {
+      "check": "controller",
+      "system": 4,
+      "tag": "REB"
+    }
+  ]
+}

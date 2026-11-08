@@ -7,6 +7,7 @@ mod contracts;
 mod influence;
 mod institutes;
 mod diplomacy;
+pub use diplomacy::ALLIANCE_COST;
 mod fronts;
 pub mod interest;
 mod weapons;

@@ -538,6 +538,29 @@ pub struct SocialTuning {
     /// more to open a front). Missing: free.
     #[serde(default)]
     pub war_cost: u64,
+    /// Betrayal and rebellion. Missing (recordings from before them): none of it.
+    #[serde(default)]
+    pub betrayal: Betrayal,
+}
+
+/// Defection, truces and their breach, coups (`SocialTuning::betrayal`).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Betrayal {
+    /// A captain leaving an alliance while docked at a station it controls takes this share of its
+    /// influence there to the next alliance they found or join…
+    pub defect_share: f32,
+    /// …within this many hours.
+    pub defect_hours: f32,
+    /// Peace binds both sides to a truce this long (h); declaring war inside it breaks the treaty.
+    pub truce_hours: f32,
+    /// Infamy a breach adds to the breaker; every point of infamy adds `infamy_war_cost` × war_cost
+    /// to its declarations. Fades by `infamy_decay_hourly`.
+    pub breach_infamy: f32,
+    pub infamy_war_cost: f32,
+    pub infamy_decay_hourly: f32,
+    /// A captain backed by more than this share of the members becomes leader (a coup).
+    pub coup_majority: f32,
 }
 
 /// Station batteries of a controlled system (`SocialTuning::station_guard`); dps 0 = none.
@@ -586,6 +609,12 @@ impl StationGuard {
 }
 
 impl SocialTuning {
+    /// Treasury cost of a declaration by an alliance holding `held` systems with this infamy (after
+    /// any breach the declaration itself makes).
+    pub fn war_cost_for(&self, held: usize, infamy: f32) -> u64 {
+        (self.war_cost as f32 * held as f32 * (1.0 + self.betrayal.infamy_war_cost * infamy)).round() as u64
+    }
+
     /// Hourly treasury upkeep for holding `n` systems (the first `free_systems` cost nothing).
     pub fn upkeep(&self, n: usize) -> u64 {
         let over = n.saturating_sub(self.free_systems as usize);

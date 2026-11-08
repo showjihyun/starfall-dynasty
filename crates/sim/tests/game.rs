@@ -1089,6 +1089,53 @@ fn upkeep_is_paid_from_the_treasury_while_it_lasts() {
 }
 
 #[test]
+fn coups_truces_and_infamy() {
+    let mut g = game();
+    let names = ["Lord", "Ana", "Ben", "Cy"];
+    let pids: Vec<PlayerId> = names.iter().enumerate().map(|(i, n)| join(&mut g, i as ConnId + 1, n, Species::Human, HullClass::Talon, Profession::CombatPilot)).collect();
+    let rival = join(&mut g, 9, "Rival", Species::Human, HullClass::Talon, Profession::CombatPilot);
+    g.handle(1, ClientMsg::AllianceCreate { name: "Grand Empire".into(), tag: "EMP".into() });
+    g.handle(9, ClientMsg::AllianceCreate { name: "Raiders".into(), tag: "RAI".into() });
+    let (emp, rai) = (g.alliance_of(pids[0]).unwrap(), g.alliance_of(rival).unwrap());
+    for (c, n) in [(2, "Ana"), (3, "Ben"), (4, "Cy")] {
+        g.handle(1, ClientMsg::AllianceInvite { name: n.into() });
+        g.handle(c, ClientMsg::AllianceAccept { alliance: emp });
+    }
+    // A coup: Ana stands, Ben backs her — 2 of 4 is not more than half; Cy makes it 3.
+    g.handle(3, ClientMsg::AllianceVote { name: "Ana".into() });
+    assert_eq!(g.alliance(emp).unwrap().leader, pids[0]);
+    g.handle(4, ClientMsg::AllianceVote { name: "Ana".into() });
+    assert_eq!(g.alliance(emp).unwrap().leader, pids[1], "a majority raised Ana");
+    assert!(g.history.events.iter().any(|e| e.kind == "COUP" && e.title.contains("Ana")));
+    assert!(g.alliance(emp).unwrap().votes.is_empty());
+    // A leader backing someone hands over: no coup in the chronicle.
+    g.handle(2, ClientMsg::AllianceVote { name: "Lord".into() });
+    g.handle(3, ClientMsg::AllianceVote { name: "Lord".into() });
+    assert_eq!(g.alliance(emp).unwrap().leader, pids[0]);
+    assert_eq!(g.history.events.iter().filter(|e| e.kind == "COUP").count(), 1);
+    // Peace is a truce; breaking it costs infamy, which makes wars dearer and fades by the hour.
+    g.handle(1, ClientMsg::AllianceDeclareWar { target: rai });
+    g.handle(1, ClientMsg::AlliancePeace { target: rai });
+    let b = g.tuning.social.betrayal;
+    let end = g.alliance(rai).unwrap().truces[0];
+    assert_eq!(end, (emp, T0 + (b.truce_hours * 3600.0) as u64), "both sides are bound");
+    g.handle(9, ClientMsg::AllianceDeclareWar { target: emp });
+    assert_eq!(g.alliance(rai).unwrap().infamy, b.breach_infamy, "broke the truce");
+    assert!(g.history.events.iter().any(|e| e.kind == "BETRAYAL"));
+    assert_eq!(g.tuning.social.war_cost_for(2, 1.0), 2 * g.tuning.social.war_cost_for(2, 0.0), "one infamy doubles a war's cost");
+    g.handle(9, ClientMsg::AlliancePeace { target: emp });
+    // The truce ends: declaring is no breach any more.
+    let after = T0 + (b.truce_hours * 3600.0) as u64 + 1;
+    g.tick = 3600 * 20 - 1;
+    g.tick(DT, after);
+    assert!(g.alliance(rai).unwrap().truces.is_empty());
+    assert!(g.alliance(rai).unwrap().infamy < b.breach_infamy, "infamy fades");
+    g.handle(1, ClientMsg::AllianceDeclareWar { target: rai });
+    assert!(g.at_war(Some(emp), Some(rai)));
+    assert_eq!(g.alliance(emp).unwrap().infamy, 0.0);
+}
+
+#[test]
 fn wars_fortifications_and_rebuilt_batteries_spend_the_treasury() {
     let mut g = game();
     g.dev_mode = true;
@@ -1113,6 +1160,10 @@ fn wars_fortifications_and_rebuilt_batteries_spend_the_treasury() {
     g.handle(2, ClientMsg::AllianceDeclareWar { target: emp });
     assert!(g.at_war(Some(emp), Some(rai)), "holding nothing, a war is free");
     g.handle(2, ClientMsg::AlliancePeace { target: emp });
+    // (Peace is a truce — breaking it is coups_truces_and_infamy; here only the price counts.)
+    for a in g.store.data.alliances.iter_mut() {
+        a.truces.clear();
+    }
     set_treasury(&mut g, t.war_cost + 10);
     g.handle(1, ClientMsg::AllianceDeclareWar { target: rai });
     assert!(g.at_war(Some(emp), Some(rai)));

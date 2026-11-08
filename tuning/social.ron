@@ -40,6 +40,16 @@
         fortify_cost: 3000, fortify_step: 0.5, fortify_max: 3,  // treasury sink: level k costs 3000k, ×(1 + 0.5k) dps and integrity
     ),
     war_cost: 500,              // treasury per system the declaring alliance holds (a newcomer declares for free)
+    // Betrayal and rebellion (2026-11-08, QA_WAR: alliances were monoliths — the lead changed twice a day).
+    betrayal: (
+        defect_share: 0.6,      // leaving while docked at a held station takes 60% of the influence there: a governor's secession
+        defect_hours: 1.0,      // …given to the alliance founded or joined within the hour
+        truce_hours: 12.0,      // peace is a 12 h truce; a declaration inside it breaks the treaty
+        breach_infamy: 1.0,     // +1 infamy to the breaker…
+        infamy_war_cost: 1.0,   // …each point doubles more of its war cost (×(1 + infamy))
+        infamy_decay_hourly: 0.97,  // half gone in ~a day
+        coup_majority: 0.5,     // more than half of the members back a challenger → new leader
+    ),
 
     // Player institutions (research institutes / museums). Rebalance v1 (2026-10-17): visit 20+10n → 60+30n.
     institute_cost: 5000,       // credits to found one (one per captain)

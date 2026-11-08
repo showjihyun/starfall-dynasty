@@ -973,10 +973,30 @@ fn alliance(ui: &mut egui::Ui, s: &mut Session, net: &Net) {
     let mine = s.my_alliance.and_then(|m| s.alliances.iter().find(|a| a.id == m)).cloned();
     match &mine {
         Some(a) => {
+            // Truces are shown against the wall clock (presentation only; the server decides).
+            let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_secs());
             ui.label(RichText::new(format!("[{}] {}", a.tag, a.name)).size(20.0).color(ACCENT).strong());
             ui.label(format!("맹주 {} · 함장 {}명", a.leader, a.members.len()));
-            ui.label(RichText::new(a.members.join(", ")).size(12.0).color(DIM));
-            let leader = s.profile.as_ref().is_some_and(|p| p.name == a.leader);
+            if a.infamy > 0.0 {
+                ui.label(RichText::new(format!("악명 {:.1} — 휴전을 깬 대가로 선전포고 비용이 늘어납니다", a.infamy)).size(12.0).color(RED));
+            }
+            let me = s.profile.as_ref().map(|p| p.name.clone()).unwrap_or_default();
+            let leader = me == a.leader;
+            // Members, and whom each backs as leader (more than half behind one captain: a coup).
+            let my_vote = a.votes.iter().find(|(v, _)| *v == me).map(|(_, c)| c.clone());
+            ui.horizontal_wrapped(|ui| {
+                for m in &a.members {
+                    let backers = a.votes.iter().filter(|(_, c)| c == m).count();
+                    let text = if backers > 0 { format!("{m} (추대 {backers})") } else { m.clone() };
+                    ui.label(RichText::new(text).size(12.0).color(if *m == a.leader { GOLD } else { DIM }));
+                    if *m != me && *m != a.leader && my_vote.as_deref() != Some(m.as_str()) && ui.small_button("맹주로 추대").on_hover_text("동맹원 과반이 한 함장을 추대하면 맹주가 바뀝니다(쿠데타)").clicked() {
+                        net.send(ClientMsg::AllianceVote { name: m.clone() });
+                    }
+                }
+                if my_vote.is_some() && ui.small_button("추대 철회").clicked() {
+                    net.send(ClientMsg::AllianceVote { name: me.clone() });
+                }
+            });
             ui.horizontal(|ui| {
                 ui.label(RichText::new(format!("금고 {} CR", a.treasury)).color(GOLD)).on_hover_text("지배 성계에서 비동맹 함장의 광석 판매·현상금에 붙는 세금");
                 let held = s.influence.iter().filter(|x| x.controller.as_ref().is_some_and(|c| c.0 == a.id)).count();
@@ -995,7 +1015,7 @@ fn alliance(ui: &mut egui::Ui, s: &mut Session, net: &Net) {
                     }
                 });
             }
-            if ui.button("동맹 탈퇴").clicked() {
+            if ui.button("동맹 탈퇴").on_hover_text("동맹이 지배하는 성계의 정거장에 정박한 채 탈퇴하면 그곳 영향력의 일부를 가지고 나가, 한 시간 안에 창설하거나 가입한 동맹에 넘깁니다(배신으로 기록됩니다)").clicked() {
                 net.send(ClientMsg::AllianceLeave);
             }
             ui.separator();
@@ -1010,14 +1030,19 @@ fn alliance(ui: &mut egui::Ui, s: &mut Session, net: &Net) {
                         if leader && ui.button("강화 제의").clicked() {
                             net.send(ClientMsg::AlliancePeace { target: other.id });
                         }
-                    } else if leader && {
-                        let held = s.influence.iter().filter(|x| x.controller.as_ref().is_some_and(|c| c.0 == a.id)).count() as u64;
-                        let cost = shared::tuning::get().social.war_cost * held;
-                        ui.add_enabled(a.treasury >= cost, egui::Button::new(if cost > 0 { format!("선전포고 ({cost} CR)") } else { "선전포고".into() }))
-                            .on_hover_text("비용은 우리가 지배하는 성계 수에 비례해 금고에서 나갑니다")
-                            .clicked()
-                    } {
-                        net.send(ClientMsg::AllianceDeclareWar { target: other.id });
+                    } else {
+                        let truce = a.truces.iter().find(|(t, _)| *t == other.id).map(|(_, end)| *end);
+                        if let Some(text) = truce.and_then(|end| view::panels::truce_left(end, now)) {
+                            ui.label(RichText::new(text).size(12.0).color(DIM));
+                        }
+                        if leader {
+                            let held = s.influence.iter().filter(|x| x.controller.as_ref().is_some_and(|c| c.0 == a.id)).count();
+                            let (label, cost, breach) = view::panels::war_offer(held, a.infamy, truce, now);
+                            let hover = if breach { "휴전 중입니다: 선전포고하면 조약을 깬 배신으로 연대기에 남고 악명이 쌓입니다" } else { "비용은 우리가 지배하는 성계 수(와 악명)에 비례해 금고에서 나갑니다" };
+                            if ui.add_enabled(a.treasury >= cost, egui::Button::new(RichText::new(label).color(if breach { RED } else { Color32::WHITE }))).on_hover_text(hover).clicked() {
+                                net.send(ClientMsg::AllianceDeclareWar { target: other.id });
+                            }
+                        }
                     }
                 });
             }
