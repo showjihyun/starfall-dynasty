@@ -307,6 +307,9 @@ pub struct AllianceInfo {
     /// The hegemon (`social.hegemon_share`): war on it is free and breaks no truce.
     #[serde(default)]
     pub hegemon: bool,
+    /// Alliances it has fought often enough to be rivals (`social.rivalry_battles`).
+    #[serde(default)]
+    pub rivals: Vec<AllianceId>,
 }
 
 /// One system's political standing: who controls it and every alliance's influence there.

@@ -1180,6 +1180,32 @@ fn coups_truces_and_infamy() {
 }
 
 #[test]
+fn alliances_that_keep_fighting_become_rivals() {
+    let mut g = game();
+    join(&mut g, 1, "Hawk", Species::Human, HullClass::Talon, Profession::CombatPilot);
+    join(&mut g, 2, "Dove", Species::Human, HullClass::Talon, Profession::CombatPilot);
+    g.handle(1, ClientMsg::AllianceCreate { name: "Hawks".into(), tag: "HWK".into() });
+    g.handle(2, ClientMsg::AllianceCreate { name: "Doves".into(), tag: "DOV".into() });
+    let (hwk, dov) = (1, 2);
+    let t = g.tuning.social;
+    let sides = vec![format!("A{hwk}"), format!("A{dov}")];
+    let sys = 7;
+    let mut gains = vec![];
+    for _ in 0..t.rivalry_battles + 1 {
+        let before = g.influence(sys, hwk);
+        g.battle_influence(sys, &sides[0], &sides);
+        gains.push(g.influence(sys, hwk) - before);
+    }
+    assert!(g.rivals(hwk, dov) && g.rivals(dov, hwk));
+    assert_eq!(g.history.events.iter().filter(|e| e.kind == "RIVALRY").count(), 1, "chronicled once");
+    // Before the rivalry a win is worth the usual; against a rival, rivalry_bonus more (overreach aside:
+    // both alliances hold nothing).
+    assert!((gains[0] - t.influence_battle_win).abs() < 1e-3, "{gains:?}");
+    assert!((gains.last().unwrap() - t.influence_battle_win * (1.0 + t.rivalry_bonus)).abs() < 1e-3, "{gains:?}");
+    assert!(g.alliance_info(g.alliance(hwk).unwrap()).rivals.contains(&dov), "the alliance window shows it");
+}
+
+#[test]
 fn wars_fortifications_and_rebuilt_batteries_spend_the_treasury() {
     let mut g = game();
     g.dev_mode = true;

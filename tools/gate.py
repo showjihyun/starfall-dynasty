@@ -52,6 +52,11 @@ def plan(files, everything, visual):
     pipeline = everything or any_in(files, "crates/assetpipe/")
     looks = any_in(files, "crates/client/src/", "crates/client/assets/", "crates/view/src/palette", "tools/blender/", "docs/art/")
     steps = []
+    # The performance budget runs first, on a machine not yet heated by the test suites: run right
+    # after the network + bot tests it read 0.3–0.5 ms slower than on its own and failed on noise.
+    if rules or (visual and looks):
+        perf = [sys.executable, "tools/perfcheck.py"] + (["--client"] if visual and looks else [])
+        steps.append(("performance budget", "sim/rules changed: no more than 20% slower than this machine's baseline" + (" (+ client bench)" if len(perf) > 2 else ""), perf, None))
     if rust_logic:
         steps.append(("logic tests", "rules/view code or tuning changed", "cargo test --release -p shared -p history -p sim -p view", None))
     if rules:
@@ -60,9 +65,6 @@ def plan(files, everything, visual):
         steps.append(("client ECS tests", "client glue changed", "cargo test --release -p client", None))
     if network:
         steps.append(("network + bot tests", "server/protocol/game changed", "SERVER", None))
-    if rules or (visual and looks):
-        perf = [sys.executable, "tools/perfcheck.py"] + (["--client"] if visual and looks else [])
-        steps.append(("performance budget", "sim/rules changed: no more than 20% slower than this machine's baseline" + (" (+ client bench)" if len(perf) > 2 else ""), perf, None))
     if any_rust:
         steps.append(("clippy (no new warnings)", f"baseline {CLIPPY_BASELINE}", "cargo clippy --release --workspace --all-targets", "CLIPPY"))
     if everything or any_in(files, "Cargo.", "crates/client/Cargo.", "deny.toml") or any(f.endswith("Cargo.toml") for f in files):

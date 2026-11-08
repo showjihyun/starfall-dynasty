@@ -70,7 +70,7 @@ mod tests {
 
     #[test]
     fn relations_follow_ownership_fleet_alliance_and_space() {
-        let wars = [AllianceInfo { id: 1, name: "A".into(), tag: "A".into(), leader: "x".into(), members: vec![], wars: vec![2], treasury: 0, infamy: 0.0, truces: vec![], votes: vec![], hegemon: false }];
+        let wars = [AllianceInfo { id: 1, name: "A".into(), tag: "A".into(), leader: "x".into(), members: vec![], wars: vec![2], treasury: 0, infamy: 0.0, truces: vec![], votes: vec![], hegemon: false, rivals: vec![] }];
         let v = |tier| Viewer { me: Some(10), player: Some(7), fleet: Some(3), alliance: Some(1), alliances: &wars, tier };
         let core = v(RiskTier::Core);
         assert_eq!(core.relation(&captain(10, 7)), Relation::Mine);

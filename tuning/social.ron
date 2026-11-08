@@ -41,6 +41,7 @@
     ),
     conquest_purge: 0.5,        // taken from another alliance: the old holder keeps half its influence there (QA_WAR: 99 of 288 changes were retaken within the hour)
     hegemon_share: 0.3, hegemon_min: 4,  // the hegemon (≥30% of held systems, ≥4): war on it is free and breaks no truce (QA_WAR: the map froze, one lead change a day)
+    rivalry_battles: 5, rivalry_bonus: 0.5,  // five battles between two alliances make rivals (RIVALRY in the chronicle); beating a rival: +50% battle influence
     war_cost: 500,              // treasury per system the declaring alliance holds (a newcomer declares for free)
     // Betrayal and rebellion (2026-11-08, QA_WAR: alliances were monoliths — the lead changed twice a day).
     betrayal: (

@@ -135,14 +135,40 @@ impl Game {
         }
     }
 
-    /// A battle ended in `sys`: alliances on the winning side gain influence, those on losing sides lose some.
-    pub(super) fn battle_influence(&mut self, sys: SystemId, winner: &str, sides: &[String]) {
+    /// Whether two alliances are rivals (`social.rivalry_battles` battles against each other).
+    pub fn rivals(&self, a: AllianceId, b: AllianceId) -> bool {
+        let t = self.tuning.social.rivalry_battles;
+        t > 0 && self.store.data.battles_between.get(&(a.min(b), a.max(b))).is_some_and(|n| *n >= t)
+    }
+
+    /// A battle ended in `sys` (side keys `A<id>` for alliances): alliances on the winning side gain
+    /// influence — more over a rival — those on losing sides lose some, and the battle counts towards
+    /// rivalry between the winner and each loser.
+    pub fn battle_influence(&mut self, sys: SystemId, winner: &str, sides: &[String]) {
         let t = self.tuning.social;
         let alliance_of_key = |k: &str| k.strip_prefix('A').and_then(|id| id.parse::<AllianceId>().ok());
+        let won = alliance_of_key(winner);
+        let losers: Vec<AllianceId> = sides.iter().filter(|k| k.as_str() != winner).filter_map(|k| alliance_of_key(k)).collect();
+        if let Some(w) = won {
+            for &l in &losers {
+                let n = self.store.data.battles_between.entry((w.min(l), w.max(l))).or_default();
+                *n += 1;
+                if t.rivalry_battles > 0 && *n == t.rivalry_battles {
+                    let label = |g: &Game, id: AllianceId| g.alliance(id).map(|x| format!("[{}] {}", x.tag, x.name)).unwrap_or_default();
+                    let (a, b) = (label(self, w), label(self, l));
+                    self.history.record(self.unix, DomainEvent::RivalryBorn { a: a.clone(), b: b.clone(), battles: t.rivalry_battles });
+                    let online: Vec<PlayerId> = self.conn_of.keys().copied().collect();
+                    for p in online {
+                        self.toast(p, format!("⚔ {a}와(과) {b}, 숙적이 되다"));
+                    }
+                }
+            }
+        }
+        let over_rival = won.is_some_and(|w| losers.iter().any(|l| self.rivals(w, *l)));
         for k in sides {
             let Some(a) = alliance_of_key(k) else { continue };
             if k == winner {
-                self.shift_influence(a, sys, t.influence_battle_win);
+                self.shift_influence(a, sys, t.influence_battle_win * if over_rival { 1.0 + t.rivalry_bonus } else { 1.0 });
             } else {
                 self.shift_influence(a, sys, -t.influence_battle_loss);
             }

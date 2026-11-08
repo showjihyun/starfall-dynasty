@@ -10,7 +10,7 @@ pub const ALLIANCE_COST: u64 = 1000;
 impl Game {
     pub fn alliance_info(&self, a: &Alliance) -> AllianceInfo {
         let name = |p: &PlayerId| self.store.profile(*p).map(|x| x.name.clone()).unwrap_or_default();
-        AllianceInfo { id: a.id, name: a.name.clone(), tag: a.tag.clone(), leader: name(&a.leader), members: a.members.iter().map(name).collect(), wars: a.wars.clone(), treasury: a.treasury, infamy: (a.infamy * 10.0).round() / 10.0, truces: a.truces.clone(), votes: a.votes.iter().map(|(v, c)| (name(v), name(c))).collect(), hegemon: self.hegemon() == Some(a.id) }
+        AllianceInfo { id: a.id, name: a.name.clone(), tag: a.tag.clone(), leader: name(&a.leader), members: a.members.iter().map(name).collect(), wars: a.wars.clone(), treasury: a.treasury, infamy: (a.infamy * 10.0).round() / 10.0, truces: a.truces.clone(), votes: a.votes.iter().map(|(v, c)| (name(v), name(c))).collect(), hegemon: self.hegemon() == Some(a.id), rivals: self.store.data.alliances.iter().map(|x| x.id).filter(|x| *x != a.id && self.rivals(a.id, *x)).collect() }
     }
 
     pub fn send_alliances(&mut self, pid: PlayerId) {

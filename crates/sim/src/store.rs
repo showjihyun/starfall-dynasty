@@ -73,6 +73,9 @@ pub struct StoreData {
     /// deadline) for the next alliance they found or join (`social.betrayal.defect_share`).
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub defectors: BTreeMap<PlayerId, (SystemId, f32, u64)>,
+    /// Battles fought between two alliances (lower id first): rivals at `social.rivalry_battles`.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub battles_between: BTreeMap<(u32, u32), u32>,
     /// Player institutions (research institutes / museums).
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub institutes: BTreeMap<u64, shared::institutes::Institute>,

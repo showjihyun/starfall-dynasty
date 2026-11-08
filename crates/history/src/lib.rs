@@ -75,6 +75,8 @@ pub enum DomainEvent {
     TreatyBroken { breaker: String, victim: String, by: String },
     /// The members of `alliance` raised `new` over `old`.
     LeaderOverthrown { alliance: String, old: String, new: String, backers: Vec<String> },
+    /// Two alliances have fought each other `battles` times: rivals.
+    RivalryBorn { a: String, b: String, battles: u32 },
     /// `by`'s ships silenced `holder`'s station batteries in a system (the siege can now take it).
     StationSilenced { system: SystemId, holder: String, by: String },
     /// An alliance paid its treasury out; each member got `share` credits.
@@ -198,7 +200,7 @@ impl HistoryEngine {
 
     pub fn apply(&mut self, unix: u64, ev: DomainEvent) -> Option<EventId> {
         match ev {
-            ev @ (DomainEvent::AllianceFounded { .. } | DomainEvent::WarDeclared { .. } | DomainEvent::PeaceMade { .. } | DomainEvent::AllianceDefection { .. } | DomainEvent::TreatyBroken { .. } | DomainEvent::LeaderOverthrown { .. }) => self.apply_diplomacy(unix, ev),
+            ev @ (DomainEvent::AllianceFounded { .. } | DomainEvent::WarDeclared { .. } | DomainEvent::PeaceMade { .. } | DomainEvent::AllianceDefection { .. } | DomainEvent::TreatyBroken { .. } | DomainEvent::LeaderOverthrown { .. } | DomainEvent::RivalryBorn { .. }) => self.apply_diplomacy(unix, ev),
             ev @ (DomainEvent::EvidenceForged { .. } | DomainEvent::EvidenceAuthenticated { .. }) => self.apply_forgery(unix, ev),
             DomainEvent::ContractSigned { contract_id, employer, contractor, terms, reward } => {
                 let id = self.push_event(unix, 0, "CONTRACT_SIGNED", format!("{employer}–{contractor} 계약 체결"), format!("{contractor}이(가) {employer}의 의뢰를 받아들였다: {terms}. 보상 {reward} CR은 공증인에게 맡겨졌다."), vec![employer.clone(), contractor.clone()], vec![], Importance::Minor, vec![]);
@@ -714,6 +716,13 @@ impl HistoryEngine {
                 let e = self.add_evidence(id, EvidenceKind::ArchiveRecord, "은하 공보", format!("{breaker} 측 휴전 파기 선언."), 0.95);
                 self.attach(id, vec![e]);
                 self.bio(&by, unix, format!("「{victim}」과(와)의 휴전을 깼다."), Some(id));
+                Some(id)
+            }
+            DomainEvent::RivalryBorn { a, b, battles } => {
+                let causes: Vec<EventId> = self.events.iter().rev().filter(|e| e.kind == "BATTLE" && e.summary.contains(&a) && e.summary.contains(&b)).map(|e| e.id).take(3).collect();
+                let id = self.push_event(unix, 0, "RIVALRY", format!("{a}와(과) {b}, 숙적이 되다"), format!("「{a}」과(와) 「{b}」는 {battles}번 맞붙었다. 이제 서로를 꺾는 것은 땅 한 조각 이상의 의미가 있다."), vec![a.clone(), b.clone()], vec![], Importance::Major, causes);
+                let e = self.add_evidence(id, EvidenceKind::ArchiveRecord, "은하 공보", format!("{a}–{b} 교전 {battles}회 기록."), 0.95);
+                self.attach(id, vec![e]);
                 Some(id)
             }
             DomainEvent::LeaderOverthrown { alliance, old, new, backers } => {

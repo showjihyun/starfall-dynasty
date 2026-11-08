@@ -549,6 +549,12 @@ pub struct SocialTuning {
     pub hegemon_share: f32,
     #[serde(default)]
     pub hegemon_min: usize,
+    /// History feeding back: alliances that have fought this many battles against each other are
+    /// rivals (chronicled once); a win over a rival earns `rivalry_bonus` more influence. 0: none.
+    #[serde(default)]
+    pub rivalry_battles: u32,
+    #[serde(default)]
+    pub rivalry_bonus: f32,
     /// Betrayal and rebellion. Missing (recordings from before them): none of it.
     #[serde(default)]
     pub betrayal: Betrayal,

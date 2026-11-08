@@ -1066,6 +1066,9 @@ fn alliance(ui: &mut egui::Ui, s: &mut Session, net: &Net) {
                 ui.horizontal(|ui| {
                     let at_war = a.wars.contains(&other.id);
                     ui.label(RichText::new(format!("[{}] {} ({}명)", other.tag, other.name, other.members.len())).color(if at_war { RED } else { Color32::WHITE }));
+                    if a.rivals.contains(&other.id) {
+                        ui.label(RichText::new("⚔ 숙적").color(RED)).on_hover_text("여러 번 맞붙은 상대: 이기면 교전 영향력이 더 큽니다");
+                    }
                     if other.hegemon {
                         ui.label(RichText::new("👑 패권").color(GOLD)).on_hover_text("지배 성계의 큰 몫을 쥔 동맹: 누구든 비용 없이, 휴전 중이어도 배신 없이 선전포고할 수 있습니다(연합)");
                     }
