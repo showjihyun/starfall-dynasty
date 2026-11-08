@@ -82,6 +82,8 @@ pub struct Session {
     pub dead: Option<String>,
     /// How to beat the wave that just sank us again (`ServerMsg::Died::hint`), shown on the death panel.
     pub dead_hint: Option<String>,
+    /// The last run crashed: where its report is (shown on the login screen until dismissed).
+    pub crash_notice: Option<String>,
     /// Client time (s) from which the rebuild is accepted (`ServerMsg::Died::rebuild_in`).
     pub dead_until: f64,
     pub chronicle: Option<(Vec<HistoricalEvent>, Vec<Evidence>, Vec<Headline>)>,
@@ -108,6 +110,8 @@ pub struct Session {
     pub arrivals: HashMap<EntityId, f64>,
     pub ui: UiFlags,
     pub disconnected: Option<String>,
+    /// The player asked to connect again (connection screen or the in-game "connection lost" banner).
+    pub reconnect: bool,
     pub ping_ms: f32,
     pub server_url: String,
     /// Last time shots involved our ship (drives battle music).

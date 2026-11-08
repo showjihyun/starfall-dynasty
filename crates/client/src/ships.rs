@@ -359,6 +359,11 @@ pub fn model_for(hull: Option<HullClass>, kind: EntityKind) -> (&'static str, f3
     }
 }
 
+/// An installed game (tools/package.py puts `assets/` next to the executable), not a development build.
+pub fn installed() -> bool {
+    std::env::current_exe().ok().and_then(|p| p.parent().map(|d| d.join("assets").exists())).unwrap_or(false)
+}
+
 /// `assets/` next to the executable (an installed game, tools/package.py), else the source tree's
 /// (a development build — target/release has none).
 pub fn assets_dir() -> std::path::PathBuf {

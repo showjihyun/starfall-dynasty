@@ -87,8 +87,10 @@ def main(argv):
     arg = lambda k: argv[argv.index(k) + 1] if k in argv and argv.index(k) + 1 < len(argv) else None
     dist = os.path.join(ROOT, arg("--out") or "dist")
     pkg = os.path.join(dist, NAME)
+    commit = subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=ROOT, capture_output=True, text=True).stdout.strip() or "dev"
     if "--no-build" not in argv:
-        run(["cargo", "build", "--release", "-p", "client", "-p", "server"])
+        # Crash reports name the build (client/src/crash.rs reads STARFALL_COMMIT at compile time).
+        run(["cargo", "build", "--release", "-p", "client", "-p", "server"], env={**os.environ, "STARFALL_COMMIT": commit})
     if os.path.isdir(pkg):
         shutil.rmtree(pkg)
     os.makedirs(os.path.join(pkg, "server"))
@@ -102,7 +104,6 @@ def main(argv):
         f.write((arg("--server") or "ws://127.0.0.1:7777") + "\n")
     crates = third_party(os.path.join(pkg, "THIRD_PARTY.txt"))
     size = sum(os.path.getsize(os.path.join(d, f)) for d, _, fs in os.walk(pkg) for f in fs)
-    commit = subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=ROOT, capture_output=True, text=True).stdout.strip() or "dev"
     print(f"package: {pkg} — {size / 1e6:.0f} MB, {crates} third-party crates listed, default server {open(os.path.join(pkg, 'server.txt'), encoding='utf-8').read().strip()}")
     if "--zip" in argv:
         z = shutil.make_archive(os.path.join(dist, f"{NAME}-{commit}"), "zip", dist, NAME)

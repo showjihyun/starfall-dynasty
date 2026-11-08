@@ -85,7 +85,7 @@ pub fn ui_system(
     }
     let Some(net) = net else { return Ok(()) };
     match screen.get() {
-        Screen::Connecting => connecting(ctx, &s),
+        Screen::Connecting => connecting(ctx, &mut s),
         Screen::Login => login(ctx, &mut form, &mut s, &net, &args),
         Screen::Create => create(ctx, &mut form, &s, &net, &args),
         Screen::Playing => {
@@ -140,21 +140,44 @@ fn title(ui: &mut egui::Ui) {
     });
 }
 
-fn connecting(ctx: &egui::Context, s: &Session) {
+fn connecting(ctx: &egui::Context, s: &mut Session) {
     full_screen(ctx, Color32::TRANSPARENT, |ui| {
         ui.add_space(ui.available_height() * 0.3);
         title(ui);
-        ui.vertical_centered(|ui| match &s.disconnected {
-            Some(r) => {
-                ui.label(RichText::new(format!("연결 실패: {r}")).color(RED));
-                ui.label(RichText::new("서버를 먼저 실행하세요:  cargo run -p server --release").color(DIM));
+        ui.vertical_centered(|ui| {
+            match s.disconnected.clone() {
+                Some(r) => {
+                    ui.label(RichText::new("서버에 연결할 수 없습니다").color(RED).size(18.0));
+                    ui.label(RichText::new("인터넷 연결을 확인하거나 잠시 후 다시 시도하세요. 점검 중일 수도 있습니다.").color(DIM));
+                    ui.label(RichText::new(r).color(DIM).size(11.0));
+                    if ui.button(RichText::new("다시 시도").size(16.0)).clicked() {
+                        s.reconnect = true;
+                    }
+                    // A development build: the usual cause is that no local server runs.
+                    if !crate::ships::installed() {
+                        ui.label(RichText::new("개발 빌드: 서버를 먼저 실행하세요 — cargo run -p server --release").color(DIM).size(11.0));
+                    }
+                }
+                None => {
+                    ui.spinner();
+                    ui.label(format!("{} 연결 중…", s.server_url));
+                }
             }
-            None => {
-                ui.spinner();
-                ui.label(format!("{} 연결 중…", s.server_url));
-            }
+            crash_notice(ui, s);
         });
     });
+}
+
+/// The last run crashed: where its report is, until the player dismisses it.
+fn crash_notice(ui: &mut egui::Ui, s: &mut Session) {
+    if let Some(path) = s.crash_notice.clone() {
+        ui.add_space(8.0);
+        ui.label(RichText::new("지난 실행이 비정상 종료되었습니다. 보고서를 개발팀에 보내 주시면 원인을 찾는 데 쓰입니다:").color(GOLD).size(12.0));
+        ui.label(RichText::new(path).color(DIM).size(11.0));
+        if ui.small_button("확인").clicked() {
+            s.crash_notice = None;
+        }
+    }
 }
 
 fn login(ctx: &egui::Context, form: &mut Form, s: &mut Session, net: &Net, args: &Args) {
@@ -180,6 +203,7 @@ fn login(ctx: &egui::Context, form: &mut Form, s: &mut Session, net: &Net, args:
             if ui.small_button("설정").clicked() {
                 s.ui.settings = true;
             }
+            crash_notice(ui, s);
         });
     });
 }
@@ -562,9 +586,14 @@ fn hud(ctx: &egui::Context, s: &mut Session, net: &Net, env: &Env, vis: &Visuals
     {
         net.send(ClientMsg::Respawn);
     }
-    if let Some(r) = &s.disconnected {
+    if let Some(r) = s.disconnected.clone() {
         egui::Area::new("dc".into()).anchor(Align2::CENTER_TOP, EVec2::new(0.0, 120.0)).show(ctx, |ui| {
-            ui.label(RichText::new(format!("⚠ 서버 연결 끊김: {r}")).color(RED).size(18.0));
+            ui.vertical_centered(|ui| {
+                ui.label(RichText::new(format!("⚠ 서버 연결 끊김: {r}")).color(RED).size(18.0));
+                if ui.button("다시 연결").clicked() {
+                    s.reconnect = true;
+                }
+            });
         });
     }
 }

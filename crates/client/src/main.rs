@@ -12,6 +12,7 @@ mod bench;
 mod cinematic;
 mod clicks;
 mod comms;
+mod crash;
 mod control;
 mod dust;
 mod fx;
@@ -74,6 +75,11 @@ fn main() {
         println!("wrote sound effects to {dir}");
         return;
     }
+    crash::install();
+    // QA: `--crash-test` panics on purpose (the report lands in <config>/StarfallDynasty/crashes/).
+    if std::env::args().any(|a| a == "--crash-test") {
+        panic!("crash test (--crash-test)");
+    }
     let args = parse_args();
     shared::prof::enable_from_env();
     let bench_secs: Option<f32> = std::env::args().position(|a| a == "--bench").map(|i| std::env::args().nth(i + 1).and_then(|v| v.parse().ok()).unwrap_or(20.0));
@@ -102,13 +108,14 @@ fn main() {
     .add_plugins(settings::SettingsPlugin)
     .add_plugins((materials::MaterialsPlugin, scene::ScenePlugin, ships::ShipsPlugin, fx::FxPlugin, control::ControlPlugin, audio::AudioFxPlugin, music::MusicPlugin, interior::InteriorPlugin, dust::DustPlugin, cinematic::CinematicPlugin, voice::VoicePlugin))
     .init_state::<Screen>()
-    .insert_resource(Session { server_url: args.server.clone(), last_combat: -1e9, ..default() })
+    .insert_resource(Session { server_url: args.server.clone(), last_combat: -1e9, crash_notice: if bench_secs.is_some() || args.showroom || args.replay.is_some() || std::env::args().any(|a| a == "--cinematic") { None } else { crash::take_unseen().map(|p| p.display().to_string()) }, ..default() })
     .init_resource::<ui::Form>()
     .insert_resource(args.clone())
     .add_systems(Startup, startup)
     .add_systems(PreUpdate, (replay::drive.run_if(resource_exists::<replay::Replay>), state::pump_network).chain())
     .add_systems(EguiPrimaryContextPass, ui::ui_system)
-    .add_systems(Update, (automation, ping));
+    .add_systems(Update, (automation, ping))
+    .add_systems(PostUpdate, reconnect);
     if let Some(spec) = std::env::args().skip_while(|a| a != "--clicks").nth(1) {
         app.insert_resource(clicks::parse(&spec)).add_systems(PreUpdate, clicks::inject.before(bevy_egui::EguiPreUpdateSet::ProcessInput));
     }
@@ -149,6 +156,19 @@ fn startup(mut commands: Commands, args: Res<Args>, mut s: ResMut<Session>, mut 
         return;
     }
     commands.insert_resource(net::connect(args.server.clone()));
+}
+
+/// "다시 시도" / "다시 연결": a fresh link to the same server, back to the connection screen (then the
+/// login screen; the captain's saved token logs them back in).
+fn reconnect(mut commands: Commands, mut s: ResMut<Session>, mut form: ResMut<ui::Form>, mut next: ResMut<NextState<Screen>>, replay: Option<Res<replay::Replay>>) {
+    if !s.reconnect || replay.is_some() {
+        return;
+    }
+    s.reconnect = false;
+    s.disconnected = None;
+    form.sent_hello = false;
+    commands.insert_resource(net::connect(s.server_url.clone()));
+    next.set(Screen::Connecting);
 }
 
 fn ping(net: Option<Res<net::Net>>, time: Res<Time<Real>>, mut last: Local<f64>) {

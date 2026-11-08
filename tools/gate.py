@@ -94,8 +94,13 @@ def run_step(cmd, test):
         same = open(tmp, encoding="utf-8").read() == open(os.path.join(ROOT, "docs", "BALANCE.md"), encoding="utf-8").read()
         return ("PASS", "") if same else ("FAIL", "docs/BALANCE.md is stale: cargo run -p sim --release --example balance -- --write docs/BALANCE.md, then read the diff")
     if cmd == "SERVER":
-        # Windows locks a running server binary (CLAUDE.md): stop it before rebuilding.
-        sh("taskkill /F /IM server.exe" if os.name == "nt" else "pkill -x server")
+        # Windows locks a running server binary (CLAUDE.md): stop this checkout's one before rebuilding —
+        # only that file (a soak test may be running its own copy of the server for a day).
+        exe = os.path.join(ROOT, "target", "release", "server.exe" if os.name == "nt" else "server")
+        if os.name == "nt":
+            sh(["powershell", "-NoProfile", "-Command", f"Get-Process server -ErrorAction SilentlyContinue | Where-Object {{ $_.Path -eq '{exe}' }} | Stop-Process -Force"])
+        else:
+            sh(["pkill", "-f", exe])
         r = sh("cargo build --release -p server")
         if r.returncode != 0:
             return "FAIL", r.stderr[-2000:]

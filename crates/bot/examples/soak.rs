@@ -26,6 +26,8 @@ use std::time::{Duration, Instant};
 
 #[derive(Default)]
 struct Live {
+    /// The server died: captains stop instead of retrying until the end of the run.
+    stop: std::sync::atomic::AtomicBool,
     connected: AtomicUsize,
     sessions: AtomicUsize,
     reconnect_failed: AtomicUsize,
@@ -117,7 +119,7 @@ async fn captain(i: usize, url: String, live: Arc<Live>, until: Instant, session
     let name = format!("Soak{i:03}");
     let mut token: Option<String> = None;
     let mut first = true;
-    while Instant::now() < until {
+    while Instant::now() < until && !live.stop.load(Relaxed) {
         let mut bot = match Bot::connect(&url, &name).await {
             Ok(b) => b,
             Err(_) => {
@@ -140,7 +142,7 @@ async fn captain(i: usize, url: String, live: Arc<Live>, until: Instant, session
         let end = (Instant::now() + session + Duration::from_secs((i as u64 * 7) % 60)).min(until);
         let mut hop = Instant::now();
         let mut k = i;
-        while Instant::now() < end {
+        while Instant::now() < end && !live.stop.load(Relaxed) {
             bot.log.clear();
             if bot.dead {
                 live.deaths.fetch_add(1, Relaxed);
@@ -217,6 +219,7 @@ async fn main() {
         );
         if server.try_wait().ok().flatten().is_some() {
             println!("SERVER EXITED");
+            live.stop.store(true, Relaxed);
             break;
         }
         samples.push(s);
