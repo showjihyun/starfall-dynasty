@@ -114,6 +114,25 @@ fn slope(points: &[(f64, f64)]) -> f64 {
 
 const RING: [u16; 3] = [3, 4, 2];
 
+/// Ask Windows not to sleep while this run lasts (the request ends with the process; a closed laptop
+/// lid still sleeps). The first day-long run measured nothing for 9 hours: the PC slept.
+#[cfg(windows)]
+fn keep_awake() {
+    #[link(name = "kernel32")]
+    unsafe extern "system" {
+        fn SetThreadExecutionState(flags: u32) -> u32;
+    }
+    const ES_CONTINUOUS: u32 = 0x8000_0000;
+    const ES_SYSTEM_REQUIRED: u32 = 0x0000_0001;
+    // SAFETY: a plain Win32 call with constant flags; it only records a power request for this thread.
+    if unsafe { SetThreadExecutionState(ES_CONTINUOUS | ES_SYSTEM_REQUIRED) } == 0 {
+        eprintln!("could not ask Windows to stay awake: keep the PC from sleeping yourself");
+    }
+}
+
+#[cfg(not(windows))]
+fn keep_awake() {}
+
 /// One captain for the whole run: play a session, drop the connection, come back with the token.
 async fn captain(i: usize, url: String, live: Arc<Live>, until: Instant, session: Duration) -> Option<String> {
     let name = format!("Soak{i:03}");
@@ -184,6 +203,7 @@ async fn captain(i: usize, url: String, live: Arc<Live>, until: Instant, session
 async fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let arg = |k: &str| args.iter().position(|a| a == k).and_then(|i| args.get(i + 1)).and_then(|v| v.parse::<f64>().ok());
+    keep_awake();
     let minutes = arg("--minutes").unwrap_or(30.0);
     let n = arg("--captains").unwrap_or(40.0) as usize;
     let session = Duration::from_secs_f64(arg("--session").unwrap_or(4.0) * 60.0);
