@@ -46,6 +46,11 @@ impl Default for CamState {
     }
 }
 
+/// The main camera's bloom (removed at Low quality, put back above it).
+pub fn main_bloom() -> Bloom {
+    Bloom { intensity: 0.2, low_frequency_boost: 0.55, prefilter: BloomPrefilter { threshold: 0.9, threshold_softness: 0.45 }, composite_mode: BloomCompositeMode::Additive, ..Bloom::NATURAL }
+}
+
 fn spawn_camera(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
     let cube = images.add(meshes::sky_cubemap([0.2, 0.3, 0.6], [0.5, 0.2, 0.4], Vec3::Z, [1.0, 0.9, 0.7], 1));
     commands.spawn((
@@ -58,7 +63,7 @@ fn spawn_camera(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
         Tonemapping::TonyMcMapface,
         // Thresholded bloom: only genuinely bright things (stars, plumes, beams, blasts) glow;
         // lit hulls and nebulae stay crisp instead of sitting in a haze.
-        Bloom { intensity: 0.2, low_frequency_boost: 0.55, prefilter: BloomPrefilter { threshold: 0.9, threshold_softness: 0.45 }, composite_mode: BloomCompositeMode::Additive, ..Bloom::NATURAL },
+        main_bloom(),
         // Space haze, tuned per system in scene::build_system (none until then).
         DistanceFog { color: Color::BLACK, falloff: FogFalloff::Exponential { density: 0.0 }, ..default() },
         Projection::Perspective(PerspectiveProjection { fov: 62f32.to_radians(), near: 0.5, far: 1_000_000.0, ..default() }),

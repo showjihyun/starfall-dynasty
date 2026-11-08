@@ -29,6 +29,46 @@ impl Display {
     }
 }
 
+/// Graphics quality: what a slower PC turns off first (the client maps it to sun shadows, bloom and
+/// multisampling; High is the look the art reference was made with).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum Quality {
+    Low,
+    Medium,
+    #[default]
+    High,
+}
+
+impl Quality {
+    pub const ALL: [Quality; 3] = [Quality::Low, Quality::Medium, Quality::High];
+
+    pub fn name(self) -> &'static str {
+        match self {
+            Quality::Low => "낮음",
+            Quality::Medium => "중간",
+            Quality::High => "높음",
+        }
+    }
+
+    /// Sun shadows, bloom, 4× multisampling.
+    pub fn features(self) -> (bool, bool, bool) {
+        match self {
+            Quality::Low => (false, false, false),
+            Quality::Medium => (false, true, true),
+            Quality::High => (true, true, true),
+        }
+    }
+
+    pub fn parse(s: &str) -> Option<Quality> {
+        match s.to_ascii_lowercase().as_str() {
+            "low" => Some(Quality::Low),
+            "medium" => Some(Quality::Medium),
+            "high" => Some(Quality::High),
+            _ => None,
+        }
+    }
+}
+
 /// Levels are 0–1; `muted` silences everything without losing them.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
@@ -40,6 +80,7 @@ pub struct Settings {
     pub muted: bool,
     pub display: Display,
     pub vsync: bool,
+    pub quality: Quality,
     /// Frame rate next to the ping, top left (off for players by default).
     pub show_fps: bool,
     /// Key bindings the player changed: action id → key name (`view::keymap`; the rest are defaults).
@@ -49,7 +90,7 @@ pub struct Settings {
 impl Default for Settings {
     fn default() -> Self {
         // Music under the effects, as the mix was tuned (music.rs used 0.45).
-        Settings { master: 1.0, music: 0.45, effects: 1.0, voice: 1.0, muted: false, display: Display::Windowed, vsync: true, show_fps: false, keys: Default::default() }
+        Settings { master: 1.0, music: 0.45, effects: 1.0, voice: 1.0, muted: false, display: Display::Windowed, vsync: true, quality: Quality::High, show_fps: false, keys: Default::default() }
     }
 }
 
@@ -113,6 +154,14 @@ pub fn settings_ui(ui: &mut egui::Ui, s: &mut Settings, listening: &mut Option<A
             ui.radio_value(&mut s.display, d, d.name());
         }
     });
+    ui.horizontal(|ui| {
+        ui.label("그래픽 품질");
+        for q in Quality::ALL {
+            ui.radio_value(&mut s.quality, q, q.name());
+        }
+    })
+    .response
+    .on_hover_text("낮음: 그림자·블룸·안티에일리어싱 끔, 중간: 그림자 끔");
     ui.checkbox(&mut s.vsync, "수직 동기화");
     ui.checkbox(&mut s.show_fps, "프레임 수(FPS) 표시");
     ui.separator();

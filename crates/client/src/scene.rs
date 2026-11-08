@@ -105,6 +105,10 @@ fn ancient_glow(ev: On<WorldInstanceReady>, children: Query<&Children>, mut q: Q
 #[derive(Component)]
 pub struct SystemScene;
 
+/// The star's light, the one that casts shadows (off below High quality, `settings::apply_quality`).
+#[derive(Component)]
+pub struct StarLight;
+
 #[derive(Component)]
 pub struct Skybox;
 
@@ -215,6 +219,7 @@ fn build_system(
     ));
     commands.spawn((
         SystemScene,
+        StarLight,
         DirectionalLight { color: Color::linear_rgb(star_col[0], star_col[1], star_col[2]), illuminance: 2_600.0, shadow_maps_enabled: std::env::var("STARFALL_NO_SHADOWS").is_err(), ..default() },
         Transform::from_translation(Vec3::ZERO).looking_at(lay.station, Vec3::Y),
     ));

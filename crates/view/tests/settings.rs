@@ -4,7 +4,7 @@ use view::settings::{Display, Settings, settings_ui, system_menu};
 
 #[test]
 fn a_settings_file_round_trips_and_a_broken_one_never_stops_the_game() {
-    let mut s = Settings { master: 0.8, music: 0.3, effects: 0.6, voice: 0.9, muted: false, display: Display::Borderless, vsync: false, show_fps: true, keys: [("fire".to_string(), "KeyF".to_string())].into_iter().collect() };
+    let mut s = Settings { master: 0.8, music: 0.3, effects: 0.6, voice: 0.9, muted: false, display: Display::Borderless, vsync: false, quality: view::settings::Quality::Low, show_fps: true, keys: [("fire".to_string(), "KeyF".to_string())].into_iter().collect() };
     assert_eq!(Settings::parse(&s.to_text()), s);
     assert_eq!(Settings::parse("this is not ron"), Settings::default());
     assert_eq!(Settings::parse(""), Settings::default());
@@ -54,4 +54,15 @@ fn keys_can_be_rebound_and_clashes_are_found() {
     let odd = Settings::parse("(keys: {\"warp_drive\": \"KeyW\", \"map\": \"Escape\", \"scan\": \"KeyQ\"})");
     assert_eq!(odd.keys.len(), 1);
     assert_eq!(keymap::shown(&odd.keys, Action::Scan), "Q");
+}
+
+#[test]
+fn quality_presets_turn_off_the_costly_things_first() {
+    use view::settings::Quality;
+    assert_eq!(Settings::default().quality, Quality::High, "the art reference look");
+    assert_eq!(Quality::High.features(), (true, true, true));
+    assert_eq!(Quality::Medium.features(), (false, true, true), "shadows go first");
+    assert_eq!(Quality::Low.features(), (false, false, false));
+    assert_eq!(Quality::parse("LOW"), Some(Quality::Low));
+    assert_eq!(Settings::parse("(quality: Medium)").quality, Quality::Medium);
 }

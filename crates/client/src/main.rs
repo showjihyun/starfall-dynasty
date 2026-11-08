@@ -85,7 +85,11 @@ fn main() {
     let bench_secs: Option<f32> = std::env::args().position(|a| a == "--bench").map(|i| std::env::args().nth(i + 1).and_then(|v| v.parse().ok()).unwrap_or(20.0));
     // Screenshots, showroom, replays, cutscene renders and benches run on the default settings.
     let automated = bench_secs.is_some() || args.shot.is_some() || args.showroom || args.replay.is_some() || std::env::args().any(|a| a == "--cinematic" || a == "--clicks");
-    let player_settings = settings::ClientSettings::load(automated);
+    let mut player_settings = settings::ClientSettings::load(automated);
+    // `--quality low|medium|high`: benches and screenshots at another graphics preset.
+    if let Some(q) = std::env::args().skip_while(|a| a != "--quality").nth(1).and_then(|q| view::settings::Quality::parse(&q)) {
+        player_settings.s.quality = q;
+    }
     let mut app = App::new();
     #[cfg(feature = "raytracing_dlss")]
     app.insert_resource(raytracing::dlss_project_id());

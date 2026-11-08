@@ -72,7 +72,7 @@ pub struct SettingsPlugin;
 
 impl Plugin for SettingsPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<Listening>().add_systems(PreUpdate, capture_key).add_systems(PostUpdate, (apply, quit, rebind));
+        app.init_resource::<Listening>().add_systems(PreUpdate, capture_key).add_systems(PostUpdate, (apply, quit, rebind, apply_quality));
     }
 }
 
@@ -127,6 +127,33 @@ fn capture_key(keys: Option<ResMut<ButtonInput<KeyCode>>>, mut listening: ResMut
 fn rebind(mut commands: Commands, cs: Res<ClientSettings>, binds: Option<Res<KeyBinds>>) {
     if binds.is_none() || cs.is_changed() {
         commands.insert_resource(KeyBinds::from(&cs.s));
+    }
+}
+
+/// Graphics quality (`view::settings::Quality`): sun shadows, bloom and multisampling on the main camera.
+/// Runs for automated runs too (a bench may ask for `--quality low`); their default is High, the art
+/// reference look.
+fn apply_quality(mut commands: Commands, cs: Res<ClientSettings>, mut suns: Query<&mut DirectionalLight, With<crate::scene::StarLight>>, cams: Query<(Entity, Has<bevy::post_process::bloom::Bloom>, Option<&Msaa>), With<crate::control::MainCamera>>) {
+    let (shadows, bloom, msaa) = cs.s.quality.features();
+    let shadows = shadows && std::env::var("STARFALL_NO_SHADOWS").is_err();
+    for mut l in &mut suns {
+        if l.shadow_maps_enabled != shadows {
+            l.shadow_maps_enabled = shadows;
+        }
+    }
+    for (cam, has_bloom, m) in &cams {
+        if has_bloom != bloom {
+            if bloom {
+                commands.entity(cam).insert(crate::control::main_bloom());
+            } else {
+                commands.entity(cam).remove::<bevy::post_process::bloom::Bloom>();
+            }
+        }
+        // Ray-traced lighting needs MSAA off (raytracing.rs): that build leaves it alone.
+        let want = if msaa && !cfg!(feature = "raytracing_dlss") { Msaa::Sample4 } else { Msaa::Off };
+        if m.is_some_and(|m| *m != want) {
+            commands.entity(cam).insert(want);
+        }
     }
 }
 
