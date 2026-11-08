@@ -92,6 +92,17 @@ impl Game {
                 if self.dev_mode && text.starts_with('/') {
                     return self.dev_command(pid, &text);
                 }
+                // Spam guard: a token bucket per connection (a fresh session starts full).
+                let (rate, burst, now) = (self.tuning.social.chat_per_sec, self.tuning.social.chat_burst, self.now);
+                if rate > 0.0 {
+                    let s = self.sessions.get_mut(&conn).unwrap();
+                    s.chat_tokens = if s.chat_at == 0.0 { burst } else { (s.chat_tokens + (now - s.chat_at) as f32 * rate).min(burst) };
+                    s.chat_at = now.max(1e-9);
+                    if s.chat_tokens < 1.0 {
+                        return self.toast(pid, "채팅을 너무 빨리 보내고 있습니다 — 잠시 뒤에 다시 보내세요");
+                    }
+                    s.chat_tokens -= 1.0;
+                }
                 let from = self.store.profile(pid).unwrap().name.clone();
                 let conns: Vec<ConnId> = self.conn_of.values().copied().collect();
                 for c in conns {

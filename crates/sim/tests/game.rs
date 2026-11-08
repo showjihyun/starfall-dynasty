@@ -1824,3 +1824,23 @@ fn a_free_for_all_names_the_strongest_sides_and_sums_the_rest() {
     assert_eq!(rest.name, format!("외 {}개 세력", on_front - (keep as u32 - 1)), "each lone ship is its own side");
     assert_eq!(sides.iter().map(|s| s.ships).sum::<u32>(), on_front, "nobody is dropped from the count");
 }
+
+#[test]
+fn chat_spam_is_held_back() {
+    let mut g = game();
+    join(&mut g, 1, "Talker", Species::Human, HullClass::Talon, Profession::CombatPilot);
+    join(&mut g, 2, "Reader", Species::Human, HullClass::Talon, Profession::CombatPilot);
+    let t = g.tuning.social;
+    let heard = |g: &mut Game| g.out.drain(..).filter(|(c, m)| *c == 2 && matches!(m, ServerMsg::Chat { .. })).count();
+    run(&mut g, 1.0);
+    g.out.clear();
+    for i in 0..20 {
+        g.handle(1, ClientMsg::Chat { text: format!("buy gold {i}") });
+    }
+    assert_eq!(heard(&mut g), t.chat_burst as usize, "a burst gets through, the rest is held back");
+    run(&mut g, 2.0 / t.chat_per_sec);
+    g.out.clear();
+    g.handle(1, ClientMsg::Chat { text: "later".into() });
+    g.handle(1, ClientMsg::Chat { text: "and again".into() });
+    assert_eq!(heard(&mut g), 2, "the bucket refills with time");
+}

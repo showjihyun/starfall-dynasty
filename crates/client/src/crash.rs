@@ -10,6 +10,27 @@ fn dir() -> Option<PathBuf> {
     crate::state::config_dir().map(|d| d.join("crashes"))
 }
 
+/// The command line as it may appear in a report the player is asked to send: the value after
+/// `--token` (a login credential) and any user:password in a URL are replaced.
+pub fn redacted_args(args: &[String]) -> Vec<String> {
+    let mut out = Vec::with_capacity(args.len());
+    let mut secret_next = false;
+    for a in args {
+        if secret_next {
+            out.push("<redacted>".to_string());
+            secret_next = false;
+            continue;
+        }
+        secret_next = a == "--token";
+        let a = match a.split_once("://") {
+            Some((scheme, rest)) if rest.split('/').next().is_some_and(|host| host.contains('@')) => format!("{scheme}://<redacted>@{}", rest.split_once('@').map_or("", |(_, h)| h)),
+            _ => a.clone(),
+        };
+        out.push(a);
+    }
+    out
+}
+
 /// The report's text (kept apart from the hook so it is tested without crashing).
 pub fn report(message: &str, location: &str, backtrace: &str, args: &[String], unix: u64) -> String {
     format!(
@@ -29,12 +50,24 @@ pub fn install() {
         let message = info.payload().downcast_ref::<&str>().map(|s| s.to_string()).or_else(|| info.payload().downcast_ref::<String>().cloned()).unwrap_or_else(|| "(no message)".into());
         let location = info.location().map(|l| format!("{}:{}", l.file(), l.line())).unwrap_or_default();
         let unix = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_secs());
-        let text = report(&message, &location, &std::backtrace::Backtrace::force_capture().to_string(), &std::env::args().collect::<Vec<_>>(), unix);
+        let text = report(&message, &location, &std::backtrace::Backtrace::force_capture().to_string(), &redacted_args(&std::env::args().collect::<Vec<_>>()), unix);
         if let Some(d) = dir() {
             let _ = std::fs::create_dir_all(&d);
             let path = d.join(format!("crash_{unix}.txt"));
-            if std::fs::write(&path, text).is_ok() {
-                eprintln!("crash report written to {}", path.display());
+            // Owner-only on Unix, a new file, never through a symlink (as the login token is kept,
+            // state.rs::save_token); on Windows the per-user %APPDATA% ACL restricts access.
+            let mut opts = std::fs::OpenOptions::new();
+            opts.write(true).create_new(true);
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::OpenOptionsExt;
+                opts.mode(0o600).custom_flags(crate::state::libc_nofollow());
+            }
+            if let Ok(mut f) = opts.open(&path) {
+                use std::io::Write;
+                if f.write_all(text.as_bytes()).is_ok() {
+                    eprintln!("crash report written to {}", path.display());
+                }
             }
         }
         default(info);
@@ -57,6 +90,14 @@ pub fn take_unseen() -> Option<PathBuf> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn credentials_never_reach_a_report() {
+        let args: Vec<String> = ["client.exe", "--token", "s3cret", "--server", "wss://bob:pw@play.example.com/x", "--name", "Ann"].iter().map(|s| s.to_string()).collect();
+        let r = super::redacted_args(&args).join(" ");
+        assert!(!r.contains("s3cret") && !r.contains("bob") && !r.contains("pw@"), "{r}");
+        assert_eq!(r, "client.exe --token <redacted> --server wss://<redacted>@play.example.com/x --name Ann");
+    }
+
     #[test]
     fn a_report_says_what_where_and_how_to_reproduce() {
         let r = super::report("index out of bounds", "crates/client/src/ui.rs:42", "0: main", &["client.exe".into(), "--server".into(), "ws://x".into()], 1_800_000_000);

@@ -266,7 +266,7 @@ pub fn save_token(name: &str, token: &str) {
 }
 
 #[cfg(unix)]
-fn libc_nofollow() -> i32 {
+pub(crate) fn libc_nofollow() -> i32 {
     // O_NOFOLLOW: Linux 0o400000, macOS/BSD 0x100.
     if cfg!(target_os = "linux") { 0o400000 } else { 0x100 }
 }

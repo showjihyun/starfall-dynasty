@@ -17,8 +17,26 @@ use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::mpsc;
 use tokio_tungstenite::tungstenite::Message;
 
+/// Protecting a public server from one bad client (not game rules). A client frame larger than this
+/// closes the connection (the biggest real message, a chat line or a research thesis, is a few KB).
+const MAX_FRAME: usize = 64 * 1024;
+/// Messages a connection may send per second, and the burst: mouse steering sends Controls every frame,
+/// so 144 fps fits. Beyond it messages are dropped; `FLOOD_KICK` dropped in a row closes it.
+const MSG_RATE: f64 = 240.0;
+const MSG_BURST: f64 = 480.0;
+const FLOOD_KICK: u32 = 2000;
+/// Frames queued for a client that stopped reading (20 s of snapshots): it is disconnected instead of
+/// the server holding its backlog in memory.
+const SEND_BACKLOG: usize = 400;
+
+/// A connection's outbound channel and how many frames wait in it.
+struct Out {
+    tx: mpsc::UnboundedSender<Message>,
+    queued: std::sync::Arc<std::sync::atomic::AtomicUsize>,
+}
+
 enum Inbound {
-    Open(ConnId, mpsc::UnboundedSender<Message>),
+    Open(ConnId, Out),
     Msg(ConnId, ClientMsg),
     Close(ConnId),
 }
@@ -98,7 +116,7 @@ async fn main() -> std::io::Result<()> {
         }
     });
 
-    let mut outs: HashMap<ConnId, mpsc::UnboundedSender<Message>> = HashMap::new();
+    let mut outs: HashMap<ConnId, Out> = HashMap::new();
     let dt = 1.0 / TICK_HZ;
     let mut interval = tokio::time::interval(Duration::from_secs_f32(dt));
     interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
@@ -154,11 +172,26 @@ async fn main() -> std::io::Result<()> {
                 // In batches of 32: a few frames are encoded on one thread (see PARALLEL_SNAPSHOT_WORK).
                 let frames: Vec<(ConnId, Message)> = game.out.par_drain(..).with_min_len(32).map(|(c, m)| (c, wire(&m))).collect();
                 drop(enc);
+                let mut slow = vec![];
                 for (conn, frame) in frames {
                     if let Some(o) = outs.get(&conn) {
+                        if o.queued.load(std::sync::atomic::Ordering::Relaxed) > SEND_BACKLOG {
+                            slow.push(conn);
+                            continue;
+                        }
                         stat_bytes += frame.len();
-                        let _ = o.send(frame);
+                        o.queued.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                        let _ = o.tx.send(frame);
                     }
+                }
+                slow.sort_unstable();
+                slow.dedup();
+                for conn in slow {
+                    eprintln!("[conn {conn}] not reading ({SEND_BACKLOG}+ frames queued): disconnected");
+                    if let Some(o) = outs.remove(&conn) {
+                        let _ = o.tx.send(Message::Close(None));
+                    }
+                    game.disconnect(conn);
                 }
                 let ns = t0.elapsed().as_nanos();
                 (stat_ticks, stat_ns, stat_max) = (stat_ticks + 1, stat_ns + ns, stat_max.max(ns));
@@ -183,7 +216,7 @@ async fn main() -> std::io::Result<()> {
                 }
                 for k in game.kicked.drain(..) {
                     if let Some(o) = outs.remove(&k) {
-                        let _ = o.send(Message::Close(None));
+                        let _ = o.tx.send(Message::Close(None));
                     }
                 }
                 if last_save.elapsed() > Duration::from_secs(15) {
@@ -210,21 +243,40 @@ fn wire(m: &ServerMsg) -> Message {
 
 async fn connection(id: ConnId, stream: TcpStream, tx: mpsc::UnboundedSender<Inbound>) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     stream.set_nodelay(true)?;
-    let ws = tokio_tungstenite::accept_async(stream).await?;
+    let config = tokio_tungstenite::tungstenite::protocol::WebSocketConfig::default().max_message_size(Some(MAX_FRAME)).max_frame_size(Some(MAX_FRAME));
+    let ws = tokio_tungstenite::accept_async_with_config(stream, Some(config)).await?;
     let (mut sink, mut source) = ws.split();
     let (otx, mut orx) = mpsc::unbounded_channel::<Message>();
+    let queued = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
     // Pings are answered right here so the HUD shows network round-trip, not tick queueing.
     let pong = otx.clone();
-    tx.send(Inbound::Open(id, otx)).ok();
+    tx.send(Inbound::Open(id, Out { tx: otx, queued: queued.clone() })).ok();
     let writer = tokio::spawn(async move {
         while let Some(m) = orx.recv().await {
             let close = matches!(m, Message::Close(_));
-            if sink.send(m).await.is_err() || close {
+            let r = sink.send(m).await;
+            queued.fetch_sub(1, std::sync::atomic::Ordering::Relaxed);
+            if r.is_err() || close {
                 break;
             }
         }
     });
+    // Token bucket over the messages this client sends (MSG_RATE, MSG_BURST).
+    let (mut tokens, mut last, mut dropped) = (MSG_BURST, std::time::Instant::now(), 0u32);
     while let Some(frame) = source.next().await {
+        let now = std::time::Instant::now();
+        tokens = (tokens + now.duration_since(last).as_secs_f64() * MSG_RATE).min(MSG_BURST);
+        last = now;
+        if tokens < 1.0 {
+            dropped += 1;
+            if dropped >= FLOOD_KICK {
+                eprintln!("[conn {id}] flooding: disconnected");
+                break;
+            }
+            continue;
+        }
+        tokens -= 1.0;
+        dropped = 0;
         // A reset connection must still reach the game loop as a Close, or the ship stays as a ghost.
         let frame = match frame {
             Ok(f) => f,

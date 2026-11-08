@@ -234,6 +234,9 @@ pub struct Session {
     pub dead: bool,
     /// Game time from which a sunk ship may be rebuilt (`combat.rebuild`).
     pub rebuild_at: f64,
+    /// Chat spam guard: tokens left and when they were last refilled (`social.chat_per_sec`).
+    pub chat_tokens: f32,
+    pub chat_at: f64,
     pub escorts: Vec<EntityId>,
     pub escort_attack: bool,
     /// Next snapshot must carry every entity's info (just entered a system / reconnected).

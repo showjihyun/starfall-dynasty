@@ -555,6 +555,11 @@ pub struct SocialTuning {
     pub rivalry_battles: u32,
     #[serde(default)]
     pub rivalry_bonus: f32,
+    /// Chat lines a captain may send per second, and the burst (spam guard). 0: unlimited.
+    #[serde(default)]
+    pub chat_per_sec: f32,
+    #[serde(default)]
+    pub chat_burst: f32,
     /// Betrayal and rebellion. Missing (recordings from before them): none of it.
     #[serde(default)]
     pub betrayal: Betrayal,
