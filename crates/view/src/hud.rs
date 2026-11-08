@@ -35,6 +35,32 @@ pub const KEY_HINTS: [&str; 2] = ["W/S 추진 · A/D 선회 · R/F 상하 · Q/E
 /// Widest the death panel's hint line runs before it wraps.
 pub const DEATH_HINT_W: f32 = 520.0;
 
+/// What the captain should do next when no chapter is running — a fresh captain saw only the daily
+/// missions and had to find the campaign in the missions window on their own (journey QA,
+/// `cargo run -p bot --release --example journey`). None while a chapter runs (the tracker shows its
+/// step) or once the campaign is over.
+pub fn next_goal(prof: &shared::protocol::Profile) -> Option<String> {
+    if prof.scenario.is_some() {
+        return None;
+    }
+    let all = shared::missions::scenarios();
+    let next = all.get(prof.scenarios_completed as usize)?;
+    let what = if prof.scenarios_completed == 0 { "캠페인 시작" } else { "다음 장" };
+    Some(format!("▶ {what}: 「{}」", next.title))
+}
+
+/// How to do a chapter step, under it on the tracker (the step says what, this says which keys);
+/// starting docked, how to get out first.
+pub fn step_hint(step: &shared::missions::Step, docked: bool) -> String {
+    use shared::missions::Step;
+    let how = match step {
+        Step::Reach { .. } => "M 지도에서 성계를 골라 워프",
+        Step::ScanPoi { .. } => "화면의 표시를 따라가 가까이서 V 스캔",
+        Step::Defeat { .. } => "T 목표 지정 · Space 사격 · 밀리면 G 도킹해 수리",
+    };
+    if docked { format!("G 출항 → {how}") } else { how.to_string() }
+}
+
 /// The "ship sunk" panel (screen centre) with how to beat the wave next time, if the server sent one
 /// (`ServerMsg::Died::hint`). Returns true when the rebuild button was clicked.
 pub fn death_panel(ctx: &egui::Context, killer: &str, hint: Option<&str>) -> bool {

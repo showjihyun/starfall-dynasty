@@ -7,6 +7,11 @@ publish = false
 [dependencies]
 shared = { path = "../shared" }
 serde_json = { workspace = true }
+serde = { workspace = true }
 tokio = { workspace = true }
 tokio-tungstenite = { workspace = true }
 futures-util = { workspace = true }
+# The journey QA (src/journey.rs) plays the rules and checks the client's presentation logic headless.
+sim = { path = "../sim" }
+history = { path = "../history" }
+view = { path = "../view" }

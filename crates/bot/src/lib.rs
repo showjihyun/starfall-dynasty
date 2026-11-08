@@ -1,5 +1,6 @@
 //! Headless client over the real WebSocket protocol. Used for end-to-end tests and load tests.
 
+pub mod journey;
 pub mod qa;
 
 use futures_util::{SinkExt, StreamExt};

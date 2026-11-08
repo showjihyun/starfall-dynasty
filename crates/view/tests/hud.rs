@@ -510,3 +510,48 @@ fn death_panel_keeps_the_boss_hint_inside_it_above_the_rebuild_button() {
     });
     assert!(plain.text("💡").is_none(), "no hint, no line");
 }
+
+#[test]
+fn a_captain_with_no_chapter_running_is_told_what_to_do_next() {
+    use shared::protocol::{Profile, Profession, ScenarioProgress};
+    let mut p = Profile {
+        player_id: 1,
+        name: "New".into(),
+        species: shared::galaxy::Species::Human,
+        profession: Profession::CombatPilot,
+        ship: shared::ships::Ship::new("SNS New".into(), shared::ships::HullClass::Talon, 0),
+        wallet: Default::default(),
+        cargo: Default::default(),
+        home: 0,
+        dailies: vec![],
+        daily_day: 0,
+        scenarios_completed: 0,
+        scenario: None,
+        kills: 0,
+        deaths: 0,
+        reputation: 0,
+        bounty: 0,
+        archive: vec![],
+        last_system: 0,
+        scanned: vec![],
+        specimens: Default::default(),
+    };
+    let all = shared::missions::scenarios();
+    let goal = hud::next_goal(&p).expect("a fresh captain is pointed at the campaign");
+    assert!(goal.contains("캠페인 시작") && goal.contains(all[0].title), "{goal}");
+    p.scenario = Some(ScenarioProgress { id: 0, step: 0, step_progress: 0 });
+    assert_eq!(hud::next_goal(&p), None, "the tracker shows the running chapter's step");
+    p.scenario = None;
+    p.scenarios_completed = 1;
+    assert!(hud::next_goal(&p).unwrap().contains(all[1].title));
+    p.scenarios_completed = all.len() as u32;
+    assert_eq!(hud::next_goal(&p), None, "campaign over");
+    // Every step says which keys do it; a docked captain is told how to get out first.
+    for sc in &all {
+        for st in &sc.steps {
+            let h = hud::step_hint(st, false);
+            assert!(h.chars().any(|c| c.is_ascii_uppercase()), "{}: {h}", st.describe());
+            assert!(hud::step_hint(st, true).starts_with("G 출항"));
+        }
+    }
+}

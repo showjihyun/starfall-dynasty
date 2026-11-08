@@ -447,6 +447,19 @@ fn hud(ctx: &egui::Context, s: &mut Session, net: &Net, env: &Env, vis: &Visuals
                 ui.label(RichText::new(sc.title).color(GOLD).strong());
                 if let Some(step) = sc.steps.get(sp.step) {
                     ui.label(format!("▶ {}", step.describe()));
+                    ui.label(RichText::new(view::hud::step_hint(step, me.as_ref().is_some_and(|m| m.docked))).size(11.0).color(DIM));
+                }
+                ui.separator();
+            } else if let Some(goal) = view::hud::next_goal(&prof) {
+                ui.label(RichText::new(goal).color(GOLD).strong());
+                // One click from the tracker, as the missions window does (the opening first, once).
+                if ui.button("시작").clicked() {
+                    let start = ClientMsg::StartScenario { id: prof.scenarios_completed };
+                    if prof.scenarios_completed == 0 && !opening_seen(&prof.name) {
+                        s.cine_request = Some(CineRequest { name: "opening".into(), then: Some(start) });
+                    } else {
+                        net.send(start);
+                    }
                 }
                 ui.separator();
             }
