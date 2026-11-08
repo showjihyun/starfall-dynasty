@@ -127,6 +127,8 @@ impl Game {
             ClientMsg::RequestContracts => self.send_contracts(pid),
             ClientMsg::AllianceDividend => self.alliance_dividend(pid),
             ClientMsg::AllianceFortify { system } => self.alliance_fortify(pid, system),
+            // Handled before a player's messages (Game::handle), and only from the console.
+            ClientMsg::Admin { .. } => {}
             ClientMsg::AllianceVote { name } => self.alliance_vote(pid, &name),
             ClientMsg::FoundInstitute { name } => self.found_institute(conn, pid, sys, eid, name),
             ClientMsg::DonateToInstitute { artifact, institute } => self.donate_to_institute(conn, pid, sys, eid, artifact, institute),

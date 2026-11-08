@@ -1,6 +1,7 @@
 //! STARFALL DYNASTY authoritative server.
 //!
 //! `server [--port 7777] [--data ./data] [--dev] [--record DIR] [--metrics FILE.jsonl] [--prof]`
+//! Console: type `players`, `kick NAME`, `ban NAME`, `unban NAME`, `bans`, `say TEXT`, `save` (sim::game::admin).
 //!
 //! WebSocket transport, JSON frames. One game loop task owns all state at 20 Hz;
 //! connection tasks only shuttle frames.
@@ -97,6 +98,19 @@ async fn main() -> std::io::Result<()> {
     let listener = TcpListener::bind(("0.0.0.0", port)).await?;
     println!("[starfall] listening on ws://0.0.0.0:{port}");
     let (tx, mut rx) = mpsc::unbounded_channel::<Inbound>();
+    // The operator's console: each line typed into the server's terminal is an admin command
+    // (sim::game::admin — players, kick, ban, unban, bans, say, save), recorded like any message.
+    {
+        let tx = tx.clone();
+        std::thread::spawn(move || {
+            use std::io::BufRead;
+            for line in std::io::stdin().lock().lines().map_while(Result::ok) {
+                if !line.trim().is_empty() && tx.send(Inbound::Msg(sim::game::ADMIN_CONN, ClientMsg::Admin { command: line.trim().to_string() })).is_err() {
+                    break;
+                }
+            }
+        });
+    }
 
     tokio::spawn(async move {
         let mut next: ConnId = 1;
@@ -146,6 +160,9 @@ async fn main() -> std::io::Result<()> {
                             game.disconnect(id);
                         }
                     }
+                }
+                for reply in game.admin_replies.drain(..) {
+                    println!("[admin] {reply}");
                 }
                 let t0 = std::time::Instant::now();
                 let unix = unix_now();

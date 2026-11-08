@@ -118,6 +118,8 @@ pub enum ClientMsg {
     /// of the members behind one captain makes them leader.
     AllianceVote { name: String },
     RequestAlliances,
+    /// Server console only (`sim::game::admin`, connection 0): an operator command. Ignored from players.
+    Admin { command: String },
     EscortCommand { attack: bool },
     /// Station services for artifacts (docked): reveal the true name and value, sell to collectors,
     /// or donate to the station museum.

@@ -1844,3 +1844,39 @@ fn chat_spam_is_held_back() {
     g.handle(1, ClientMsg::Chat { text: "and again".into() });
     assert_eq!(heard(&mut g), 2, "the bucket refills with time");
 }
+
+#[test]
+fn the_operator_kicks_bans_and_speaks_from_the_console() {
+    use sim::game::ADMIN_CONN;
+    let mut g = game();
+    join(&mut g, 1, "Griefer", Species::Human, HullClass::Talon, Profession::CombatPilot);
+    join(&mut g, 2, "Good", Species::Human, HullClass::Talon, Profession::CombatPilot);
+    let admin = |g: &mut Game, c: &str| {
+        g.handle(ADMIN_CONN, ClientMsg::Admin { command: c.into() });
+        std::mem::take(&mut g.admin_replies).join(" | ")
+    };
+    assert!(admin(&mut g, "players").starts_with("2 online"));
+    // A player cannot send console commands.
+    g.handle(2, ClientMsg::Admin { command: "ban Griefer".into() });
+    assert!(g.admin_replies.is_empty() && g.store.data.banned.is_empty());
+    assert_eq!(admin(&mut g, "kick Griefer"), "kick: Griefer (disconnected)");
+    assert!(g.kicked.contains(&1) && !g.sessions.contains_key(&1));
+    // Banned: told why, disconnected, and refused at the next login whatever the token.
+    let token = g.store.account(g.store.find_by_name("Griefer").unwrap()).unwrap().token.clone();
+    g.handle(3, ClientMsg::Hello { version: PROTOCOL_VERSION, name: "Griefer".into(), token: Some(token.clone()) });
+    assert!(g.sessions[&3].player.is_some(), "a kick is not a ban");
+    g.out.clear();
+    assert_eq!(admin(&mut g, "ban griefer"), "ban: Griefer (disconnected)");
+    assert!(errors(&g, 3).iter().any(|e| e.contains("정지")));
+    g.out.clear();
+    g.handle(4, ClientMsg::Hello { version: PROTOCOL_VERSION, name: "GRIEFER".into(), token: Some(token.clone()) });
+    assert!(g.sessions[&4].player.is_none() && errors(&g, 4).iter().any(|e| e.contains("정지")));
+    assert!(admin(&mut g, "bans").contains("griefer"));
+    assert_eq!(admin(&mut g, "unban Griefer"), "unban Griefer: done");
+    g.handle(5, ClientMsg::Hello { version: PROTOCOL_VERSION, name: "Griefer".into(), token: Some(token) });
+    assert!(g.sessions[&5].player.is_some());
+    // An announcement reaches everyone online.
+    g.out.clear();
+    assert!(admin(&mut g, "say 10분 뒤 점검").starts_with("said to 2"));
+    assert!(g.out.iter().any(|(c, m)| *c == 2 && matches!(m, ServerMsg::Toast { text } if text.contains("10분 뒤 점검"))));
+}

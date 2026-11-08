@@ -2,6 +2,8 @@
 //! messages and drains `out`; tests drive it directly.
 
 mod actions;
+mod admin;
+pub use admin::ADMIN_CONN;
 mod artifacts;
 mod contracts;
 mod influence;
@@ -276,6 +278,8 @@ pub struct Game {
     next_entity: EntityId,
     next_fleet: FleetId,
     pub kicked: Vec<ConnId>,
+    /// Replies to console commands (`admin`), for the server to print.
+    pub admin_replies: Vec<String>,
     pub pending_fx: BTreeMap<SystemId, Vec<Fx>>,
     /// (hitter side, victim side) → last time: self-defence checks without scanning the system.
     pub hostility: HashMap<(PlayerId, PlayerId), f64>,
@@ -311,6 +315,7 @@ impl Game {
             next_entity: 1,
             next_fleet: 1,
             kicked: Vec::new(),
+            admin_replies: vec![],
             pending_fx: BTreeMap::new(),
             hostility: HashMap::new(),
             prof: [0; 8],
@@ -435,6 +440,12 @@ impl Game {
     }
 
     pub fn handle(&mut self, conn: ConnId, msg: ClientMsg) {
+        if let ClientMsg::Admin { command } = &msg {
+            if conn == ADMIN_CONN {
+                self.admin(command);
+            }
+            return;
+        }
         self.sessions.entry(conn).or_default();
         match msg {
             ClientMsg::Hello { version, name, token } => self.hello(conn, version, name, token),
@@ -486,6 +497,9 @@ impl Game {
         let name = name.trim().to_string();
         if name.chars().count() < 2 || name.chars().count() > 20 || name.contains(['/', '"']) {
             return self.error(conn, "함장 이름은 2~20자여야 합니다");
+        }
+        if self.is_banned(&name) {
+            return self.error(conn, "이 계정은 운영 정책에 따라 정지되었습니다");
         }
         let pid = match self.store.find_by_name(&name) {
             Some(pid) => {

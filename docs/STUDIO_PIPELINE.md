@@ -42,6 +42,7 @@
 | 현지화 | — (한국어 문자열이 코드에 직접) | ○ | Project Fluent(`fluent-rs`)로 문자열 분리 — 해외 출시 결정 후 |
 | 라이선스·취약점 | `cargo-deny`(`deny.toml`) | ● 2026-10-20 | 허용 라이선스 목록, RustSec, 출처. 예외 하나(RUSTSEC-2026-0344, 이유 기록). 게임 자체 라이선스는 미정 |
 | 배포·패키징 | `tools/package.py` + `tools/steam/*.vdf` | ◐ 2026-11-08 | `dist/StarfallDynasty/`(게임 exe·assets·tuning·server.txt 기본 서버·전용 서버·THIRD_PARTY.txt 크레이트 라이선스), `--zip`, `--smoke`(설치 폴더에서 오프닝 렌더·서버 접속). Steam 앱/디포 id는 미정(VDF 자리표시). 남은 것: 코드 서명, 게임 자체 라이선스, 설치본(Steam 밖 배포 시) |
+| 라이브 운영 | 서버 콘솔(`sim::game::admin`), 서버 보호(`server/src/main.rs`), 소크(`bot` example soak) | ◐ 2026-11-08 | 콘솔: players · kick · ban(저장, 로그인 거절) · unban · bans · say(공지) · save — 기록·재생됨. 보호: 프레임 64 KB, 연결당 초당 240 메시지, 안 읽는 클라이언트 끊기, 채팅 도배 제한. 다음: 원격 관리(웹/RCON), 신고 기능 |
 | 작업 관리 | GitHub(`gh`) | ◐ | 게이트 실패를 이슈로 남기기 |
 
 ● 있음 · ◐ 일부 · ○ 없음
