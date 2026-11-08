@@ -3,7 +3,7 @@
 //! `client [--server ws://127.0.0.1:7777] [--name NAME] [--auto] [--hull talon]`
 //! `       [--shot out.png --shot-at 8] [--showroom [system]] [--cinematic opening] [--script "undock;thrust 3;fire 2"]`
 //! script steps: undock, warp N, thrust/boost/fire/turn/roll SECS, attack SECS, target NAME, say TEXT
-//! (dev commands too: `say /grow 9`), map, galaxy, station, missions, alliance, contracts, chronicle, close, fp, tp, zoom N
+//! (dev commands too: `say /grow 9`), map, galaxy, station, missions, alliance, contracts, chronicle, menu, settings, close, fp, tp, zoom N
 //! `client --replay DIR [--as NAME] [--from SECS] [--speed X]` — 3D replay of a recorded session
 
 mod audio;
@@ -25,6 +25,7 @@ mod net;
 mod raytracing;
 mod replay;
 mod scene;
+mod settings;
 mod ships;
 mod starmap;
 mod state;
@@ -68,6 +69,8 @@ fn main() {
     let args = parse_args();
     shared::prof::enable_from_env();
     let bench_secs: Option<f32> = std::env::args().position(|a| a == "--bench").map(|i| std::env::args().nth(i + 1).and_then(|v| v.parse().ok()).unwrap_or(20.0));
+    // Screenshots, showroom, replays, cutscene renders and benches run on the default settings.
+    let automated = bench_secs.is_some() || args.shot.is_some() || args.showroom || args.replay.is_some() || std::env::args().any(|a| a == "--cinematic" || a == "--clicks");
     let mut app = App::new();
     #[cfg(feature = "raytracing_dlss")]
     app.insert_resource(raytracing::dlss_project_id());
@@ -87,6 +90,8 @@ fn main() {
     )
     .add_plugins(EguiPlugin::default())
     .insert_resource(bevy_egui::EguiGlobalSettings { auto_create_primary_context: false, ..default() })
+    .insert_resource(settings::ClientSettings::load(automated))
+    .add_plugins(settings::SettingsPlugin)
     .add_plugins((materials::MaterialsPlugin, scene::ScenePlugin, ships::ShipsPlugin, fx::FxPlugin, control::ControlPlugin, audio::AudioFxPlugin, music::MusicPlugin, interior::InteriorPlugin, dust::DustPlugin, cinematic::CinematicPlugin, voice::VoicePlugin))
     .init_state::<Screen>()
     .insert_resource(Session { server_url: args.server.clone(), last_combat: -1e9, ..default() })
@@ -391,6 +396,8 @@ fn automation(
             "station" if first => s.ui.station = true,
             "missions" if first => s.ui.missions = true,
             "help" if first => s.ui.help = true,
+            "menu" if first => s.ui.menu = true,
+            "settings" if first => s.ui.settings = true,
             "ally" if first => net.send(ClientMsg::AllianceCreate { name: cmd.get(1).copied().unwrap_or("QA Pact").into(), tag: cmd.get(2).copied().unwrap_or("QA").into() }),
             "alliance" if first => {
                 s.ui.alliance = true;

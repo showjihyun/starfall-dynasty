@@ -64,6 +64,7 @@ pub fn ui_system(
     ships: Query<(&ShipVis, &Transform)>,
     cam: Query<(&Camera, &GlobalTransform), With<crate::control::MainCamera>>,
     time: Res<Time<Real>>,
+    mut cs: ResMut<crate::settings::ClientSettings>,
 ) -> Result {
     let _prof = shared::prof::span("ui::ui_system");
     let ctx = contexts.ctx_mut()?;
@@ -94,7 +95,31 @@ pub fn ui_system(
             crate::starmap::draw(ctx, &mut s, &net, &env, now);
         }
     }
+    system_menu(ctx, &mut s, &mut cs);
     Ok(())
+}
+
+/// The Esc menu and the settings window (also reachable from the login screen).
+fn system_menu(ctx: &egui::Context, s: &mut Session, cs: &mut crate::settings::ClientSettings) {
+    use view::settings::MenuChoice;
+    if s.ui.menu {
+        match view::settings::system_menu(ctx) {
+            Some(MenuChoice::Resume) => s.ui.menu = false,
+            Some(MenuChoice::Settings) => (s.ui.menu, s.ui.settings) = (false, true),
+            Some(MenuChoice::Help) => (s.ui.menu, s.ui.help) = (false, true),
+            Some(MenuChoice::Quit) => s.ui.quit = true,
+            None => {}
+        }
+    }
+    if s.ui.settings {
+        let mut open = true;
+        egui::Window::new("설정").open(&mut open).collapsible(false).resizable(false).anchor(Align2::CENTER_CENTER, EVec2::ZERO).show(ctx, |ui| {
+            if view::settings::settings_ui(ui, &mut cs.s) {
+                cs.changed();
+            }
+        });
+        s.ui.settings = open;
+    }
 }
 
 fn full_screen(ctx: &egui::Context, fill: Color32, f: impl FnOnce(&mut egui::Ui)) {
@@ -152,6 +177,9 @@ fn login(ctx: &egui::Context, form: &mut Form, s: &mut Session, net: &Net, args:
             }
             ui.add_space(8.0);
             ui.label(RichText::new(format!("서버: {}", s.server_url)).color(DIM).size(12.0));
+            if ui.small_button("설정").clicked() {
+                s.ui.settings = true;
+            }
         });
     });
 }

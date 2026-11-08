@@ -297,9 +297,14 @@ fn action_keys(keys: Res<ButtonInput<KeyCode>>, wants: Option<Res<EguiWantsInput
         s.target = best.map(|b| b.0);
         net.send(ClientMsg::SetTarget(s.target));
     }
+    // Esc: drop the target, else close windows, else the system menu (settings, quit).
     if pressed(KeyCode::Escape) {
-        s.target = None;
-        net.send(ClientMsg::SetTarget(None));
+        if s.target.is_some() {
+            s.target = None;
+            net.send(ClientMsg::SetTarget(None));
+        } else {
+            s.ui.escape();
+        }
     }
     if pressed(KeyCode::KeyX) {
         net.send(ClientMsg::FireMissile);

@@ -15,6 +15,7 @@
 //! - [`dust`]: the space dust field that wraps around the camera.
 //! - [`hud`]: egui drawing of the gauges and the ship status panel, checked headless.
 //! - [`panels`]: window sections (station artifacts) that return what the player clicked.
+//! - [`settings`]: sound levels, display mode and the Esc system menu.
 
 pub mod anim;
 pub mod cinematic;
@@ -28,6 +29,7 @@ pub mod mapview;
 pub mod palette;
 pub mod panels;
 pub mod relation;
+pub mod settings;
 pub mod voice;
 
 pub use egui;

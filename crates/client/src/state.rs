@@ -27,6 +27,10 @@ pub struct UiFlags {
     pub chronicle: bool,
     pub fleet: bool,
     pub help: bool,
+    /// The system menu (Esc) and the settings window; `quit` ends the game.
+    pub menu: bool,
+    pub settings: bool,
+    pub quit: bool,
     pub alliance: bool,
     pub alliance_name: String,
     pub alliance_tag: String,
@@ -44,6 +48,20 @@ pub struct UiFlags {
     /// Name typed for a new institute.
     pub institute_name: String,
     pub bio_query: String,
+}
+
+impl UiFlags {
+    /// Esc, step by step: close the open windows first; with none open, the system menu.
+    pub fn escape(&mut self) {
+        let open = [&mut self.map, &mut self.station, &mut self.missions, &mut self.contracts, &mut self.chronicle, &mut self.fleet, &mut self.help, &mut self.alliance, &mut self.settings];
+        if open.iter().any(|w| **w) {
+            for w in open {
+                *w = false;
+            }
+        } else {
+            self.menu = !self.menu;
+        }
+    }
 }
 
 #[derive(Resource, Default)]
@@ -175,18 +193,24 @@ pub fn token_path(name: &str) -> Option<std::path::PathBuf> {
     user_file("token", name)
 }
 
-/// `<config>/StarfallDynasty/<kind>_<name>.txt`, one per captain.
-fn user_file(kind: &str, name: &str) -> Option<std::path::PathBuf> {
+/// `<config>/StarfallDynasty`: the per-user config dir (tokens, settings).
+pub fn config_dir() -> Option<std::path::PathBuf> {
     let base = std::env::var_os("APPDATA")
         .map(std::path::PathBuf::from)
         .or_else(|| std::env::var_os("XDG_CONFIG_HOME").map(std::path::PathBuf::from))
         .or_else(|| std::env::var_os("HOME").map(|h| std::path::PathBuf::from(h).join(".config")))?;
+    Some(base.join("StarfallDynasty"))
+}
+
+/// `<config>/StarfallDynasty/<kind>_<name>.txt`, one per captain.
+fn user_file(kind: &str, name: &str) -> Option<std::path::PathBuf> {
+    let dir = config_dir()?;
     // The name is user input: keep it to letters/digits so it can't escape the directory.
     let safe: String = name.to_lowercase().chars().filter(|c| c.is_alphanumeric()).collect();
     if safe.is_empty() {
         return None;
     }
-    Some(base.join("StarfallDynasty").join(format!("{kind}_{safe}.txt")))
+    Some(dir.join(format!("{kind}_{safe}.txt")))
 }
 
 /// Whether this captain has seen the campaign opening on this machine. A client setting, not game

@@ -386,9 +386,11 @@ fn to_pcm(src: &AudioSource) -> AudioSource {
 }
 
 #[allow(clippy::too_many_arguments)]
-fn play_queue(mut commands: Commands, mut q: ResMut<SfxQueue>, bank: Option<Res<SfxBank>>, cam: Query<&GlobalTransform, With<MainCamera>>, mut counter: Local<u32>, time: Res<Time<Real>>, mut log: Local<(f64, HashMap<Sfx, u32>)>) {
+fn play_queue(mut commands: Commands, mut q: ResMut<SfxQueue>, bank: Option<Res<SfxBank>>, cam: Query<&GlobalTransform, With<MainCamera>>, mut counter: Local<u32>, time: Res<Time<Real>>, mut log: Local<(f64, HashMap<Sfx, u32>)>, cs: Option<Res<crate::settings::ClientSettings>>) {
     let _prof = shared::prof::span("audio::play_queue");
     let Some(bank) = bank else { return };
+    // The player's effects level (settings), on top of each cue's own mix.
+    let level = cs.map_or(1.0, |c| c.s.effects_gain());
     // Harness: STARFALL_SFX_LOG=1 prints how often each cue actually played, every 10 s (text, not ears).
     let logging = std::env::var_os("STARFALL_SFX_LOG").is_some();
     if logging && time.elapsed_secs_f64() - log.0 > 10.0 {
@@ -407,6 +409,7 @@ fn play_queue(mut commands: Commands, mut q: ResMut<SfxQueue>, bank: Option<Res<
             continue;
         }
         let (base, reach) = kind.reach();
+        let base = base * level;
         let gain = match at {
             Some(p) => (1.0 - p.distance(listener) / reach).clamp(0.0, 1.0).powf(1.6),
             None => 1.0,
@@ -552,7 +555,8 @@ enum LoopKind {
 /// Flagship loops: an engine hum sized to the hull class (fighter whine, cruiser drive, capital
 /// rumble) whose volume and pitch follow the throttle, a thruster roar while boosting, and the
 /// station's machinery while docked. Restarted with the right sample when the ship changes class.
-fn ship_loops(mut commands: Commands, s: Res<Session>, server: Res<AssetServer>, time: Res<Time<Real>>, mut sinks: Query<(Entity, &LoopKind, Option<&mut AudioSink>)>, mut class: Local<Option<SizeClass>>) {
+fn ship_loops(mut commands: Commands, s: Res<Session>, server: Res<AssetServer>, time: Res<Time<Real>>, mut sinks: Query<(Entity, &LoopKind, Option<&mut AudioSink>)>, mut class: Local<Option<SizeClass>>, cs: Option<Res<crate::settings::ClientSettings>>) {
+    let level = cs.map_or(1.0, |c| c.s.effects_gain());
     let _prof = shared::prof::span("audio::ship_loops");
     let dir = crate::ships::assets_dir();
     let want = s.profile.as_ref().map(|p| p.ship.size_class());
@@ -595,6 +599,7 @@ fn ship_loops(mut commands: Commands, s: Res<Session>, server: Res<AssetServer>,
             LoopKind::Station if docked => (0.16, 1.0),
             _ => (0.0, 1.0),
         };
+        let target = target * level;
         let cur = sink.volume().to_linear();
         let next = cur + (target - cur) * k;
         if (next - cur).abs() > 1e-4 {

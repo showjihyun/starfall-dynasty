@@ -19,23 +19,11 @@ enum Track {
 #[derive(Component)]
 struct MusicTrack(Track);
 
-#[derive(Resource)]
-pub struct MusicSettings {
-    pub volume: f32,
-    pub muted: bool,
-}
-
-impl Default for MusicSettings {
-    fn default() -> Self {
-        MusicSettings { volume: 0.45, muted: false }
-    }
-}
-
 pub struct MusicPlugin;
 
 impl Plugin for MusicPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<MusicSettings>().add_systems(Startup, start_tracks).add_systems(Update, (toggle_mute, crossfade));
+        app.add_systems(Startup, start_tracks).add_systems(Update, (toggle_mute, crossfade));
     }
 }
 
@@ -59,18 +47,23 @@ fn start_tracks(mut commands: Commands, server: Res<AssetServer>) {
     }
 }
 
-fn toggle_mute(keys: Res<ButtonInput<KeyCode>>, mut m: ResMut<MusicSettings>, wants: Option<Res<bevy_egui::input::EguiWantsInput>>) {
+/// F2 mutes everything, − / = step the music (the settings window has every level).
+fn toggle_mute(keys: Res<ButtonInput<KeyCode>>, mut cs: ResMut<crate::settings::ClientSettings>, wants: Option<Res<bevy_egui::input::EguiWantsInput>>) {
     if wants.is_some_and(|w| w.wants_any_keyboard_input()) {
         return;
     }
+    let before = cs.s.clone();
     if keys.just_pressed(KeyCode::F2) {
-        m.muted = !m.muted;
+        cs.s.muted = !cs.s.muted;
     }
     if keys.just_pressed(KeyCode::Minus) {
-        m.volume = (m.volume - 0.1).max(0.0);
+        cs.s.music = (cs.s.music - 0.1).max(0.0);
     }
     if keys.just_pressed(KeyCode::Equal) {
-        m.volume = (m.volume + 0.1).min(1.0);
+        cs.s.music = (cs.s.music + 0.1).min(1.0);
+    }
+    if cs.s != before {
+        cs.changed();
     }
 }
 
@@ -78,7 +71,7 @@ fn toggle_mute(keys: Res<ButtonInput<KeyCode>>, mut m: ResMut<MusicSettings>, wa
 const VOICE_DUCK: f32 = 0.35;
 
 #[allow(clippy::too_many_arguments)]
-fn crossfade(time: Res<Time<Real>>, s: Res<Session>, screen: Res<State<Screen>>, m: Res<MusicSettings>, mut sinks: Query<(&MusicTrack, &mut AudioSink)>, mut last: Local<Option<Track>>, mut logged: Local<usize>, mut battles: Local<(bool, u32)>, voice: Query<(), With<crate::voice::VoiceLine>>) {
+fn crossfade(time: Res<Time<Real>>, s: Res<Session>, screen: Res<State<Screen>>, cs: Res<crate::settings::ClientSettings>, mut sinks: Query<(&MusicTrack, &mut AudioSink)>, mut last: Local<Option<Track>>, mut logged: Local<usize>, mut battles: Local<(bool, u32)>, voice: Query<(), With<crate::voice::VoiceLine>>) {
     let _prof = shared::prof::span("music::crossfade");
     use shared::galaxy::{self, RiskTier};
     let now = time.elapsed_secs_f64();
@@ -106,7 +99,7 @@ fn crossfade(time: Res<Time<Real>>, s: Res<Session>, screen: Res<State<Screen>>,
         *logged = sinks.iter().len();
     }
     // Music steps back while a voice line speaks (cutscene narration, comms calls).
-    let master = if m.muted { 0.0 } else { m.volume } * if voice.is_empty() { 1.0 } else { VOICE_DUCK };
+    let master = cs.s.music_gain() * if voice.is_empty() { 1.0 } else { VOICE_DUCK };
     let k = (time.delta_secs() / 2.5).min(1.0);
     for (t, mut sink) in &mut sinks {
         // Tracks are loudness-matched on disk; battle sits a little under the effects.

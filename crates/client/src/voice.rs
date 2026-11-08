@@ -32,7 +32,8 @@ impl Plugin for VoicePlugin {
     }
 }
 
-fn speak(mut commands: Commands, mut s: ResMut<Session>, server: Res<AssetServer>, playing: Query<Entity, With<VoiceLine>>) {
+fn speak(mut commands: Commands, mut s: ResMut<Session>, server: Res<AssetServer>, playing: Query<Entity, With<VoiceLine>>, cs: Option<Res<crate::settings::ClientSettings>>) {
+    let gain = cs.map_or(1.0, |c| c.s.voice_gain());
     if s.voice.is_empty() {
         return;
     }
@@ -44,7 +45,7 @@ fn speak(mut commands: Commands, mut s: ResMut<Session>, server: Res<AssetServer
             && let Some(line) = manifest().get(&voice, &text)
         {
             info!("voice: {} ({:.1} s) {}", line.file, line.secs, line.text);
-            commands.spawn((VoiceLine, AudioPlayer::<AudioSource>(server.load(format!("voice/{}", line.file))), PlaybackSettings::DESPAWN.with_volume(Volume::Linear(1.0))));
+            commands.spawn((VoiceLine, AudioPlayer::<AudioSource>(server.load(format!("voice/{}", line.file))), PlaybackSettings::DESPAWN.with_volume(Volume::Linear(gain))));
         }
     }
 }
