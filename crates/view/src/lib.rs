@@ -27,6 +27,7 @@ pub mod hud;
 pub mod interp;
 pub mod keymap;
 pub mod mapview;
+pub mod pad;
 pub mod palette;
 pub mod panels;
 pub mod relation;

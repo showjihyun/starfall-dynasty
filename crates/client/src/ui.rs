@@ -666,6 +666,14 @@ fn windows(ctx: &egui::Context, s: &mut Session, net: &Net, env: &Env) {
     egui::Window::new("도움말 (F1)").open(&mut open).default_pos([280.0, 20.0]).default_width(640.0).max_width(640.0).show(ctx, |ui| egui::ScrollArea::vertical().max_height(ctx.content_rect().height() * 0.75).show(ui, |ui| {
         ui.label(RichText::new("조작").strong());
         view::hud::controls(ui, &s.keys);
+        ui.label(RichText::new("게임패드").strong());
+        ui.horizontal_wrapped(|ui| {
+            for (b, what) in view::pad::HELP {
+                ui.label(RichText::new(b).color(GOLD));
+                ui.label(what);
+                ui.add_space(8.0);
+            }
+        });
         ui.separator();
         ui.label("당신은 평생 단 한 척의 함선만 가집니다. 그 함선을 키우는 길:");
         ui.label(format!("• 일일 미션({}) — 매일 바뀌는 4개의 임무. 완료 후 보상 수령.", s.key(A::Missions)));

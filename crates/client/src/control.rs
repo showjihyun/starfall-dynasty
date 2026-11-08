@@ -178,6 +178,7 @@ fn flight_input(
     mut cs: ResMut<CamState>,
     s: Res<Session>,
     binds: Res<crate::settings::KeyBinds>,
+    pads: Query<&Gamepad>,
 ) {
     let _prof = shared::prof::span("control::flight_input");
     let Some(net) = net else { return };
@@ -200,6 +201,17 @@ fn flight_input(
         c.strafe_y = k(b(A::Rise)) - k(b(A::Sink));
         c.boost = keys.pressed(b(A::Boost));
         c.fire = keys.pressed(b(A::Fire)) || (mouse.pressed(MouseButton::Left) && !over_ui);
+        // A gamepad adds to the keys (view::pad: sticks, triggers, bumpers).
+        if let Some(pad) = pads.iter().next() {
+            let f = view::pad::flight(&pad_state(pad));
+            c.thrust = (c.thrust + f.thrust).clamp(-1.0, 1.0);
+            c.yaw = (c.yaw + f.yaw).clamp(-1.0, 1.0);
+            c.pitch = (c.pitch + f.pitch).clamp(-1.0, 1.0);
+            c.roll = (c.roll + f.roll).clamp(-1.0, 1.0);
+            c.strafe_y = (c.strafe_y + f.rise).clamp(-1.0, 1.0);
+            c.fire |= f.fire;
+            c.boost |= f.boost;
+        }
         c.hold_post = s.hold_post;
         // Mouse steering: hold the right button, steer toward the cursor.
         if mouse.pressed(MouseButton::Right)
@@ -221,9 +233,36 @@ fn flight_input(
     }
 }
 
+/// A gamepad's sticks, triggers and bumpers (`view::pad`).
+pub fn pad_state(pad: &Gamepad) -> view::pad::PadState {
+    let l = pad.left_stick();
+    let r = pad.right_stick();
+    view::pad::PadState {
+        left: (l.x, l.y),
+        right: (r.x, r.y),
+        left_trigger: pad.get(GamepadButton::LeftTrigger2).unwrap_or(0.0),
+        right_trigger: pad.get(GamepadButton::RightTrigger2).unwrap_or(0.0),
+        left_bumper: pad.pressed(GamepadButton::LeftTrigger),
+        right_bumper: pad.pressed(GamepadButton::RightTrigger),
+    }
+}
+
+/// The pad button for an action, where it has one (`view::pad` docs).
+fn pad_button(a: view::keymap::Action) -> Option<GamepadButton> {
+    use view::keymap::Action as A;
+    Some(match a {
+        A::Target | A::Rebuild => GamepadButton::South,
+        A::Dock => GamepadButton::East,
+        A::Scan => GamepadButton::West,
+        A::Missile => GamepadButton::North,
+        A::Map => GamepadButton::Select,
+        _ => return None,
+    })
+}
+
 /// Discrete actions: targeting, missiles, docking, mining, scanning, investigating, windows.
 #[allow(clippy::too_many_arguments)]
-fn action_keys(keys: Res<ButtonInput<KeyCode>>, wants: Option<Res<EguiWantsInput>>, net: Option<Res<Net>>, mut s: ResMut<Session>, env: Res<Env>, time: Res<Time<Real>>, mut cs: ResMut<CamState>, binds: Res<crate::settings::KeyBinds>) {
+fn action_keys(keys: Res<ButtonInput<KeyCode>>, wants: Option<Res<EguiWantsInput>>, net: Option<Res<Net>>, mut s: ResMut<Session>, env: Res<Env>, time: Res<Time<Real>>, mut cs: ResMut<CamState>, binds: Res<crate::settings::KeyBinds>, pads: Query<&Gamepad>) {
     let _prof = shared::prof::span("control::action_keys");
     let Some(net) = net else { return };
     if wants.as_ref().is_some_and(|w| w.wants_any_keyboard_input()) {
@@ -232,7 +271,8 @@ fn action_keys(keys: Res<ButtonInput<KeyCode>>, wants: Option<Res<EguiWantsInput
     let now = time.elapsed_secs_f64();
     use view::keymap::Action as A;
     let pressed = |k: KeyCode| keys.just_pressed(k);
-    let act = |a: A| keys.just_pressed(binds.key(a));
+    let pad = pads.iter().next();
+    let act = |a: A| keys.just_pressed(binds.key(a)) || pad.zip(pad_button(a)).is_some_and(|(p, b)| p.just_pressed(b));
     // Windows.
     if act(A::Map) {
         s.ui.map = !s.ui.map;
@@ -308,7 +348,7 @@ fn action_keys(keys: Res<ButtonInput<KeyCode>>, wants: Option<Res<EguiWantsInput
         net.send(ClientMsg::SetTarget(s.target));
     }
     // Esc: drop the target, else close windows, else the system menu (settings, quit).
-    if pressed(KeyCode::Escape) {
+    if pressed(KeyCode::Escape) || pad.is_some_and(|p| p.just_pressed(GamepadButton::Start)) {
         if s.target.is_some() {
             s.target = None;
             net.send(ClientMsg::SetTarget(None));
@@ -357,5 +397,25 @@ fn action_keys(keys: Res<ButtonInput<KeyCode>>, wants: Option<Res<EguiWantsInput
         } else if let Some(p) = poi {
             net.send(ClientMsg::Scan { poi: p.id });
         }
+    }
+}
+
+#[cfg(test)]
+mod pad_tests {
+    use super::*;
+
+    #[test]
+    fn a_gamepad_reads_its_sticks_triggers_and_bumpers() {
+        let mut pad = Gamepad::default();
+        pad.analog_mut().set(GamepadAxis::LeftStickY, 1.0);
+        pad.analog_mut().set(GamepadAxis::RightStickX, -0.5);
+        pad.analog_mut().set(GamepadButton::RightTrigger2, 0.9);
+        pad.digital_mut().press(GamepadButton::LeftTrigger);
+        let st = pad_state(&pad);
+        assert_eq!((st.left.1, st.right.0, st.right_trigger, st.left_bumper, st.right_bumper), (1.0, -0.5, 0.9, true, false));
+        let f = view::pad::flight(&st);
+        assert!(f.thrust == 1.0 && f.roll < 0.0 && f.fire && f.rise == -1.0, "{f:?}");
+        assert_eq!(pad_button(view::keymap::Action::Dock), Some(GamepadButton::East));
+        assert_eq!(pad_button(view::keymap::Action::Chronicle), None);
     }
 }
