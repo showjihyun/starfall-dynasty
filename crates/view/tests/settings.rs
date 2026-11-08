@@ -4,7 +4,7 @@ use view::settings::{Display, Settings, settings_ui, system_menu};
 
 #[test]
 fn a_settings_file_round_trips_and_a_broken_one_never_stops_the_game() {
-    let mut s = Settings { master: 0.8, music: 0.3, effects: 0.6, voice: 0.9, muted: false, display: Display::Borderless, vsync: false };
+    let mut s = Settings { master: 0.8, music: 0.3, effects: 0.6, voice: 0.9, muted: false, display: Display::Borderless, vsync: false, show_fps: true };
     assert_eq!(Settings::parse(&s.to_text()), s);
     assert_eq!(Settings::parse("this is not ron"), Settings::default());
     assert_eq!(Settings::parse(""), Settings::default());

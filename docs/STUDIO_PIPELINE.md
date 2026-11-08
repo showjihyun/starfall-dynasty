@@ -33,7 +33,7 @@
 | 아트 회귀 | `tools/artcheck.py`, `tools/imgdiff.py` | ● | |
 | 게임플레이·밸런스 | 시나리오 사양, `balance` 시트 | ● | |
 | 자동 플레이 QA | `bot` qa(25항목), 클라이언트 `--script` | ● | |
-| 재현(버그 리포트) | `server --record`, `replay`, `client --replay` | ● | 클라이언트 크래시 시 기록 폴더를 자동으로 남기기 |
+| 재현(버그 리포트) | `server --record`, `replay`, `client --replay`, 클라이언트 크래시 보고서(`client/src/crash.rs`) | ● 2026-11-08 | 패닉이면 `%APPDATA%/StarfallDynasty/crashes/crash_<unix>.txt`(메시지·위치·백트레이스·빌드·명령줄), 다음 실행에 경로 알림, `client --crash-test`. 다음: 보고서 자동 업로드(서버 수집 엔드포인트, 동의 필요) |
 | 프로파일러 | Tracy 0.14.1(BSD) — `python tools/tracy.py [-- 클라이언트 인자]` | ● 2026-10-22 | `client --features profile`(Bevy `trace_tracy`)로 엔진·게임 시스템 전부를 기록, UI 없이 캡처·CSV로 프레임당 비용 표. 도구는 target/tools에 받아 SHA-256 확인. 흔적은 target/tracy/run.tracy(UI로 열 수 있음) |
 | 성능 | `bench`, `client --bench`, `shared::prof`, `tools/perfcheck.py` | ● 2026-10-20 | 기계별 기준선(`tools/perf_baseline.json`) 대비 sim 20%·클라이언트 25% 넘게 느려지면 실패. CI는 기준선이 없어 SKIP |
 | 오디오 | `client --dump-sfx`(절차적 효과음), 음악 에셋 | ◐ | 음량 정규화 확인(ffmpeg loudnorm) |

@@ -89,6 +89,7 @@ pub fn ui_system(
         Screen::Login => login(ctx, &mut form, &mut s, &net, &args),
         Screen::Create => create(ctx, &mut form, &s, &net, &args),
         Screen::Playing => {
+            s.show_fps = cs.s.show_fps;
             hud(ctx, &mut s, &net, &env, &vis, &ships, &cam, now);
             crate::comms::show(ctx, &mut s, now);
             windows(ctx, &mut s, &net, &env);
@@ -443,7 +444,8 @@ fn hud(ctx: &egui::Context, s: &mut Session, net: &Net, env: &Env, vis: &Visuals
         egui::Frame::popup(ui.style()).show(ui, |ui| {
             ui.horizontal(|ui| {
                 ui.label(RichText::new(def.name).size(22.0).strong());
-                ui.label(RichText::new(format!("{:.0} fps · {:.0} ms", s.fps, s.ping_ms)).size(10.0).color(DIM));
+                let line = if s.show_fps { format!("{:.0} fps · {:.0} ms", s.fps, s.ping_ms) } else { format!("{:.0} ms", s.ping_ms) };
+                ui.label(RichText::new(line).size(10.0).color(DIM)).on_hover_text("서버 응답 시간 (설정에서 FPS도 표시)");
             });
             ui.horizontal(|ui| {
                 ui.label(RichText::new(def.tier.label()).color(tier_color(def.tier)));

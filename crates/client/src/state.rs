@@ -112,6 +112,8 @@ pub struct Session {
     pub disconnected: Option<String>,
     /// The player asked to connect again (connection screen or the in-game "connection lost" banner).
     pub reconnect: bool,
+    /// Settings mirror for the HUD (`view::settings::Settings::show_fps`).
+    pub show_fps: bool,
     pub ping_ms: f32,
     pub server_url: String,
     /// Last time shots involved our ship (drives battle music).

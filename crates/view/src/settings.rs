@@ -39,12 +39,14 @@ pub struct Settings {
     pub muted: bool,
     pub display: Display,
     pub vsync: bool,
+    /// Frame rate next to the ping, top left (off for players by default).
+    pub show_fps: bool,
 }
 
 impl Default for Settings {
     fn default() -> Self {
         // Music under the effects, as the mix was tuned (music.rs used 0.45).
-        Settings { master: 1.0, music: 0.45, effects: 1.0, voice: 1.0, muted: false, display: Display::Windowed, vsync: true }
+        Settings { master: 1.0, music: 0.45, effects: 1.0, voice: 1.0, muted: false, display: Display::Windowed, vsync: true, show_fps: false }
     }
 }
 
@@ -105,6 +107,7 @@ pub fn settings_ui(ui: &mut egui::Ui, s: &mut Settings) -> bool {
         }
     });
     ui.checkbox(&mut s.vsync, "수직 동기화");
+    ui.checkbox(&mut s.show_fps, "프레임 수(FPS) 표시");
     ui.label(RichText::new("설정은 바로 적용되고 저장됩니다.").size(11.0).color(DIM));
     s.clamp();
     *s != before
