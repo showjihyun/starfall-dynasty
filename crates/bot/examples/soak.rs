@@ -142,7 +142,7 @@ async fn captain(i: usize, url: String, live: Arc<Live>, until: Instant, session
         let end = (Instant::now() + session + Duration::from_secs((i as u64 * 7) % 60)).min(until);
         let mut hop = Instant::now();
         let mut k = i;
-        while Instant::now() < end && !live.stop.load(Relaxed) {
+        while Instant::now() < end && !live.stop.load(Relaxed) && !bot.broken {
             bot.log.clear();
             if bot.dead {
                 live.deaths.fetch_add(1, Relaxed);
@@ -208,11 +208,21 @@ async fn main() {
         }));
     }
     let mut samples: Vec<Sample> = vec![];
+    // The machine paused (slept): no sample for far longer than the 30 s interval — the run says nothing
+    // about the server over that stretch.
+    let mut paused = 0.0f64;
     while Instant::now() < until {
         tokio::time::sleep(Duration::from_secs(30).min(until.saturating_duration_since(Instant::now()).max(Duration::from_millis(1)))).await;
         let window: Vec<(f64, f64)> = std::mem::take(&mut *stats.lock().unwrap());
         let (avg, max) = if window.is_empty() { (0.0, 0.0) } else { (window.iter().map(|w| w.0).sum::<f64>() / window.len() as f64, window.iter().map(|w| w.1).fold(0.0, f64::max)) };
-        let s = Sample { t_min: start.elapsed().as_secs_f64() / 60.0, rss_mb: rss_mb(server.id()), data_kb: dir_kb(&data), connected: live.connected.load(Relaxed), tick_avg: avg, tick_max: max };
+        let t_min = start.elapsed().as_secs_f64() / 60.0;
+        if let Some(prev) = samples.last()
+            && t_min - prev.t_min > 1.5
+        {
+            paused += t_min - prev.t_min - 0.5;
+            println!("MACHINE PAUSED for {:.0} min (sleep?) — that stretch is not a measurement", t_min - prev.t_min - 0.5);
+        }
+        let s = Sample { t_min, rss_mb: rss_mb(server.id()), data_kb: dir_kb(&data), connected: live.connected.load(Relaxed), tick_avg: avg, tick_max: max };
         println!(
             "[{:>6.1} min] rss {:>7.1} MB | data {:>7.0} KB | connected {:>3} | tick avg {:>5.2} ms max {:>6.2} ms | sessions {} | reconnect failures {} | deaths {}",
             s.t_min, s.rss_mb, s.data_kb, s.connected, s.tick_avg, s.tick_max, live.sessions.load(Relaxed), live.reconnect_failed.load(Relaxed), live.deaths.load(Relaxed)
@@ -286,6 +296,8 @@ async fn main() {
         ("memory not climbing (< 10.7 MB/h)", rss_slope < 10.7),
         ("tick cost not climbing (last quarter ≤ first × 1.5 + 0.5 ms)", tick_last <= tick_first * 1.5 + 0.5),
         ("no tick over budget", peak_tick < 50.0),
+        // A run with the machine asleep measured nothing for that time (Windows sleep, a closed laptop).
+        ("the machine stayed awake", paused == 0.0),
     ];
     let mut failed = 0;
     for (what, ok) in checks {

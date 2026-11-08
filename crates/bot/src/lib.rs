@@ -28,16 +28,24 @@ pub struct Bot {
     /// Bytes and snapshot frames received (load tests).
     pub rx_bytes: u64,
     pub snapshots: u64,
+    /// The connection is gone (closed, an error, or a send that did not finish in 10 s — a machine
+    /// that slept leaves sockets that never answer). Long runs reconnect.
+    pub broken: bool,
 }
 
 impl Bot {
     pub async fn connect(url: &str, name: &str) -> Result<Bot, String> {
-        let (ws, _) = tokio_tungstenite::connect_async(url).await.map_err(|e| e.to_string())?;
-        Ok(Bot { ws, name: name.into(), token: None, profile: None, me: None, system: 0, ents: HashMap::new(), log: vec![], dead: false, cache: SnapshotCache::default(), rx_bytes: 0, snapshots: 0 })
+        let (ws, _) = tokio::time::timeout(Duration::from_secs(10), tokio_tungstenite::connect_async(url)).await.map_err(|_| "connect timed out".to_string())?.map_err(|e| e.to_string())?;
+        Ok(Bot { ws, name: name.into(), token: None, profile: None, me: None, system: 0, ents: HashMap::new(), log: vec![], dead: false, cache: SnapshotCache::default(), rx_bytes: 0, snapshots: 0, broken: false })
     }
 
     pub async fn send(&mut self, m: ClientMsg) {
-        let _ = self.ws.send(Message::text(encode(&m))).await;
+        if self.broken {
+            return;
+        }
+        if !matches!(tokio::time::timeout(Duration::from_secs(10), self.ws.send(Message::text(encode(&m)))).await, Ok(Ok(()))) {
+            self.broken = true;
+        }
     }
 
     fn absorb(&mut self, m: &ServerMsg) {
@@ -95,7 +103,12 @@ impl Bot {
                     }
                 }
                 Ok(Some(Ok(_))) => {}
-                _ => return None,
+                // Timed out: nothing came. Anything else: the connection is gone.
+                Err(_) => return None,
+                _ => {
+                    self.broken = true;
+                    return None;
+                }
             }
         }
     }
