@@ -41,7 +41,7 @@
 | 음성(대사) | `tools/voice.py` + Docker `tools/voice/`(Chatterbox Multilingual V3, MIT + ffmpeg) | ● 2026-10-22 | 대사 30줄 140초 1.0 MB, 화자 9 프리셋(`assets/voice/voices.json`: 기준 목소리 mid/low/high/builtin·표현력·속도·무전/컴퓨터/잔향). 2026-10-21 MeloTTS판은 "기계가 읽는 느낌"(리드) → 교체: Whisper 오인식률 0.109 → 0.067, 억양 폭 3.5 → 6.1 반음. 기준 목소리는 우리 MeloTTS 출력이라 실제 사람 목소리 복제 없음. 자막을 고치면 테스트가 "not voiced yet"으로 알리고 도구를 다시 돌리면 그 줄만 생성. 2026-10-22 자동 재녹음: Whisper(faster-whisper small, MIT)가 매 테이크를 받아써 오인식률이 `voices.json` check.max_cer(0.12)를 넘으면 다음 시드로 최대 4번, 가장 잘 들린 테이크를 남김(매니페스트에 take·cer·heard). 30줄 평균 0.067 → 0.034, 3줄이 재녹음 채택(고르마 "와라"가 "알아"로 들리던 줄 포함), 남은 2줄은 경계값 0.125(사엘 "너머"↔"넘어"는 철자만 다름) |
 | 현지화 | — (한국어 문자열이 코드에 직접) | ○ | Project Fluent(`fluent-rs`)로 문자열 분리 — 해외 출시 결정 후 |
 | 라이선스·취약점 | `cargo-deny`(`deny.toml`) | ● 2026-10-20 | 허용 라이선스 목록, RustSec, 출처. 예외 하나(RUSTSEC-2026-0344, 이유 기록). 게임 자체 라이선스는 미정 |
-| 배포·패키징 | — | ○ | `cargo-dist`/`cargo-packager`로 Windows 설치본 |
+| 배포·패키징 | `tools/package.py` + `tools/steam/*.vdf` | ◐ 2026-11-08 | `dist/StarfallDynasty/`(게임 exe·assets·tuning·server.txt 기본 서버·전용 서버·THIRD_PARTY.txt 크레이트 라이선스), `--zip`, `--smoke`(설치 폴더에서 오프닝 렌더·서버 접속). Steam 앱/디포 id는 미정(VDF 자리표시). 남은 것: 코드 서명, 게임 자체 라이선스, 설치본(Steam 밖 배포 시) |
 | 작업 관리 | GitHub(`gh`) | ◐ | 게이트 실패를 이슈로 남기기 |
 
 ● 있음 · ◐ 일부 · ○ 없음

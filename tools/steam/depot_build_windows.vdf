@@ -1,0 +1,12 @@
+"DepotBuild"
+{
+	// The Windows depot: everything tools/package.py puts in dist/StarfallDynasty except the dedicated server.
+	"DepotID" "0000001"
+	"FileMapping"
+	{
+		"LocalPath" "*"
+		"DepotPath" "."
+		"Recursive" "1"
+	}
+	"FileExclusion" "server\*"
+}

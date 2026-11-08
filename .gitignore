@@ -4,3 +4,4 @@
 /screenshots
 crates/client/spike.png
 __pycache__/
+/dist

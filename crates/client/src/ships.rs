@@ -359,12 +359,13 @@ pub fn model_for(hull: Option<HullClass>, kind: EntityKind) -> (&'static str, f3
     }
 }
 
+/// `assets/` next to the executable (an installed game, tools/package.py), else the source tree's
+/// (a development build — target/release has none).
 pub fn assets_dir() -> std::path::PathBuf {
-    let dev = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("assets");
-    if dev.exists() {
-        return dev;
+    if let Some(shipped) = std::env::current_exe().ok().and_then(|p| p.parent().map(|d| d.join("assets"))).filter(|d| d.exists()) {
+        return shipped;
     }
-    std::env::current_exe().ok().and_then(|p| p.parent().map(|d| d.join("assets"))).unwrap_or_else(|| "assets".into())
+    std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("assets")
 }
 
 impl Models {

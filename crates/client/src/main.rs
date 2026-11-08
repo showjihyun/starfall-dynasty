@@ -44,7 +44,8 @@ fn parse_args() -> Args {
     let has = |k: &str| a.iter().any(|x| x == k);
     let hull = get("--hull").and_then(|h| shared::ships::HullClass::ALL.into_iter().find(|c| format!("{c:?}").eq_ignore_ascii_case(&h)));
     Args {
-        server: get("--server").unwrap_or_else(|| format!("ws://127.0.0.1:{DEFAULT_PORT}")),
+        // `--server`, else the installed game's server.txt (tools/package.py), else a local server.
+        server: get("--server").or_else(shipped_server).unwrap_or_else(|| format!("ws://127.0.0.1:{DEFAULT_PORT}")),
         name: get("--name"),
         auto: has("--auto"),
         hull,
@@ -57,6 +58,13 @@ fn parse_args() -> Args {
         token: get("--token"),
         script: get("--script").map(|s| s.split(';').map(|x| x.trim().to_string()).filter(|x| !x.is_empty()).collect()).unwrap_or_default(),
     }
+}
+
+/// The default server of an installed game: the first line of `server.txt` next to the executable.
+fn shipped_server() -> Option<String> {
+    let dir = std::env::current_exe().ok()?.parent()?.to_path_buf();
+    let text = std::fs::read_to_string(dir.join("server.txt")).ok()?;
+    text.lines().next().map(str::trim).filter(|l| l.starts_with("ws://") || l.starts_with("wss://")).map(str::to_string)
 }
 
 fn main() {
