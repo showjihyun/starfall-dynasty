@@ -66,11 +66,12 @@ pub fn specimens(ui: &mut egui::Ui, held: &std::collections::BTreeMap<shared::mi
 
 /// The station window's artifact section: each held artifact with its provenance and the three
 /// services. Buttons work only while docked.
-pub fn artifacts(ui: &mut egui::Ui, held: &[Artifact], docked: bool, prices: &ArtifactPrices) -> Option<ArtifactRequest> {
+/// `scan_key`: the player's scan key as shown ("V").
+pub fn artifacts(ui: &mut egui::Ui, held: &[Artifact], docked: bool, prices: &ArtifactPrices, scan_key: &str) -> Option<ArtifactRequest> {
     let mut out = None;
     ui.label(RichText::new(format!("유물 {}점", held.len())).strong());
     if held.is_empty() {
-        ui.label(RichText::new("유물 없음 — 고고학자는 유적·고대 게이트를 스캔(V)해 발굴합니다. 격침된 함선의 잔해에서 회수할 수도 있습니다.").color(DIM).size(12.0));
+        ui.label(RichText::new(format!("유물 없음 — 고고학자는 유적·고대 게이트를 스캔({scan_key})해 발굴합니다. 격침된 함선의 잔해에서 회수할 수도 있습니다.")).color(DIM).size(12.0));
         return None;
     }
     for a in held {

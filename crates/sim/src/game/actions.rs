@@ -233,7 +233,7 @@ impl Game {
             return self.toast(pid, "부스트 중 — 무기 동력이 엔진에 있습니다 (Shift를 떼세요)");
         }
         let Some(tid) = e.target else {
-            return self.toast(pid, "미사일: 목표를 먼저 지정하세요 (T)");
+            return self.toast(pid, "미사일: 목표를 먼저 지정하세요 (목표 지정 키)");
         };
         let Some(t) = self.ent(sys, tid) else { return };
         if !t.is_ship() || t.pos.distance(e.pos) > e.stats.weapon_range * 2.0 {
@@ -897,7 +897,7 @@ impl Game {
             p.archive.extend(taken.iter().copied());
         }
         self.history.record(self.unix, DomainEvent::IntelSeized { by: k.name.clone(), from: v.name.clone(), evidence: taken.clone(), system: sys });
-        self.toast(killer, format!("{}의 기록 보관함에서 자료 {}건을 확보했습니다 — 연대기(H)에서 공개하거나 인용할 수 있습니다", v.name, taken.len()));
+        self.toast(killer, format!("{}의 기록 보관함에서 자료 {}건을 확보했습니다 — 연대기 창에서 공개하거나 인용할 수 있습니다", v.name, taken.len()));
         self.toast(victim, format!("격침당하며 기록 {}건을 {}에게 빼앗겼습니다", taken.len(), k.name));
         self.push_profile(killer);
     }

@@ -69,6 +69,9 @@ impl Quality {
     }
 }
 
+/// The UI scale's range.
+pub const UI_SCALE: (f32, f32) = (0.75, 1.5);
+
 /// Levels are 0–1; `muted` silences everything without losing them.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
@@ -81,6 +84,8 @@ pub struct Settings {
     pub display: Display,
     pub vsync: bool,
     pub quality: Quality,
+    /// Size of every window, panel and label (egui zoom), 0.75–1.5: big screens, tired eyes.
+    pub ui_scale: f32,
     /// Frame rate next to the ping, top left (off for players by default).
     pub show_fps: bool,
     /// Key bindings the player changed: action id → key name (`view::keymap`; the rest are defaults).
@@ -90,7 +95,7 @@ pub struct Settings {
 impl Default for Settings {
     fn default() -> Self {
         // Music under the effects, as the mix was tuned (music.rs used 0.45).
-        Settings { master: 1.0, music: 0.45, effects: 1.0, voice: 1.0, muted: false, display: Display::Windowed, vsync: true, quality: Quality::High, show_fps: false, keys: Default::default() }
+        Settings { master: 1.0, music: 0.45, effects: 1.0, voice: 1.0, muted: false, display: Display::Windowed, vsync: true, quality: Quality::High, ui_scale: 1.0, show_fps: false, keys: Default::default() }
     }
 }
 
@@ -111,6 +116,7 @@ impl Settings {
         for v in [&mut self.master, &mut self.music, &mut self.effects, &mut self.voice] {
             *v = if v.is_finite() { v.clamp(0.0, 1.0) } else { 1.0 };
         }
+        self.ui_scale = if self.ui_scale.is_finite() { self.ui_scale.clamp(UI_SCALE.0, UI_SCALE.1) } else { 1.0 };
         // Unknown actions (an older or newer file) and reserved keys are dropped.
         self.keys.retain(|id, key| Action::from_id(id).is_some() && !keymap::RESERVED.contains(&key.as_str()));
     }
@@ -162,6 +168,10 @@ pub fn settings_ui(ui: &mut egui::Ui, s: &mut Settings, listening: &mut Option<A
     })
     .response
     .on_hover_text("낮음: 그림자·블룸·안티에일리어싱 끔, 중간: 그림자 끔");
+    ui.horizontal(|ui| {
+        ui.label("UI 크기");
+        ui.add(egui::Slider::new(&mut s.ui_scale, UI_SCALE.0..=UI_SCALE.1).step_by(0.05).custom_formatter(|v, _| format!("{:.0}%", v * 100.0)));
+    });
     ui.checkbox(&mut s.vsync, "수직 동기화");
     ui.checkbox(&mut s.show_fps, "프레임 수(FPS) 표시");
     ui.separator();

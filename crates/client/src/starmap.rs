@@ -82,7 +82,7 @@ fn top_bar(ui: &mut egui::Ui, map: Rect, s: &mut Session, env: &Env) {
             if ui.button(if s.map.is_3d() { "평면" } else { "입체" }).clicked() {
                 s.map.toggle_3d();
             }
-            if ui.button("닫기 (M)").clicked() {
+            if ui.button(format!("닫기 ({})", s.key(view::keymap::Action::Map))).clicked() {
                 s.ui.map = false;
             }
             let hint = if s.map.level == Level::System { "휠: 확대/축소 · 드래그: 이동 · 우클릭 드래그: 회전·기울이기 · 함선 클릭: 목표 지정" } else { "휠: 확대/축소 · 드래그: 이동 · 우클릭 드래그: 회전·기울이기 · 성계 클릭: 선택" };
@@ -207,6 +207,7 @@ fn galaxy_chart(_ui: &mut egui::Ui, p: &egui::Painter, map: Rect, resp: &egui::R
 
 #[allow(clippy::too_many_arguments)]
 fn system_chart(_ui: &mut egui::Ui, p: &egui::Painter, map: Rect, resp: &egui::Response, scroll: f32, hover: Option<Pos2>, s: &mut Session, net: &Net, env: &Env, now: f64) {
+    let dock_key = s.key(view::keymap::Action::Dock);
     let t = now - INTERP_DELAY;
     let me_pose = s.me.and_then(|m| s.sample(m, t)).map(|(pos, rot, st)| (pos, rot, st.clone()));
     // Zooming out of the fully framed system pulls back to the galaxy chart.
@@ -343,7 +344,7 @@ fn system_chart(_ui: &mut egui::Ui, p: &egui::Painter, map: Rect, resp: &egui::R
         let half = (90.0 * sc).max(6.0);
         p.rect_stroke(Rect::from_center_size(st, EVec2::splat(half * 2.0)), 2.0, Stroke::new(2.0, GREEN), egui::StrokeKind::Middle);
         label(p, st + EVec2::new(half + 5.0, -6.0), "정거장", GREEN, true);
-        consider(st, half, vec!["정거장 (G: 도킹)".into(), loc(lay.station) + &dist_txt(lay.station)], None);
+        consider(st, half, vec![format!("정거장 ({}: 도킹)", dock_key), loc(lay.station) + &dist_txt(lay.station)], None);
         let jp = to(lay.jump_point);
         p.circle_stroke(jp, 10.0, Stroke::new(2.0, ACCENT));
         p.circle_stroke(jp, 5.0, Stroke::new(1.0, ACCENT));

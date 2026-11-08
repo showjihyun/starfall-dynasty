@@ -3,6 +3,7 @@
 use crate::net::Net;
 use crate::scene::Env;
 use crate::ships::{LIVERIES, ShipVis, Visuals};
+use view::keymap::Action as A;
 use crate::state::{Args, CineRequest, Screen, Session, load_token, opening_seen};
 use bevy::prelude::*;
 use bevy_egui::{EguiContexts, egui};
@@ -80,6 +81,10 @@ pub fn ui_system(
         }
     }
     let now = time.elapsed_secs_f64();
+    // The player's UI size (settings).
+    if (ctx.zoom_factor() - cs.s.ui_scale).abs() > 1e-3 {
+        ctx.set_zoom_factor(cs.s.ui_scale);
+    }
     // Harness layer toggle: STARFALL_HIDE_UI=1 leaves only the 3D scene in screenshots.
     if *screen.get() == Screen::Playing && std::env::var_os("STARFALL_HIDE_UI").is_some() {
         return Ok(());
@@ -403,13 +408,14 @@ fn hud(ctx: &egui::Context, s: &mut Session, net: &Net, env: &Env, vis: &Visuals
         }
         if let Some(layout) = &env.layout {
             let mut marks: Vec<(Vec3, String, Color32)> = layout.pois.iter().map(|p| (p.pos, format!("{} {}", poi_icon(p.kind), p.name), if s.scanned.contains(&p.id) { DIM } else { view::palette::POI })).collect();
-            marks.push((layout.station, "■ 정거장 (G: 도킹)".into(), GREEN));
+            marks.push((layout.station, format!("■ 정거장 ({}: 도킹)", s.key(A::Dock)), GREEN));
             marks.push((layout.jump_point, "◎ 워프 지점".into(), ACCENT));
             // My post in the fleet's formation (main goal "epic spread-out battles").
             if let (Some(me), Some(latest)) = (s.player_id, s.latest())
                 && let Some((post, label)) = view::hud::formation_post(s.fleet_formation, &s.fleet_members, me, latest.ents.values(), shared::tuning::get().ships.formation_spacing)
             {
-                marks.push((post, if s.hold_post { format!("{label} (P: 지키는 중)") } else { format!("{label} (P: 자동으로 지키기)") }, GOLD));
+                let p = s.key(A::HoldPost);
+                marks.push((post, if s.hold_post { format!("{label} ({p}: 지키는 중)") } else { format!("{label} ({p}: 자동으로 지키기)") }, GOLD));
             }
             for (pos, name, col) in marks {
                 if let Some(sp) = project(pos) {
@@ -522,7 +528,7 @@ fn hud(ctx: &egui::Context, s: &mut Session, net: &Net, env: &Env, vis: &Visuals
                 }
                 ui.separator();
             }
-            ui.label(RichText::new("일일 미션 (J)").color(DIM).size(11.0));
+            ui.label(RichText::new(format!("일일 미션 ({})", s.key(A::Missions))).color(DIM).size(11.0));
             for m in &prof.dailies {
                 let done = m.complete();
                 let col = if m.claimed { DIM } else if done { GREEN } else { Color32::WHITE };
@@ -618,15 +624,15 @@ fn poi_icon(k: PoiKind) -> &'static str {
 fn windows(ctx: &egui::Context, s: &mut Session, net: &Net, env: &Env) {
     let Some(prof) = s.profile.clone() else { return };
     let mut open = s.ui.station;
-    egui::Window::new("정거장 · 조선소 (U)").open(&mut open).default_size([560.0, 600.0]).show(ctx, |ui| station(ui, s, net, &prof, env));
+    egui::Window::new(format!("정거장 · 조선소 ({})", s.key(A::Station))).id(egui::Id::new("win_station")).open(&mut open).default_size([560.0, 600.0]).show(ctx, |ui| station(ui, s, net, &prof, env));
     s.ui.station = open;
 
     let mut open = s.ui.missions;
-    egui::Window::new("임무 (J)").open(&mut open).default_size([520.0, 560.0]).show(ctx, |ui| missions(ui, s, net, &prof));
+    egui::Window::new(format!("임무 ({})", s.key(A::Missions))).id(egui::Id::new("win_missions")).open(&mut open).default_size([520.0, 560.0]).show(ctx, |ui| missions(ui, s, net, &prof));
     s.ui.missions = open;
 
     let mut open = s.ui.contracts;
-    egui::Window::new("계약 (O)").open(&mut open).default_pos([360.0, 120.0]).default_size([560.0, 520.0]).show(ctx, |ui| {
+    egui::Window::new(format!("계약 ({})", s.key(A::Contracts))).id(egui::Id::new("win_contracts")).open(&mut open).default_pos([360.0, 120.0]).default_size([560.0, 520.0]).show(ctx, |ui| {
         egui::ScrollArea::vertical().show(ui, |ui| {
             if ui.small_button("새로고침").clicked() {
                 net.send(ClientMsg::RequestContracts);
@@ -644,15 +650,15 @@ fn windows(ctx: &egui::Context, s: &mut Session, net: &Net, env: &Env) {
     s.ui.contracts = open;
 
     let mut open = s.ui.chronicle;
-    egui::Window::new("은하 연대기 · Galactic Herald (H)").open(&mut open).default_pos([300.0, 60.0]).default_size([720.0, 640.0]).show(ctx, |ui| chronicle(ui, s, net, &prof));
+    egui::Window::new(format!("은하 연대기 · Galactic Herald ({})", s.key(A::Chronicle))).id(egui::Id::new("win_chronicle")).open(&mut open).default_pos([300.0, 60.0]).default_size([720.0, 640.0]).show(ctx, |ui| chronicle(ui, s, net, &prof));
     s.ui.chronicle = open;
 
     let mut open = s.ui.fleet;
-    egui::Window::new("함대 (K)").open(&mut open).default_size([360.0, 320.0]).show(ctx, |ui| fleet(ui, s, net));
+    egui::Window::new(format!("함대 ({})", s.key(A::Fleet))).id(egui::Id::new("win_fleet")).open(&mut open).default_size([360.0, 320.0]).show(ctx, |ui| fleet(ui, s, net));
     s.ui.fleet = open;
 
     let mut open = s.ui.alliance;
-    egui::Window::new("동맹 (L)").open(&mut open).default_pos([360.0, 100.0]).default_size([520.0, 520.0]).show(ctx, |ui| alliance(ui, s, net));
+    egui::Window::new(format!("동맹 ({})", s.key(A::Alliance))).id(egui::Id::new("win_alliance")).open(&mut open).default_pos([360.0, 100.0]).default_size([520.0, 520.0]).show(ctx, |ui| alliance(ui, s, net));
     s.ui.alliance = open;
 
     let mut open = s.ui.help;
@@ -662,17 +668,17 @@ fn windows(ctx: &egui::Context, s: &mut Session, net: &Net, env: &Env) {
         view::hud::controls(ui, &s.keys);
         ui.separator();
         ui.label("당신은 평생 단 한 척의 함선만 가집니다. 그 함선을 키우는 길:");
-        ui.label("• 일일 미션(J) — 매일 바뀌는 4개의 임무. 완료 후 보상 수령.");
+        ui.label(format!("• 일일 미션({}) — 매일 바뀌는 4개의 임무. 완료 후 보상 수령.", s.key(A::Missions)));
         ui.label("• 교전 — 해적 격파, War Zone 함대전 승리, 현상금 사냥.");
-        ui.label("• 시나리오(J) — 5장 캠페인. 한 장을 돌파할 때마다 모듈 상한 +1 (Lv5 → Lv10).");
-        ui.label("• 채굴(N)·판매(U) — 광석을 캐서 팔거나 정제해 합금/결정/데이터코어로.");
-        ui.label("• 탐험(V) — 이상현상, 유적, 잔해를 스캔. 최초 발견은 연대기에 남습니다.");
+        ui.label(format!("• 시나리오({}) — 5장 캠페인. 한 장을 돌파할 때마다 모듈 상한 +1 (Lv5 → Lv10).", s.key(A::Missions)));
+        ui.label(format!("• 채굴({})·판매({}) — 광석을 캐서 팔거나 정제해 합금/결정/데이터코어로.", s.key(A::Mine), s.key(A::Station)));
+        ui.label(format!("• 탐험({}) — 이상현상, 유적, 잔해를 스캔. 최초 발견은 연대기에 남습니다.", s.key(A::Scan)));
         ui.separator();
         ui.label("위험 등급: CORE(안전) → FRONTIER(해적) → WILD(PvP, 범죄 기록) → WAR ZONE(함대전) → DEEP(최고 위험).");
-        ui.label("함대(K)를 꾸려 함께 싸우면 아군 사격이 없고 보상을 공유합니다.");
+        ui.label(format!("함대({})를 꾸려 함께 싸우면 아군 사격이 없고 보상을 공유합니다.", s.key(A::Fleet)));
         ui.label("성장: Rank 0–2 소형함 → Rank 3–6 순양함(포탑·함수포·호위함) → Rank 7–10 주력함(주포 일제사·포탑 포대·호위 함대).");
-        ui.label("동맹(L): 창설·초대·선전포고·강화. 전쟁 중인 동맹끼리는 CORE를 제외한 모든 성계에서 교전할 수 있습니다.");
-        ui.label("격침된 함선의 잔해는 남습니다. 잔해를 조사(V)해 증거를 얻고, 연대기(H)에서 연구를 발표하거나 반박하세요.");
+        ui.label(format!("동맹({}): 창설·초대·선전포고·강화. 전쟁 중인 동맹끼리는 CORE를 제외한 모든 성계에서 교전할 수 있습니다.", s.key(A::Alliance)));
+        ui.label(format!("격침된 함선의 잔해는 남습니다. 잔해를 조사({})해 증거를 얻고, 연대기({})에서 연구를 발표하거나 반박하세요.", s.key(A::Scan), s.key(A::Chronicle)));
         ui.separator();
         for t in view::panels::TACTICS_3D {
             ui.label(t);
@@ -685,7 +691,7 @@ fn station(ui: &mut egui::Ui, s: &mut Session, net: &Net, prof: &Profile, env: &
     let docked = s.my_state().is_some_and(|m| m.docked);
     if !docked {
         let d = s.my_state().zip(env.layout.as_ref()).map(|(m, l)| Vec3::from(m.pos).distance(l.station)).unwrap_or(0.0);
-        ui.label(RichText::new(format!("정거장에 도킹해야 이용할 수 있습니다 (G). 거리 {d:.0}u")).color(GOLD));
+        ui.label(RichText::new(format!("정거장에 도킹해야 이용할 수 있습니다 ({}). 거리 {d:.0}u", s.key(A::Dock))).color(GOLD));
     }
     let ship = &prof.ship;
     let cap = tier_cap(prof.scenarios_completed);
@@ -735,7 +741,7 @@ fn station(ui: &mut egui::Ui, s: &mut Session, net: &Net, prof: &Profile, env: &
         });
     }
     if prof.cargo.is_empty() {
-        ui.label(RichText::new("화물 없음 — 소행성대에서 채굴(N)하세요. 위험한 성계일수록 비싸게 팔립니다.").color(DIM).size(12.0));
+        ui.label(RichText::new(format!("화물 없음 — 소행성대에서 채굴({})하세요. 위험한 성계일수록 비싸게 팔립니다.", s.key(A::Mine))).color(DIM).size(12.0));
     }
     ui.separator();
     if view::panels::specimens(ui, &prof.specimens, docked) {
@@ -750,7 +756,7 @@ fn station(ui: &mut egui::Ui, s: &mut Session, net: &Net, prof: &Profile, env: &
         donation_reputation: t.artifacts.donation_reputation,
     };
     use view::panels::ArtifactRequest;
-    match view::panels::artifacts(ui, &s.artifacts, docked, &prices) {
+    match view::panels::artifacts(ui, &s.artifacts, docked, &prices, &s.key(A::Scan)) {
         Some(ArtifactRequest::Appraise(id)) => net.send(ClientMsg::AppraiseArtifact { id }),
         Some(ArtifactRequest::Sell(id)) => net.send(ClientMsg::SellArtifact { id }),
         Some(ArtifactRequest::Donate(id)) => net.send(ClientMsg::DonateArtifact { id }),
@@ -945,7 +951,7 @@ fn chronicle(ui: &mut egui::Ui, s: &mut Session, net: &Net, prof: &Profile) {
                         }
                     });
                 } else if e.kind == "SHIP_DESTROYED" {
-                    ui.label(RichText::new("현장의 잔해를 조사(V)하면 증거를 확보해 연구를 발표할 수 있습니다.").size(11.0).color(DIM));
+                    ui.label(RichText::new(format!("현장의 잔해를 조사({})하면 증거를 확보해 연구를 발표할 수 있습니다.", s.key(A::Scan))).size(11.0).color(DIM));
                 }
                 if prof.profession == Profession::Journalist {
                     // Report it: from the scene (this system) or holding its evidence; the server checks.

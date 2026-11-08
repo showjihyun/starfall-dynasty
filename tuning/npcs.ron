@@ -48,7 +48,7 @@
         // hundreds of m/s and nobody could get out of its turret arcs (docs/3D_전투_설계.md 「PvE」).
         Warlord:  (hull: 1900.0, shield: 700.0,  damage: 26.0, fire_interval: 0.35, speed: 65.0, turn: 0.25, radius: 30.0, turrets: 6,
                    bounty: (credits: 1500, alloy: 20, datacore: 4, relic: 1),
-                   hint: Some("칼즈 군벌은 기수를 느리게 돌립니다 — 정면을 피해 선체 바로 위나 아래에 붙으면 포탑 절반만 닿습니다 (R/F 기수, Z/Ctrl 상하 평행이동)")),
+                   hint: Some("칼즈 군벌은 기수를 느리게 돌립니다 — 정면을 피해 선체 바로 위나 아래에 붙으면 포탑 절반만 닿습니다 (기수 상하 키, 상승·하강 키)")),
         // Sentinel ventral_turrets 1 (2026-10-24): one battery under its belly, the other five of the ventral
         // half on the flanks — 12 reach a ship level with it, 6 one above it, 1 one under it. Halving its
         // fire from above was never enough against chapter 5 (a Lv7 cruiser took it to 70% before dying).
@@ -56,6 +56,6 @@
         // for every hull, 2 left almost no gain (docs/3D_전투_설계.md 「PvE」).
         Sentinel: (hull: 5200.0, shield: 2200.0, damage: 38.0, fire_interval: 0.3,  speed: 55.0, turn: 0.25, radius: 60.0, turrets: 12, ventral_turrets: Some(1),
                    bounty: (credits: 5400, alloy: 40, crystal: 30, datacore: 10, relic: 3),
-                   hint: Some("리바이어던 센티넬의 포대는 옆구리와 등에 몰려 있고 배 아래에는 1문뿐입니다 — 배 아래로 파고들어 싸우세요 (Ctrl 하강)")),
+                   hint: Some("리바이어던 센티넬의 포대는 옆구리와 등에 몰려 있고 배 아래에는 1문뿐입니다 — 배 아래로 파고들어 싸우세요 (하강 키)")),
     },
 )

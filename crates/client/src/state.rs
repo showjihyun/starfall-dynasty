@@ -50,6 +50,13 @@ pub struct UiFlags {
     pub bio_query: String,
 }
 
+impl Session {
+    /// The player's key for an action, as it reads on screen ("G", "Tab"…).
+    pub fn key(&self, a: view::keymap::Action) -> String {
+        view::keymap::shown(&self.keys, a)
+    }
+}
+
 impl UiFlags {
     /// Esc, step by step: close the open windows first; with none open, the system menu.
     pub fn escape(&mut self) {
@@ -372,7 +379,7 @@ fn apply(s: &mut Session, m: ServerMsg, now: f64, next: &mut NextState<Screen>) 
         ServerMsg::Chronicle { events, evidence, herald } => s.chronicle = Some((events, evidence, herald)),
         ServerMsg::Biography { name, character, ship } => s.biography = Some((name, character, ship)),
         ServerMsg::FleetInvite { from, fleet } => {
-            s.toast(format!("{from}의 함대 초대 — 함대 창(K)에서 수락"), now);
+            s.toast(format!("{from}의 함대 초대 — 함대 창({})에서 수락", s.key(view::keymap::Action::Fleet)), now);
             s.invite = Some((from, fleet));
         }
         ServerMsg::Fleet { id, members, formation, leader } => {
@@ -395,7 +402,7 @@ fn apply(s: &mut Session, m: ServerMsg, now: f64, next: &mut NextState<Screen>) 
             s.alliances = list;
         }
         ServerMsg::AllianceInvite { from, alliance, name } => {
-            s.toast(format!("{from}이(가) 동맹 {name}에 초대했습니다 — 동맹 창(L)에서 수락"), now);
+            s.toast(format!("{from}이(가) 동맹 {name}에 초대했습니다 — 동맹 창({})에서 수락", s.key(view::keymap::Action::Alliance)), now);
             s.alliance_invite = Some((from, alliance, name));
         }
     }

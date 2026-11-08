@@ -90,6 +90,11 @@ fn main() {
     if let Some(q) = std::env::args().skip_while(|a| a != "--quality").nth(1).and_then(|q| view::settings::Quality::parse(&q)) {
         player_settings.s.quality = q;
     }
+    // `--ui-scale X`: screenshots at another UI size.
+    if let Some(z) = std::env::args().skip_while(|a| a != "--ui-scale").nth(1).and_then(|z| z.parse::<f32>().ok()) {
+        player_settings.s.ui_scale = z;
+        player_settings.s.clamp();
+    }
     let mut app = App::new();
     #[cfg(feature = "raytracing_dlss")]
     app.insert_resource(raytracing::dlss_project_id());

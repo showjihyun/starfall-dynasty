@@ -512,7 +512,7 @@ fn boosting_says_the_guns_and_shields_are_off() {
 
 #[test]
 fn death_panel_keeps_the_boss_hint_inside_it_above_the_rebuild_button() {
-    let hint = "리바이어던 센티넬의 포대는 옆구리와 등에 몰려 있고 배 아래에는 1문뿐입니다 — 배 아래로 파고들어 싸우세요 (Ctrl 하강)";
+    let hint = "리바이어던 센티넬의 포대는 옆구리와 등에 몰려 있고 배 아래에는 1문뿐입니다 — 배 아래로 파고들어 싸우세요 (하강 키)";
     let d = frame(|ctx| {
         hud::death_panel(ctx, "Leviathan Sentinel", Some(hint), 0.0);
     });

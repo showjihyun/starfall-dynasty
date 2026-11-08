@@ -4,12 +4,13 @@ use view::settings::{Display, Settings, settings_ui, system_menu};
 
 #[test]
 fn a_settings_file_round_trips_and_a_broken_one_never_stops_the_game() {
-    let mut s = Settings { master: 0.8, music: 0.3, effects: 0.6, voice: 0.9, muted: false, display: Display::Borderless, vsync: false, quality: view::settings::Quality::Low, show_fps: true, keys: [("fire".to_string(), "KeyF".to_string())].into_iter().collect() };
+    let mut s = Settings { master: 0.8, music: 0.3, effects: 0.6, voice: 0.9, muted: false, display: Display::Borderless, vsync: false, quality: view::settings::Quality::Low, ui_scale: 1.25, show_fps: true, keys: [("fire".to_string(), "KeyF".to_string())].into_iter().collect() };
     assert_eq!(Settings::parse(&s.to_text()), s);
     assert_eq!(Settings::parse("this is not ron"), Settings::default());
     assert_eq!(Settings::parse(""), Settings::default());
     // Missing fields take their defaults (files from older versions); levels are kept to 0–1.
-    let old = Settings::parse("(master: 2.5, music: -1.0)");
+    let old = Settings::parse("(master: 2.5, music: -1.0, ui_scale: 9.0)");
+    assert_eq!(old.ui_scale, view::settings::UI_SCALE.1, "the UI scale is kept in range");
     assert_eq!((old.master, old.music, old.effects, old.display), (1.0, 0.0, 1.0, Display::Windowed));
     // The mixer: master × level, nothing while muted.
     assert!((s.music_gain() - 0.24).abs() < 1e-6 && (s.effects_gain() - 0.48).abs() < 1e-6);

@@ -72,7 +72,7 @@ fn artifact(id: u64, appraised: bool) -> Artifact {
 const PRICES: ArtifactPrices = ArtifactPrices { appraisal: 400, unappraised_sale: 0.4, donation_share: 0.25, donation_reputation: 10 };
 
 fn art_frame(held: &[Artifact], docked: bool, click: Option<&str>) -> (Vec<String>, Option<ArtifactRequest>) {
-    frame(|ui| panels::artifacts(ui, held, docked, &PRICES), click)
+    frame(|ui| panels::artifacts(ui, held, docked, &PRICES, "V"), click)
 }
 
 #[test]
