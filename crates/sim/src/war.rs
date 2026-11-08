@@ -397,6 +397,9 @@ fn plan(g: &mut Game, sides: &mut [Side], hour: f32, war_hours: f32) {
             x
         } else if !mine.contains(&s.home) {
             s.home
+        } else if let Some(x) = g.hegemon().filter(|h| *h != s.id && g.at_war(Some(s.id), Some(*h))).and_then(|h| held.get(&h)).and_then(|hs| hs.iter().copied().min_by(|a, b| galaxy::distance_ly(s.home, *a).total_cmp(&galaxy::distance_ly(s.home, *b)).then(a.cmp(b)))) {
+            // The coalition besieges the hegemon's nearest system rather than expanding elsewhere.
+            x
         } else {
             galaxy::systems()
                 .iter()

@@ -6,6 +6,7 @@
 //!
 //!   cargo build --release -p server
 //!   cargo run -p bot --release --example soak -- [--minutes 30] [--captains 40] [--session 4] [--port 7795] [--log FILE]
+//!   … --server-exe COPY  run a copy of the server (long runs: rebuilding target/release stays possible)
 //!   (`--log`: the server runs with `--prof` and every line it prints, span profiles included, goes to FILE)
 //!
 //! Captains hunt pirates in the Frontier ring (Orion Drift, Vesta Corridor, Kharz Forge), warp on every
@@ -42,7 +43,13 @@ struct Sample {
     tick_max: f64,
 }
 
+/// `--server-exe PATH` (a copy, so `cargo build -p server` keeps working during a day-long run —
+/// Windows locks a running binary), else target/release.
 fn server_exe() -> std::path::PathBuf {
+    let args: Vec<String> = std::env::args().collect();
+    if let Some(p) = args.iter().position(|a| a == "--server-exe").and_then(|i| args.get(i + 1)) {
+        return p.into();
+    }
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     root.join("target/release").join(if cfg!(windows) { "server.exe" } else { "server" })
 }
