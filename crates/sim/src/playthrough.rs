@@ -611,7 +611,7 @@ impl Pilot {
                     return None;
                 };
                 let target_sys = match &step {
-                    Step::Reach { system } | Step::ScanPoi { system, .. } | Step::Defeat { system, .. } => *system,
+                    Step::Reach { system } | Step::ScanPoi { system, .. } | Step::Defeat { system, .. } | Step::Dock { system } => *system,
                 };
                 if sys != target_sys {
                     if let Some(a) = attacker {
@@ -622,6 +622,14 @@ impl Pilot {
                 }
                 match step {
                     Step::Reach { .. } => None,
+                    Step::Dock { .. } => {
+                        if let Some(a) = attacker {
+                            fight(self, g, a);
+                            return None;
+                        }
+                        let station = g.systems[&sys].layout.station;
+                        self.dock(g, pos, rot, station, stats.radius, stats.turn)
+                    }
                     Step::ScanPoi { kind, .. } => {
                         if let Some(a) = attacker.filter(|_| hull_frac < 0.9 || !scanning) {
                             fight(self, g, a);

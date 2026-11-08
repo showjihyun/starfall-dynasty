@@ -77,7 +77,10 @@ impl Game {
             ClientMsg::FleetLeave => self.fleet_leave(pid),
             ClientMsg::FleetFormation { formation } => self.fleet_formation(pid, formation),
             ClientMsg::Respawn => {
-                if dead {
+                let wait = self.sessions[&conn].rebuild_at - self.now;
+                if dead && wait > 0.0 {
+                    self.toast(pid, format!("재건 준비 중 — {:.0}초 남았습니다", wait.ceil()));
+                } else if dead {
                     self.respawn(pid);
                 }
             }
@@ -290,6 +293,9 @@ impl Game {
         self.despawn_escorts(pid);
         self.toast(pid, "도킹 완료 — 수리 및 재충전되었습니다");
         self.visit_institutes(pid, sys);
+        if matches!(self.scenario_step(pid), Some(Step::Dock { system }) if system == sys) {
+            self.advance_scenario(pid);
+        }
     }
 
     fn mine(&mut self, pid: PlayerId, sys: SystemId, eid: Option<EntityId>, asteroid: Option<u32>) {
@@ -1054,7 +1060,7 @@ impl Game {
 
     pub(super) fn respawn(&mut self, pid: PlayerId) {
         let prof = self.store.profile(pid).unwrap().clone();
-        let fee = (RESPAWN_FEE_PER_RANK * (1 + prof.ship.rank() as u64)).min(prof.wallet.credits);
+        let fee = (self.tuning.combat.rebuild.fee_per_rank * (1 + prof.ship.rank() as u64)).min(prof.wallet.credits);
         if let Some(pm) = self.store.profile_mut(pid) {
             pm.wallet.credits -= fee;
         }

@@ -24,7 +24,6 @@ use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque};
 
 pub type ConnId = u64;
 
-pub const RESPAWN_FEE_PER_RANK: u64 = 150;
 pub const COMBAT_LOCK: f64 = 5.0;
 pub const ENGAGEMENT_TIMEOUT: f64 = 20.0;
 pub const WRECK_TTL_SECS: u64 = 7 * 86_400;
@@ -233,6 +232,8 @@ pub struct Session {
     /// Deaths to the current chapter step's wave in a row (reset when the step is done).
     pub wave_losses: u32,
     pub dead: bool,
+    /// Game time from which a sunk ship may be rebuilt (`combat.rebuild`).
+    pub rebuild_at: f64,
     pub escorts: Vec<EntityId>,
     pub escort_attack: bool,
     /// Next snapshot must carry every entity's info (just entered a system / reconnected).
@@ -261,6 +262,8 @@ pub struct Game {
     // Ordered maps: iteration order feeds entity ids and event order, so it must not vary between runs
     // (a recorded session has to replay to the same state; see docs/HARNESS.md).
     pub sessions: BTreeMap<ConnId, Session>,
+    /// Game times of each captain's recent losses (rebuild waits; kept across reconnects).
+    pub recent_deaths: BTreeMap<PlayerId, Vec<f64>>,
     pub conn_of: BTreeMap<PlayerId, ConnId>,
     pub fleets: BTreeMap<FleetId, Fleet>,
     pub out: Vec<(ConnId, ServerMsg)>,
@@ -295,6 +298,7 @@ impl Game {
             history,
             systems: BTreeMap::new(),
             sessions: BTreeMap::new(),
+            recent_deaths: BTreeMap::new(),
             conn_of: BTreeMap::new(),
             fleets: BTreeMap::new(),
             out: Vec::new(),

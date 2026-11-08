@@ -82,6 +82,8 @@ pub struct Session {
     pub dead: Option<String>,
     /// How to beat the wave that just sank us again (`ServerMsg::Died::hint`), shown on the death panel.
     pub dead_hint: Option<String>,
+    /// Client time (s) from which the rebuild is accepted (`ServerMsg::Died::rebuild_in`).
+    pub dead_until: f64,
     pub chronicle: Option<(Vec<HistoricalEvent>, Vec<Evidence>, Vec<Headline>)>,
     pub biography: Option<(String, Vec<BioEntry>, Vec<BioEntry>)>,
     pub fleet: Option<FleetId>,
@@ -354,9 +356,10 @@ fn apply(s: &mut Session, m: ServerMsg, now: f64, next: &mut NextState<Screen>) 
             s.scan = if (0.0..1.0).contains(&frac) { Some((poi, frac)) } else { None };
         }
         ServerMsg::Scanned { pois } => s.scanned = pois.into_iter().collect(),
-        ServerMsg::Died { killer, hint, .. } => {
+        ServerMsg::Died { killer, hint, rebuild_in, .. } => {
             s.dead = Some(killer);
             s.dead_hint = hint;
+            s.dead_until = now + rebuild_in as f64;
             s.me = None;
         }
         ServerMsg::Chronicle { events, evidence, herald } => s.chronicle = Some((events, evidence, herald)),

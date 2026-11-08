@@ -495,7 +495,7 @@ fn boosting_says_the_guns_and_shields_are_off() {
 fn death_panel_keeps_the_boss_hint_inside_it_above_the_rebuild_button() {
     let hint = "리바이어던 센티넬의 포대는 옆구리와 등에 몰려 있고 배 아래에는 1문뿐입니다 — 배 아래로 파고들어 싸우세요 (Ctrl 하강)";
     let d = frame(|ctx| {
-        hud::death_panel(ctx, "Leviathan Sentinel", Some(hint));
+        hud::death_panel(ctx, "Leviathan Sentinel", Some(hint), 0.0);
     });
     let (_, h) = d.text("💡 리바이어던").unwrap_or_else(|| panic!("hint missing: {:?}", d.texts));
     let (_, b) = d.text("모항에서 재건").expect("rebuild button");
@@ -506,9 +506,14 @@ fn death_panel_keeps_the_boss_hint_inside_it_above_the_rebuild_button() {
         assert!(Rect::from_min_size(Pos2::ZERO, SCREEN).contains_rect(*r), "{t} off screen at {r:?}");
     }
     let plain = frame(|ctx| {
-        hud::death_panel(ctx, "Raider", None);
+        hud::death_panel(ctx, "Raider", None, 0.0);
     });
     assert!(plain.text("💡").is_none(), "no hint, no line");
+    // A repeated loss: the button counts down instead.
+    let waiting = frame(|ctx| {
+        hud::death_panel(ctx, "Raider", None, 14.2);
+    });
+    assert!(waiting.text("재건 준비 중 15초").is_some() && waiting.text("모항에서 재건").is_none(), "{:?}", waiting.texts);
 }
 
 #[test]

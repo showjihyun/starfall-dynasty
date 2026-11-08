@@ -28,6 +28,9 @@
     // Boosting takes the weapons' and shields' power (2026-10-25, spec boost_power): no gun, turret, main gun or
     // missile fires and shields do not regenerate while it is held. Boost was free, so holding it was always right.
     boost_power: true,
+    // Rebuilding a sunk ship (2026-11-08, QA_WAR: fronts traded a death every few minutes all day). The first loss is
+    // rebuilt at once; each further loss within 10 min waits 15 s more, at most 60 s (the death panel counts down).
+    rebuild: (fee_per_rank: 150, per_death_secs: 15.0, window_secs: 600.0, max_secs: 60.0),
     warp_charge: 4.0,
     // Warp arrival (2026-10-25, spec warp_arrival): every ship used to appear on the warp point itself — two
     // arrivals stacked at 0 u and one ambush covered them all. Now from the side of the system it came from,

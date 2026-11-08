@@ -171,6 +171,8 @@ pub enum Step {
     ScanPoi { system: SystemId, kind: PoiKind, count: u32 },
     /// Defeat a spawned wave (spawned near the player when the step starts).
     Defeat { system: SystemId, wave: Vec<(NpcArchetype, u32)>, level: u8 },
+    /// Dock at the station of a system (chapter 1 ends by reporting back: docking, repair, the station).
+    Dock { system: SystemId },
 }
 
 impl Step {
@@ -183,11 +185,12 @@ impl Step {
                 let w: Vec<String> = wave.iter().map(|(a, n)| format!("{} x{}", a.name(), n)).collect();
                 format!("{}에서 격파: {}", sys(system), w.join(", "))
             }
+            Step::Dock { system } => format!("{} 정거장에 도킹해 보고", sys(system)),
         }
     }
     pub fn system(&self) -> SystemId {
         match self {
-            Step::Reach { system } | Step::ScanPoi { system, .. } | Step::Defeat { system, .. } => *system,
+            Step::Reach { system } | Step::ScanPoi { system, .. } | Step::Defeat { system, .. } | Step::Dock { system } => *system,
         }
     }
 }
@@ -223,6 +226,8 @@ pub fn scenarios() -> Vec<Scenario> {
                 Step::Reach { system: 3 },
                 Step::ScanPoi { system: 3, kind: PoiKind::Signal, count: 1 },
                 Step::Defeat { system: 3, wave: vec![(Raider, 2)], level: 0 },
+                // The tutorial chapter ends at a station: dock (G), be repaired, find the station window (U).
+                Step::Dock { system: 3 },
             ],
             reward: Materials::default(),
         },

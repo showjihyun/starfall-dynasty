@@ -947,10 +947,18 @@ impl Game {
                     pm.cargo.clear();
                     pm.deaths += 1;
                 }
+                // Repeated losses wait longer before the rebuild (`combat.rebuild`).
+                let rb = self.tuning.combat.rebuild;
+                let now = self.now;
+                let recent = self.recent_deaths.entry(vpid).or_default();
+                recent.retain(|t| now - t < rb.window_secs as f64);
+                recent.push(now);
+                let rebuild_in = rb.wait(recent.len());
                 if let Some(c) = self.conn_of.get(&vpid).copied() {
                     let s = self.sessions.get_mut(&c).unwrap();
                     s.entity = None;
                     s.dead = true;
+                    s.rebuild_at = now + rebuild_in as f64;
                     s.warp = None;
                     s.scan = None;
                     let lost_wave = !s.wave.is_empty();
@@ -959,7 +967,7 @@ impl Game {
                     }
                     let hint = if lost_wave { self.wave_hint(c) } else { None };
                     self.clear_wave(c);
-                    self.send(c, ServerMsg::Died { killer: killer_name.clone(), wreck: wid, hint });
+                    self.send(c, ServerMsg::Died { killer: killer_name.clone(), wreck: wid, hint, rebuild_in });
                 }
                 // Engagement loss bookkeeping.
                 let vkey = self.side_key(vpid, e.fleet, e.alliance).0;

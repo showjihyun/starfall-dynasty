@@ -669,6 +669,35 @@ pub struct CultureDef {
     pub epithets: Vec<String>,
 }
 
+/// Rebuilding a sunk ship at the home station. The first loss is rebuilt at once; each further loss
+/// within `window_secs` waits `per_death_secs` more (up to `max_secs`) — a captain who keeps flying
+/// back into the same fight alone pays in time, not only in credits (QA_WAR: fronts where two
+/// alliances traded a death every few minutes all day).
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Rebuild {
+    /// Credits per rank + 1 (capped by the wallet).
+    pub fee_per_rank: u64,
+    pub per_death_secs: f32,
+    pub window_secs: f32,
+    pub max_secs: f32,
+}
+
+impl Default for Rebuild {
+    /// Before it moved to tuning: 150 CR per rank + 1, no wait.
+    fn default() -> Self {
+        Rebuild { fee_per_rank: 150, per_death_secs: 0.0, window_secs: 0.0, max_secs: 0.0 }
+    }
+}
+
+impl Rebuild {
+    /// Seconds before a captain who has lost `recent` ships within the window (this one included)
+    /// may rebuild.
+    pub fn wait(&self, recent: usize) -> f32 {
+        (self.per_death_secs * recent.saturating_sub(1) as f32).min(self.max_secs)
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct CombatTuning {
@@ -706,6 +735,9 @@ pub struct CombatTuning {
     /// and shields do not regenerate while it is held — run or fight. Default false (recordings).
     #[serde(default)]
     pub boost_power: bool,
+    /// Rebuilding a sunk ship (`ClientMsg::Respawn`): fee and how long repeated deaths wait.
+    #[serde(default)]
+    pub rebuild: Rebuild,
     /// Seconds a warp drive charges before the jump (a hit cancels it). Default 4.
     #[serde(default = "warp_charge")]
     pub warp_charge: f32,

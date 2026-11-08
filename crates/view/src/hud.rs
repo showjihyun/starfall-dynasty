@@ -57,13 +57,15 @@ pub fn step_hint(step: &shared::missions::Step, docked: bool) -> String {
         Step::Reach { .. } => "M 지도에서 성계를 골라 워프",
         Step::ScanPoi { .. } => "화면의 표시를 따라가 가까이서 V 스캔",
         Step::Defeat { .. } => "T 목표 지정 · Space 사격 · 밀리면 G 도킹해 수리",
+        Step::Dock { .. } => "정거장 가까이에서 G 도킹 — 수리되고, U로 정거장 창(판매·업그레이드)",
     };
     if docked { format!("G 출항 → {how}") } else { how.to_string() }
 }
 
 /// The "ship sunk" panel (screen centre) with how to beat the wave next time, if the server sent one
-/// (`ServerMsg::Died::hint`). Returns true when the rebuild button was clicked.
-pub fn death_panel(ctx: &egui::Context, killer: &str, hint: Option<&str>) -> bool {
+/// (`ServerMsg::Died::hint`). `wait` seconds before the rebuild is ready (repeated losses wait,
+/// `combat.rebuild`): the button counts down. Returns true when the rebuild button was clicked.
+pub fn death_panel(ctx: &egui::Context, killer: &str, hint: Option<&str>, wait: f32) -> bool {
     use crate::palette::{DIM, RED, chrome};
     let mut rebuild = false;
     egui::Area::new("dead".into()).anchor(Align2::CENTER_CENTER, EVec2::ZERO).show(ctx, |ui| {
@@ -77,7 +79,12 @@ pub fn death_panel(ctx: &egui::Context, killer: &str, hint: Option<&str>) -> boo
                     ui.add_space(8.0);
                     ui.label(RichText::new(format!("💡 {h}")).color(ACCENT).size(15.0));
                 }
-                rebuild = ui.button(RichText::new("모항에서 재건 (Enter)").size(18.0)).clicked();
+                if wait > 0.0 {
+                    ui.add_enabled(false, egui::Button::new(RichText::new(format!("재건 준비 중 {:.0}초", wait.ceil())).size(18.0)));
+                    ui.label(RichText::new("짧은 시간에 거듭 격침되면 재건이 늦어집니다.").size(11.0).color(DIM));
+                } else {
+                    rebuild = ui.button(RichText::new("모항에서 재건 (Enter)").size(18.0)).clicked();
+                }
             });
         });
     });

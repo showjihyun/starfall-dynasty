@@ -325,6 +325,14 @@ fn scenario_one_full_run_unlocks_tier() {
         g.apply_damage(3, me, w, hp + 1.0);
     }
     g.tick(DT, T0);
+    // The tutorial chapter ends by docking at the station (G): far away it is refused and nothing advances.
+    assert_eq!(g.store.profile(pid).unwrap().scenario.as_ref().unwrap().step, 3, "fight done, report back");
+    g.handle(1, ClientMsg::Dock);
+    assert_eq!(g.store.profile(pid).unwrap().scenarios_completed, 0, "too far from the station");
+    let station = g.systems[&3].layout.station;
+    place(&mut g, 1, station + Vec3::Z * 150.0, station);
+    run(&mut g, sim::game::COMBAT_LOCK as f32 + 0.5);
+    g.handle(1, ClientMsg::Dock);
     let p = g.store.profile(pid).unwrap();
     assert!(p.scenario.is_none());
     assert_eq!(p.scenarios_completed, 1);
@@ -565,6 +573,42 @@ fn alliances_share_colours_and_wars_open_frontier_space() {
     g.handle(1, ClientMsg::AlliancePeace { target: emp });
     assert!(!g.at_war(Some(fpa), Some(emp)));
     assert!(g.history.events.iter().any(|e| e.kind == "PEACE"));
+}
+
+#[test]
+fn repeated_losses_wait_longer_before_the_rebuild() {
+    let mut g = game();
+    let pid = join(&mut g, 1, "Moth", Species::Human, HullClass::Talon, Profession::CombatPilot);
+    g.store.profile_mut(pid).unwrap().wallet.credits = 10_000;
+    let rb = g.tuning.combat.rebuild;
+    let sink = |g: &mut Game| {
+        g.spawn_player(pid, 3, false);
+        clear_npcs(g, 3);
+        let (sys, me) = ent_of(g, 1);
+        let npc = g.spawn_npc(sys, NpcArchetype::Raider, 1, g.ent(sys, me).unwrap().pos + Vec3::new(0.0, 0.0, -300.0), None);
+        let hp = g.ent(sys, me).map(|e| (e.hull + e.shield) * 20.0).unwrap();
+        g.apply_damage(sys, npc, me, hp);
+        g.tick(DT, T0);
+        assert!(g.sessions[&1].dead);
+        g.out.drain(..).filter_map(|(_, m)| if let ServerMsg::Died { rebuild_in, .. } = m { Some(rebuild_in) } else { None }).next().expect("died")
+    };
+    // The first loss: rebuilt at once, as before.
+    assert_eq!(sink(&mut g), 0.0);
+    g.handle(1, ClientMsg::Respawn);
+    assert!(!g.sessions[&1].dead);
+    // Sunk again soon after: the wait is told and kept.
+    let wait = sink(&mut g);
+    assert_eq!(wait, rb.per_death_secs);
+    g.handle(1, ClientMsg::Respawn);
+    assert!(g.sessions[&1].dead, "too early");
+    run(&mut g, wait + 0.1);
+    g.handle(1, ClientMsg::Respawn);
+    assert!(!g.sessions[&1].dead, "rebuilt once the wait is over");
+    // A third: longer, never past the cap; outside the window the count starts over.
+    assert_eq!(sink(&mut g), (2.0 * rb.per_death_secs).min(rb.max_secs));
+    run(&mut g, rb.window_secs + 1.0);
+    g.handle(1, ClientMsg::Respawn);
+    assert_eq!(sink(&mut g), 0.0, "an old loss no longer counts");
 }
 
 #[test]

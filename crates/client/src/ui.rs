@@ -558,7 +558,7 @@ fn hud(ctx: &egui::Context, s: &mut Session, net: &Net, env: &Env, vis: &Visuals
     view::hud::key_hints(ctx);
 
     if let Some(killer) = s.dead.clone()
-        && view::hud::death_panel(ctx, &killer, s.dead_hint.as_deref())
+        && view::hud::death_panel(ctx, &killer, s.dead_hint.as_deref(), (s.dead_until - now) as f32)
     {
         net.send(ClientMsg::Respawn);
     }

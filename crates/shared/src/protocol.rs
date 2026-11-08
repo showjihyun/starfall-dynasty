@@ -368,7 +368,8 @@ pub enum ServerMsg {
     /// Pois already scanned by this player in the current system.
     Scanned { pois: Vec<u32> },
     /// `hint`: after losing a chapter wave again, where its ships' turrets do not reach (`npcs.hint_after`).
-    Died { killer: String, wreck: EntityId, #[serde(default)] hint: Option<String> },
+    /// `rebuild_in`: seconds before `Respawn` is accepted (repeated losses wait, `combat.rebuild`).
+    Died { killer: String, wreck: EntityId, #[serde(default)] hint: Option<String>, #[serde(default)] rebuild_in: f32 },
     Chronicle { events: Vec<HistoricalEvent>, evidence: Vec<Evidence>, herald: Vec<Headline> },
     Biography { name: String, character: Vec<BioEntry>, ship: Vec<BioEntry> },
     FleetInvite { from: String, fleet: FleetId },
