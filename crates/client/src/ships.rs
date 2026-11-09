@@ -3,6 +3,7 @@
 
 use crate::materials::*;
 use crate::meshes;
+use crate::scene::Env;
 use crate::state::{INTERP_DELAY, Session};
 use bevy::gltf::GltfMaterialName;
 use bevy::light::NotShadowCaster;
@@ -21,7 +22,8 @@ pub struct ShipsPlugin;
 impl Plugin for ShipsPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<Visuals>().add_observer(release_slot).add_systems(Startup, load_models).add_systems(Update, (sync_visuals, update_ship_fx, aim_turrets, face_nozzle_glows).chain().run_if(crate::state::world_on))
-            .add_systems(PostUpdate, engine_lod.before(bevy::camera::visibility::VisibilitySystems::VisibilityPropagate).run_if(crate::state::world_on));
+            .add_systems(PostUpdate, engine_lod.before(bevy::camera::visibility::VisibilitySystems::VisibilityPropagate).run_if(crate::state::world_on))
+            .add_systems(PostUpdate, animate_rigs.before(bevy::transform::TransformSystems::Propagate).run_if(crate::state::world_on));
     }
 }
 
@@ -216,6 +218,9 @@ pub struct ShipVis {
     pub muzzles: Vec<Entity>,
     pub rank: u8,
     pub boost: view::anim::Ramp,
+    /// Rigged parts on the model (`view::anim::RigKind`), and the landing gear's ramp.
+    pub rigs: Vec<(view::anim::RigKind, Entity)>,
+    pub gear: view::anim::Ramp,
     /// Since when its warp drive has been charging (the spool-up glow, `view::anim::warp_spool`).
     pub warp_since: Option<f64>,
     pub throttle: f32,
@@ -291,6 +296,8 @@ impl ShipVis {
             nozzles: vec![],
             plume_fx: vec![],
             lod: view::anim::EngineLod::Full,
+            rigs: vec![],
+            gear: Default::default(),
         }
     }
 }
@@ -662,6 +669,9 @@ fn on_model_ready(
                 });
                 ship.plume_fx.extend(plumes);
                 ship.nozzles.extend(nozzles);
+            } else if let Some(kind) = view::anim::RigKind::of(n) {
+                ship.rigs.push((kind, d));
+                commands.entity(d).insert(RigPart);
             } else if n.starts_with("Gun_") {
                 ship.muzzles.push(d);
             } else if n.starts_with("Main_") {
@@ -832,6 +842,41 @@ fn face_nozzle_glows(cam: Query<&GlobalTransform, With<crate::control::MainCamer
         }
         if let Ok(pg) = globals.get(parent.parent()) {
             t.rotation = pg.rotation().inverse() * cam_rot;
+        }
+    }
+}
+
+/// A part moved by the rig (`Rig_*` nodes).
+#[derive(Component)]
+pub struct RigPart;
+
+type RigParts<'w, 's> = Query<'w, 's, (&'static mut Transform, &'static mut Visibility), (With<RigPart>, Without<ShipVis>)>;
+
+/// The landing gear comes down this close to the station (u), and how fast it moves (per second).
+const GEAR_RANGE: f32 = 700.0;
+const GEAR_RATE: f32 = 0.8;
+
+/// Rigged parts follow the clock and the ship (`view::anim::rig_rotation`): the dish turns and whirls after
+/// a pulse, the gear comes down near the station, the vanes open under boost. Far ships (no engine detail) skip it.
+fn animate_rigs(time: Res<Time<Real>>, s: Res<Session>, env: Res<Env>, mut ships: Query<(&mut ShipVis, &Transform)>, mut parts: RigParts) {
+    let _prof = shared::prof::span("ships::animate_rigs");
+    let now = time.elapsed_secs_f64();
+    for (mut v, t) in &mut ships {
+        if v.rigs.is_empty() {
+            continue;
+        }
+        let near = env.layout.as_ref().is_some_and(|l| t.translation.distance(l.station) < GEAR_RANGE);
+        v.gear.set(near, now, GEAR_RATE, GEAR_RATE);
+        let (gear, boost) = (v.gear.value(now, GEAR_RATE, GEAR_RATE), v.boost.value(now, BOOST_UP, BOOST_DOWN));
+        let pulse_age = if Some(v.id) == s.me { s.pulse_at.map(|at| now - at) } else { None };
+        for (kind, e) in &v.rigs {
+            let Ok((mut part, mut vis)) = parts.get_mut(*e) else { continue };
+            // A draw call each: none for a ship too small to show them, or for gear folded inside the hull.
+            let shown = v.lod != EngineLod::Off && (*kind != view::anim::RigKind::Gear || gear > 0.0);
+            vis.set_if_neq(if shown { Visibility::Inherited } else { Visibility::Hidden });
+            if shown {
+                part.rotation = view::anim::rig_rotation(*kind, now, v.seed, gear, boost, pulse_age);
+            }
         }
     }
 }

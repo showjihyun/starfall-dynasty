@@ -5,6 +5,8 @@ Conventions (contract with the Bevy client):
   * Material names: Hull (baked textures), Livery, Glow, Glass, EngineCore.
   * Empties: Engine_N (scale = nozzle radius), Gun_N.
   * Rank parts: separate objects named Rank3_*, Rank6_*, Rank9_*.
+  * Rigged parts: Rig_<Kind>_N (Dish, Gear, Vane), separate meshes whose origin is their hinge; the client
+    turns them (view::anim::rig_rotation). Modelled at rest: dish level, gear down, vane closed.
 """
 import bpy
 import bmesh
@@ -300,6 +302,7 @@ class Ship:
         self.mats = mats  # dict name->material
         self.groups = {}  # group name -> [objects]
         self.empties = []
+        self.rig_pivots = {}  # Rig_* group -> hinge point
         self.coll = bpy.context.scene.collection
 
     def part(self, build, group="body", bevel=0.03, segs=2, angle=32, mirror=False,
@@ -358,6 +361,11 @@ class Ship:
         self.empties.append(e)
         return e
 
+    def rig(self, name, build, pivot, **kw):
+        """A rigged part: its own object, origin at the hinge `pivot` (see the conventions above)."""
+        self.part(build, group=name, **kw)
+        self.rig_pivots[name] = V(pivot)
+
     def finalize(self):
         """Join groups into objects; body -> 'Hull'. Center origin at bbox center."""
         result = {}
@@ -379,6 +387,8 @@ class Ship:
         lo = V((1e9, 1e9, 1e9))
         hi = V((-1e9, -1e9, -1e9))
         for o in result.values():
+            if o.name.startswith("Rig_"):
+                continue  # the model is centred on its hull, wherever its moving parts reach
             for v in o.data.vertices:
                 p = o.matrix_world @ v.co
                 lo = V((min(lo.x, p.x), min(lo.y, p.y), min(lo.z, p.z)))
@@ -390,6 +400,13 @@ class Ship:
             o.data.update()
         for e in self.empties:
             e.location = e.location - c
+        # A rigged part's origin is its hinge.
+        for name, pivot in self.rig_pivots.items():
+            o = result[name]
+            p = pivot - c
+            o.data.transform(Matrix.Translation(-p))
+            o.data.update()
+            o.location = p
         self.bbox = (lo - c, hi - c)
         log(self.name, "bbox size", tuple(round(x, 2) for x in (hi - lo)))
         return result

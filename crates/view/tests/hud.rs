@@ -602,3 +602,26 @@ fn a_pulse_contact_says_how_strong_and_how_high_never_how_far() {
     assert_eq!(hud::signal_label(1.0, 0.5), "◇ 미확인 신호 5/5  +30°");
     assert_eq!(hud::signal_label(0.5, -0.5), "◇ 미확인 신호 3/5  -30°");
 }
+
+#[test]
+fn rigged_parts_move_with_the_clock_and_the_ship() {
+    use shared::glam::{Quat, Vec3};
+    use view::anim::{RigKind, rig_rotation};
+    assert_eq!(RigKind::of("Rig_Dish_0"), Some(RigKind::Dish));
+    assert_eq!(RigKind::of("Rig_Gear_12"), Some(RigKind::Gear));
+    assert_eq!(RigKind::of("Rig_Bogus_0"), None);
+    assert_eq!(RigKind::of("Hull"), None);
+    // Gear: modelled down, folded in flight.
+    assert!(rig_rotation(RigKind::Gear, 0.0, 0.0, 1.0, 0.0, None).abs_diff_eq(Quat::IDENTITY, 1e-5));
+    let strut = rig_rotation(RigKind::Gear, 0.0, 0.0, 0.0, 0.0, None) * Vec3::NEG_Y;
+    assert!(strut.y.abs() < 1e-5 && strut.z > 0.99, "folded flat along the belly, toward the tail: {strut:?}");
+    // Vane: opens upward with boost (the plate reaches back, +Z).
+    assert!((rig_rotation(RigKind::Vane, 0.0, 0.0, 0.0, 1.0, None) * Vec3::Z).y > 0.3);
+    // Dish: same clock, same pose; a pulse spins it on, continuously from the moment it fires.
+    let at = |t: f64, age| rig_rotation(RigKind::Dish, t, 0.3, 0.0, 0.0, age);
+    assert!(at(5.0, None).abs_diff_eq(at(5.0, None), 1e-6));
+    assert!(at(5.0, Some(0.0)).abs_diff_eq(at(5.0, None), 1e-5), "no jump when it fires");
+    assert!(!at(5.0, Some(0.4)).abs_diff_eq(at(5.0, None), 1e-3));
+    // It settles: long after, the whirl no longer changes frame to frame.
+    assert!(at(5.0, Some(30.0)).abs_diff_eq(at(5.0, Some(31.0)), 1e-3));
+}

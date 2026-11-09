@@ -88,6 +88,8 @@ pub struct Session {
     pub scanned: HashSet<u32>,
     /// Sites of this system the captain has found (only these are marked).
     pub revealed: HashSet<u32>,
+    /// When this captain's last pulse came back (the scanner dish whirls).
+    pub pulse_at: Option<f64>,
     /// The last pulse: (bearing, strength, client time).
     pub contacts: Vec<(Vec3, f32, f64)>,
     pub dead: Option<String>,
@@ -400,7 +402,10 @@ fn apply(s: &mut Session, m: ServerMsg, now: f64, next: &mut NextState<Screen>) 
         }
         ServerMsg::Scanned { pois } => s.scanned = pois.into_iter().collect(),
         ServerMsg::Revealed { pois } => s.revealed = pois.into_iter().collect(),
-        ServerMsg::Pulse { contacts } => s.contacts = contacts.into_iter().map(|c| (Vec3::from(c.dir), c.strength, now)).collect(),
+        ServerMsg::Pulse { contacts } => {
+            s.pulse_at = Some(now);
+            s.contacts = contacts.into_iter().map(|c| (Vec3::from(c.dir), c.strength, now)).collect();
+        }
         ServerMsg::Died { killer, hint, rebuild_in, .. } => {
             s.dead = Some(killer);
             s.dead_hint = hint;

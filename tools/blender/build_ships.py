@@ -1338,6 +1338,33 @@ def species_kits(ship, big=False):
     ship.part(kharz_plates, group="Species_Kharz_Kit", bevel=0.01, segs=1)
 
 
+def rig_talon(ship):
+    """Talon's moving parts, in paint (no Hull faces: the hull bake does not change)."""
+    # Scanner dish on the spine; the feed sits off-centre so its turning reads.
+    mast = V((0, -3.0, 0.95))
+    def dish(bm):
+        cyl(bm, mast, mast + V((0, 0, 0.42)), 0.1, 0.07, n=10, mat=L)
+        cyl(bm, mast + V((0, 0, 0.4)), mast + V((0, 0, 0.58)), 0.14, 0.62, n=20, mat=L)
+        prism(bm, mast + V((0, 0, 0.55)), mast + V((0.42, 0, 0.92)), 0.04, 0.04, mat=L)
+        box(bm, mast + V((0.42, 0, 0.95)), (0.14, 0.14, 0.14), mat=G)
+    ship.rig("Rig_Dish_0", dish, mast, bevel=0, weighted=False)
+    # Landing gear, modelled down; it folds back into the belly in flight, hinges deep enough to swallow the foot.
+    for i, (x, y, z) in enumerate(((0.0, 6.0, -0.44), (1.0, -4.0, -0.04), (-1.0, -4.0, -0.04))):
+        hinge = V((x, y, z))
+        def gear(bm, hinge=hinge):
+            prism(bm, hinge, hinge + V((0, 0, -1.25)), 0.09, 0.09, mat=L)
+            box(bm, hinge + V((0, 0, -1.3)), (0.3, 0.62, 0.1), mat=L)
+        ship.rig("Rig_Gear_%d" % i, gear, hinge, bevel=0, weighted=False)
+    # A thrust vane over each engine, hinged at its front edge.
+    for i, e in enumerate(e for e in ship.empties if e.name.startswith("Engine_")):
+        hinge = V((e.location.x, -11.3, e.location.z + 0.74))
+        def vane(bm, hinge=hinge):
+            box(bm, hinge + V((0, -0.6, 0)), (0.78, 1.2, 0.05), mat=L)
+        ship.rig("Rig_Vane_%d" % i, vane, hinge, bevel=0, weighted=False)
+
+
+RIGS = {'talon': rig_talon}
+
 STYLES = {
     'talon': dict(paint=(0.16, 0.17, 0.19), paint2=(0.1, 0.11, 0.12), accent=(0.21, 0.22, 0.24),
                   metal=0.45, rough=0.42, spacing=(1.2, 1.6, 0.9), wear=0.9, grime=0.9, sub_amt=0.25),
@@ -1361,6 +1388,8 @@ def run(name, bake=True, preview=True, tex=2048):
     ship = Ship(name, mats)
     BUILDERS[name](ship)
     species_kits(ship)
+    if name in RIGS:
+        RIGS[name](ship)
     objs = ship.finalize()
     tris, per = ship.tri_count()
     log(name, "triangles", tris, per)

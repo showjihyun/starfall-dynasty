@@ -150,6 +150,40 @@ pub fn preview_camera(ship: Vec3, radius: f32) -> (Vec3, Vec3) {
     (ship + to_star * radius * 5.0 + Vec3::Y * radius * 0.5, ship + Vec3::Y * radius * 1.5)
 }
 
+/// Rigged ship parts (`Rig_<Kind>_N` nodes, origin at the hinge; tools/blender/shiplib.py).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RigKind {
+    Dish,
+    Gear,
+    Vane,
+}
+
+impl RigKind {
+    /// From a node's name: `Rig_Dish_0` → Dish.
+    pub fn of(node: &str) -> Option<RigKind> {
+        match node.strip_prefix("Rig_")?.split('_').next()? {
+            "Dish" => Some(RigKind::Dish),
+            "Gear" => Some(RigKind::Gear),
+            "Vane" => Some(RigKind::Vane),
+            _ => None,
+        }
+    }
+}
+
+/// A rigged part's rotation from its rest pose, as a function of the clock. `gear` 0 is folded, 1 down;
+/// `boost` 0–1; `pulse_age`: seconds since this ship's scanner pulse (the dish whirls, then settles).
+pub fn rig_rotation(kind: RigKind, now: f64, seed: f32, gear: f32, boost: f32, pulse_age: Option<f64>) -> Quat {
+    match kind {
+        RigKind::Dish => {
+            let idle = (now * 0.8 + seed as f64).rem_euclid(std::f64::consts::TAU) as f32;
+            let whirl = pulse_age.filter(|a| *a >= 0.0).map_or(0.0, |a| 14.0 * (1.0 - (-a as f32 / 0.8).exp()));
+            Quat::from_rotation_y(idle + whirl)
+        }
+        RigKind::Gear => Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2 * (1.0 - gear.clamp(0.0, 1.0))),
+        RigKind::Vane => Quat::from_rotation_x(-0.45 * boost.clamp(0.0, 1.0)),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
