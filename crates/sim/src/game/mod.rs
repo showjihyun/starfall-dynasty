@@ -581,6 +581,7 @@ impl Game {
             scanned: vec![],
             revealed: vec![],
             fitted: None,
+            survey: vec![],
             specimens: Default::default(),
         };
         self.store.set_profile(pid, profile.clone());

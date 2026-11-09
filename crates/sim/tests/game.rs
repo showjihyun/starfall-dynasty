@@ -1955,7 +1955,6 @@ fn sites_hide_until_found_pay_once_and_deep_ones_need_a_better_scanner() {
     g.systems.get_mut(&sys).unwrap().pirate_cd = f32::INFINITY;
     let need = g.scanner_needed(sys, deep.id);
     assert!(need > 1);
-    let wallet = |g: &Game| g.store.profile(pid).unwrap().wallet.credits;
     place(&mut g, 1, deep.pos + Vec3::Z * 100.0, deep.pos);
     // Too deep: right next to it the pulse stays silent and it cannot be read.
     g.out.clear();
@@ -1971,10 +1970,9 @@ fn sites_hide_until_found_pay_once_and_deep_ones_need_a_better_scanner() {
     run(&mut g, ex.pulse_cooldown + 0.1);
     g.handle(1, ClientMsg::Pulse);
     assert!(g.store.profile(pid).unwrap().revealed.contains(&(sys, deep.id)));
-    let before = wallet(&g);
     g.handle(1, ClientMsg::Scan { poi: deep.id });
     run(&mut g, 12.0);
-    let paid = wallet(&g) - before;
+    let paid = g.store.profile(pid).unwrap().survey.iter().map(|s| s.reward.credits).sum::<u64>();
     assert!(paid > 0);
     // The next day it does not pay again.
     g.tick(DT, T0 + 2 * 86_400);
@@ -2069,4 +2067,52 @@ fn a_site_hidden_deep_gives_any_captain_an_artifact_and_a_precursor_relic_reads_
     g.handle(1, ClientMsg::Scan { poi: deep.id });
     run(&mut g, 12.0);
     assert_eq!(g.artifacts_of(pid).len(), 2, "a Combat Pilot digs one out of a deep site");
+}
+
+#[test]
+fn a_survey_pays_on_docking_and_is_lost_with_the_ship_so_the_site_can_be_found_again() {
+    let mut g = game();
+    let pid = join(&mut g, 1, "Surveyor", Species::Human, HullClass::Talon, Profession::CombatPilot);
+    g.store.profile_mut(pid).unwrap().ship.modules.insert(Module::Scanner, 7);
+    let sys = 4;
+    let site = galaxy::system_layout(sys).pois.into_iter().next().unwrap();
+    move_to_system(&mut g, 1, sys);
+    clear_npcs(&mut g, sys);
+    g.systems.get_mut(&sys).unwrap().pirate_cd = f32::INFINITY;
+    let wallet = |g: &Game| g.store.profile(pid).unwrap().wallet.credits;
+    let start = wallet(&g);
+    let scan_site = |g: &mut Game| {
+        place(g, 1, site.pos + Vec3::Z * 100.0, site.pos);
+        g.handle(1, ClientMsg::Scan { poi: site.id });
+        run(g, 12.0);
+    };
+
+    // Scanned: in the log, not in the wallet.
+    scan_site(&mut g);
+    let p = g.store.profile(pid).unwrap();
+    assert_eq!(p.survey.len(), 1);
+    assert!(p.scanned.contains(&(sys, site.id)));
+    assert_eq!(wallet(&g), start);
+
+    // The ship goes down: nothing paid, and the site is new again.
+    let (s, e) = g.player_entity(pid).unwrap();
+    g.ent_mut(s, e).unwrap().hull = 0.0;
+    run(&mut g, 1.0);
+    let p = g.store.profile(pid).unwrap();
+    assert!(p.survey.is_empty() && !p.scanned.contains(&(sys, site.id)));
+    assert_eq!(wallet(&g), start);
+
+    // Rebuilt, it scans the site again and brings the log home.
+    g.spawn_player(pid, sys, false);
+    clear_npcs(&mut g, sys);
+    scan_site(&mut g);
+    let paid = g.store.profile(pid).unwrap().survey[0].reward.credits;
+    assert!(paid > 0);
+    let station = g.systems[&sys].layout.station;
+    place(&mut g, 1, station + Vec3::Z * 60.0, station);
+    run(&mut g, 6.0);
+    g.handle(1, ClientMsg::Dock);
+    assert_eq!(wallet(&g), start + paid);
+    assert!(g.store.profile(pid).unwrap().survey.is_empty());
+    assert!(g.store.profile(pid).unwrap().scanned.contains(&(sys, site.id)), "brought home, it stays found");
 }

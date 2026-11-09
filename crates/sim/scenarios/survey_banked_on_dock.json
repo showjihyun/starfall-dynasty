@@ -1,0 +1,18 @@
+{
+  "name": "survey_banked_on_dock",
+  "description": "탐사는 귀환해야 확정된다: 지점을 스캔해도 보상은 함선 기록에 남아 있다가 정거장에 도킹할 때 지갑에 들어온다.",
+  "dev": true,
+  "captains": [
+    { "name": "Finder", "hull": "Talon", "level": 9, "system": 4, "near_poi": "Derelict", "offset": [0, 0, 100] }
+  ],
+  "script": [
+    { "at": 0.5, "captain": "Finder", "fill_nearest": "poi:Derelict", "msg": { "Scan": { "poi": 0 } } },
+    { "at": 12.0, "captain": "Finder", "msg": { "Chat": { "text": "/tp station" } } },
+    { "at": 12.5, "captain": "Finder", "msg": "Dock" }
+  ],
+  "run_secs": 14,
+  "expect": [
+    { "at": 11.5, "check": "credits", "captain": "Finder", "max": 1500 },
+    { "check": "credits", "captain": "Finder", "min": 1501 }
+  ]
+}

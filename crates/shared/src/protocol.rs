@@ -165,6 +165,14 @@ pub struct ScenarioProgress {
     pub step_progress: u32,
 }
 
+/// A scanned site in the ship's log, not yet brought home.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct Survey {
+    pub system: SystemId,
+    pub poi: u32,
+    pub reward: crate::ships::Materials,
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Profile {
     pub player_id: PlayerId,
@@ -188,6 +196,9 @@ pub struct Profile {
     /// System the ship was last in (login spawns there, docked).
     #[serde(default)]
     pub last_system: SystemId,
+    /// Sites scanned since the last dock: paid on docking, lost with the ship.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub survey: Vec<Survey>,
     /// The artifact fitted to the ship.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub fitted: Option<ArtifactId>,

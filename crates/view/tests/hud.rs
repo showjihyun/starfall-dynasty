@@ -559,6 +559,7 @@ fn a_captain_with_no_chapter_running_is_told_what_to_do_next() {
         last_system: 0,
         scanned: vec![],
         fitted: None,
+        survey: vec![],
         revealed: vec![],
         specimens: Default::default(),
     };

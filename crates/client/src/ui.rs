@@ -495,6 +495,9 @@ fn hud(ctx: &egui::Context, s: &mut Session, net: &Net, env: &Env, vis: &Visuals
             ui.label(RichText::new(format!("{}  ·  {}", prof.name, prof.species.name())).color(GOLD));
             let w = &prof.wallet;
             ui.label(format!("◆ {} CR", w.credits));
+            if !prof.survey.is_empty() {
+                ui.label(RichText::new(format!("미정산 탐사 {}건 — 도킹하면 정산, 격침되면 소실", prof.survey.len())).size(11.0).color(GOLD));
+            }
             ui.label(RichText::new(format!("합금 {} · 결정 {} · 데이터코어 {} · 유물 {}", w.alloy, w.crystal, w.datacore, w.relic)).size(12.0));
             ui.label(RichText::new(format!("평판 {} · 격파 {} · 피격침 {}{}", prof.reputation, prof.kills, prof.deaths, if prof.bounty > 0 { format!(" · 현상금 {} CR", prof.bounty) } else { String::new() })).size(11.0).color(if prof.bounty > 0 { RED } else { DIM }));
         });

@@ -314,10 +314,40 @@ impl Game {
         e.shield = e.stats.max_shield;
         self.despawn_escorts(pid);
         self.toast(pid, "도킹 완료 — 수리 및 재충전되었습니다");
+        self.bank_survey(pid);
         self.visit_institutes(pid, sys);
         if matches!(self.scenario_step(pid), Some(Step::Dock { system }) if system == sys) {
             self.advance_scenario(pid);
         }
+    }
+
+    /// Docked: the ship's log pays out.
+    fn bank_survey(&mut self, pid: PlayerId) {
+        let Some(pm) = self.store.profile_mut(pid) else { return };
+        let survey = std::mem::take(&mut pm.survey);
+        if survey.is_empty() {
+            return;
+        }
+        for s in &survey {
+            pm.wallet.add(&s.reward);
+        }
+        self.store.dirty = true;
+        self.toast(pid, format!("탐사 기록 {}건 정산: +{} CR", survey.len(), survey.iter().map(|s| s.reward.credits).sum::<u64>()));
+        self.push_profile(pid);
+    }
+
+    /// The flagship went down: what it had not brought home is gone, and those sites can be found again.
+    pub(super) fn lose_survey(&mut self, pid: PlayerId) {
+        let Some(pm) = self.store.profile_mut(pid) else { return };
+        let lost = std::mem::take(&mut pm.survey);
+        if lost.is_empty() {
+            return;
+        }
+        let gone = |k: &(SystemId, u32)| lost.iter().any(|s| (s.system, s.poi) == *k);
+        pm.scanned.retain(|k| !gone(k));
+        pm.revealed.retain(|k| !gone(k));
+        self.store.dirty = true;
+        self.toast(pid, format!("정산하지 못한 탐사 기록 {}건이 함선과 함께 사라졌습니다", lost.len()));
     }
 
     fn mine(&mut self, pid: PlayerId, sys: SystemId, eid: Option<EntityId>, asteroid: Option<u32>) {
@@ -454,15 +484,13 @@ impl Game {
         } else {
             Default::default()
         };
-        if let Some(pm) = self.store.profile_mut(pid) {
-            pm.wallet.add(&reward);
-            if first_time {
-                pm.scanned.push((sys, poi));
-            }
+        if first_time && let Some(pm) = self.store.profile_mut(pid) {
+            pm.scanned.push((sys, poi));
+            pm.survey.push(Survey { system: sys, poi, reward: reward.clone() });
         }
         let kind = format!("{:?}", p.kind);
         self.history.record(self.unix, DomainEvent::Discovery { player: prof.name.clone(), ship: prof.ship.name.clone(), system: sys, site: p.name.clone(), kind });
-        self.toast(pid, format!("스캔 완료: {} — 보상 {}", p.name, reward.describe()));
+        self.toast(pid, format!("스캔 완료: {} — 도킹하면 정산: {}", p.name, reward.describe()));
         let scanned: Vec<u32> = self.store.profile(pid).unwrap().scanned.iter().filter(|(s, _)| *s == sys).map(|(_, p)| *p).collect();
         self.send_player(pid, ServerMsg::Scanned { pois: scanned });
         if first_time {

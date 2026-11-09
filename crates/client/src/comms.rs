@@ -84,6 +84,7 @@ mod tests {
             scanned: vec![],
             revealed: vec![],
             fitted: None,
+            survey: vec![],
             specimens: Default::default(),
         }
     }
