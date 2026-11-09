@@ -646,6 +646,10 @@ fn archaeology_unearth_appraise_sell_and_donate() {
     let lara = join(&mut g, 2, "Lara", Species::Veyr, HullClass::Seer, Profession::Archaeologist);
     let ex = join(&mut g, 3, "Ex", Species::Human, HullClass::Wren, Profession::Explorer);
     let ruins: Vec<galaxy::Poi> = galaxy::system_layout(6).pois.into_iter().filter(|p| p.kind == PoiKind::Ruin).collect();
+    // (Wild ruins hide deep: a scanner that can read them.)
+    for p in [indy, lara, ex] {
+        g.store.profile_mut(p).unwrap().ship.modules.insert(Module::Scanner, 7);
+    }
     for c in [1, 2, 3] {
         move_to_system(&mut g, c, 6);
     }
@@ -1937,4 +1941,53 @@ fn captains_block_and_report_from_chat() {
     g.handle(2, ClientMsg::Chat { text: "/report Nobody x".into() });
     assert!(g.store.data.blocks.is_empty());
     assert_eq!(g.store.data.reports.len(), 1);
+}
+
+#[test]
+fn sites_hide_until_found_pay_once_and_deep_ones_need_a_better_scanner() {
+    let mut g = game();
+    let pid = join(&mut g, 1, "Finder", Species::Human, HullClass::Talon, Profession::CombatPilot);
+    // A deep site in the Deep system and a captain with a Lv1 scanner.
+    let ex = g.tuning.galaxy.explore.clone();
+    let (sys, deep) = (0..50u16).filter(|s| galaxy::system(*s).tier != galaxy::RiskTier::Core).flat_map(|s| galaxy::system_layout(s).pois.into_iter().map(move |p| (s, p))).find(|(s, p)| ex.depth(*s, p.id, galaxy::system(*s).tier) >= 1).expect("a hidden site");
+    move_to_system(&mut g, 1, sys);
+    clear_npcs(&mut g, sys);
+    g.systems.get_mut(&sys).unwrap().pirate_cd = f32::INFINITY;
+    let need = g.scanner_needed(sys, deep.id);
+    assert!(need > 1);
+    let wallet = |g: &Game| g.store.profile(pid).unwrap().wallet.credits;
+    place(&mut g, 1, deep.pos + Vec3::Z * 100.0, deep.pos);
+    // Too deep: right next to it the pulse stays silent and it cannot be read.
+    g.out.clear();
+    g.handle(1, ClientMsg::Pulse);
+    assert!(!g.store.profile(pid).unwrap().revealed.contains(&(sys, deep.id)));
+    assert!(g.out.iter().any(|(c, m)| *c == 1 && matches!(m, ServerMsg::Toast { text } if text.contains(&format!("스캐너 Lv{need}")))), "the captain is told a better scanner would hear more");
+    g.handle(1, ClientMsg::Scan { poi: deep.id });
+    assert!(g.sessions[&1].scan.is_none());
+    // A better scanner finds it (after the cooldown) and it pays once, for good.
+    g.store.profile_mut(pid).unwrap().ship.modules.insert(Module::Scanner, need);
+    g.handle(1, ClientMsg::Pulse);
+    assert!(!g.store.profile(pid).unwrap().revealed.contains(&(sys, deep.id)), "still charging");
+    run(&mut g, ex.pulse_cooldown + 0.1);
+    g.handle(1, ClientMsg::Pulse);
+    assert!(g.store.profile(pid).unwrap().revealed.contains(&(sys, deep.id)));
+    let before = wallet(&g);
+    g.handle(1, ClientMsg::Scan { poi: deep.id });
+    run(&mut g, 12.0);
+    let paid = wallet(&g) - before;
+    assert!(paid > 0);
+    // The next day it does not pay again.
+    g.tick(DT, T0 + 2 * 86_400);
+    g.out.clear();
+    g.handle(1, ClientMsg::Scan { poi: deep.id });
+    assert!(g.sessions[&1].scan.is_none() && errors(&g, 1).iter().any(|e| e.contains("이미 스캔")));
+    // A far pulse gives bearings, not positions.
+    let far = galaxy::system_layout(sys).pois.into_iter().find(|p| p.id != deep.id && g.scanner_needed(sys, p.id) <= need).unwrap();
+    let dir = (far.pos - deep.pos).normalize();
+    place(&mut g, 1, far.pos - dir * 3000.0, far.pos);
+    run(&mut g, ex.pulse_cooldown + 0.1);
+    g.out.clear();
+    g.handle(1, ClientMsg::Pulse);
+    let contacts: Vec<SignalContact> = g.out.iter().filter_map(|(c, m)| if let (1, ServerMsg::Pulse { contacts }) = (*c, m) { Some(contacts.clone()) } else { None }).flatten().collect();
+    assert!(contacts.iter().any(|c| Vec3::from(c.dir).dot(dir) > 0.99 && c.strength < 0.5), "{contacts:?}");
 }

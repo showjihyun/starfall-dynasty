@@ -53,7 +53,7 @@ pub fn flight(p: &PadState) -> PadFlight {
 }
 
 /// The help window's gamepad rows (button, what it does).
-pub const HELP: [(&str, &str); 10] = [
+pub const HELP: [(&str, &str); 11] = [
     ("왼쪽 스틱", "추진 · 선회"),
     ("오른쪽 스틱", "기수 · 롤"),
     ("RT / LT", "사격 · 부스트"),
@@ -61,6 +61,7 @@ pub const HELP: [(&str, &str); 10] = [
     ("A", "목표 지정"),
     ("B", "도킹 · 출항"),
     ("X", "스캔"),
+    ("십자 위", "탐지 펄스"),
     ("Y", "미사일"),
     ("Select", "지도"),
     ("Start", "메뉴"),

@@ -563,12 +563,12 @@ impl Pilot {
                 if sys != at {
                     return self.travel(g, sys, at, &stats, in_combat);
                 }
-                // Sites not scanned today pay credits and materials: scan them before mining.
+                // Sites not scanned yet (and readable with this scanner) pay credits and materials: scan them before mining.
                 if scanning {
                     self.send(g, ClientMsg::Controls(Controls::default()));
                     return None;
                 }
-                let fresh = g.systems[&sys].layout.pois.iter().filter(|p| !prof.scanned.contains(&(sys, p.id))).min_by(|a, b| a.pos.distance(pos).total_cmp(&b.pos.distance(pos))).map(|p| (p.id, p.pos));
+                let fresh = g.systems[&sys].layout.pois.iter().filter(|p| !prof.scanned.contains(&(sys, p.id)) && prof.ship.level(Module::Scanner) >= g.scanner_needed(sys, p.id)).min_by(|a, b| a.pos.distance(pos).total_cmp(&b.pos.distance(pos))).map(|p| (p.id, p.pos));
                 if let Some((poi, at)) = fresh {
                     if pos.distance(at) > stats.scan_range * 0.7 {
                         self.send(g, ClientMsg::Controls(steer(pos, rot, at, stats.scan_range * 0.5, stats.turn)));

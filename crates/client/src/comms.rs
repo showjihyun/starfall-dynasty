@@ -82,6 +82,7 @@ mod tests {
             archive: vec![],
             last_system: 0,
             scanned: vec![],
+            revealed: vec![],
             specimens: Default::default(),
         }
     }

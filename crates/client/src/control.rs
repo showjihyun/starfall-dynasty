@@ -261,6 +261,7 @@ fn pad_button(a: view::keymap::Action) -> Option<GamepadButton> {
         A::Target | A::Rebuild => GamepadButton::South,
         A::Dock => GamepadButton::East,
         A::Scan => GamepadButton::West,
+        A::Pulse => GamepadButton::DPadUp,
         A::Missile => GamepadButton::North,
         A::Map => GamepadButton::Select,
         _ => return None,
@@ -363,6 +364,9 @@ fn action_keys(keys: Res<ButtonInput<KeyCode>>, wants: Option<Res<EguiWantsInput
             s.ui.escape();
         }
     }
+    if act(A::Pulse) {
+        net.send(ClientMsg::Pulse);
+    }
     if act(A::Missile) {
         net.send(ClientMsg::FireMissile);
     }
@@ -396,7 +400,7 @@ fn action_keys(keys: Res<ButtonInput<KeyCode>>, wants: Option<Res<EguiWantsInput
     }
     if act(A::Scan) {
         // Scan the nearest point of interest, or investigate the nearest wreck if closer.
-        let poi = layout.pois.iter().min_by(|a, b| a.pos.distance(my_pos).total_cmp(&b.pos.distance(my_pos)));
+        let poi = layout.pois.iter().filter(|p| s.revealed.contains(&p.id) || s.scanned.contains(&p.id)).min_by(|a, b| a.pos.distance(my_pos).total_cmp(&b.pos.distance(my_pos)));
         let wreck = latest.iter().filter(|e| e.kind == EntityKind::Wreck).min_by(|a, b| Vec3::from(a.pos).distance(my_pos).total_cmp(&Vec3::from(b.pos).distance(my_pos)));
         let wd = wreck.map(|w| Vec3::from(w.pos).distance(my_pos)).unwrap_or(f32::MAX);
         if wd < 400.0 + me.radius {

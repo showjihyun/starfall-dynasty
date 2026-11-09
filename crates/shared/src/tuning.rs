@@ -350,6 +350,9 @@ pub struct GalaxyTuning {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub catalog: Vec<CatalogEntry>,
     pub chart_reward: u64,
+    /// Hidden sites and the scanner pulse. Missing (recordings from before it): nothing hides.
+    #[serde(default)]
+    pub explore: Explore,
     /// How far a system's places rise out of its plane. Missing (recordings made before it existed):
     /// the old flat layout.
     #[serde(default)]
@@ -627,6 +630,35 @@ impl StationGuard {
     /// Dps and integrity multiplier at a fortification level.
     pub fn level_k(&self, level: u8) -> f32 {
         1.0 + self.fortify_step * level as f32
+    }
+}
+
+/// Hidden sites (`tuning/galaxy.ron` `explore`): a system's sites are not on the HUD until a captain
+/// finds them with the scanner pulse; deeper ones take a better scanner and pay more.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Explore {
+    /// Seconds between pulses.
+    pub pulse_cooldown: f32,
+    /// A pulse reveals sites within this many scan ranges; farther ones give a bearing and a strength.
+    pub reveal_mult: f32,
+    /// The distance at which a signal's strength reaches its minimum.
+    pub pulse_range: f32,
+    /// Deepest a site can hide, per risk tier (a site's depth is 0..=this, fixed per site).
+    pub max_depth: BTreeMap<crate::galaxy::RiskTier, u8>,
+    /// Scanner module level needed per depth.
+    pub depth_scanner: Vec<u8>,
+    /// Extra reward per depth (0.5: depth 2 pays double).
+    pub depth_reward: f32,
+}
+
+impl Explore {
+    pub fn depth(&self, system: crate::galaxy::SystemId, poi: u32, tier: crate::galaxy::RiskTier) -> u8 {
+        crate::galaxy::poi_depth(system, poi, self.max_depth.get(&tier).copied().unwrap_or(0))
+    }
+
+    pub fn scanner_needed(&self, depth: u8) -> u8 {
+        self.depth_scanner.get(depth as usize).copied().unwrap_or(1)
     }
 }
 

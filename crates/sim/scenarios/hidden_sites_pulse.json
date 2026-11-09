@@ -1,0 +1,18 @@
+{
+  "name": "hidden_sites_pulse",
+  "description": "숨겨진 지점: 성계에 들어와도 탐사 지점은 찾기 전까지 함장의 것이 아니다. 탐지 펄스를 멀리서 보내면 방향과 세기만 돌아오고(발견 0), 지점 가까이(스캔 범위 1.5배 안)에서 보내면 찾는다. 스캔 보상은 지점마다 한 번뿐이다. 연대기 DISCOVERY는 스캔에 남는다",
+  "dev": true,
+  "captains": [
+    { "name": "Finder", "hull": "Talon", "level": 1, "system": 4, "undocked": true }
+  ],
+  "script": [
+    { "at": 0.5, "captain": "Finder", "msg": "Pulse" },
+    { "at": 1.0, "captain": "Finder", "msg": { "Chat": { "text": "/tp poi:Derelict" } } },
+    { "at": 8.0, "captain": "Finder", "msg": "Pulse" }
+  ],
+  "run_secs": 10,
+  "expect": [
+    { "at": 0.9, "check": "revealed", "captain": "Finder", "system": 4, "max": 0 },
+    { "check": "revealed", "captain": "Finder", "system": 4, "min": 1 }
+  ]
+}

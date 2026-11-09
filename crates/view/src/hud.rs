@@ -31,7 +31,7 @@ pub fn controls_table(keys: &Keys) -> Vec<(&'static str, Vec<(String, &'static s
         ("비행", vec![(pair(A::ThrustForward, A::ThrustBack), "추진 · 역추진"), (pair(A::TurnLeft, A::TurnRight), "선회"), (pair(A::NoseUp, A::NoseDown), "기수 상하"), (pair(A::RollLeft, A::RollRight), "롤"), (pair(A::Rise, A::Sink), "상승 · 하강"), (format!("Alt + {}", pair(A::TurnLeft, A::TurnRight)), "좌우 평행이동"), ("방향키".into(), "선회 · 상하"), ("우클릭 누른 채".into(), "커서 쪽으로 조종"), (k(A::Boost), "부스트")]),
         ("전투", vec![(format!("{} / 좌클릭", k(A::Fire)), "사격 · 주포"), (k(A::Target), "목표 지정"), (k(A::Missile), "미사일"), (k(A::EscortAttack), "호위함 공격 명령"), (k(A::EscortReturn), "호위함 복귀"), (k(A::HoldPost), "함대 진형 자리 지키기")]),
         ("시점", vec![(k(A::Camera), "1인칭 / 3인칭"), (k(A::Bridge), "함교 화면")]),
-        ("행동", vec![(k(A::Dock), "도킹"), (k(A::Mine), "채굴"), (k(A::Scan), "스캔")]),
+        ("행동", vec![(k(A::Dock), "도킹"), (k(A::Mine), "채굴"), (k(A::Scan), "스캔"), (k(A::Pulse), "탐지 펄스")]),
         ("창", vec![(k(A::Map), "지도"), (k(A::Station), "정거장"), (k(A::Missions), "미션"), (k(A::Contracts), "계약"), (k(A::Chronicle), "연대기"), (k(A::Fleet), "함대"), (k(A::Alliance), "동맹"), (k(A::Help), "도움말")]),
     ]
 }
@@ -64,6 +64,14 @@ pub fn next_goal(prof: &shared::protocol::Profile) -> Option<String> {
     Some(format!("▶ {what}: 「{}」", next.title))
 }
 
+/// A pulse contact on the HUD: strength out of five (nearer is stronger) and the climb or dive to it.
+/// Never a distance: a contact is a bearing to follow.
+pub fn signal_label(strength: f32, up: f32) -> String {
+    let bars = ((strength * 5.0).ceil() as i32).clamp(1, 5);
+    let deg = up.clamp(-1.0, 1.0).asin().to_degrees();
+    format!("◇ 미확인 신호 {bars}/5  {deg:+.0}°")
+}
+
 /// How to do a chapter step, under it on the tracker (the step says what, this says which keys);
 /// starting docked, how to get out first.
 pub fn step_hint(step: &shared::missions::Step, docked: bool, keys: &Keys) -> String {
@@ -72,7 +80,7 @@ pub fn step_hint(step: &shared::missions::Step, docked: bool, keys: &Keys) -> St
     let k = |a| shown(keys, a);
     let how = match step {
         Step::Reach { .. } => format!("{} 지도에서 성계를 골라 워프", k(A::Map)),
-        Step::ScanPoi { .. } => format!("화면의 표시를 따라가 가까이서 {} 스캔", k(A::Scan)),
+        Step::ScanPoi { .. } => format!("{} 탐지로 신호를 따라가 가까이서 {} 스캔", k(A::Pulse), k(A::Scan)),
         Step::Defeat { .. } => format!("{} 목표 지정 · {} 사격 · 밀리면 {} 도킹해 수리", k(A::Target), k(A::Fire), k(A::Dock)),
         Step::Dock { .. } => format!("정거장 가까이에서 {} 도킹 — 수리되고, {}로 정거장 창(판매·업그레이드)", k(A::Dock), k(A::Station)),
     };

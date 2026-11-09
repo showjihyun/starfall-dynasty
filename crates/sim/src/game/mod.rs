@@ -236,6 +236,8 @@ pub struct Session {
     pub dead: bool,
     /// Game time from which a sunk ship may be rebuilt (`combat.rebuild`).
     pub rebuild_at: f64,
+    /// Game time of the next scanner pulse.
+    pub pulse_ready: f64,
     /// Chat spam guard: tokens left and when they were last refilled (`social.chat_per_sec`).
     pub chat_tokens: f32,
     pub chat_at: f64,
@@ -438,7 +440,6 @@ impl Game {
         {
             p.daily_day = day;
             p.dailies = missions::daily_missions(day, pid);
-            p.scanned.clear();
         }
     }
 
@@ -578,6 +579,7 @@ impl Game {
             archive: vec![],
             last_system: home,
             scanned: vec![],
+            revealed: vec![],
             specimens: Default::default(),
         };
         self.store.set_profile(pid, profile.clone());
@@ -630,6 +632,8 @@ impl Game {
         self.send(conn, ServerMsg::EnterSystem { system, you: id });
         let scanned: Vec<u32> = prof.scanned.iter().filter(|(s, _)| *s == system).map(|(_, p)| *p).collect();
         self.send(conn, ServerMsg::Scanned { pois: scanned });
+        let revealed: Vec<u32> = prof.revealed.iter().filter(|(s, _)| *s == system).map(|(_, p)| *p).collect();
+        self.send(conn, ServerMsg::Revealed { pois: revealed });
         if !docked {
             self.spawn_escorts(pid);
         }

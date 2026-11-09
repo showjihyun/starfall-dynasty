@@ -29,6 +29,7 @@ pub enum Action {
     Dock,
     Mine,
     Scan,
+    Pulse,
     Map,
     Station,
     Missions,
@@ -41,11 +42,11 @@ pub enum Action {
 }
 
 impl Action {
-    pub const ALL: [Action; 31] = [
+    pub const ALL: [Action; 32] = [
         Action::ThrustForward, Action::ThrustBack, Action::TurnLeft, Action::TurnRight, Action::NoseUp, Action::NoseDown, Action::RollLeft, Action::RollRight, Action::Rise, Action::Sink, Action::Boost,
         Action::Fire, Action::Target, Action::Missile, Action::EscortAttack, Action::EscortReturn, Action::HoldPost,
         Action::Camera, Action::Bridge,
-        Action::Dock, Action::Mine, Action::Scan, Action::Rebuild,
+        Action::Dock, Action::Mine, Action::Scan, Action::Pulse, Action::Rebuild,
         Action::Map, Action::Station, Action::Missions, Action::Contracts, Action::Chronicle, Action::Fleet, Action::Alliance, Action::Help,
     ];
 
@@ -74,6 +75,7 @@ impl Action {
             Action::Dock => "dock",
             Action::Mine => "mine",
             Action::Scan => "scan",
+            Action::Pulse => "pulse",
             Action::Map => "map",
             Action::Station => "station",
             Action::Missions => "missions",
@@ -110,6 +112,7 @@ impl Action {
             Action::Dock => "도킹 · 출항",
             Action::Mine => "채굴",
             Action::Scan => "스캔",
+            Action::Pulse => "탐지 펄스",
             Action::Map => "지도",
             Action::Station => "정거장",
             Action::Missions => "미션",
@@ -147,6 +150,7 @@ impl Action {
             Action::Dock => "KeyG",
             Action::Mine => "KeyN",
             Action::Scan => "KeyV",
+            Action::Pulse => "Tab",
             Action::Map => "KeyM",
             Action::Station => "KeyU",
             Action::Missions => "KeyJ",

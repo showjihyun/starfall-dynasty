@@ -86,6 +86,10 @@ pub struct Session {
     pub warp: Option<(SystemId, f64, f32)>,
     pub scan: Option<(u32, f32)>,
     pub scanned: HashSet<u32>,
+    /// Sites of this system the captain has found (only these are marked).
+    pub revealed: HashSet<u32>,
+    /// The last pulse: (bearing, strength, client time).
+    pub contacts: Vec<(Vec3, f32, f64)>,
     pub dead: Option<String>,
     /// How to beat the wave that just sank us again (`ServerMsg::Died::hint`), shown on the death panel.
     pub dead_hint: Option<String>,
@@ -395,6 +399,8 @@ fn apply(s: &mut Session, m: ServerMsg, now: f64, next: &mut NextState<Screen>) 
             s.scan = if (0.0..1.0).contains(&frac) { Some((poi, frac)) } else { None };
         }
         ServerMsg::Scanned { pois } => s.scanned = pois.into_iter().collect(),
+        ServerMsg::Revealed { pois } => s.revealed = pois.into_iter().collect(),
+        ServerMsg::Pulse { contacts } => s.contacts = contacts.into_iter().map(|c| (Vec3::from(c.dir), c.strength, now)).collect(),
         ServerMsg::Died { killer, hint, rebuild_in, .. } => {
             s.dead = Some(killer);
             s.dead_hint = hint;

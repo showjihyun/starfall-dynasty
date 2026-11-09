@@ -410,7 +410,7 @@ fn hud(ctx: &egui::Context, s: &mut Session, net: &Net, env: &Env, vis: &Visuals
             }
         }
         if let Some(layout) = &env.layout {
-            let mut marks: Vec<(Vec3, String, Color32)> = layout.pois.iter().map(|p| (p.pos, format!("{} {}", poi_icon(p.kind), p.name), if s.scanned.contains(&p.id) { DIM } else { view::palette::POI })).collect();
+            let mut marks: Vec<(Vec3, String, Color32)> = layout.pois.iter().filter(|p| s.revealed.contains(&p.id) || s.scanned.contains(&p.id)).map(|p| (p.pos, format!("{} {}", poi_icon(p.kind), p.name), if s.scanned.contains(&p.id) { DIM } else { view::palette::POI })).collect();
             marks.push((layout.station, format!("■ 정거장 ({}: 도킹)", s.key(A::Dock)), GREEN));
             marks.push((layout.jump_point, "◎ 워프 지점".into(), ACCENT));
             // My post in the fleet's formation (main goal "epic spread-out battles").
@@ -419,6 +419,28 @@ fn hud(ctx: &egui::Context, s: &mut Session, net: &Net, env: &Env, vis: &Visuals
             {
                 let p = s.key(A::HoldPost);
                 marks.push((post, if s.hold_post { format!("{label} ({p}: 지키는 중)") } else { format!("{label} ({p}: 자동으로 지키기)") }, GOLD));
+            }
+            // The last pulse's bearings, for a few seconds: a strength, never a distance; an arrow on the
+            // screen's edge when the signal is off screen or behind, with the climb or dive to it.
+            for (dir, strength, _) in s.contacts.iter().filter(|(_, _, t)| now - t < 12.0) {
+                let at = my_pos + *dir * 4000.0;
+                let label = view::hud::signal_label(*strength, dir.y);
+                let local = cam_rot.inverse() * (at - cam_pos);
+                let projected = project(at).filter(|_| local.z < 0.0);
+                match view::hud::offscreen_marker(screen, local, projected, 46.0) {
+                    Some((edge, d)) => {
+                        let side = EVec2::new(-d.y, d.x);
+                        painter.add(egui::Shape::convex_polygon(vec![edge + d * 11.0, edge - d * 5.5 + side * 8.0, edge - d * 5.5 - side * 8.0], view::palette::POI, Stroke::NONE));
+                        painter.text(edge - d * 26.0, Align2::CENTER_CENTER, label, FontId::proportional(11.0), view::palette::POI);
+                    }
+                    None => {
+                        if let Some(sp) = projected {
+                            painter.circle_stroke(sp, 6.0, Stroke::new(1.0, view::palette::POI));
+                            let g = painter.layout_no_wrap(label, FontId::proportional(11.0), view::palette::POI);
+                            painter.galley(view::hud::place_label(sp, g.size(), &keep).min, g, view::palette::POI);
+                        }
+                    }
+                }
             }
             for (pos, name, col) in marks {
                 if let Some(sp) = project(pos) {

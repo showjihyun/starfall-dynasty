@@ -328,6 +328,11 @@ pub struct Poi {
     pub pos: Vec3,
 }
 
+/// How deeply a site hides, 0..=max_depth, fixed per site (`tuning::Explore`).
+pub fn poi_depth(system: SystemId, poi: u32, max_depth: u8) -> u8 {
+    Rng::from_parts(&[0xDEE7, system as u64, poi as u64]).below(max_depth as u32 + 1) as u8
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Layout {
     pub id: SystemId,

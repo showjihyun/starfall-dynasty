@@ -133,6 +133,7 @@ impl Game {
             ClientMsg::RequestContracts => self.send_contracts(pid),
             ClientMsg::AllianceDividend => self.alliance_dividend(pid),
             ClientMsg::AllianceFortify { system } => self.alliance_fortify(pid, system),
+            ClientMsg::Pulse => self.pulse(conn, pid, sys, eid),
             // Handled before a player's messages (Game::handle), and only from the console.
             ClientMsg::Admin { .. } => {}
             ClientMsg::AllianceVote { name } => self.alliance_vote(pid, &name),
@@ -343,18 +344,92 @@ impl Game {
             return self.error(conn, format!("스캔 범위 밖 ({:.0}u 이내로 접근)", e.stats.scan_range));
         }
         let scenario_needs = self.scenario_step(pid).is_some_and(|s| matches!(s, Step::ScanPoi { system, kind, .. } if system == sys && kind == p.kind));
-        let already = self.store.profile(pid).unwrap().scanned.contains(&(sys, poi));
-        if already && !scenario_needs {
-            return self.error(conn, "오늘 이미 스캔한 지점입니다");
+        let prof = self.store.profile(pid).unwrap();
+        if prof.scanned.contains(&(sys, poi)) && !scenario_needs {
+            return self.error(conn, "이미 스캔한 지점입니다");
+        }
+        let need = self.scanner_needed(sys, poi);
+        if !Self::can_read(prof, &p, need) && !scenario_needs {
+            return self.error(conn, format!("이 지점을 읽으려면 스캐너 Lv{need}이 필요합니다"));
         }
         self.sessions.get_mut(&conn).unwrap().scan = Some((poi, 0.0));
+    }
+
+    /// The scanner level a site asks for (`tuning::Explore`).
+    pub fn scanner_needed(&self, sys: SystemId, poi: u32) -> u8 {
+        let ex = &self.tuning.galaxy.explore;
+        ex.scanner_needed(ex.depth(sys, poi, galaxy::system(sys).tier))
+    }
+
+    /// Whether a captain can read a site asking for scanner level `need`: an Archaeologist reads ruins
+    /// and ancient gates with any scanner.
+    fn can_read(prof: &Profile, p: &galaxy::Poi, need: u8) -> bool {
+        prof.ship.level(Module::Scanner) >= need || (prof.profession == Profession::Archaeologist && matches!(p.kind, PoiKind::Ruin | PoiKind::AncientGate))
+    }
+
+    /// The scanner pulse: sites close by are found (marked for this captain), the others answer with a
+    /// bearing and a strength. Sites too deep for the scanner stay silent, but the captain is told more
+    /// is out there — a reason to upgrade it. The site a chapter step needs always answers.
+    fn pulse(&mut self, conn: ConnId, pid: PlayerId, sys: SystemId, eid: Option<EntityId>) {
+        let ex = self.tuning.galaxy.explore.clone();
+        let Some(e) = eid.and_then(|e| self.ent(sys, e)) else { return };
+        if e.docked {
+            return self.toast(pid, "출항해야 탐지할 수 있습니다");
+        }
+        let (pos, scan_range) = (e.pos, e.stats.scan_range);
+        let left = self.sessions[&conn].pulse_ready - self.now;
+        if left > 0.0 {
+            return self.toast(pid, format!("탐지 충전 중 — {:.0}초", left.ceil()));
+        }
+        self.sessions.get_mut(&conn).unwrap().pulse_ready = self.now + ex.pulse_cooldown as f64;
+        let wanted = match self.scenario_step(pid) {
+            Some(Step::ScanPoi { system, kind, .. }) if system == sys => Some(kind),
+            _ => None,
+        };
+        let prof = self.store.profile(pid).unwrap();
+        let known = |p: u32| prof.scanned.contains(&(sys, p)) || prof.revealed.contains(&(sys, p));
+        let (mut found, mut contacts, mut locked) = (vec![], vec![], None::<u8>);
+        for p in &self.systems[&sys].layout.pois {
+            if known(p.id) {
+                continue;
+            }
+            let need = self.scanner_needed(sys, p.id);
+            if !Self::can_read(prof, p, need) && wanted != Some(p.kind) {
+                locked = Some(locked.map_or(need, |l: u8| l.min(need)));
+                continue;
+            }
+            let d = p.pos.distance(pos);
+            if d <= scan_range * ex.reveal_mult {
+                found.push((p.id, p.name.clone()));
+            } else {
+                contacts.push(SignalContact { dir: (p.pos - pos).normalize_or_zero().to_array(), strength: ((1.0 - d / ex.pulse_range).clamp(0.05, 1.0) * 10.0).round() / 10.0 });
+            }
+        }
+        if let Some(pm) = self.store.profile_mut(pid) {
+            pm.revealed.extend(found.iter().map(|(id, _)| (sys, *id)));
+        }
+        self.store.dirty = true;
+        for (_, name) in &found {
+            self.toast(pid, format!("발견: {name}"));
+        }
+        if found.is_empty() && contacts.is_empty() {
+            self.toast(pid, if locked.is_some() { "잡히는 신호가 없습니다" } else { "이 성계에는 새로운 신호가 없습니다" });
+        }
+        if let Some(need) = locked {
+            self.toast(pid, format!("더 깊은 신호의 흔적 — 스캐너 Lv{need}이면 잡힐 것 같습니다"));
+        }
+        let revealed: Vec<u32> = self.store.profile(pid).unwrap().revealed.iter().filter(|(s, _)| *s == sys).map(|(_, p)| *p).collect();
+        self.send_player(pid, ServerMsg::Revealed { pois: revealed });
+        self.send_player(pid, ServerMsg::Pulse { contacts });
     }
 
     pub(super) fn finish_scan(&mut self, pid: PlayerId, sys: SystemId, poi: u32) {
         let Some(p) = self.systems[&sys].layout.pois.iter().find(|p| p.id == poi).cloned() else { return };
         let prof = self.store.profile(pid).unwrap().clone();
         let tier = galaxy::system(sys).tier;
-        let mult = tier.reward_mult() * if prof.profession == Profession::Explorer { 1.5 } else { 1.0 };
+        let ex = &self.tuning.galaxy.explore;
+        let deep = 1.0 + ex.depth_reward * ex.depth(sys, poi, tier) as f32;
+        let mult = tier.reward_mult() * deep * if prof.profession == Profession::Explorer { 1.5 } else { 1.0 };
         let base = match p.kind {
             PoiKind::Anomaly => shared::ships::Materials { credits: 300, datacore: 2, crystal: 2, ..Default::default() },
             PoiKind::Ruin => shared::ships::Materials { credits: 500, datacore: 2, relic: 1, ..Default::default() },
@@ -362,8 +437,8 @@ impl Game {
             PoiKind::Signal => shared::ships::Materials { credits: 350, datacore: 1, ..Default::default() },
             PoiKind::AncientGate => shared::ships::Materials { credits: 1500, relic: 2, datacore: 4, ..Default::default() },
         };
-        let first_today = !prof.scanned.contains(&(sys, poi));
-        let reward = if first_today {
+        let first_time = !prof.scanned.contains(&(sys, poi));
+        let reward = if first_time {
             shared::ships::Materials {
                 credits: (base.credits as f32 * mult) as u64,
                 alloy: (base.alloy as f32 * mult).round() as u32,
@@ -376,7 +451,7 @@ impl Game {
         };
         if let Some(pm) = self.store.profile_mut(pid) {
             pm.wallet.add(&reward);
-            if first_today {
+            if first_time {
                 pm.scanned.push((sys, poi));
             }
         }
@@ -385,7 +460,7 @@ impl Game {
         self.toast(pid, format!("스캔 완료: {} — 보상 {}", p.name, reward.describe()));
         let scanned: Vec<u32> = self.store.profile(pid).unwrap().scanned.iter().filter(|(s, _)| *s == sys).map(|(_, p)| *p).collect();
         self.send_player(pid, ServerMsg::Scanned { pois: scanned });
-        if first_today {
+        if first_time {
             self.progress(pid, Progress::Scanned);
         }
         self.unearth(pid, sys, &p);
@@ -1058,7 +1133,7 @@ impl Game {
                         let kind = k.trim_start_matches("poi:");
                         let skip = self.store.profile(pid).map(|p| p.scanned.clone()).unwrap_or_default();
                         let pois = &self.systems[&sys].layout.pois;
-                        // Prefer a site not scanned today, so repeated `/tp poi:Ruin` walks the ruins.
+                        // Prefer a site not scanned yet, so repeated `/tp poi:Ruin` walks the ruins.
                         pois.iter().filter(|p| format!("{:?}", p.kind) == kind).find(|p| !skip.contains(&(sys, p.id))).or_else(|| pois.iter().find(|p| format!("{:?}", p.kind) == kind)).map(|p| p.pos)
                     }
                 };

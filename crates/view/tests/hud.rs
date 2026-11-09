@@ -558,6 +558,7 @@ fn a_captain_with_no_chapter_running_is_told_what_to_do_next() {
         archive: vec![],
         last_system: 0,
         scanned: vec![],
+        revealed: vec![],
         specimens: Default::default(),
     };
     let all = shared::missions::scenarios();
@@ -593,4 +594,11 @@ fn the_creation_screen_ship_sits_below_the_middle_of_the_view() {
     assert!(to_ship.y < fwd.y, "under the view's centre");
     let d = ship.distance(eye);
     assert!((d / r - 5.0).abs() < 0.5, "the same size on screen for every hull: {}", d / r);
+}
+
+#[test]
+fn a_pulse_contact_says_how_strong_and_how_high_never_how_far() {
+    assert_eq!(hud::signal_label(0.05, 0.0), "◇ 미확인 신호 1/5  +0°");
+    assert_eq!(hud::signal_label(1.0, 0.5), "◇ 미확인 신호 5/5  +30°");
+    assert_eq!(hud::signal_label(0.5, -0.5), "◇ 미확인 신호 3/5  -30°");
 }

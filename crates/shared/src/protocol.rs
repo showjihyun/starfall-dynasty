@@ -118,6 +118,8 @@ pub enum ClientMsg {
     /// of the members behind one captain makes them leader.
     AllianceVote { name: String },
     RequestAlliances,
+    /// Scanner pulse (`tuning::Explore`): reveals nearby sites and gives bearings to the rest.
+    Pulse,
     /// Server console only (`sim::game::admin`, connection 0): an operator command. Ignored from players.
     Admin { command: String },
     EscortCommand { attack: bool },
@@ -183,7 +185,10 @@ pub struct Profile {
     /// System the ship was last in (login spawns there, docked).
     #[serde(default)]
     pub last_system: SystemId,
-    /// (system, poi) scanned today — reset with the dailies.
+    /// (system, poi) sites this captain has found with the scanner pulse.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub revealed: Vec<(SystemId, u32)>,
+    /// (system, poi) sites this captain has scanned (each pays once).
     #[serde(default)]
     pub scanned: Vec<(SystemId, u32)>,
     /// Mineral specimens held (mineral id → count); they take no cargo space.
@@ -314,6 +319,13 @@ pub struct AllianceInfo {
     pub rivals: Vec<AllianceId>,
 }
 
+/// A hidden site's bearing from where the pulse was sent: unit direction, strength 0–1 (nearer is stronger).
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+pub struct SignalContact {
+    pub dir: [f32; 3],
+    pub strength: f32,
+}
+
 /// One system's political standing: who controls it and every alliance's influence there.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct SystemStanding {
@@ -373,6 +385,10 @@ pub enum ServerMsg {
     Snapshot { tick: u64, full: bool, infos: Vec<EntityInfo>, gone: Vec<EntityId>, dynamic: Vec<DynState>, fx: Vec<Fx> },
     WarpCharging { system: SystemId, seconds: f32 },
     ScanProgress { poi: u32, frac: f32 },
+    /// Sites of the current system this captain has found (`Pulse`).
+    Revealed { pois: Vec<u32> },
+    /// A scanner pulse: bearings to sites not found yet.
+    Pulse { contacts: Vec<SignalContact> },
     /// Pois already scanned by this player in the current system.
     Scanned { pois: Vec<u32> },
     /// `hint`: after losing a chapter wave again, where its ships' turrets do not reach (`npcs.hint_after`).

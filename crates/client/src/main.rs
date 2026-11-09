@@ -436,6 +436,7 @@ fn automation(
             "station" if first => s.ui.station = true,
             "missions" if first => s.ui.missions = true,
             "help" if first => s.ui.help = true,
+            "pulse" if first => net.send(ClientMsg::Pulse),
             "menu" if first => s.ui.menu = true,
             "settings" if first => s.ui.settings = true,
             "ally" if first => net.send(ClientMsg::AllianceCreate { name: cmd.get(1).copied().unwrap_or("QA Pact").into(), tag: cmd.get(2).copied().unwrap_or("QA").into() }),

@@ -350,7 +350,7 @@ fn system_chart(_ui: &mut egui::Ui, p: &egui::Painter, map: Rect, resp: &egui::R
         p.circle_stroke(jp, 5.0, Stroke::new(1.0, ACCENT));
         label(p, jp + EVec2::new(13.0, -6.0), "워프 지점", ACCENT, true);
         consider(jp, 10.0, vec!["워프 지점".into(), loc(lay.jump_point) + &dist_txt(lay.jump_point)], None);
-        for poi in &lay.pois {
+        for poi in lay.pois.iter().filter(|p| s.revealed.contains(&p.id) || s.scanned.contains(&p.id)) {
             let pp = to(poi.pos);
             let scanned = s.scanned.contains(&poi.id);
             let col = if scanned { DIM } else { view::palette::POI };

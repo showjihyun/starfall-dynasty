@@ -95,7 +95,8 @@ pub fn daily_missions(day: u32, player_id: u64) -> Vec<DailyMission> {
         match r.below(7) {
             0 => Objective::KillPirates { count: 3 + r.below(5) },
             1 => Objective::MineOre { units: 30 + 10 * r.below(5) },
-            2 => Objective::Scan { count: 2 + r.below(2) },
+            // (Sites pay once now and run out: not a daily any more. `Objective::Scan` stays for old profiles.)
+            2 => Objective::Visit { system: 3 + r.below(5) as SystemId },
             3 => Objective::Visit { system: 3 + r.below(5) as SystemId },
             4 => Objective::SellCargo { units: 25 + 5 * r.below(6) },
             5 => Objective::KillPlayers { count: 1 },

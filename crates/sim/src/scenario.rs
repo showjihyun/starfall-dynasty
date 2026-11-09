@@ -215,6 +215,8 @@ pub enum Check {
     /// Mineral specimens the captain holds.
     Specimens { captain: String, #[serde(default)] min: Option<u32>, #[serde(default)] max: Option<u32> },
     Reputation { captain: String, #[serde(default)] min: Option<i32>, #[serde(default)] max: Option<i32> },
+    /// Sites of a system the captain has found with the scanner pulse.
+    Revealed { captain: String, system: SystemId, #[serde(default)] min: Option<u32>, #[serde(default)] max: Option<u32> },
     /// Influence of the alliance with this tag in a system.
     Influence { system: SystemId, tag: String, #[serde(default)] min: Option<f32>, #[serde(default)] max: Option<f32> },
     /// Who controls a system (`tag` omitted: nobody).
@@ -381,6 +383,11 @@ fn evaluate(run: &Run, c: &Check) -> (bool, String) {
         Check::Dps { captain, min, max } => {
             let (ok, s) = range((run.totals(captain).dps() * 10.0).round() / 10.0, *min, *max);
             (ok, format!("{captain} dps {s}"))
+        }
+        Check::Revealed { captain, system, min, max } => {
+            let v = run.pid(captain).and_then(|p| g.store.profile(p)).map_or(0, |p| p.revealed.iter().filter(|(s, _)| s == system).count() as u32);
+            let (ok, s) = range(v, *min, *max);
+            (ok, format!("{captain} found {s} sites in system {system}"))
         }
         Check::Influence { system, tag, min, max } => {
             let v = g.store.data.alliances.iter().find(|a| a.tag == *tag).map(|a| g.influence(*system, a.id)).unwrap_or(0.0);

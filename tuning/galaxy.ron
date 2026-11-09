@@ -50,6 +50,17 @@
     // gets this many credits × the system's risk_reward (economy.ron).
     chart_reward: 600,
 
+    // Hidden sites (2026-11-09): every site used to be on the HUD on arrival and pay again each day. Now a pulse
+    // gives bearings, the sites are found by following them, each pays once per captain, and deeper ones need a better scanner.
+    explore: (
+        pulse_cooldown: 6.0,
+        reveal_mult: 1.5,            // a pulse within 1.5 scan ranges marks the site
+        pulse_range: 4000.0,
+        max_depth: { Core: 0, Frontier: 1, Wild: 2, WarZone: 2, Deep: 3 },
+        depth_scanner: [1, 3, 5, 7], // scanner module level per depth
+        depth_reward: 0.5,
+    ),
+
     // Height in every system's layout (main goal "3D freedom", docs/BALANCE.md 「성계 지형」): half-ranges
     // in units, poi_rise a share of the horizontal spread. Only heights move — asteroid ids, ores and
     // minerals stay the same. Leaving this block out gives the old flat layout (60/120/150/140/0.2).
