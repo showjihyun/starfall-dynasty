@@ -56,6 +56,8 @@ impl Game {
             ClientMsg::AppraiseArtifact { id } => self.artifact_service(conn, pid, sys, eid, id, super::artifacts::ArtifactAction::Appraise),
             ClientMsg::SellArtifact { id } => self.artifact_service(conn, pid, sys, eid, id, super::artifacts::ArtifactAction::Sell),
             ClientMsg::DonateArtifact { id } => self.artifact_service(conn, pid, sys, eid, id, super::artifacts::ArtifactAction::Donate),
+            ClientMsg::FitArtifact { id } => self.artifact_service(conn, pid, sys, eid, id, super::artifacts::ArtifactAction::Fit),
+            ClientMsg::UnfitArtifact { id } => self.artifact_service(conn, pid, sys, eid, id, super::artifacts::ArtifactAction::Unfit),
             ClientMsg::Mine { asteroid } => self.mine(pid, sys, eid, asteroid),
             ClientMsg::Scan { poi } => self.start_scan(conn, pid, sys, eid, poi),
             ClientMsg::InvestigateWreck { wreck } => self.investigate(pid, sys, eid, wreck),
@@ -349,7 +351,7 @@ impl Game {
             return self.error(conn, "이미 스캔한 지점입니다");
         }
         let need = self.scanner_needed(sys, poi);
-        if !Self::can_read(prof, &p, need) && !scenario_needs {
+        if !self.can_read(prof, &p, need) && !scenario_needs {
             return self.error(conn, format!("이 지점을 읽으려면 스캐너 Lv{need}이 필요합니다"));
         }
         self.sessions.get_mut(&conn).unwrap().scan = Some((poi, 0.0));
@@ -363,15 +365,18 @@ impl Game {
 
     /// Whether a captain can read a site asking for scanner level `need`: an Archaeologist reads ruins
     /// and ancient gates with any scanner.
-    fn can_read(prof: &Profile, p: &galaxy::Poi, need: u8) -> bool {
-        prof.ship.level(Module::Scanner) >= need || (prof.profession == Profession::Archaeologist && matches!(p.kind, PoiKind::Ruin | PoiKind::AncientGate))
+    fn can_read(&self, prof: &Profile, p: &galaxy::Poi, need: u8) -> bool {
+        prof.ship.level(Module::Scanner) + self.fit_effect(prof).scanner_bonus >= need || (prof.profession == Profession::Archaeologist && matches!(p.kind, PoiKind::Ruin | PoiKind::AncientGate))
     }
 
     /// The scanner pulse: sites close by are found (marked for this captain), the others answer with a
     /// bearing and a strength. Sites too deep for the scanner stay silent, but the captain is told more
     /// is out there — a reason to upgrade it. The site a chapter step needs always answers.
     fn pulse(&mut self, conn: ConnId, pid: PlayerId, sys: SystemId, eid: Option<EntityId>) {
-        let ex = self.tuning.galaxy.explore.clone();
+        let mut ex = self.tuning.galaxy.explore.clone();
+        let fit = self.store.profile(pid).map(|p| self.fit_effect(p)).unwrap_or_default();
+        ex.pulse_cooldown *= fit.pulse_cooldown;
+        ex.pulse_range *= fit.pulse_range;
         let Some(e) = eid.and_then(|e| self.ent(sys, e)) else { return };
         if e.docked {
             return self.toast(pid, "출항해야 탐지할 수 있습니다");
@@ -394,7 +399,7 @@ impl Game {
                 continue;
             }
             let need = self.scanner_needed(sys, p.id);
-            if !Self::can_read(prof, p, need) && wanted != Some(p.kind) {
+            if !self.can_read(prof, p, need) && wanted != Some(p.kind) {
                 locked = Some(locked.map_or(need, |l: u8| l.min(need)));
                 continue;
             }
@@ -561,10 +566,11 @@ impl Game {
             (pm.ship.rank(), pm.ship.designation().to_string(), pm.ship.name.clone(), pm.name.clone())
         };
         let ship = self.store.profile(pid).unwrap().ship.clone();
+        let stats = self.ship_stats(self.store.profile(pid).unwrap());
         if let Some(e) = eid.and_then(|e| self.ent_mut(sys, e)) {
             let hf = e.hull / e.stats.max_hull;
             let sf = e.shield / e.stats.max_shield;
-            e.stats = ship.stats();
+            e.stats = stats;
             e.hull = hf * e.stats.max_hull;
             e.shield = sf * e.stats.max_shield;
             e.rank = new_rank;
@@ -1148,7 +1154,8 @@ impl Game {
                     None => self.toast(pid, format!("[dev] /tp: {what} 없음")),
                 }
             }
-            _ => self.toast(pid, "[dev] /grow N, /cash, /influence N [SYS], /tp station|wreck|npc|poi:Kind"),
+            Some("/relic") => self.dev_relic(pid, it.next().unwrap_or("Human")),
+            _ => self.toast(pid, "[dev] /grow N, /cash, /influence N [SYS], /tp station|wreck|npc|poi:Kind, /relic Culture"),
         }
     }
 

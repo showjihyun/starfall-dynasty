@@ -83,6 +83,7 @@ mod tests {
             last_system: 0,
             scanned: vec![],
             revealed: vec![],
+            fitted: None,
             specimens: Default::default(),
         }
     }

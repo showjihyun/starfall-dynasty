@@ -790,10 +790,12 @@ fn station(ui: &mut egui::Ui, s: &mut Session, net: &Net, prof: &Profile, env: &
         donation_reputation: t.artifacts.donation_reputation,
     };
     use view::panels::ArtifactRequest;
-    match view::panels::artifacts(ui, &s.artifacts, docked, &prices, &s.key(A::Scan)) {
+    match view::panels::artifacts(ui, &s.artifacts, docked, &prices, &s.key(A::Scan), prof.fitted, &t.artifacts.fit) {
         Some(ArtifactRequest::Appraise(id)) => net.send(ClientMsg::AppraiseArtifact { id }),
         Some(ArtifactRequest::Sell(id)) => net.send(ClientMsg::SellArtifact { id }),
         Some(ArtifactRequest::Donate(id)) => net.send(ClientMsg::DonateArtifact { id }),
+        Some(ArtifactRequest::Fit(id)) => net.send(ClientMsg::FitArtifact { id }),
+        Some(ArtifactRequest::Unfit(id)) => net.send(ClientMsg::UnfitArtifact { id }),
         None => {}
     }    ui.separator();
     let cost = t.social.institute_cost;

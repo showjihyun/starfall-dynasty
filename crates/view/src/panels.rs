@@ -3,7 +3,9 @@
 
 use crate::palette::{DIM, GOLD};
 use egui::{Color32, RichText};
-use shared::artifacts::{Artifact, ArtifactId};
+use shared::artifacts::{Artifact, ArtifactId, Culture};
+use shared::tuning::FitEffect;
+use std::collections::BTreeMap;
 
 /// A station service the player clicked for an artifact.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -11,6 +13,8 @@ pub enum ArtifactRequest {
     Appraise(ArtifactId),
     Sell(ArtifactId),
     Donate(ArtifactId),
+    Fit(ArtifactId),
+    Unfit(ArtifactId),
 }
 
 /// What the station would pay or charge, so buttons can show it before the click.
@@ -66,12 +70,13 @@ pub fn specimens(ui: &mut egui::Ui, held: &std::collections::BTreeMap<shared::mi
 
 /// The station window's artifact section: each held artifact with its provenance and the three
 /// services. Buttons work only while docked.
-/// `scan_key`: the player's scan key as shown ("V").
-pub fn artifacts(ui: &mut egui::Ui, held: &[Artifact], docked: bool, prices: &ArtifactPrices, scan_key: &str) -> Option<ArtifactRequest> {
+/// `scan_key`: the player's scan key as shown ("V"); `fitted` the artifact on the ship, `fit` what each
+/// culture does there.
+pub fn artifacts(ui: &mut egui::Ui, held: &[Artifact], docked: bool, prices: &ArtifactPrices, scan_key: &str, fitted: Option<ArtifactId>, fit: &BTreeMap<Culture, FitEffect>) -> Option<ArtifactRequest> {
     let mut out = None;
     ui.label(RichText::new(format!("유물 {}점", held.len())).strong());
     if held.is_empty() {
-        ui.label(RichText::new(format!("유물 없음 — 고고학자는 유적·고대 게이트를 스캔({scan_key})해 발굴합니다. 격침된 함선의 잔해에서 회수할 수도 있습니다.")).color(DIM).size(12.0));
+        ui.label(RichText::new(format!("유물 없음 — 고고학자는 유적·고대 게이트를 스캔({scan_key})해 발굴하고, 깊이 숨겨진 지점은 누구나 발굴할 수 있습니다. 격침된 함선의 잔해에서 회수할 수도 있습니다.")).color(DIM).size(12.0));
         return None;
     }
     for a in held {
@@ -79,6 +84,13 @@ pub fn artifacts(ui: &mut egui::Ui, held: &[Artifact], docked: bool, prices: &Ar
             ui.label(RichText::new(a.label()).color(if a.appraised { GOLD } else { Color32::WHITE }).strong());
             let worth = if a.appraised { format!("{} 유물 · 감정가 {} CR", a.culture.name(), a.value) } else { "감정 전 — 이름과 가치를 알 수 없다".to_string() };
             ui.label(RichText::new(format!("{} · 출토지 {}", worth, a.origin_site)).size(11.0).color(DIM));
+            let on_ship = fitted == Some(a.id);
+            if a.appraised
+                && let Some(f) = fit.get(&a.culture)
+            {
+                let state = if on_ship { "장착 중" } else { "장착 효과" };
+                ui.label(RichText::new(format!("{state}: {}", f.describe())).size(11.0).color(if on_ship { GOLD } else { DIM }));
+            }
             ui.collapsing(format!("내력 ({})", a.provenance.len()), |ui| {
                 for p in &a.provenance {
                     ui.label(RichText::new(format!("{}  {}", p.date, p.text)).size(11.0));
@@ -92,12 +104,15 @@ pub fn artifacts(ui: &mut egui::Ui, held: &[Artifact], docked: bool, prices: &Ar
                     }
                 }
                 let sale = if a.appraised { format!("판매 ({} CR)", a.value) } else { format!("판매 (미감정 {:.0}%)", prices.unappraised_sale * 100.0) };
-                if ui.add_enabled(docked, egui::Button::new(sale)).clicked() {
+                if ui.add_enabled(docked && !on_ship, egui::Button::new(sale)).clicked() {
                     out = Some(ArtifactRequest::Sell(a.id));
                 }
                 let fee = if a.appraised { format!(", 사례금 {} CR", (a.value as f32 * prices.donation_share) as u64) } else { String::new() };
-                if ui.add_enabled(docked, egui::Button::new(format!("박물관 기증 (평판 +{}{fee})", prices.donation_reputation))).clicked() {
+                if ui.add_enabled(docked && !on_ship, egui::Button::new(format!("박물관 기증 (평판 +{}{fee})", prices.donation_reputation))).clicked() {
                     out = Some(ArtifactRequest::Donate(a.id));
+                }
+                if a.appraised && ui.add_enabled(docked, egui::Button::new(if on_ship { "장착 해제" } else { "함선에 장착" })).clicked() {
+                    out = Some(if on_ship { ArtifactRequest::Unfit(a.id) } else { ArtifactRequest::Fit(a.id) });
                 }
             });
         });

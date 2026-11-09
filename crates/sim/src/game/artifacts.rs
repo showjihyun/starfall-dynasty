@@ -1,6 +1,7 @@
 //! Archaeology (design doc §21): Archaeologists dig named artifacts out of ruins and gates; at a
 //! station they are appraised, sold or donated to the museum; a captain's artifacts go down with
-//! the ship, and whoever investigates the wreck recovers them (the Lost Artifact Hunt).
+//! the ship, and whoever investigates the wreck recovers them (the Lost Artifact Hunt). An appraised
+//! artifact can be fitted to the ship instead of sold; sites hidden deep enough give one to anyone.
 //! Every step is written into the artifact's provenance and the chronicle.
 
 use super::*;
@@ -20,10 +21,51 @@ impl Game {
         self.send_player(pid, ServerMsg::Artifacts { held });
     }
 
-    /// After an Archaeologist scans a ruin or gate: its artifact for today, if nobody took it yet.
+    /// What the captain's fitted artifact does (nothing fitted: no effect).
+    pub(super) fn fit_effect(&self, prof: &Profile) -> shared::tuning::FitEffect {
+        prof.fitted.and_then(|id| self.store.data.artifacts.get(&id)).and_then(|a| self.tuning.artifacts.fit.get(&a.culture)).cloned().unwrap_or_default()
+    }
+
+    /// The captain's flagship numbers, fitted artifact included.
+    pub(super) fn ship_stats(&self, prof: &Profile) -> Stats {
+        let mut stats = prof.ship.stats();
+        self.fit_effect(prof).apply(&mut stats);
+        stats
+    }
+
+    /// Apply a changed fit to the flagship in space or at the dock, keeping its hull and shield share.
+    fn refit(&mut self, pid: PlayerId, sys: SystemId, eid: Option<EntityId>) {
+        let Some(prof) = self.store.profile(pid) else { return };
+        let stats = self.ship_stats(prof);
+        if let Some(e) = eid.and_then(|e| self.ent_mut(sys, e)) {
+            let (hf, sf) = (e.hull / e.stats.max_hull, e.shield / e.stats.max_shield);
+            e.stats = stats;
+            e.hull = hf * e.stats.max_hull;
+            e.shield = sf * e.stats.max_shield;
+        }
+    }
+
+    /// QA: an appraised artifact of this culture in the captain's hold (`/relic Veyr`).
+    pub(super) fn dev_relic(&mut self, pid: PlayerId, culture: &str) {
+        let Some(culture) = artifacts::Culture::ALL.into_iter().find(|c| format!("{c:?}") == culture) else {
+            return self.toast(pid, "[dev] /relic Human|Veyr|Kharz|Precursor");
+        };
+        self.store.data.next_artifact += 1;
+        let id = self.store.data.next_artifact;
+        let mut art = artifacts::excavate(id, 0, "QA", galaxy::PoiKind::Ruin, 0, 0, pid, self.unix);
+        art.culture = culture;
+        art.appraised = true;
+        self.store.data.artifacts.insert(id, art);
+        self.store.dirty = true;
+        self.push_artifacts(pid);
+    }
+
+    /// After a scan: the site's artifact for today, if nobody took it yet. Archaeologists dig ruins and
+    /// gates; any captain digs a site hidden deep enough.
     pub(super) fn unearth(&mut self, pid: PlayerId, sys: SystemId, poi: &Poi) {
         let Some(prof) = self.store.profile(pid).cloned() else { return };
-        if prof.profession != Profession::Archaeologist || !artifacts::yields_artifacts(poi.kind) {
+        let deep = self.tuning.artifacts.open_dig_depth.is_some_and(|d| self.tuning.galaxy.explore.depth(sys, poi.id, galaxy::system(sys).tier) >= d);
+        if !deep && (prof.profession != Profession::Archaeologist || !artifacts::yields_artifacts(poi.kind)) {
             return;
         }
         let day = missions::day_index(self.unix);
@@ -61,6 +103,9 @@ impl Game {
         }
         self.store.data.wrecks[wreck].artifacts.extend(ids);
         self.store.dirty = true;
+        if let Some(p) = self.store.profile_mut(pid) {
+            p.fitted = None;
+        }
         self.toast(pid, "함께 싣고 있던 유물이 잔해와 함께 가라앉았습니다");
         self.push_artifacts(pid);
     }
@@ -99,7 +144,35 @@ impl Game {
         let prof = self.store.profile(pid).unwrap().clone();
         let sys_name = galaxy::system(sys).name;
         let unix = self.unix;
+        if prof.fitted == Some(id) && matches!(action, ArtifactAction::Sell | ArtifactAction::Donate) {
+            return self.error(conn, "장착을 해제해야 팔거나 기증할 수 있습니다");
+        }
         match action {
+            ArtifactAction::Fit => {
+                if !a.appraised {
+                    return self.error(conn, "감정한 유물만 장착할 수 있습니다");
+                }
+                if prof.fitted == Some(id) {
+                    return self.toast(pid, "이미 장착한 유물입니다");
+                }
+                if let Some(p) = self.store.profile_mut(pid) {
+                    p.fitted = Some(id);
+                }
+                self.store.data.artifacts.get_mut(&id).unwrap().note(unix, format!("{}이(가) 함선에 장착했다.", prof.name));
+                self.refit(pid, sys, eid);
+                let effect = self.tuning.artifacts.fit.get(&a.culture).map(|f| f.describe()).unwrap_or_default();
+                self.toast(pid, format!("{} 장착 — {effect}", a.name));
+            }
+            ArtifactAction::Unfit => {
+                if prof.fitted != Some(id) {
+                    return self.toast(pid, "장착하지 않은 유물입니다");
+                }
+                if let Some(p) = self.store.profile_mut(pid) {
+                    p.fitted = None;
+                }
+                self.refit(pid, sys, eid);
+                self.toast(pid, format!("{} 장착 해제", a.name));
+            }
             ArtifactAction::Appraise => {
                 if a.appraised {
                     return self.toast(pid, "이미 감정한 유물입니다");
@@ -155,4 +228,6 @@ pub(super) enum ArtifactAction {
     Appraise,
     Sell,
     Donate,
+    Fit,
+    Unfit,
 }

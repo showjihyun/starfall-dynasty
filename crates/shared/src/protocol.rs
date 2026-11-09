@@ -128,6 +128,9 @@ pub enum ClientMsg {
     AppraiseArtifact { id: ArtifactId },
     SellArtifact { id: ArtifactId },
     DonateArtifact { id: ArtifactId },
+    /// Fit an appraised artifact to the ship, or take it off (docked; one slot).
+    FitArtifact { id: ArtifactId },
+    UnfitArtifact { id: ArtifactId },
     /// Make a forged copy of evidence you hold, with your own text. It looks like the original.
     ForgeEvidence { evidence: u64, text: String },
     /// Have evidence examined: forgeries are exposed, genuine evidence is marked authentic.
@@ -185,6 +188,9 @@ pub struct Profile {
     /// System the ship was last in (login spawns there, docked).
     #[serde(default)]
     pub last_system: SystemId,
+    /// The artifact fitted to the ship.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fitted: Option<ArtifactId>,
     /// (system, poi) sites this captain has found with the scanner pulse.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub revealed: Vec<(SystemId, u32)>,

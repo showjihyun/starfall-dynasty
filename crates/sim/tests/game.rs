@@ -1991,3 +1991,82 @@ fn sites_hide_until_found_pay_once_and_deep_ones_need_a_better_scanner() {
     let contacts: Vec<SignalContact> = g.out.iter().filter_map(|(c, m)| if let (1, ServerMsg::Pulse { contacts }) = (*c, m) { Some(contacts.clone()) } else { None }).flatten().collect();
     assert!(contacts.iter().any(|c| Vec3::from(c.dir).dot(dir) > 0.99 && c.strength < 0.5), "{contacts:?}");
 }
+
+#[test]
+fn a_fitted_artifact_changes_the_ship_cannot_be_sold_and_goes_down_with_it() {
+    use shared::artifacts::{Culture, Holder};
+    let mut g = game();
+    let pid = join(&mut g, 1, "Fitter", Species::Human, HullClass::Talon, Profession::CombatPilot);
+    g.spawn_player(pid, 6, true);
+    let give = |g: &mut Game, id: u64, culture: Culture, appraised: bool| {
+        let mut a = shared::artifacts::excavate(id, 6, "시험장", PoiKind::Ruin, 1, 1, pid, T0);
+        a.culture = culture;
+        a.appraised = appraised;
+        g.store.data.artifacts.insert(id, a);
+    };
+    give(&mut g, 101, Culture::Kharz, true);
+    give(&mut g, 102, Culture::Veyr, false);
+    let flag = |g: &Game| {
+        let (s, e) = g.player_entity(pid).unwrap();
+        g.ent(s, e).unwrap().stats
+    };
+    let bare = flag(&g);
+    let fit = g.tuning.artifacts.fit[&Culture::Kharz].clone();
+
+    // Only an appraised find; the effect reaches the ship at once.
+    g.handle(1, ClientMsg::FitArtifact { id: 102 });
+    assert_eq!(g.store.profile(pid).unwrap().fitted, None);
+    assert!(errors(&g, 1).iter().any(|e| e.contains("감정한 유물만")));
+    g.handle(1, ClientMsg::FitArtifact { id: 101 });
+    assert_eq!(g.store.profile(pid).unwrap().fitted, Some(101));
+    assert!((flag(&g).damage - bare.damage * fit.damage).abs() < 1e-3);
+    assert!((flag(&g).scan_range - bare.scan_range * fit.scan_range).abs() < 1e-3, "the combat effect has a price");
+
+    // Fitted, it cannot leave the ship by sale or donation.
+    g.handle(1, ClientMsg::SellArtifact { id: 101 });
+    g.handle(1, ClientMsg::DonateArtifact { id: 101 });
+    assert_eq!(g.store.data.artifacts[&101].holder, Holder::Player(pid));
+
+    // Taken off, the ship is as it was.
+    g.handle(1, ClientMsg::UnfitArtifact { id: 101 });
+    assert_eq!(g.store.profile(pid).unwrap().fitted, None);
+    assert!((flag(&g).damage - bare.damage).abs() < 1e-3);
+
+    // Fitted and lost with the ship: the wreck holds it and the rebuilt ship does not have it.
+    g.handle(1, ClientMsg::FitArtifact { id: 101 });
+    g.handle(1, ClientMsg::Undock);
+    let (s, e) = g.player_entity(pid).unwrap();
+    g.ent_mut(s, e).unwrap().hull = 0.0;
+    run(&mut g, 1.0);
+    assert_eq!(g.store.profile(pid).unwrap().fitted, None);
+    assert!(matches!(g.store.data.artifacts[&101].holder, Holder::Wreck(_)), "{:?}", g.store.data.artifacts[&101].holder);
+}
+
+#[test]
+fn a_site_hidden_deep_gives_any_captain_an_artifact_and_a_precursor_relic_reads_deeper() {
+    use shared::artifacts::Culture;
+    let mut g = game();
+    let pid = join(&mut g, 1, "Digger", Species::Human, HullClass::Talon, Profession::CombatPilot);
+    let ex = g.tuning.galaxy.explore.clone();
+    let open = g.tuning.artifacts.open_dig_depth.expect("deep sites are open to all");
+    let (sys, deep) = (0..50u16).flat_map(|s| galaxy::system_layout(s).pois.into_iter().map(move |p| (s, p))).find(|(s, p)| ex.depth(*s, p.id, galaxy::system(*s).tier) == open).expect("a deep site");
+    let need = g.scanner_needed(sys, deep.id);
+    move_to_system(&mut g, 1, sys);
+    clear_npcs(&mut g, sys);
+    g.systems.get_mut(&sys).unwrap().pirate_cd = f32::INFINITY;
+    place(&mut g, 1, deep.pos + Vec3::Z * 100.0, deep.pos);
+
+    // Two scanner levels short, a fitted Precursor relic reads it anyway.
+    let bonus = g.tuning.artifacts.fit[&Culture::Precursor].scanner_bonus;
+    assert!(need > bonus, "this site needs a real scanner too");
+    g.store.profile_mut(pid).unwrap().ship.modules.insert(Module::Scanner, need - bonus);
+    g.handle(1, ClientMsg::Scan { poi: deep.id });
+    assert!(g.sessions[&1].scan.is_none(), "too deep without the relic");
+    let mut relic = shared::artifacts::excavate(500, sys, "시험장", PoiKind::AncientGate, 1, 1, pid, T0);
+    relic.appraised = true;
+    g.store.data.artifacts.insert(500, relic);
+    g.store.profile_mut(pid).unwrap().fitted = Some(500);
+    g.handle(1, ClientMsg::Scan { poi: deep.id });
+    run(&mut g, 12.0);
+    assert_eq!(g.artifacts_of(pid).len(), 2, "a Combat Pilot digs one out of a deep site");
+}

@@ -7,6 +7,16 @@
     unappraised_sale: 0.4,        // share of the value a collector pays for an unidentified find
     donation_reputation: 10,      // reputation for donating to a station museum
     donation_share: 0.25,         // museum pays this share of the value as a finder's fee
+    // Sites hidden this deep give an artifact to any captain (shallower: Archaeologists, at ruins and gates).
+    open_dig_depth: Some(2),
+    // What an appraised artifact does fitted to the ship (one slot, at a station). Multipliers; exploration first,
+    // and the one combat effect has a price.
+    fit: {
+        Human: (pulse_range: 1.3),
+        Veyr: (pulse_cooldown: 0.65),
+        Kharz: (damage: 1.08, scan_range: 0.75),
+        Precursor: (scanner_bonus: 2, shield: 0.9),
+    },
     cultures: {
         Human: (
             value: 2400,

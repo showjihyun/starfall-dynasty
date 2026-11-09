@@ -74,6 +74,9 @@ impl Game {
             return self.error(conn, "가지고 있지 않은 유물입니다");
         };
         let prof = self.store.profile(pid).unwrap().clone();
+        if prof.fitted == Some(artifact) {
+            return self.error(conn, "장착을 해제해야 기증할 수 있습니다");
+        }
         let unix = self.unix;
         let label = a.label();
         {

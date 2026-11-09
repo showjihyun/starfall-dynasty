@@ -72,7 +72,7 @@ fn artifact(id: u64, appraised: bool) -> Artifact {
 const PRICES: ArtifactPrices = ArtifactPrices { appraisal: 400, unappraised_sale: 0.4, donation_share: 0.25, donation_reputation: 10 };
 
 fn art_frame(held: &[Artifact], docked: bool, click: Option<&str>) -> (Vec<String>, Option<ArtifactRequest>) {
-    frame(|ui| panels::artifacts(ui, held, docked, &PRICES, "V"), click)
+    frame(|ui| panels::artifacts(ui, held, docked, &PRICES, "V", None, &Default::default()), click)
 }
 
 #[test]
@@ -290,4 +290,23 @@ fn fleet_window_teaches_split_angles() {
     }, None);
     assert!(seen.iter().any(|s| s.contains("공격 각도를 나누면") && s.contains("구르기")), "{seen:?}");
     assert!(seen.iter().any(|s| s.contains("위·아래로 파고들어라")), "{seen:?}");
+}
+
+#[test]
+fn a_fitted_artifact_says_what_it_does_and_only_comes_off() {
+    use shared::artifacts::Culture;
+    use shared::tuning::FitEffect;
+    let fit = std::collections::BTreeMap::from([(Culture::Human, FitEffect { pulse_range: 1.3, ..Default::default() })]);
+    let held = [artifact(7, true)];
+    let (t, r) = frame(|ui| panels::artifacts(ui, &held, true, &PRICES, "V", None, &fit), Some("함선에 장착"));
+    assert!(t.iter().any(|s| s == "장착 효과: 펄스 범위 +30%"), "{t:?}");
+    assert_eq!(r, Some(ArtifactRequest::Fit(7)));
+    let (t, r) = frame(|ui| panels::artifacts(ui, &held, true, &PRICES, "V", Some(7), &fit), Some("판매"));
+    assert!(t.iter().any(|s| s == "장착 중: 펄스 범위 +30%"), "{t:?}");
+    assert_eq!(r, None, "a fitted artifact cannot be sold");
+    let (_, r) = frame(|ui| panels::artifacts(ui, &held, true, &PRICES, "V", Some(7), &fit), Some("장착 해제"));
+    assert_eq!(r, Some(ArtifactRequest::Unfit(7)));
+    // An unidentified find has no fit button.
+    let (t, _) = frame(|ui| panels::artifacts(ui, &[artifact(8, false)], true, &PRICES, "V", None, &fit), None);
+    assert!(!t.iter().any(|s| s == "함선에 장착"), "{t:?}");
 }

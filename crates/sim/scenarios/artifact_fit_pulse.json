@@ -1,0 +1,28 @@
+{
+  "name": "artifact_fit_pulse",
+  "description": "유물 장착: 감정한 Veyr 유물을 단 함장의 펄스는 빨리 충전된다. 4.5초 뒤 두 번째 펄스가 장착한 쪽에서만 나가 지점을 찾는다.",
+  "dev": true,
+  "captains": [
+    { "name": "Finder", "hull": "Talon", "level": 1, "system": 4, "undocked": false },
+    { "name": "Control", "hull": "Talon", "level": 1, "system": 4, "undocked": false }
+  ],
+  "script": [
+    { "at": 0.1, "captain": "Finder", "msg": { "Chat": { "text": "/relic Veyr" } } },
+    { "at": 0.2, "captain": "Finder", "msg": { "FitArtifact": { "id": 1 } } },
+    { "at": 0.4, "captain": "Finder", "msg": "Undock" },
+    { "at": 0.4, "captain": "Control", "msg": "Undock" },
+    { "at": 1.0, "captain": "Finder", "msg": "Pulse" },
+    { "at": 1.0, "captain": "Control", "msg": "Pulse" },
+    { "at": 1.5, "captain": "Finder", "msg": { "Chat": { "text": "/tp poi:Derelict" } } },
+    { "at": 1.5, "captain": "Control", "msg": { "Chat": { "text": "/tp poi:Derelict" } } },
+    { "at": 5.5, "captain": "Finder", "msg": "Pulse" },
+    { "at": 5.5, "captain": "Control", "msg": "Pulse" }
+  ],
+  "run_secs": 6,
+  "expect": [
+    { "at": 1.4, "check": "revealed", "captain": "Finder", "system": 4, "max": 0 },
+    { "at": 1.4, "check": "revealed", "captain": "Control", "system": 4, "max": 0 },
+    { "check": "revealed", "captain": "Finder", "system": 4, "min": 1 },
+    { "check": "revealed", "captain": "Control", "system": 4, "max": 0 }
+  ]
+}

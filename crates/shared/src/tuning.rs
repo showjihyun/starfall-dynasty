@@ -707,7 +707,52 @@ pub struct ArtifactTuning {
     pub unappraised_sale: f32,
     pub donation_reputation: i32,
     pub donation_share: f32,
+    /// Sites hidden at least this deep give an artifact to any captain.
+    #[serde(default)]
+    pub open_dig_depth: Option<u8>,
+    /// What an appraised artifact of each culture does when fitted.
+    #[serde(default)]
+    pub fit: BTreeMap<Culture, FitEffect>,
     pub cultures: BTreeMap<Culture, CultureDef>,
+}
+
+/// What a fitted artifact does; multipliers, 1.0 (or no bonus) when left out.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct FitEffect {
+    pub pulse_range: f32,
+    pub pulse_cooldown: f32,
+    /// Added to the scanner level only when judging how deep a site can be read.
+    pub scanner_bonus: u8,
+    pub damage: f32,
+    pub scan_range: f32,
+    pub shield: f32,
+}
+
+impl Default for FitEffect {
+    fn default() -> Self {
+        FitEffect { pulse_range: 1.0, pulse_cooldown: 1.0, scanner_bonus: 0, damage: 1.0, scan_range: 1.0, shield: 1.0 }
+    }
+}
+
+impl FitEffect {
+    /// The ship's combat and sensor numbers with this artifact fitted.
+    pub fn apply(&self, s: &mut crate::ships::Stats) {
+        s.damage *= self.damage;
+        s.missile_damage *= self.damage;
+        s.turret_damage *= self.damage;
+        s.main_damage *= self.damage;
+        s.scan_range *= self.scan_range;
+        s.max_shield *= self.shield;
+    }
+
+    /// One line for the station window ("펄스 범위 +30%").
+    pub fn describe(&self) -> String {
+        let pct = |name: &str, m: f32| ((m - 1.0).abs() > 1e-3).then(|| format!("{name} {:+.0}%", (m - 1.0) * 100.0));
+        let bonus = (self.scanner_bonus > 0).then(|| format!("판독 스캐너 Lv +{}", self.scanner_bonus));
+        let parts: Vec<String> = [pct("펄스 범위", self.pulse_range), pct("펄스 쿨다운", self.pulse_cooldown), bonus, pct("무기 피해", self.damage), pct("스캔 범위", self.scan_range), pct("실드", self.shield)].into_iter().flatten().collect();
+        parts.join(", ")
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

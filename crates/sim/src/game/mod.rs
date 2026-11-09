@@ -580,6 +580,7 @@ impl Game {
             last_system: home,
             scanned: vec![],
             revealed: vec![],
+            fitted: None,
             specimens: Default::default(),
         };
         self.store.set_profile(pid, profile.clone());
@@ -602,7 +603,7 @@ impl Game {
         let id = self.alloc_entity();
         let layout = &self.systems[&system].layout;
         let station = layout.station;
-        let stats = prof.ship.stats();
+        let stats = self.ship_stats(&prof);
         // Big ships park further out from the station.
         let pos = if docked { station + Vec3::new(0.0, -40.0, 60.0 + stats.radius) } else { layout.jump_point };
         let mut ent = Ent::base(id, EntityKind::Player, self.display_name(pid), stats, pos, Quat::from_rotation_y(std::f32::consts::PI));
