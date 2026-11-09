@@ -190,6 +190,9 @@ async fn captain(i: usize, url: String, live: Arc<Live>, until: Instant, session
             };
             bot.send(ClientMsg::Undock).await;
             bot.send(ClientMsg::Controls(ctl)).await;
+            // Ping as the real client does (a pong once disconnected every client that pinged, and bots
+            // that did not ping never saw it).
+            bot.send(ClientMsg::Ping { t: 0.0 }).await;
             bot.pump(0.5).await;
         }
         live.connected.fetch_sub(1, Relaxed);
