@@ -579,3 +579,18 @@ fn a_captain_with_no_chapter_running_is_told_what_to_do_next() {
         }
     }
 }
+
+#[test]
+fn the_creation_screen_ship_sits_below_the_middle_of_the_view() {
+    use shared::glam::Vec3;
+    let ship = Vec3::new(10.0, 20.0, 30.0);
+    let r = 12.0;
+    let (eye, look) = view::anim::preview_camera(ship, r);
+    assert!(eye.length() < ship.length(), "seen from the star's side, where it is lit");
+    let fwd = (look - eye).normalize();
+    let to_ship = (ship - eye).normalize();
+    assert!(fwd.dot(to_ship) > 0.85, "in view (62 degree field)");
+    assert!(to_ship.y < fwd.y, "under the view's centre");
+    let d = ship.distance(eye);
+    assert!((d / r - 5.0).abs() < 0.5, "the same size on screen for every hull: {}", d / r);
+}

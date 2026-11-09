@@ -89,6 +89,8 @@ pub struct Session {
     pub dead: Option<String>,
     /// How to beat the wave that just sank us again (`ServerMsg::Died::hint`), shown on the death panel.
     pub dead_hint: Option<String>,
+    /// The entity on show on the character creation screen (`preview`).
+    pub preview: Option<u32>,
     /// The last run crashed: where its report is (shown on the login screen until dismissed).
     pub crash_notice: Option<String>,
     /// Client time (s) from which the rebuild is accepted (`ServerMsg::Died::rebuild_in`).
@@ -227,6 +229,11 @@ fn user_file(kind: &str, name: &str) -> Option<std::path::PathBuf> {
         return None;
     }
     Some(dir.join(format!("{kind}_{safe}.txt")))
+}
+
+/// Whether the 3D world is on: in the game, or behind the character creation screen (`preview`).
+pub fn world_on(screen: Res<State<Screen>>, s: Res<Session>) -> bool {
+    *screen.get() == Screen::Playing || s.preview.is_some()
 }
 
 /// A remembered captain name, if the file's first line is a valid one.

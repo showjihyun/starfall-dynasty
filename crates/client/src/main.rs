@@ -22,6 +22,7 @@ mod materials;
 mod meshes;
 mod music;
 mod net;
+mod preview;
 #[cfg(feature = "raytracing")]
 mod raytracing;
 mod replay;
@@ -116,7 +117,7 @@ fn main() {
     .insert_resource(bevy_egui::EguiGlobalSettings { auto_create_primary_context: false, ..default() })
     .insert_resource(settings::KeyBinds::from(&player_settings.s))
     .insert_resource(player_settings)
-    .add_plugins(settings::SettingsPlugin)
+    .add_plugins((settings::SettingsPlugin, preview::PreviewPlugin))
     .add_plugins((materials::MaterialsPlugin, scene::ScenePlugin, ships::ShipsPlugin, fx::FxPlugin, control::ControlPlugin, audio::AudioFxPlugin, music::MusicPlugin, interior::InteriorPlugin, dust::DustPlugin, cinematic::CinematicPlugin, voice::VoicePlugin))
     .init_state::<Screen>()
     .insert_resource(Session { server_url: args.server.clone(), last_combat: -1e9, crash_notice: if bench_secs.is_some() || args.showroom || args.replay.is_some() || std::env::args().any(|a| a == "--cinematic") { None } else { crash::take_unseen().map(|p| p.display().to_string()) }, ..default() })

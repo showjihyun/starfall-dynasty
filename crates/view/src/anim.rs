@@ -142,6 +142,14 @@ pub fn warp_spool(since: f64, charge: f32) -> f32 {
     x * x * (0.7 + 0.3 * beat)
 }
 
+/// Camera for the ship on the character creation screen: (eye, point looked at). The look point sits
+/// above the ship, so it lands in the screen's empty lower middle, under the text columns. The eye is
+/// on the star's side (stars sit at the origin): seen from the far side the ship was a black silhouette.
+pub fn preview_camera(ship: Vec3, radius: f32) -> (Vec3, Vec3) {
+    let to_star = (-ship).normalize_or(Vec3::NEG_Z);
+    (ship + to_star * radius * 5.0 + Vec3::Y * radius * 0.5, ship + Vec3::Y * radius * 1.5)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

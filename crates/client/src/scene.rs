@@ -2,7 +2,7 @@
 
 use crate::materials::*;
 use crate::meshes;
-use crate::state::{Screen, Session};
+use crate::state::Session;
 use bevy::light::{GeneratedEnvironmentMapLight, NotShadowCaster};
 use bevy::prelude::*;
 use bevy::gltf::{Gltf, GltfMesh, GltfNode};
@@ -13,7 +13,7 @@ pub struct ScenePlugin;
 
 impl Plugin for ScenePlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<Env>().add_observer(crate::lod::on_ready).add_systems(Startup, load_props).add_systems(Update, (build_system, follow_sky, spin_things, aim_flare).run_if(in_state(Screen::Playing)));
+        app.init_resource::<Env>().add_observer(crate::lod::on_ready).add_systems(Startup, load_props).add_systems(Update, (build_system, follow_sky, spin_things, aim_flare).run_if(crate::state::world_on));
     }
 }
 

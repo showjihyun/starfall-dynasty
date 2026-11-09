@@ -3,7 +3,7 @@
 
 use crate::materials::*;
 use crate::meshes;
-use crate::state::{INTERP_DELAY, Screen, Session};
+use crate::state::{INTERP_DELAY, Session};
 use bevy::gltf::GltfMaterialName;
 use bevy::light::NotShadowCaster;
 use bevy::mesh::MeshTag;
@@ -20,8 +20,8 @@ pub struct ShipsPlugin;
 
 impl Plugin for ShipsPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<Visuals>().add_observer(release_slot).add_systems(Startup, load_models).add_systems(Update, (sync_visuals, update_ship_fx, aim_turrets, face_nozzle_glows).chain().run_if(in_state(Screen::Playing)))
-            .add_systems(PostUpdate, engine_lod.before(bevy::camera::visibility::VisibilitySystems::VisibilityPropagate).run_if(in_state(Screen::Playing)));
+        app.init_resource::<Visuals>().add_observer(release_slot).add_systems(Startup, load_models).add_systems(Update, (sync_visuals, update_ship_fx, aim_turrets, face_nozzle_glows).chain().run_if(crate::state::world_on))
+            .add_systems(PostUpdate, engine_lod.before(bevy::camera::visibility::VisibilitySystems::VisibilityPropagate).run_if(crate::state::world_on));
     }
 }
 

@@ -251,7 +251,7 @@ fn create(ctx: &egui::Context, form: &mut Form, s: &Session, net: &Net, args: &A
         }
         send(form);
     }
-    full_screen(ctx, chrome::SCRIM, |ui| {
+    full_screen(ctx, chrome::SCRIM_LIGHT, |ui| {
         title(ui);
         ui.columns(3, |cols| {
             cols[0].heading("1. 종족");

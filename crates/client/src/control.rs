@@ -73,8 +73,15 @@ fn spawn_camera(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
     commands.insert_resource(GlobalAmbientLight { color: Color::srgb(0.5, 0.55, 0.7), brightness: 12.0, ..default() });
 }
 
-fn idle_camera(time: Res<Time>, mut cam: Query<&mut Transform, With<MainCamera>>) {
+fn idle_camera(time: Res<Time>, s: Res<Session>, vis: Res<Visuals>, ships: Query<(&ShipVis, &Transform), Without<MainCamera>>, mut cam: Query<&mut Transform, With<MainCamera>>) {
     let Ok(mut t) = cam.single_mut() else { return };
+    // The character creation screen frames the ship on show in the empty lower middle of the screen.
+    if let Some((sv, ship)) = s.preview.and_then(|id| vis.map.get(&id)).and_then(|e| ships.get(*e).ok()) {
+        let (pos, look) = view::anim::preview_camera(ship.translation, sv.radius.max(8.0));
+        t.translation = pos;
+        t.look_at(look, Vec3::Y);
+        return;
+    }
     let a = time.elapsed_secs() * 0.03;
     let center = Vec3::new(0.0, 0.0, 3400.0);
     t.translation = center + Vec3::new(a.cos() * 900.0, 180.0, a.sin() * 900.0);

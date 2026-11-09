@@ -45,6 +45,8 @@ pub mod chrome {
     pub const SELECTION: Color32 = Color32::from_rgb(40, 90, 150);
     /// Full-screen dimming behind character creation.
     pub const SCRIM: Color32 = Color32::from_rgba_unmultiplied_const(5, 8, 14, 170);
+    /// Over the ship on show (character creation): dark space behind the text needs little.
+    pub const SCRIM_LIGHT: Color32 = Color32::from_rgba_unmultiplied_const(5, 8, 14, 60);
     /// Behind toasts and chat lines (alpha set per line).
     pub const INK: Color32 = Color32::from_rgb(10, 14, 24);
     /// Toast text.
