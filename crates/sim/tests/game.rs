@@ -2116,3 +2116,41 @@ fn a_survey_pays_on_docking_and_is_lost_with_the_ship_so_the_site_can_be_found_a
     assert!(g.store.profile(pid).unwrap().survey.is_empty());
     assert!(g.store.profile(pid).unwrap().scanned.contains(&(sys, site.id)), "brought home, it stays found");
 }
+
+#[test]
+fn a_scanned_site_points_to_the_next_one_then_to_another_system() {
+    let mut g = game();
+    let pid = join(&mut g, 1, "Tracker", Species::Human, HullClass::Talon, Profession::CombatPilot);
+    g.store.profile_mut(pid).unwrap().ship.modules.insert(Module::Scanner, 7);
+    let sys = 4;
+    let pois = galaxy::system_layout(sys).pois;
+    assert!(pois.len() >= 2);
+    move_to_system(&mut g, 1, sys);
+    clear_npcs(&mut g, sys);
+    g.systems.get_mut(&sys).unwrap().pirate_cd = f32::INFINITY;
+    let at = pois[0].pos + Vec3::Z * 100.0;
+    place(&mut g, 1, at, pois[0].pos);
+    g.out.clear();
+    g.handle(1, ClientMsg::Scan { poi: pois[0].id });
+    run(&mut g, 12.0);
+    let bearings = |g: &Game| -> Vec<SignalContact> { g.out.iter().filter_map(|(c, m)| if let (1, ServerMsg::Pulse { contacts }) = (*c, m) { Some(contacts.clone()) } else { None }).flatten().collect() };
+    let nearest = pois[1..].iter().min_by(|a, b| a.pos.distance(pois[0].pos).total_cmp(&b.pos.distance(pois[0].pos))).unwrap();
+    let got = bearings(&g);
+    assert_eq!(got.len(), 1, "one lead: {got:?}");
+    let pos = g.ent(sys, g.player_entity(pid).unwrap().1).unwrap().pos;
+    assert!(Vec3::from(got[0].dir).dot((nearest.pos - pos).normalize()) > 0.98, "toward the nearest unfound site: {got:?}");
+
+    // The last unfound site here points out of the system instead.
+    let last = pois.last().unwrap().clone();
+    for p in &pois {
+        if p.id != last.id {
+            g.store.profile_mut(pid).unwrap().scanned.push((sys, p.id));
+        }
+    }
+    place(&mut g, 1, last.pos + Vec3::Z * 100.0, last.pos);
+    g.out.clear();
+    g.handle(1, ClientMsg::Scan { poi: last.id });
+    run(&mut g, 12.0);
+    assert!(bearings(&g).is_empty());
+    assert!(g.out.iter().any(|(c, m)| *c == 1 && matches!(m, ServerMsg::Toast { text } if text.contains("성계를 가리킵니다"))));
+}

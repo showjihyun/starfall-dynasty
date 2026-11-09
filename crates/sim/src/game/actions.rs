@@ -321,6 +321,27 @@ impl Game {
         }
     }
 
+    /// A scanned site's records point on: a bearing to the nearest site here this captain has not found
+    /// and can read, or, when this system has none left, the nearest system that does.
+    fn follow_lead(&mut self, pid: PlayerId, sys: SystemId, from: &galaxy::Poi) {
+        let Some(prof) = self.store.profile(pid).cloned() else { return };
+        let open = |s: SystemId, p: &galaxy::Poi| !prof.scanned.contains(&(s, p.id)) && !prof.revealed.contains(&(s, p.id)) && self.can_read(&prof, p, self.scanner_needed(s, p.id));
+        let next = self.systems[&sys].layout.pois.iter().filter(|p| open(sys, p)).min_by(|a, b| a.pos.distance(from.pos).total_cmp(&b.pos.distance(from.pos))).map(|p| p.pos);
+        if let Some(site) = next {
+            let Some(pos) = self.player_entity(pid).and_then(|(s, e)| self.ent(s, e)).map(|e| e.pos) else { return };
+            let range = self.tuning.galaxy.explore.pulse_range * self.fit_effect(&prof).pulse_range;
+            let contact = SignalContact { dir: (site - pos).normalize_or_zero().to_array(), strength: ((1.0 - site.distance(pos) / range).clamp(0.05, 1.0) * 10.0).round() / 10.0 };
+            self.toast(pid, "기록에서 다음 신호의 방향을 찾았습니다");
+            return self.send_player(pid, ServerMsg::Pulse { contacts: vec![contact] });
+        }
+        let here = Vec3::from(galaxy::system(sys).map_pos);
+        let dist = |s: SystemId| Vec3::from(galaxy::system(s).map_pos).distance(here);
+        let onward = self.systems.iter().filter(|(s, st)| **s != sys && st.layout.pois.iter().any(|p| open(**s, p))).map(|(s, _)| *s).min_by(|a, b| dist(*a).total_cmp(&dist(*b)));
+        if let Some(s) = onward {
+            self.toast(pid, format!("기록이 {} 성계를 가리킵니다", galaxy::system(s).name));
+        }
+    }
+
     /// Docked: the ship's log pays out.
     fn bank_survey(&mut self, pid: PlayerId) {
         let Some(pm) = self.store.profile_mut(pid) else { return };
@@ -497,6 +518,9 @@ impl Game {
             self.progress(pid, Progress::Scanned);
         }
         self.unearth(pid, sys, &p);
+        if first_time {
+            self.follow_lead(pid, sys, &p);
+        }
         self.scenario_scan(pid, sys, p.kind);
         self.push_profile(pid);
     }
