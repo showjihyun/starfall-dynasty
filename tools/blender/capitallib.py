@@ -503,6 +503,8 @@ class Capital(Ship):
             lo = V((min(lo.x, p.x), min(lo.y, p.y), min(lo.z, p.z)))
             hi = V((max(hi.x, p.x), max(hi.y, p.y), max(hi.z, p.z)))
         for o in result.values():
+            if o.name.startswith("Rig_"):
+                continue  # centred on the hull, wherever the moving parts reach
             for v in o.data.vertices:
                 acc(o.matrix_world @ v.co)
         for key, M in self.placements:
@@ -537,6 +539,14 @@ class Capital(Ship):
             self.bbox = (self.bbox[0] * f, self.bbox[1] * f)
             self.size = self.size * f
             log(self.name, "rescaled x%.3f to length %.1f" % (f, self.size.y))
+        # A rigged part's origin is its hinge.
+        scale = (tl / (hi - lo).y) if tl else 1.0
+        for name, pivot in self.rig_pivots.items():
+            o = result[name]
+            at = (pivot - c) * scale
+            o.data.transform(Matrix.Translation(-at))
+            o.data.update()
+            o.location = at
         log(self.name, "bbox size", tuple(round(x, 2) for x in (hi - lo)), "turrets", len(self.placements))
         # keep the prototypes out of the way (AO during bake)
         for i, p in enumerate(self.protos.values()):

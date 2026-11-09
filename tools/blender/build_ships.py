@@ -1363,9 +1363,10 @@ def rig_talon(ship):
         ship.rig("Rig_Vane_%d" % i, vane, hinge, bevel=0, weighted=False)
 
 
-def rig_auto(ship):
+def rig_auto(ship, big=False):
     """Dish, gear and vanes placed by measuring the hull with ray casts, in paint like rig_talon. A part
-    with nowhere to go (no hull under it, too thin to fold into) is left out and logged."""
+    with nowhere to go (no hull under it, too thin to fold into) is left out and logged.
+    big: cruisers and capitals, which never land: no gear, vanes sized to the nozzle, four at most."""
     bpy.context.view_layer.update()
     hull = [o for g, objs in ship.groups.items() if not g.startswith(("Rig_", "Rank", "Species_")) for o in objs]
     corners = [o.matrix_world @ V(c) for o in hull for c in o.bound_box]
@@ -1406,13 +1407,17 @@ def rig_auto(ship):
             return None
         h = max(steps) + 0.36 * k
         return V((x, y, h)) if min(tops) >= h + 0.31 * k else None
-    spots = [gear_hinge(0.0, ymin + 0.78 * length)]
-    y = ymin + 0.35 * length
-    side = next((x * k for x in (1.4, 1.0, 0.7) if gear_hinge(x * k, y) and gear_hinge(-x * k, y)), None)
-    if side is not None:
-        spots += [gear_hinge(side, y), gear_hinge(-side, y)]
-    spots = [h for h in spots if h is not None]
-    if len(spots) < 3:
+    spots = []
+    if not big:
+        spots = [gear_hinge(0.0, ymin + 0.78 * length)]
+        y = ymin + 0.35 * length
+        side = next((x * k for x in (1.4, 1.0, 0.7) if gear_hinge(x * k, y) and gear_hinge(-x * k, y)), None)
+        if side is not None:
+            spots += [gear_hinge(side, y), gear_hinge(-side, y)]
+        spots = [h for h in spots if h is not None]
+    if big:
+        pass
+    elif len(spots) < 3:
         log(ship.name, "rig: gear left out, hull too thin at", len(spots), "of 3 places")
     else:
         for i, hinge in enumerate(spots):
@@ -1423,14 +1428,18 @@ def rig_auto(ship):
 
     # A vane on top of each engine, ending at the nozzle.
     n = 0
-    for e in (e for e in ship.empties if e.name.startswith("Engine_")):
-        y = e.location.y + 1.2 * k
+    engines = [e for e in ship.empties if e.name.startswith("Engine_")]
+    if big:
+        engines = sorted(engines, key=lambda e: -abs(e.location.x))[:4]
+    for e in engines:
+        vk = e.scale.x / 0.62 if big else k
+        y = e.location.y + 1.2 * vk
         z = surface(e.location.x, y, True)
         if z is None:
             continue
-        hinge = V((e.location.x, y, z + 0.02 * k))
-        def vane(bm, hinge=hinge):
-            box(bm, hinge + V((0, -0.6 * k, 0)), (0.78 * k, 1.2 * k, 0.05 * k), mat=L)
+        hinge = V((e.location.x, y, z + 0.02 * vk))
+        def vane(bm, hinge=hinge, vk=vk):
+            box(bm, hinge + V((0, -0.6 * vk, 0)), (0.78 * vk, 1.2 * vk, 0.05 * vk), mat=L)
         ship.rig("Rig_Vane_%d" % n, vane, hinge, bevel=0, weighted=False)
         n += 1
     log(ship.name, "rig: dish, gear", len(spots), "vanes", n, "scale", round(k, 2))

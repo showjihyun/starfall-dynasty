@@ -437,6 +437,12 @@ fn automation(
             "missions" if first => s.ui.missions = true,
             "help" if first => s.ui.help = true,
             "pulse" if first => net.send(ClientMsg::Pulse),
+            "scan" if first => {
+                let at = s.my_state().map_or(shared::glam::Vec3::ZERO, |m| shared::glam::Vec3::from(m.pos));
+                if let Some(p) = shared::galaxy::system_layout(s.system).pois.iter().min_by(|a, b| a.pos.distance(at).total_cmp(&b.pos.distance(at))) {
+                    net.send(ClientMsg::Scan { poi: p.id });
+                }
+            }
             "menu" if first => s.ui.menu = true,
             "settings" if first => s.ui.settings = true,
             "ally" if first => net.send(ClientMsg::AllianceCreate { name: cmd.get(1).copied().unwrap_or("QA Pact").into(), tag: cmd.get(2).copied().unwrap_or("QA").into() }),

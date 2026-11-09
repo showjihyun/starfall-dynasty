@@ -946,6 +946,52 @@ pub struct TurretTag;
 mod tests {
     use super::*;
 
+    #[test]
+    fn rigged_parts_turn_with_the_clock_fold_away_from_the_station_and_rest_when_small() {
+        use view::anim::RigKind;
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins)
+            .insert_resource(bevy::time::TimeUpdateStrategy::ManualDuration(std::time::Duration::from_secs_f64(1.0 / 60.0)))
+            .add_systems(Update, animate_rigs);
+        let layout = shared::galaxy::system_layout(0);
+        let station = layout.station;
+        app.insert_resource(Session::default());
+        app.insert_resource(Env { layout: Some(layout), ..Default::default() });
+        let part = |app: &mut App| app.world_mut().spawn((RigPart, Transform::default(), Visibility::Inherited)).id();
+        let (dish, gear) = (part(&mut app), part(&mut app));
+        let mut v = ShipVis::new(&ship(1), Vec3::ZERO);
+        v.rigs = vec![(RigKind::Dish, dish), (RigKind::Gear, gear)];
+        let e = app.world_mut().spawn((v, Transform::from_translation(station))).id();
+        let spin = |app: &App| app.world().get::<Transform>(dish).unwrap().rotation;
+        let vis = |app: &App, p: Entity| *app.world().get::<Visibility>(p).unwrap();
+        let frames = |app: &mut App, n: usize| (0..n).for_each(|_| app.update());
+
+        // By the station the gear comes down, and the dish keeps turning.
+        frames(&mut app, 120);
+        assert_eq!(vis(&app, gear), Visibility::Inherited);
+        assert!(app.world().get::<Transform>(gear).unwrap().rotation.abs_diff_eq(Quat::IDENTITY, 1e-3), "fully down");
+        let before = spin(&app);
+        frames(&mut app, 30);
+        assert!(!spin(&app).abs_diff_eq(before, 1e-3), "the dish turns");
+
+        // Far from the station it folds, and folded gear is not drawn.
+        app.world_mut().get_mut::<Transform>(e).unwrap().translation = station + Vec3::X * 5000.0;
+        frames(&mut app, 180);
+        assert_eq!(vis(&app, gear), Visibility::Hidden);
+        assert_eq!(vis(&app, dish), Visibility::Inherited);
+
+        // Small on screen: everything hidden and nothing turns; back in close, it all returns.
+        app.world_mut().get_mut::<ShipVis>(e).unwrap().lod = EngineLod::Plumes;
+        frames(&mut app, 2);
+        assert_eq!(vis(&app, dish), Visibility::Hidden);
+        let before = spin(&app);
+        frames(&mut app, 30);
+        assert!(spin(&app).abs_diff_eq(before, 1e-6), "no work while hidden");
+        app.world_mut().get_mut::<ShipVis>(e).unwrap().lod = EngineLod::Full;
+        frames(&mut app, 2);
+        assert_eq!(vis(&app, dish), Visibility::Inherited);
+    }
+
     fn ship(id: EntityId) -> EntityState {
         EntityState { id, kind: EntityKind::Player, name: "T".into(), hull_class: Some(HullClass::Bastion), rank: 1, livery: 0, pos: [0.0; 3], rot: [0.0, 0.0, 0.0, 1.0], vel: [0.0, 0.0, -90.0], hull: 0.55, shield: 0.8, radius: 20.0, fleet: None, wanted: false, boosting: true, warping: false, mining: None, docked: false, owner: None, alliance: None, class: Some(SizeClass::Capital), species: None }
     }
