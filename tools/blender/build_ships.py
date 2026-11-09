@@ -1363,7 +1363,80 @@ def rig_talon(ship):
         ship.rig("Rig_Vane_%d" % i, vane, hinge, bevel=0, weighted=False)
 
 
-RIGS = {'talon': rig_talon}
+def rig_auto(ship):
+    """Dish, gear and vanes placed by measuring the hull with ray casts, in paint like rig_talon. A part
+    with nowhere to go (no hull under it, too thin to fold into) is left out and logged."""
+    bpy.context.view_layer.update()
+    hull = [o for g, objs in ship.groups.items() if not g.startswith(("Rig_", "Rank", "Species_")) for o in objs]
+    corners = [o.matrix_world @ V(c) for o in hull for c in o.bound_box]
+    ymin, ymax = min(c.y for c in corners), max(c.y for c in corners)
+    length = ymax - ymin
+    k = length / 24.0
+
+    def surface(x, y, top):
+        """Height of the hull's top or belly at (x, y), None when there is no hull there."""
+        start, d = V((x, y, 200.0 if top else -200.0)), V((0, 0, -1 if top else 1))
+        hits = []
+        for o in hull:
+            inv = o.matrix_world.inverted()
+            ok, at, _n, _i = o.ray_cast(inv @ start, (inv.to_3x3() @ d).normalized())
+            if ok:
+                hits.append((o.matrix_world @ at).z)
+        return (max(hits) if top else min(hits)) if hits else None
+
+    # Scanner dish on the spine.
+    y = ymin + 0.45 * length
+    z = surface(0.0, y, True)
+    if z is None:
+        log(ship.name, "rig: no spine for the dish")
+    else:
+        mast = V((0, y, z - 0.05 * k))
+        def dish(bm):
+            cyl(bm, mast, mast + V((0, 0, 0.42 * k)), 0.1 * k, 0.07 * k, n=10, mat=L)
+            cyl(bm, mast + V((0, 0, 0.4 * k)), mast + V((0, 0, 0.58 * k)), 0.14 * k, 0.62 * k, n=20, mat=L)
+            prism(bm, mast + V((0, 0, 0.55 * k)), mast + V((0.42 * k, 0, 0.92 * k)), 0.04 * k, 0.04 * k, mat=L)
+            box(bm, mast + V((0.42 * k, 0, 0.95 * k)), (0.14 * k, 0.14 * k, 0.14 * k), mat=G)
+        ship.rig("Rig_Dish_0", dish, mast, bevel=0, weighted=False)
+
+    # Gear folds back along the belly: the hinge has to sit deep enough along the whole way.
+    def gear_hinge(x, y):
+        steps = [surface(x, y - t * k, False) for t in (0.0, 0.4, 0.8, 1.2, 1.6)]
+        tops = [surface(x, y - t * k, True) for t in (0.0, 0.4, 0.8, 1.2, 1.6)]
+        if None in steps or None in tops:
+            return None
+        h = max(steps) + 0.36 * k
+        return V((x, y, h)) if min(tops) >= h + 0.31 * k else None
+    spots = [gear_hinge(0.0, ymin + 0.78 * length)]
+    y = ymin + 0.35 * length
+    side = next((x * k for x in (1.4, 1.0, 0.7) if gear_hinge(x * k, y) and gear_hinge(-x * k, y)), None)
+    if side is not None:
+        spots += [gear_hinge(side, y), gear_hinge(-side, y)]
+    spots = [h for h in spots if h is not None]
+    if len(spots) < 3:
+        log(ship.name, "rig: gear left out, hull too thin at", len(spots), "of 3 places")
+    else:
+        for i, hinge in enumerate(spots):
+            def gear(bm, hinge=hinge):
+                prism(bm, hinge, hinge + V((0, 0, -1.25 * k)), 0.09 * k, 0.09 * k, mat=L)
+                box(bm, hinge + V((0, 0, -1.3 * k)), (0.3 * k, 0.62 * k, 0.1 * k), mat=L)
+            ship.rig("Rig_Gear_%d" % i, gear, hinge, bevel=0, weighted=False)
+
+    # A vane on top of each engine, ending at the nozzle.
+    n = 0
+    for e in (e for e in ship.empties if e.name.startswith("Engine_")):
+        y = e.location.y + 1.2 * k
+        z = surface(e.location.x, y, True)
+        if z is None:
+            continue
+        hinge = V((e.location.x, y, z + 0.02 * k))
+        def vane(bm, hinge=hinge):
+            box(bm, hinge + V((0, -0.6 * k, 0)), (0.78 * k, 1.2 * k, 0.05 * k), mat=L)
+        ship.rig("Rig_Vane_%d" % n, vane, hinge, bevel=0, weighted=False)
+        n += 1
+    log(ship.name, "rig: dish, gear", len(spots), "vanes", n, "scale", round(k, 2))
+
+
+RIGS = {'talon': rig_talon, 'wren': rig_auto, 'bastion': rig_auto, 'mule': rig_auto, 'seer': rig_auto}
 
 STYLES = {
     'talon': dict(paint=(0.16, 0.17, 0.19), paint2=(0.1, 0.11, 0.12), accent=(0.21, 0.22, 0.24),

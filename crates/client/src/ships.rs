@@ -220,6 +220,8 @@ pub struct ShipVis {
     pub boost: view::anim::Ramp,
     /// Rigged parts on the model (`view::anim::RigKind`), and the landing gear's ramp.
     pub rigs: Vec<(view::anim::RigKind, Entity)>,
+    /// Every rig part is currently hidden (ship too small on screen).
+    rigs_hidden: bool,
     pub gear: view::anim::Ramp,
     /// Since when its warp drive has been charging (the spool-up glow, `view::anim::warp_spool`).
     pub warp_since: Option<f64>,
@@ -296,7 +298,7 @@ impl ShipVis {
             nozzles: vec![],
             plume_fx: vec![],
             lod: view::anim::EngineLod::Full,
-            rigs: vec![],
+            rigs: vec![], rigs_hidden: false,
             gear: Default::default(),
         }
     }
@@ -865,14 +867,27 @@ fn animate_rigs(time: Res<Time<Real>>, s: Res<Session>, env: Res<Env>, mut ships
         if v.rigs.is_empty() {
             continue;
         }
+        // Smaller on screen than the nozzles, they would be a pixel or two: hide once, then no work per frame.
+        if v.lod != EngineLod::Full {
+            if !v.rigs_hidden {
+                v.rigs_hidden = true;
+                for (_, e) in &v.rigs {
+                    if let Ok((_, mut vis)) = parts.get_mut(*e) {
+                        vis.set_if_neq(Visibility::Hidden);
+                    }
+                }
+            }
+            continue;
+        }
+        v.rigs_hidden = false;
         let near = env.layout.as_ref().is_some_and(|l| t.translation.distance(l.station) < GEAR_RANGE);
         v.gear.set(near, now, GEAR_RATE, GEAR_RATE);
         let (gear, boost) = (v.gear.value(now, GEAR_RATE, GEAR_RATE), v.boost.value(now, BOOST_UP, BOOST_DOWN));
         let pulse_age = if Some(v.id) == s.me { s.pulse_at.map(|at| now - at) } else { None };
         for (kind, e) in &v.rigs {
             let Ok((mut part, mut vis)) = parts.get_mut(*e) else { continue };
-            // A draw call each: none for a ship too small to show them, or for gear folded inside the hull.
-            let shown = v.lod != EngineLod::Off && (*kind != view::anim::RigKind::Gear || gear > 0.0);
+            // A draw call each: none for gear folded inside the hull.
+            let shown = *kind != view::anim::RigKind::Gear || gear > 0.0;
             vis.set_if_neq(if shown { Visibility::Inherited } else { Visibility::Hidden });
             if shown {
                 part.rotation = view::anim::rig_rotation(*kind, now, v.seed, gear, boost, pulse_age);
