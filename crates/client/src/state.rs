@@ -229,6 +229,23 @@ fn user_file(kind: &str, name: &str) -> Option<std::path::PathBuf> {
     Some(dir.join(format!("{kind}_{safe}.txt")))
 }
 
+/// A remembered captain name, if the file's first line is a valid one.
+pub fn clean_name(text: &str) -> Option<String> {
+    let name = text.lines().next()?.trim();
+    (2..=20).contains(&name.chars().count()).then(|| name.to_string())
+}
+
+/// The captain who last logged in on this machine (filled in on the login screen).
+pub fn last_name() -> Option<String> {
+    clean_name(&std::fs::read_to_string(config_dir()?.join("last_captain.txt")).ok()?)
+}
+
+fn save_last_name(name: &str) {
+    let Some(d) = config_dir() else { return };
+    let _ = std::fs::create_dir_all(&d);
+    let _ = std::fs::write(d.join("last_captain.txt"), name);
+}
+
 /// Whether this captain has seen the campaign opening on this machine. A client setting, not game
 /// state: the server and the recorded world never know about it.
 pub fn opening_seen(name: &str) -> bool {
@@ -313,6 +330,7 @@ fn apply(s: &mut Session, m: ServerMsg, now: f64, next: &mut NextState<Screen>) 
             // Replays hand over an empty token: nothing to remember.
             if !token.is_empty() {
                 save_token(&s.name, &token);
+                save_last_name(&s.name);
             }
             s.token = Some(token);
             let has = profile.is_some();
@@ -405,5 +423,16 @@ fn apply(s: &mut Session, m: ServerMsg, now: f64, next: &mut NextState<Screen>) 
             s.toast(format!("{from}이(가) 동맹 {name}에 초대했습니다 — 동맹 창({})에서 수락", s.key(view::keymap::Action::Alliance)), now);
             s.alliance_invite = Some((from, alliance, name));
         }
+    }
+}
+
+#[cfg(test)]
+mod last_name_tests {
+    #[test]
+    fn a_remembered_name_must_be_a_valid_one() {
+        assert_eq!(super::clean_name("  Yang \nrest").as_deref(), Some("Yang"));
+        assert_eq!(super::clean_name(""), None);
+        assert_eq!(super::clean_name("x"), None, "too short");
+        assert_eq!(super::clean_name(&"y".repeat(21)), None, "too long");
     }
 }

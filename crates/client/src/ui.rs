@@ -73,8 +73,9 @@ pub fn ui_system(
     if !form.fonts_ready {
         setup_fonts(ctx);
         form.fonts_ready = true;
-        if let Some(n) = &args.name {
-            form.name = n.clone();
+        // `--name`, else the captain who last logged in here.
+        if let Some(n) = args.name.clone().or_else(crate::state::last_name) {
+            form.name = n;
         }
         if let Some(h) = args.hull {
             form.hull = h;
@@ -210,7 +211,9 @@ fn login(ctx: &egui::Context, form: &mut Form, s: &mut Session, net: &Net, args:
                 ui.label(RichText::new(e).color(RED));
             }
             ui.add_space(8.0);
-            ui.label(RichText::new(format!("서버: {}", s.server_url)).color(DIM).size(12.0));
+            if !crate::ships::installed() {
+                ui.label(RichText::new(format!("서버: {}", s.server_url)).color(DIM).size(12.0));
+            }
             if ui.small_button("설정").clicked() {
                 s.ui.settings = true;
             }
