@@ -1,4 +1,5 @@
-"""Collects the picker page: JPEGs of the renders, the GLBs, the style table and SRI hashes into pub/."""
+"""Collects the style picker page into tools/blender/_build/styles/pub: JPEGs of the renders, the models as
+base64 text (the page host serves no .glb), the style table and SRI hashes. Run after build_styles.py."""
 import json
 import os
 import shutil
@@ -8,7 +9,7 @@ import sys
 from PIL import Image
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-SRC = r"C:\WorkSpace\SpaceHistoric\tools\blender\_build\styles"
+SRC = os.path.join(HERE, "..", "_build", "styles")
 PUB = os.path.join(SRC, "pub")
 
 SRI = {
@@ -74,7 +75,6 @@ def to_hex(c):
 
 def main():
     os.makedirs(PUB, exist_ok=True)
-    sys.path.insert(0, r"C:\WorkSpace\SpaceHistoric\tools\blender")
     files = {}
     out = []
     for s in STYLES:
@@ -95,7 +95,7 @@ def main():
         if k != "baseline":  # the style's own colours, from its module (text scan: the modules import bpy)
             import ast
             import re
-            src = open(os.path.join(r"C:\WorkSpace\SpaceHistoric\tools\blender\styles", k + ".py"), encoding="utf-8").read()
+            src = open(os.path.join(HERE, "..", "styles", k + ".py"), encoding="utf-8").read()
             def pick(name):
                 m = re.search(r"['\"]?%s['\"]?\s*[:=]\s*(\([^)]*\))" % name, src)
                 return ast.literal_eval(m.group(1)) if m else None
