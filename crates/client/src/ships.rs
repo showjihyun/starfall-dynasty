@@ -15,6 +15,7 @@ use bevy::world_serialization::WorldInstanceReady;
 use shared::missions::NpcArchetype;
 use shared::protocol::{EntityId, EntityKind, EntityState};
 use shared::ships::{HullClass, SizeClass};
+use view::fleet::FleetStyle;
 use std::collections::HashMap;
 
 pub struct ShipsPlugin;
@@ -312,14 +313,15 @@ struct ModelRoot(Entity);
 
 pub use view::palette::LIVERIES;
 
-/// Dedicated enemy model (name, nominal length) if the archetype has one.
+/// Dedicated enemy model (name, nominal length) if the archetype has one. The leviathan's is the Aster
+/// fleet style's (`view::fleet`).
 pub fn npc_model(kind: EntityKind) -> Option<(&'static str, f32)> {
     match kind {
         EntityKind::Npc(NpcArchetype::Raider) => Some(("npc_raider", 20.0)),
         EntityKind::Npc(NpcArchetype::Gunship) => Some(("npc_gunship", 32.0)),
         EntityKind::Npc(NpcArchetype::Warden) => Some(("npc_warden", 26.0)),
         EntityKind::Npc(NpcArchetype::Warlord) => Some(("npc_warlord", 66.0)),
-        EntityKind::Npc(NpcArchetype::Sentinel) => Some(("npc_sentinel", 130.0)),
+        EntityKind::Npc(_) => FleetStyle::of(kind, None, None).and_then(|(style, class)| style.model(class)),
         _ => None,
     }
 }
@@ -335,26 +337,11 @@ fn hull_lengths(h: HullClass) -> (&'static str, [f32; 3]) {
     }
 }
 
-/// Each species flies cruisers and capitals of its own design (docs/ART_DIRECTION.md §4; built by
-/// tools/blender/build_styles.py --game): name and nominal length (m). Small ships are their hull family's.
-pub fn species_model(s: shared::galaxy::Species, class: SizeClass) -> Option<(&'static str, f32)> {
-    use shared::galaxy::Species;
-    Some(match (s, class) {
-        (Species::Human, SizeClass::Capital) => ("human_capital", 420.0),
-        (Species::Veyr, SizeClass::Capital) => ("veyr_capital", 420.0),
-        (Species::Kharz, SizeClass::Capital) => ("kharz_capital", 420.0),
-        (Species::Human, SizeClass::Cruiser) => ("human_cruiser", 150.0),
-        (Species::Veyr, SizeClass::Cruiser) => ("veyr_cruiser", 150.0),
-        (Species::Kharz, SizeClass::Cruiser) => ("kharz_cruiser", 150.0),
-        (_, SizeClass::Small) => return None,
-    })
-}
-
-/// Model for a player/escort ship at its growth stage: a cruiser or capital is its captain's species'
-/// design, a small ship its hull family's; falls back to the family's model of that stage, then to a
-/// smaller stage, if a model is missing.
+/// Model for a player/escort ship at its growth stage: a cruiser or capital is built in its captain's
+/// people's fleet style (`view::fleet::FleetStyle`, docs/ART_DIRECTION.md §4), a small ship is its hull
+/// family's; falls back to the family's model of that stage, then to a smaller stage, if a model is missing.
 pub fn stage_model(has: impl Fn(&str) -> bool, hull: HullClass, class: SizeClass, species: Option<shared::galaxy::Species>) -> (String, f32) {
-    if let Some((name, len)) = species.and_then(|s| species_model(s, class)).filter(|(n, _)| has(n)) {
+    if let Some((name, len)) = species.and_then(|s| FleetStyle::of_species(s).model(class)).filter(|(n, _)| has(n)) {
         return (name.to_string(), len);
     }
     let (base, lens) = hull_lengths(hull);
@@ -424,8 +411,11 @@ fn load_models(mut commands: Commands, server: Res<AssetServer>, mut meshes: Res
         let base = hull_lengths(h).0;
         names.extend([base.to_string(), format!("{base}_cruiser"), format!("{base}_capital")]);
     }
-    for s in shared::galaxy::Species::ALL {
-        names.extend([SizeClass::Cruiser, SizeClass::Capital].iter().filter_map(|c| species_model(s, *c)).map(|(n, _)| n.to_string()));
+    // The four fleet styles' ships (the leviathan is already in the list above).
+    for (name, _) in FleetStyle::ALL.iter().flat_map(|s| s.models()) {
+        if !names.iter().any(|n| n == name) {
+            names.push(name.to_string());
+        }
     }
     for name in names {
         let file = format!("models/{name}.glb");
@@ -985,13 +975,16 @@ mod tests {
         // No species (never a player, but the showroom spawns such ships), or the model not shipped: the family's.
         assert_eq!(stage_model(all, HullClass::Talon, SizeClass::Capital, None).0, "talon_capital");
         assert_eq!(stage_model(|n| !n.starts_with("veyr"), HullClass::Talon, SizeClass::Capital, Some(Species::Veyr)).0, "talon_capital");
-        // Every species has both, and the files are there.
-        for s in Species::ALL {
-            for class in [SizeClass::Cruiser, SizeClass::Capital] {
-                let name = species_model(s, class).unwrap().0;
+        // All four fleet styles ship: every model is there, and the leviathan is the Asters'.
+        for style in FleetStyle::ALL {
+            assert!(style.models().count() > 0, "{style:?}");
+            for (name, _) in style.models() {
                 assert!(assets_dir().join(format!("models/{name}.glb")).exists(), "{name}");
             }
         }
+        assert_eq!(npc_model(EntityKind::Npc(NpcArchetype::Sentinel)), FleetStyle::Aster.model(SizeClass::Capital));
+        assert_eq!(npc_model(EntityKind::Npc(NpcArchetype::Sentinel)), Some(("npc_sentinel", 130.0)));
+        assert_eq!(npc_model(EntityKind::Npc(NpcArchetype::Warden)), Some(("npc_warden", 26.0)));
     }
 
     #[test]

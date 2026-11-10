@@ -8,6 +8,7 @@
 //! - [`cinematic`]: in-engine cutscenes (camera, subtitles, cuts) as a function of the clock.
 //! - [`comms`]: the chapter-end comms window (who speaks, typing, emblem), checked headless.
 //! - [`voice`]: generated voice lines for those two (presets, manifest, timing checks).
+//! - [`fleet`]: the four fleet styles — who flies which, and each ship's model.
 //! - [`interp`]: snapshot interpolation and own-ship extrapolation.
 //! - [`relation`]: mine / friend / hostile / neutral, shared by the HUD and the star map.
 //! - [`mapview`]: star map projection, zoom and pan between the galaxy and system charts.
@@ -21,6 +22,7 @@ pub mod anim;
 pub mod cinematic;
 pub mod comms;
 pub mod dust;
+pub mod fleet;
 pub mod fonts;
 pub mod gauge;
 pub mod hud;
