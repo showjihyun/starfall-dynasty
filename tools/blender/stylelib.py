@@ -303,25 +303,82 @@ def _fire_mat(name, seed):
     Lk(d.outputs[0], ramp.inputs[0])
     heat = N('ShaderNodeValToRGB')
     e = heat.color_ramp.elements
-    e[0].position, e[0].color = 0.0, (0.5, 0.05, 0.0, 1)
-    e[1].position, e[1].color = 1.0, (1.0, 0.95, 0.75, 1)
-    mid = e.new(0.45)
-    mid.color = (1.0, 0.38, 0.05, 1)
+    e[0].position, e[0].color = 0.0, (0.35, 0.02, 0.0, 1)
+    e[1].position, e[1].color = 1.0, (1.0, 0.9, 0.6, 1)
+    mid = e.new(0.55)
+    mid.color = (1.0, 0.3, 0.03, 1)
     Lk(ramp.outputs[0], heat.inputs[0])
     dens = N('ShaderNodeMath')
     dens.operation = 'MULTIPLY'
-    dens.inputs[1].default_value = 0.9
+    dens.inputs[1].default_value = 2.2
     Lk(ramp.outputs[0], dens.inputs[0])
+    hot = N('ShaderNodeMath')
+    hot.operation = 'POWER'
+    hot.inputs[1].default_value = 2.6
+    Lk(ramp.outputs[0], hot.inputs[0])
     es = N('ShaderNodeMath')
     es.operation = 'MULTIPLY'
-    es.inputs[1].default_value = 4.5
-    Lk(ramp.outputs[0], es.inputs[0])
+    es.inputs[1].default_value = 34.0
+    Lk(hot.outputs[0], es.inputs[0])
     vol = N('ShaderNodeVolumePrincipled')
     vol.inputs['Color'].default_value = (0.05, 0.04, 0.04, 1)
     Lk(dens.outputs[0], vol.inputs['Density'])
     Lk(heat.outputs[0], vol.inputs['Emission Color'])
     Lk(es.outputs[0], vol.inputs['Emission Strength'])
     Lk(vol.outputs[0], out.inputs['Volume'])
+    return m
+
+
+def _shield_mat(name, color):
+    """A bubble seen only at its rim and where a hex lattice crosses it."""
+    m = bpy.data.materials.new(name)
+    m.use_nodes = True
+    nt = m.node_tree
+    for n in list(nt.nodes):
+        nt.nodes.remove(n)
+    N, Lk = nt.nodes.new, nt.links.new
+    out = N('ShaderNodeOutputMaterial')
+    lw = N('ShaderNodeLayerWeight')
+    lw.inputs['Blend'].default_value = 0.32
+    tc = N('ShaderNodeTexCoord')
+    vor = N('ShaderNodeTexVoronoi')
+    vor.feature = 'DISTANCE_TO_EDGE'
+    vor.inputs['Scale'].default_value = 16.0
+    Lk(tc.outputs['Object'], vor.inputs['Vector'])
+    cell = N('ShaderNodeMapRange')
+    cell.inputs['From Min'].default_value = 0.0
+    cell.inputs['From Max'].default_value = 0.02
+    cell.inputs['To Min'].default_value = 1.0
+    cell.inputs['To Max'].default_value = 0.0
+    Lk(vor.outputs['Distance'], cell.inputs['Value'])
+    sep = N('ShaderNodeSeparateXYZ')
+    Lk(tc.outputs['Object'], sep.inputs[0])
+    near = N('ShaderNodeMapRange')  # strongest toward the struck side (+Z of the bubble)
+    near.inputs['From Min'].default_value = 0.5
+    near.inputs['From Max'].default_value = 1.0
+    Lk(sep.outputs[2], near.inputs['Value'])
+    lat = N('ShaderNodeMath')
+    lat.operation = 'MULTIPLY'
+    Lk(cell.outputs[0], lat.inputs[0])
+    Lk(near.outputs[0], lat.inputs[1])
+    rim = N('ShaderNodeMath')
+    rim.operation = 'MULTIPLY'
+    rim.inputs[1].default_value = 0.0
+    Lk(lw.outputs['Fresnel'], rim.inputs[0])
+    a = N('ShaderNodeMath')
+    a.operation = 'ADD'
+    a.use_clamp = True
+    Lk(lat.outputs[0], a.inputs[0])
+    Lk(rim.outputs[0], a.inputs[1])
+    em = N('ShaderNodeEmission')
+    em.inputs['Color'].default_value = (*color, 1)
+    em.inputs['Strength'].default_value = 5.0
+    tr = N('ShaderNodeBsdfTransparent')
+    mx = N('ShaderNodeMixShader')
+    Lk(a.outputs[0], mx.inputs[0])
+    Lk(tr.outputs[0], mx.inputs[1])
+    Lk(em.outputs[0], mx.inputs[2])
+    Lk(mx.outputs[0], out.inputs['Surface'])
     return m
 
 
@@ -512,6 +569,62 @@ def battle(objs, empties, mats, tint, path, fast=False):
     blast(c3, 0.26 * L, 1)
     blast(c3 + V((0.16, -0.1, 0.1)) * L, 0.15 * L, 2, light=False)
     blast(c3 + V((-0.2, 0.12, -0.06)) * L, 0.12 * L, 3, light=False)
+
+    # Strike craft: far too small to model at this range, so a hot head and a fading trail each, in flights.
+    trail = {False: _emit("Trail", tint['engine'], 6.0), True: _emit("TrailFoe", tint.get('enemy_engine', tint['enemy_glow']), 6.0)}
+    for flight in range(9):
+        enemy = flight % 2 == 1
+        a = V((rnd.uniform(-0.9, 1.6), rnd.uniform(0.2, 3.2), rnd.uniform(-0.5, 0.7))) * L
+        d = V((rnd.uniform(-1, 1), rnd.uniform(-1, 1), rnd.uniform(-0.35, 0.35))).normalized()
+        side = d.cross(V((0, 0, 1))).normalized()
+        for k in range(rnd.randint(3, 5)):
+            head = a + side * (k - 2) * 0.035 * L + d * rnd.uniform(-0.03, 0.03) * L + V((0, 0, rnd.uniform(-0.015, 0.015) * L))
+            line(head - d * rnd.uniform(0.1, 0.2) * L, head, 0.0011 * L, trail[enemy])
+            f = _mesh_obj("Craft", _ico, bolt[enemy])
+            f.matrix_world = Matrix.Translation(head) @ Matrix.Diagonal((0.0022 * L,) * 3 + (1,))
+
+    # Flak around the two ships trading broadsides.
+    for i in range(16):
+        c = (lead if i % 2 else e1).translation + V((rnd.uniform(-0.45, 0.45), rnd.uniform(-0.6, 0.6), rnd.uniform(0.08, 0.4) * rnd.choice((-1, 1)))) * L
+        f = _mesh_obj("Flak", _ico, _fire_mat("Flak%d" % i, 1.7 * (i + 5)))
+        r = rnd.uniform(0.012, 0.028) * L
+        f.matrix_world = Matrix.Translation(c) @ Matrix.Diagonal((r, r, r, 1))
+
+    # The flagship's shield takes the beam that reaches it.
+    sh = _mesh_obj("Shield", _uv, _shield_mat("ShieldHit", tint['glow']))
+    at = lead @ V((0.02 * L, 0.18 * L, 0.02 * L))
+    out_dir = (e1.translation - at).normalized()
+    sh.matrix_world = Matrix.Translation(at) @ out_dir.to_track_quat('Z', 'Y').to_matrix().to_4x4() @ Matrix.Diagonal((0.15 * L, 0.15 * L, 0.09 * L, 1))
+
+    # Wreckage thrown from the ship going up: dark plates catching the fire.
+    plate = bpy.data.materials.new("Wreck")
+    plate.use_nodes = True
+    _bsdf(plate).inputs['Base Color'].default_value = (0.03, 0.03, 0.035, 1)
+    _bsdf(plate).inputs['Metallic'].default_value = 0.8
+    _bsdf(plate).inputs['Roughness'].default_value = 0.45
+    for i in range(70):
+        d = V((rnd.uniform(-1, 1), rnd.uniform(-1, 1), rnd.uniform(-1, 1))).normalized()
+        o = _mesh_obj("Shard", lambda bm: shiplib.box(bm, V((0, 0, 0)), (1, 1, 1)), plate)
+        for poly in o.data.polygons:
+            poly.use_smooth = False
+        sz = rnd.uniform(0.004, 0.022) * L
+        o.matrix_world = (Matrix.Translation(c3 + d * rnd.uniform(0.2, 0.75) * L)
+                          @ Euler((rnd.uniform(0, 6.3), rnd.uniform(0, 6.3), rnd.uniform(0, 6.3))).to_matrix().to_4x4()
+                          @ Matrix.Diagonal((sz * rnd.uniform(0.6, 2.5), sz * rnd.uniform(0.6, 2.5), sz * 0.25, 1)))
+
+    # The rest of both fleets, far off: silhouettes, plumes and their own exchange of fire.
+    far = []
+    for i, (loc, yaw, enemy) in enumerate((((-2.6, 7.5, 1.2), 14, False), ((-3.6, 10.5, -0.4), 8, False), ((-1.2, 12.0, 2.2), 20, False),
+                                           ((3.2, 8.5, 1.0), 200, True), ((2.0, 11.5, 2.0), 212, True), ((4.6, 12.5, -0.2), 196, True))):
+        far.append((ship(loc, rnd.uniform(-4, 4), rnd.uniform(-12, 12), yaw, enemy=enemy), enemy))
+    for i, ((M, g), enemy) in enumerate(far):
+        target = far[(i + 3) % 6][0][0]
+        volley(g[:5], target, enemy=enemy, beams=0)
+    blast(far[4][0][0].translation + V((0.1, 0, 0.05)) * L, 0.09 * L, 21, light=False)
+
+    # The sun breaking over the planet's limb.
+    sun = _mesh_obj("SunDisc", _ico, _emit("SunDisc", (1.0, 0.86, 0.66), 900.0))
+    sun.matrix_world = Matrix.Translation(V((-33, 262, 26)) * L) @ Matrix.Diagonal((1.6 * L,) * 3 + (1,))
 
     planet = _mesh_obj("PlanetObj", _uv, _planet_mat())
     planet.matrix_world = Matrix.Translation(V((-150, 260, -146)) * L) @ Matrix.Diagonal((138 * L,) * 3 + (1,))
