@@ -119,16 +119,26 @@ fn spawn_fx(
                 let Ok((sv, stf)) = ships.get(fe) else { continue };
                 // Shots take the shooter's side colours (palette::side): whoever is hostile to me fires red.
                 let side = view::palette::side::of(sv.hostile);
-                let target_pos = vis.map.get(&to).and_then(|e| ships.get(*e).ok()).map(|(_, t)| t.translation);
+                let target = vis.map.get(&to).and_then(|e| ships.get(*e).ok()).map(|(v, t)| (t.translation, t.rotation, v.radius));
+                let target_pos = target.map(|t| t.0);
+                // Where a shot from `start` lands: on the near side of the target's hull, scattered — the same
+                // shot (shooter, mount, moment) always in the same place (view::anim::impact_point).
+                let seed = from.wrapping_mul(31) ^ ((mount as u32) << 8) ^ ((born * 8.0) as u32).wrapping_mul(2_654_435_761);
+                let strike = |start: Vec3| target.map(|(p, rot, r)| p + rot * view::anim::impact_point(rot.inverse() * (start - p), r, seed));
+                // A flash at the muzzle, for the ships close enough to show it.
+                let near = sv.lod == view::anim::EngineLod::Full;
                 let fwd = stf.rotation * Vec3::NEG_Z;
                 let pick = |list: &Vec<Entity>, k: usize| list.get(k % list.len().max(1)).and_then(|e| gt.get(*e).ok()).map(|g| g.translation());
                 match weapon {
                     WeaponKind::Laser => {
                         *muzzle_toggle += 1;
                         let start = pick(&sv.muzzles, *muzzle_toggle).unwrap_or(stf.translation + fwd * sv.radius);
-                        let end = target_pos.unwrap_or(start + fwd * 650.0);
+                        let end = strike(start).unwrap_or(start + fwd * 650.0);
                         let col = side.laser;
                         spawn_beam(&mut commands, &assets, &mut beams, &mut pool, (t, born), start, end, col, 1.8, 0.14);
+                        if near {
+                            spawn_boom(&mut commands, &assets, &mut booms, &mut pool, (t, born), start, 0.06, 0.18);
+                        }
                         if hit && to != 0 {
                             spawn_boom(&mut commands, &assets, &mut booms, &mut pool, (t, born), end + (start - end).normalize_or_zero() * 4.0, 0.15, 0.35);
                         }
@@ -151,10 +161,13 @@ fn spawn_fx(
                             stf.translation + stf.rotation * view::anim::battery_mount(k, n.max(k + 1), beam, sv.radius, tx)
                         };
                         let start = pick(list, k / 2).unwrap_or_else(mount_at);
-                        let Some(end) = target_pos else { continue };
+                        let Some(end) = strike(start) else { continue };
                         let col = side.pulse;
                         let w = (sv.radius * 0.012).clamp(2.0, 6.0);
                         spawn_beam(&mut commands, &assets, &mut beams, &mut pool, (t, born), start, end, col, w, 0.12);
+                        if near {
+                            spawn_boom(&mut commands, &assets, &mut booms, &mut pool, (t, born), start, w * 0.04, 0.2);
+                        }
                         spawn_boom(&mut commands, &assets, &mut booms, &mut pool, (t, born), end + (start - end).normalize_or_zero() * 6.0, 0.25, 0.4);
                         sfx.play(Sfx::Pulse, Some(start));
                         if let Ok((mut svm, _)) = ships.get_mut(fe) {

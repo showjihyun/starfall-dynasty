@@ -118,6 +118,23 @@ pub fn battery_mount(k: usize, n: usize, beam: u8, radius: f32, target_x: f32) -
     }
 }
 
+/// Where a shot arriving from `from` (the shooter, in the target's own frame) lands on a hull of
+/// `radius`: on the side facing the shooter, scattered by `seed` — a capital is hit along its
+/// length and across its flank, not through one point at its centre. In the target's frame; the
+/// hull is taken as an ellipsoid as long as the model (2.2 radii) and a good deal slimmer.
+pub fn impact_point(from: Vec3, radius: f32, seed: u32) -> Vec3 {
+    let unit = |k: u32| {
+        let h = (seed ^ k.wrapping_mul(0x9E37_79B9)).wrapping_mul(0x85EB_CA6B);
+        ((h ^ (h >> 15)).wrapping_mul(0xC2B2_AE35) >> 8) as f32 / (1u32 << 24) as f32 * 2.0 - 1.0
+    };
+    let half = Vec3::new(0.42, 0.24, 1.0) * radius;
+    // A direction somewhere on the hemisphere facing the shooter.
+    let toward = from.normalize_or(Vec3::NEG_Z);
+    let d = (toward + Vec3::new(unit(1), unit(2), unit(3)) * 0.85).normalize_or(toward);
+    let d = if d.dot(toward) < 0.0 { d - toward * 2.0 * d.dot(toward) } else { d };
+    d / (d / half).length()
+}
+
 /// Seconds a ship dropping out of warp takes to settle from its streak into its hull.
 pub const WARP_IN_SECS: f32 = 0.7;
 /// How long a ship looks along its way the moment it drops out of warp (times its length).
@@ -202,6 +219,27 @@ mod tests {
         }
         // Brighter towards the jump, whatever the beat.
         assert!(warp_spool(1.0, 4.0) < 0.07 && warp_spool(3.9, 4.0) > 0.65);
+    }
+
+    #[test]
+    fn shots_land_on_the_side_of_the_hull_facing_the_shooter_and_spread_over_it() {
+        let r = 200.0;
+        for from in [Vec3::new(900.0, 100.0, -300.0), Vec3::new(-50.0, -800.0, 0.0), Vec3::new(0.0, 0.0, 2000.0)] {
+            let hits: Vec<Vec3> = (0..200).map(|k| impact_point(from, r, k)).collect();
+            for p in &hits {
+                assert!(p.dot(from) >= -1e-3, "the far side is never hit: {p:?} from {from:?}");
+                // On the hull: within its length and beam, and off its centre.
+                assert!(p.z.abs() <= r * 1.001 && p.x.abs() <= r * 0.43 && p.y.abs() <= r * 0.25, "{p:?}");
+                assert!(p.length() > r * 0.2, "{p:?}");
+            }
+            // Spread: a broadside is struck along a good part of the length, not at one point.
+            let (lo, hi) = hits.iter().fold((f32::MAX, f32::MIN), |(lo, hi), p| (lo.min(p.z), hi.max(p.z)));
+            assert!(hi - lo > r * 0.5, "spread {} from {from:?}", hi - lo);
+        }
+        // The same shot lands in the same place.
+        assert_eq!(impact_point(Vec3::X, r, 7), impact_point(Vec3::X, r, 7));
+        // A shooter at the very centre (never, but no NaN).
+        assert!(impact_point(Vec3::ZERO, r, 1).is_finite());
     }
 
     #[test]
