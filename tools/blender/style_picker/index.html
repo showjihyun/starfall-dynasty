@@ -1,0 +1,293 @@
+<title>Starfall 함선 스타일 선택</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Sans+KR:wght@400;500;600&display=swap">
+<style>
+/* Layout: a hangar viewing bay. One large turntable stage, a spec plate beside it, the combat still below. */
+:root {
+  color-scheme: dark;
+  --bg: #070a10;
+  --panel: #0e131c;
+  --line: #1f2836;
+  --fg: #e6ebf2;
+  --dim: #8c98aa;
+  --accent: #6fd3ff;
+  --stage-top: #131a26;
+  --stage-bottom: #04060a;
+  --display: "Chakra Petch", "IBM Plex Sans KR", system-ui, sans-serif;
+  --body: "IBM Plex Sans KR", system-ui, -apple-system, "Malgun Gothic", sans-serif;
+}
+body {
+  background: var(--bg); color: var(--fg); font-family: var(--body); font-size: 15px; line-height: 1.6;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 20px 48px;
+}
+.wrap { max-width: 1280px; margin: 0 auto; display: flex; flex-direction: column; gap: 18px; }
+header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 18px; }
+h1 { font-family: var(--display); font-weight: 700; font-size: 26px; letter-spacing: .02em; margin: 0; text-wrap: balance; }
+header p { margin: 0; color: var(--dim); max-width: 65ch; }
+.tabs { display: flex; flex-wrap: wrap; gap: 8px; }
+.tab {
+  font: 600 14px var(--display); letter-spacing: .04em; color: var(--dim); background: var(--panel);
+  border: 1px solid var(--line); padding: 9px 14px; cursor: pointer; display: flex; align-items: center; gap: 8px;
+  clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px);
+}
+.tab i { width: 9px; height: 9px; background: var(--chip); display: block; transform: rotate(45deg); }
+.tab[aria-selected="true"] { color: var(--bg); background: var(--accent); border-color: var(--accent); }
+.tab[aria-selected="true"] i { background: var(--bg); }
+.tab:focus-visible, button:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
+.bay { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 18px; align-items: start; }
+.stage {
+  position: relative; aspect-ratio: 16 / 10; max-width: 100%; border: 1px solid var(--line);
+  background: radial-gradient(120% 90% at 50% 35%, var(--stage-top), var(--stage-bottom)); overflow: hidden; touch-action: none;
+}
+.stage canvas, .stage img { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.stage img { object-fit: cover; }
+[hidden] { display: none !important; }
+.hud { position: absolute; left: 12px; bottom: 10px; right: 12px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; pointer-events: none; }
+.hud button {
+  pointer-events: auto; font: 500 12px var(--body); color: var(--fg); background: color-mix(in srgb, var(--bg) 70%, transparent);
+  border: 1px solid var(--line); padding: 6px 10px; cursor: pointer;
+}
+.hud button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
+.hud span { margin-left: auto; font-size: 12px; color: var(--dim); }
+.status { position: absolute; top: 12px; left: 12px; font: 500 12px var(--display); letter-spacing: .08em; color: var(--dim); }
+.plate { border: 1px solid var(--line); background: var(--panel); padding: 18px; display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.plate .code { font: 600 12px var(--display); letter-spacing: .16em; color: var(--accent); }
+.plate h2 { font: 700 22px var(--display); margin: 0; text-wrap: balance; }
+.plate p { margin: 0; }
+.plate dl { margin: 0; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 6px 14px; font-size: 13px; }
+.plate dt { color: var(--dim); }
+.plate dd { margin: 0; font-variant-numeric: tabular-nums; }
+.swatches { display: flex; gap: 6px; }
+.swatches b { width: 26px; height: 14px; display: block; border: 1px solid var(--line); }
+.pick { border-top: 1px solid var(--line); padding-top: 14px; display: flex; flex-direction: column; gap: 8px; font-size: 13px; color: var(--dim); }
+.pick button {
+  font: 600 14px var(--display); letter-spacing: .04em; color: var(--bg); background: var(--accent); border: 0; padding: 10px 14px; cursor: pointer;
+  clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px);
+}
+.pick code { color: var(--fg); font-family: var(--display); user-select: all; }
+section h3 { font: 600 13px var(--display); letter-spacing: .16em; color: var(--dim); margin: 0 0 8px; text-transform: uppercase; }
+.still { border: 1px solid var(--line); display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; background: var(--stage-bottom); }
+.cap { color: var(--dim); font-size: 13px; margin: 8px 0 0; max-width: 80ch; }
+.cmp { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; min-width: 720px; }
+th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { color: var(--dim); font-weight: 500; }
+td:first-child { font-family: var(--display); font-weight: 600; white-space: nowrap; }
+@media (max-width: 900px) { .bay { grid-template-columns: minmax(0, 1fr); } h1 { font-size: 22px; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>STARFALL DYNASTY 함선 스타일 선택</h1>
+    <p>우주를 항행하는 주력함(전장 약 420 m)을 네 가지 방향으로 새로 만들었습니다. 드래그로 돌리고 휠로 당겨 보신 뒤 하나를 골라 주세요. 고르신 방향으로 전 함선을 다시 만듭니다.</p>
+  </header>
+
+  <div class="tabs" role="tablist" id="tabs"></div>
+
+  <div class="bay">
+    <div class="stage" id="stage">
+      <img id="poster" alt="">
+      <canvas id="view"></canvas>
+      <div class="status" id="status"></div>
+      <div class="hud">
+        <button id="spin" type="button" aria-pressed="true">자동 회전</button>
+        <button id="burn" type="button" aria-pressed="true">엔진 점화</button>
+        <button id="reset" type="button">시점 초기화</button>
+        <span>드래그 회전 · 휠 확대 · 우클릭 이동</span>
+      </div>
+    </div>
+    <aside class="plate">
+      <div class="code" id="code"></div>
+      <h2 id="name"></h2>
+      <p id="desc"></p>
+      <dl>
+        <dt>참고작</dt><dd id="refs"></dd>
+        <dt>삼각형</dt><dd id="tris"></dd>
+        <dt>색</dt><dd><div class="swatches" id="sw"></div></dd>
+        <dt>잘 맞는 점</dt><dd id="pro"></dd>
+        <dt>감수할 점</dt><dd id="con"></dd>
+      </dl>
+      <div class="pick" id="pick">
+        <button id="copy" type="button">이 스타일로 결정 (문구 복사)</button>
+        <span>채팅창에 <code id="phrase"></code> 라고 답해 주시면 됩니다.</span>
+      </div>
+    </aside>
+  </div>
+
+  <section>
+    <h3>교전 장면</h3>
+    <img class="still" id="battle" alt="">
+    <p class="cap">모든 후보를 같은 연출(아군 2척 대 적 3척의 포격전, 같은 카메라와 조명)으로 Blender Cycles에서 렌더했습니다. 포화와 엔진 색, 적 도색만 스타일마다 다릅니다.</p>
+  </section>
+
+  <section>
+    <h3>네 방향 비교</h3>
+    <div class="cmp"><table>
+      <thead><tr><th>방향</th><th>형태 언어</th><th>재질과 도색</th><th>교전에서 읽히는 것</th></tr></thead>
+      <tbody id="rows"></tbody>
+    </table></div>
+    <p class="cap">Reddit 원문은 접근이 막혀 직접 읽지 못했습니다. 방향은 해당 장르에서 널리 알려진 게임들의 디자인 언어를 기준으로 잡았습니다.</p>
+  </section>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.146.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.146.0/examples/js/controls/OrbitControls.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.146.0/examples/js/loaders/GLTFLoader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.146.0/examples/js/environments/RoomEnvironment.js"></script>
+<script>
+const STYLES = /*STYLES*/[]/*END*/;
+
+const $ = id => document.getElementById(id);
+let current = null, spin = true, burn = true;
+const cache = {};
+
+// ---- page chrome
+const tabs = $('tabs');
+STYLES.forEach(s => {
+  const b = document.createElement('button');
+  b.className = 'tab'; b.type = 'button'; b.id = 'tab-' + s.key; b.setAttribute('role', 'tab');
+  b.style.setProperty('--chip', s.accent);
+  b.innerHTML = '<i></i>' + s.tab;
+  b.onclick = () => show(s.key);
+  tabs.appendChild(b);
+});
+$('rows').innerHTML = STYLES.filter(s => s.key !== 'baseline').map(s =>
+  `<tr><td>${s.tab}</td><td>${s.form}</td><td>${s.surface}</td><td>${s.combat}</td></tr>`).join('');
+
+function show(key) {
+  const s = STYLES.find(x => x.key === key) || STYLES[0];
+  current = s;
+  document.documentElement.style.setProperty('--accent', s.accent);
+  STYLES.forEach(x => $('tab-' + x.key).setAttribute('aria-selected', String(x === s)));
+  $('code').textContent = s.code;
+  $('name').textContent = s.name;
+  $('desc').textContent = s.desc;
+  $('refs').textContent = s.refs;
+  $('tris').textContent = s.tris.toLocaleString('ko-KR') + (s.key === 'baseline' ? '' : ' (현재 ' + STYLES[0].tris.toLocaleString('ko-KR') + ')');
+  $('pro').textContent = s.pro;
+  $('con').textContent = s.con;
+  $('sw').innerHTML = s.colors.map(c => `<b style="background:${c}"></b>`).join('');
+  $('pick').hidden = s.key === 'baseline';
+  $('phrase').textContent = s.tab + ' 스타일로 진행';
+  $('battle').src = s.key + '_battle.jpg';
+  $('battle').alt = s.name + ' 교전 장면';
+  $('poster').src = s.key + '_hero.jpg';
+  $('poster').alt = s.name + ' 렌더';
+  if (location.hash.slice(1) !== s.key) history.replaceState(null, '', '#' + s.key);
+  load(s);
+}
+$('copy').onclick = () => {
+  const t = $('phrase').textContent, b = $('copy');
+  const done = () => { b.textContent = '복사했습니다. 채팅에 붙여 넣어 주세요'; setTimeout(() => b.textContent = '이 스타일로 결정 (문구 복사)', 2400); };
+  try { navigator.clipboard.writeText(t).then(done, () => getSelection().selectAllChildren($('phrase'))); }
+  catch (e) { getSelection().selectAllChildren($('phrase')); }
+};
+const toggle = (id, get, set) => $(id).onclick = () => { set(!get()); $(id).setAttribute('aria-pressed', String(get())); };
+toggle('spin', () => spin, v => { spin = v; if (controls) controls.autoRotate = v; });
+toggle('burn', () => burn, v => { burn = v; plumes.forEach(p => p.visible = v); });
+
+// ---- 3D stage
+let renderer, scene, camera, controls, holder, plumes = [], ok = false;
+function init() {
+  if (!window.THREE || !THREE.GLTFLoader || !THREE.OrbitControls) return false;
+  const canvas = $('view');
+  try { renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true }); } catch (e) { return false; }
+  renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2));
+  renderer.outputEncoding = THREE.sRGBEncoding;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.05;
+  renderer.physicallyCorrectLights = true;
+  scene = new THREE.Scene();
+  if (THREE.RoomEnvironment) {
+    const pm = new THREE.PMREMGenerator(renderer);
+    scene.environment = pm.fromScene(new THREE.RoomEnvironment(), 0.04).texture;
+  }
+  const key = new THREE.DirectionalLight(0xfff2e0, 3.2); key.position.set(8, 11, 10); scene.add(key);
+  const rim = new THREE.DirectionalLight(0x8cb8ff, 3.0); rim.position.set(-11, 5, -10); scene.add(rim);
+  const fill = new THREE.DirectionalLight(0xb0b0e0, 0.5); fill.position.set(-6, -7, 6); scene.add(fill);
+  // stars
+  const n = 900, pos = new Float32Array(n * 3);
+  let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  for (let i = 0; i < n; i++) {
+    const u = rnd() * 2 - 1, a = rnd() * Math.PI * 2, r = Math.sqrt(1 - u * u);
+    pos.set([r * Math.cos(a) * 400, u * 400, r * Math.sin(a) * 400], i * 3);
+  }
+  const sg = new THREE.BufferGeometry(); sg.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  scene.add(new THREE.Points(sg, new THREE.PointsMaterial({ color: 0xcfd8ea, size: 1.4, sizeAttenuation: false, transparent: true, opacity: 0.7 })));
+  camera = new THREE.PerspectiveCamera(32, 1.6, 0.5, 2000);
+  controls = new THREE.OrbitControls(camera, canvas);
+  controls.enableDamping = true; controls.autoRotate = spin; controls.autoRotateSpeed = 1.6;
+  controls.minDistance = 8; controls.maxDistance = 120;
+  holder = new THREE.Group(); scene.add(holder);
+  resetView();
+  const fit = () => {
+    const r = $('stage').getBoundingClientRect();
+    if (!r.width) return;
+    renderer.setSize(r.width, r.height, false); camera.aspect = r.width / r.height; camera.updateProjectionMatrix();
+  };
+  new ResizeObserver(fit).observe($('stage')); fit();
+  const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (still) { spin = false; controls.autoRotate = false; $('spin').setAttribute('aria-pressed', 'false'); }
+  const t0 = performance.now();
+  (function tick() {
+    const t = (performance.now() - t0) / 1000;
+    plumes.forEach((p, i) => { const k = 1 + 0.06 * Math.sin(t * 23 + i * 1.7); p.scale.set(p.userData.r, p.userData.len * k, p.userData.r); });
+    controls.update(); renderer.render(scene, camera); requestAnimationFrame(tick);
+  })();
+  return true;
+}
+function resetView() { camera.position.set(-24, 13, -30); controls.target.set(0, 0, 0); controls.update(); }
+$('reset').onclick = () => ok && resetView();
+
+function plumeMesh(color) {
+  const g = new THREE.ConeGeometry(1, 1, 28, 1, true); g.rotateX(Math.PI); g.translate(0, -0.5, 0);
+  const m = new THREE.ShaderMaterial({
+    transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
+    uniforms: { c: { value: new THREE.Color(color) } },
+    vertexShader: 'varying float h; varying vec3 n; varying vec3 v; void main(){ h = -position.y; n = normalize(normalMatrix * normal); vec4 p = modelViewMatrix * vec4(position,1.0); v = normalize(-p.xyz); gl_Position = projectionMatrix * p; }',
+    fragmentShader: 'uniform vec3 c; varying float h; varying vec3 n; varying vec3 v; void main(){ float f = pow(1.0 - h, 2.2); float e = pow(abs(dot(normalize(n), v)), 1.5); float a = f * e; gl_FragColor = vec4(mix(c, vec3(1.0), a) * a * 2.2, a); }',
+  });
+  return new THREE.Mesh(g, m);
+}
+
+function place(s, gltf) {
+  holder.clear(); plumes = [];
+  const root = gltf.scene;
+  root.scale.setScalar(1); root.position.set(0, 0, 0); root.updateMatrixWorld(true);
+  const box = new THREE.Box3().setFromObject(root), size = box.getSize(new THREE.Vector3()), mid = box.getCenter(new THREE.Vector3());
+  const k = 24 / Math.max(size.x, size.y, size.z);  // every candidate the same size on the stage
+  root.scale.setScalar(k); root.position.copy(mid).multiplyScalar(-k);
+  holder.add(root);
+  root.traverse(o => {
+    if (o.isMesh && o.material && o.material.name === 'EngineCore') o.material.emissiveIntensity = 3;
+    if (/^Engine_\d+$/.test(o.name)) {
+      const p = plumeMesh(s.engine);
+      const r = o.scale.x * 0.95;
+      p.userData = { r: r / o.scale.x, len: r * 10 / o.scale.x };
+      p.rotation.x = -Math.PI / 2;  // cone axis -Y -> +Z, the model's rear
+      p.visible = burn;
+      o.add(p); plumes.push(p);
+    }
+  });
+}
+
+function load(s) {
+  if (!ok) { $('status').textContent = '3D를 열 수 없어 렌더 이미지를 보여 드립니다'; return; }
+  const set = t => { if (current === s) $('status').textContent = t; };
+  const done = g => { if (current !== s) return; place(s, g); $('poster').hidden = true; set(s.code); };
+  if (cache[s.key]) return done(cache[s.key]);
+  $('poster').hidden = false; holder.clear(); plumes = [];
+  set('모델 불러오는 중');
+  fetch(s.key + '.glb.txt').then(r => { if (!r.ok) throw new Error(r.status); return r.text(); }).then(t => {
+    const bin = atob(t), buf = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
+    new THREE.GLTFLoader().parse(buf.buffer, '', g => { cache[s.key] = g; done(g); }, () => set('모델을 열지 못해 렌더 이미지를 보여 드립니다'));
+  }).catch(() => set('모델을 불러오지 못해 렌더 이미지를 보여 드립니다'));
+}
+
+ok = init();
+if (!ok) $('view').hidden = true;
+addEventListener('hashchange', () => show(location.hash.slice(1)));
+show(location.hash.slice(1) || (STYLES[1] || STYLES[0]).key);
+</script>
