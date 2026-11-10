@@ -47,6 +47,16 @@ def apply_tint(mats, tint):
         _bsdf(mats["Glass"]).inputs['Base Color'].default_value = (*tint['glass'], 1)
 
 
+def neutral(mats):
+    """Back to what the game expects and tints itself (shiplib.make_flat_materials)."""
+    for name, vals in (("Livery", {'Base Color': (0.8, 0.8, 0.8, 1), 'Metallic': 0.3, 'Roughness': 0.4}),
+                       ("Glow", {'Emission Color': (1, 1, 1, 1), 'Emission Strength': 5.0}),
+                       ("Glass", {'Base Color': (0.015, 0.03, 0.045, 1)}),
+                       ("EngineCore", {'Emission Color': (1.0, 0.62, 0.32, 1), 'Emission Strength': 5.0})):
+        for k, v in vals.items():
+            _bsdf(mats[name]).inputs[k].default_value = v
+
+
 # ---------------------------------------------------------------- studio
 
 def setup_world(tint):

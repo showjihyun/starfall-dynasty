@@ -136,6 +136,13 @@ Core `GREEN` → Frontier (255,210,90) → Wild (255,140,60) → War Zone `RED` 
   - 중·대형 선체(`build_capitals.py`, `species_kits(ship, big=True)`): 부품을 선체 길이의 절반 비율로 줄이고 선체를 따라 반복한다(마스트 넷, 방열 핀 세 곳, 늑골 다섯, 장갑판 다섯). 늑골은 단면을 24방향 레이캐스트로 따서 상자형 선체(Bastion)도 감싼다. 탑·포탑이 튀어나온 방향은 원형 중앙값으로 걸러낸다. 장갑판·해치는 둥근 등에는 가장 낮은 모서리까지 내려 앉히고, 탑 가장자리처럼 모서리가 허공에 뜨는 자리는 건너뛴다. 척추 발광선은 탑을 넘어가는 구간을 생략한다.
   - 검토용 미리보기: `tools/blender/previews/<선체>_species.png`, `cap_<선체>_species.png`(종족 셋을 같은 각도로).
   - 종족별 리버리 기본값: 3.6절.
+- **3단계(주력함 완료, 2026-11-11):** 주력함은 선체 계열이 아니라 **함장의 종족이 설계를 정한다**(`ships::species_capital`, `stage_model`). 소형·순양함은 그대로 선체 계열 모델에 종족 부착물을 단다.
+  - Human → `human_capital.glb`: 창끝 본체와 쌍동 선체, 흐르는 곡면, 넓은 도색면, 창문 띠(후보 「글로벌」).
+  - Veyr → `veyr_capital.glb`: 함수 주포구, 탑형 함교, 겹친 3연장 포탑, 사출 갑판, 흰 장갑(후보 「일본식」).
+  - Kharz → `kharz_capital.glb`: 장갑 성채, 격납고 포드, 포갑판, 드러난 구조(후보 「서양식」).
+  - 아스테르(고대 문명)의 리바이어던 센티넬 → `npc_sentinel.glb`: 빛나는 핵을 감싼 흑요석 칼날과 새겨진 발광 문양(후보 「미지의 우주」).
+  - 만드는 법: `tools/blender/build_styles.py --game`(소스 `tools/blender/styles/{global,japan,west,unknown}.py`). 길이 420 m(리바이어던 130 m), 포구는 `Muzzle_N`, 앞쪽 둘은 `Main_N`, 가장 높은 곳에 `Bridge`, 접시와 노즐 베인 리그. 종족 부착물·등급 파츠·선회 포탑 노드는 없다(포탑은 선체에 붙어 있다).
+  - 선체 셰이더의 종족 스타일(1단계)은 그대로 위에 입혀진다. 후보를 고른 과정과 같은 조명의 비교 렌더: `tools/blender/style_picker/`.
 - **규칙:** 종족 색은 관계 색(3.4절)과 겹치지 않는다. Kharz는 빨강이 아닌 호박색, Veyr는 아군 청록과 구분되는 보라를 쓴다.
 
 | 종족 | 기획 키워드 | 형태 언어 | 재질·색 | 발광 | 프롬프트 |
@@ -295,7 +302,7 @@ cores, running lights and weapon ports.
 | `docs/art/reference/human.png` | `--showroom 7 --hull talon --look bow --species human --shot-at 20` | Human: 기준 선체, 네이비, 마스트·방열 핀·해치 |
 | `docs/art/reference/veyr.png` | `--showroom 7 --hull talon --look bow --species veyr --shot-at 20` | Veyr: 진주빛 청록, 바이올렛, 보라 맥, 고리 늑골 |
 | `docs/art/reference/kharz.png` | `--showroom 7 --hull talon --look bow --species kharz --shot-at 20` | Kharz: 그을린 쇠, 골드, 호박색 열 균열, 뿔, 덧댄 장갑 |
-| `docs/art/reference/capital.png` | `--showroom 7 --hull bastion --class capital --look ship --species veyr` | 대형 선체: Bastion 주력함, 단면을 감싸는 Veyr 늑골 |
+| `docs/art/reference/capital.png` | `--showroom 7 --hull bastion --class capital --look ship --species veyr` | 대형 선체: Veyr 주력함(종족 설계, 4절 3단계) |
 | `docs/art/reference/opening_gate.png` | `--cinematic opening --shot-at 14` | 오프닝: 고대 게이트, 첫 자막, 레터박스(docs/STORY.md) |
 | `docs/art/reference/opening_war.png` | `--cinematic opening --shot-at 66` | 오프닝: Vesta Front 전열, 두 줄 자막(줄마다 가운데) |
 | `docs/art/reference/opening_title.png` | `--cinematic opening --shot-at 87` | 오프닝: 함장 함선 정면과 제목 카드(위쪽 3분의 1) |

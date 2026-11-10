@@ -37,7 +37,7 @@ SCENES = {
     'human': (['--showroom', '7', '--hull', 'talon', '--look', 'bow', '--species', 'human', '--shot-at', '20'], 'Human: worn-industrial hulls, masts, radiators, hatch'),
     'veyr': (['--showroom', '7', '--hull', 'talon', '--look', 'bow', '--species', 'veyr', '--shot-at', '20'], 'Veyr: dark-teal nacre, violet veins, hoop ribs'),
     'kharz': (['--showroom', '7', '--hull', 'talon', '--look', 'bow', '--species', 'kharz', '--shot-at', '20'], 'Kharz: blackened iron, amber heat seams, bow horns, patch armour'),
-    'capital': (['--showroom', '7', '--hull', 'bastion', '--class', 'capital', '--look', 'ship', '--species', 'veyr'], 'Bastion capital, Veyr: section-hugging hoop ribs on a boxy hull'),
+    'capital': (['--showroom', '7', '--hull', 'bastion', '--class', 'capital', '--look', 'ship', '--species', 'veyr'], 'Veyr capital: the species design (docs/ART_DIRECTION.md 4, stage 3)'),
     # Campaign opening (docs/STORY.md §5); --shot-at counts from the cinematic's own clock.
     'opening_gate': (['--cinematic', 'opening', '--shot-at', '14'], 'Opening: ancient gate, first subtitle, letterbox'),
     'opening_war': (['--cinematic', 'opening', '--shot-at', '66'], 'Opening: Vesta Front battle lines, two-line subtitle'),

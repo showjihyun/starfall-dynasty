@@ -335,8 +335,25 @@ fn hull_lengths(h: HullClass) -> (&'static str, [f32; 3]) {
     }
 }
 
-/// Model for a player/escort ship at its growth stage, falling back to a smaller stage if a model is missing.
-pub fn stage_model(models: &Models, hull: HullClass, class: SizeClass) -> (String, f32) {
+/// Each species flies a capital of its own design (docs/ART_DIRECTION.md §4; built by
+/// tools/blender/build_styles.py --game): name and nominal length (m).
+pub fn species_capital(s: shared::galaxy::Species) -> (&'static str, f32) {
+    use shared::galaxy::Species;
+    match s {
+        Species::Human => ("human_capital", 420.0),
+        Species::Veyr => ("veyr_capital", 420.0),
+        Species::Kharz => ("kharz_capital", 420.0),
+    }
+}
+
+/// Model for a player/escort ship at its growth stage: a capital is its captain's species' design, the
+/// smaller stages its hull family's; falls back to the family's capital, then to a smaller stage, if a model is missing.
+pub fn stage_model(has: impl Fn(&str) -> bool, hull: HullClass, class: SizeClass, species: Option<shared::galaxy::Species>) -> (String, f32) {
+    if class == SizeClass::Capital
+        && let Some((name, len)) = species.map(species_capital).filter(|(n, _)| has(n))
+    {
+        return (name.to_string(), len);
+    }
     let (base, lens) = hull_lengths(hull);
     let stages = [(format!("{base}_capital"), lens[2]), (format!("{base}_cruiser"), lens[1]), (base.to_string(), lens[0])];
     let start = match class {
@@ -345,7 +362,7 @@ pub fn stage_model(models: &Models, hull: HullClass, class: SizeClass) -> (Strin
         SizeClass::Small => 2,
     };
     for (name, len) in stages[start..].iter() {
-        if models.has(name) {
+        if has(name) {
             return (name.clone(), *len);
         }
     }
@@ -404,6 +421,7 @@ fn load_models(mut commands: Commands, server: Res<AssetServer>, mut meshes: Res
         let base = hull_lengths(h).0;
         names.extend([base.to_string(), format!("{base}_cruiser"), format!("{base}_capital")]);
     }
+    names.extend(shared::galaxy::Species::ALL.map(|s| species_capital(s).0.to_string()));
     for name in names {
         let file = format!("models/{name}.glb");
         if assets_dir().join(&file).exists() {
@@ -567,7 +585,7 @@ fn spawn_visual(
         }
         _ => {
             let (name, len) = match (st.kind, st.hull_class) {
-                (EntityKind::Player | EntityKind::Escort, Some(h)) => stage_model(models, h, st.class.unwrap_or(SizeClass::Small)),
+                (EntityKind::Player | EntityKind::Escort, Some(h)) => stage_model(|n| models.has(n), h, st.class.unwrap_or(SizeClass::Small), st.species),
                 _ => npc_model(st.kind).filter(|(n, _)| models.has(n)).map(|(n, l)| (n.to_string(), l)).unwrap_or_else(|| {
                     let (n, l) = model_for(st.hull_class, st.kind);
                     (n.to_string(), l)
@@ -945,6 +963,25 @@ pub struct TurretTag;
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_capital_is_its_species_design_and_smaller_ships_their_hull_family() {
+        use shared::galaxy::Species;
+        let all = |_: &str| true;
+        assert_eq!(stage_model(all, HullClass::Talon, SizeClass::Capital, Some(Species::Human)), ("human_capital".to_string(), 420.0));
+        assert_eq!(stage_model(all, HullClass::Mule, SizeClass::Capital, Some(Species::Veyr)).0, "veyr_capital");
+        assert_eq!(stage_model(all, HullClass::Seer, SizeClass::Capital, Some(Species::Kharz)).0, "kharz_capital");
+        // Hull families still tell the smaller stages apart, whatever the species.
+        assert_eq!(stage_model(all, HullClass::Mule, SizeClass::Cruiser, Some(Species::Veyr)), ("mule_cruiser".to_string(), 170.0));
+        assert_eq!(stage_model(all, HullClass::Wren, SizeClass::Small, Some(Species::Kharz)).0, "wren");
+        // No species (never a player, but the showroom spawns such ships), or the model not shipped: the family's.
+        assert_eq!(stage_model(all, HullClass::Talon, SizeClass::Capital, None).0, "talon_capital");
+        assert_eq!(stage_model(|n| !n.starts_with("veyr"), HullClass::Talon, SizeClass::Capital, Some(Species::Veyr)).0, "talon_capital");
+        // Every species has one, and the files are there.
+        for s in Species::ALL {
+            assert!(assets_dir().join(format!("models/{}.glb", species_capital(s).0)).exists(), "{s:?}");
+        }
+    }
 
     #[test]
     fn rigged_parts_turn_with_the_clock_fold_away_from_the_station_and_rest_when_small() {

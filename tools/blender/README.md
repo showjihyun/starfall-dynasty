@@ -68,6 +68,25 @@ For Seer, it builds an organic variant instead: scales, ribs and vein grooves.
 
 ---
 
+# Species capitals and the Aster leviathan
+
+`build_styles.py` (helpers in `stylelib.py`, one source per style in `styles/`) builds the four fleet styles.
+Without flags it writes comparison renders, a fleet-battle still and a picker GLB per style to `_build/styles/`
+(`style_picker/package.py` turns those into the picker page). With `--game` it writes the game assets:
+
+| style | model | flown by |
+|---|---|---|
+| `global` | `human_capital.glb` | Human captains' capitals |
+| `japan` | `veyr_capital.glb` | Veyr captains' capitals |
+| `west` | `kharz_capital.glb` | Kharz captains' capitals |
+| `unknown` | `npc_sentinel.glb` | the Aster leviathan (replaces `build_props.py sentinel`'s model) |
+
+Modelled 60 units long and rescaled to 420 m (130 m for the leviathan); guns become `Muzzle_N`, the two
+furthest forward also `Main_N`, a `Bridge` empty marks the highest point, `rig_auto(big=True)` adds the dish
+and vanes. About 4 minutes each.
+
+---
+
 # Enemy ships and environment props
 
 `build_props.py` (with helpers in `proplib.py`, which imports `shiplib.py` and never modifies it) builds the

@@ -12,13 +12,6 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 SRC = os.path.join(HERE, "..", "_build", "styles")
 PUB = os.path.join(SRC, "pub")
 
-SRI = {
-    "build/three.min.js": "sha384-x9wDJy7yFtLLFyV/D2Aw4FtythXqOQNmB5PthOB+IlnSFXvS8/Kx7IzPEZWDgH7P",
-    "examples/js/controls/OrbitControls.js": "sha384-rhMAES/Wo67FEI5EbOY6TxGLwj5Na0v0f7G9StkNFlZ2FIC4msGUvLW3yLBxw627",
-    "examples/js/loaders/GLTFLoader.js": "sha384-7j9P8Ge2mbvWjSPGtprpEAueKZ2IRYQYI6QCxfODxYKIYm2/T3mScbDyC2WNHz34",
-    "examples/js/environments/RoomEnvironment.js": "sha384-NG9Vjao8FDKsRPhzsQGvMRSCrkgzJlysZlYZ69P52mH1tEpkurCHq0M8jbSP7/gl",
-}
-
 STYLES = [
     dict(key="baseline", tab="현재", code="STYLE 00 · BASELINE", name="현재 Talon 주력함",
          desc="지금 게임에 들어 있는 420 m 주력함입니다. 같은 조명에서 나머지 넷과 비교하는 기준입니다.",
@@ -107,11 +100,13 @@ def main():
         print(k, s["tris"], "tris", "%.1f MB" % (os.path.getsize(glb) / 1e6), s["colors"])
     html = open(os.path.join(HERE, "index.html"), encoding="utf-8").read()
     a, b = html.index("/*STYLES*/"), html.index("/*END*/")
-    html = html[:a] + json.dumps(out, ensure_ascii=False) + html[b + len("/*END*/"):]
-    for path, h in SRI.items():
-        tag = 'src="https://cdn.jsdelivr.net/npm/three@0.146.0/%s"' % path
-        assert tag in html, path
-        html = html.replace(tag, tag + ' integrity="%s" crossorigin="anonymous"' % h)
+    # Inside a <script>: nothing in the data may close the tag.
+    payload = json.dumps(out, ensure_ascii=False).replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026")
+    html = html[:a] + payload + html[b + len("/*END*/"):]
+    # Every remote script carries its hash in the page source; a new one without it fails here.
+    import re
+    for tag in re.findall(r'<(?:script|link)[^>]*(?:src|href)="https?://[^"]+"[^>]*>', html):
+        assert "fonts.googleapis.com" in tag or 'integrity="sha384-' in tag, "remote resource without SRI: " + tag
     open(os.path.join(PUB, "index.html"), "w", encoding="utf-8").write(html)
     print("pub:", sorted(os.listdir(PUB)))
 
