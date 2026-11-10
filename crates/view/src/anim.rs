@@ -129,6 +129,24 @@ pub fn bolt_tail(len: f32) -> f32 {
     (BOLT_TAIL / len.max(1.0)).clamp(0.04, 0.6)
 }
 
+/// One turret shot in this many bursts short of its target as flak (the rest fly home).
+pub const FLAK_ONE_IN: u32 = 3;
+
+/// A flak burst for the shot with this `seed`, if it is one: how far short of the struck point it
+/// goes off, in target radii along the line back to the shooter, and its sideways scatter (also in
+/// radii, in the plane across that line: the two components). Around a hull under fire the space
+/// fills with bursts; most shots still reach it.
+pub fn flak_burst(seed: u32) -> Option<(f32, [f32; 2])> {
+    let h = |k: u32| {
+        let x = (seed ^ k.wrapping_mul(0x9E37_79B9)).wrapping_mul(0x85EB_CA6B);
+        ((x ^ (x >> 15)).wrapping_mul(0xC2B2_AE35) >> 8) as f32 / (1u32 << 24) as f32
+    };
+    if (h(11) * FLAK_ONE_IN as f32) as u32 != 0 {
+        return None;
+    }
+    Some((0.5 + h(12) * 1.3, [h(13) * 0.8 - 0.4, h(14) * 0.8 - 0.4]))
+}
+
 /// Where a shot arriving from `from` (the shooter, in the target's own frame) lands on a hull of
 /// `radius`: on the side facing the shooter, scattered by `seed` — a capital is hit along its
 /// length and across its flank, not through one point at its centre. In the target's frame; the
@@ -230,6 +248,17 @@ mod tests {
         }
         // Brighter towards the jump, whatever the beat.
         assert!(warp_spool(1.0, 4.0) < 0.07 && warp_spool(3.9, 4.0) > 0.65);
+    }
+
+    #[test]
+    fn about_one_shot_in_three_bursts_short_of_the_hull_as_flak() {
+        let bursts: Vec<(f32, [f32; 2])> = (0..3000).filter_map(flak_burst).collect();
+        assert!((800..1200).contains(&bursts.len()), "{}", bursts.len());
+        for (short, side) in &bursts {
+            assert!((0.5..=1.8).contains(short), "off the hull, near it: {short}");
+            assert!(side.iter().all(|s| s.abs() <= 0.4));
+        }
+        assert_eq!(flak_burst(42), flak_burst(42));
     }
 
     #[test]

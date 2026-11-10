@@ -169,6 +169,15 @@ fn spawn_fx(
                         if near {
                             spawn_boom(&mut commands, &assets, &mut booms, &mut pool, (t, born), start, w * 0.04, 0.2);
                         }
+                        // Flak: some of a close ship's shots burst short of the hull they are aimed at.
+                        if (near || target.is_some_and(|_| vis.map.get(&to).and_then(|e| ships.get(*e).ok()).is_some_and(|(v, _)| v.lod == view::anim::EngineLod::Full)))
+                            && let (Some((short, side)), Some((_, _, r))) = (view::anim::flak_burst(seed), target)
+                        {
+                            let back = (start - end).normalize_or_zero();
+                            let across = back.cross(Vec3::Y).normalize_or(Vec3::X);
+                            let at = end + (back * short + across * side[0] + back.cross(across) * side[1]) * r;
+                            spawn_boom(&mut commands, &assets, &mut booms, &mut pool, (t, born), at, (r * 0.0012).clamp(0.12, 0.5), 0.55);
+                        }
                         spawn_boom(&mut commands, &assets, &mut booms, &mut pool, (t, born), end + (start - end).normalize_or_zero() * 6.0, 0.25, 0.4);
                         sfx.play(Sfx::Pulse, Some(start));
                         if let Ok((mut svm, _)) = ships.get_mut(fe) {
