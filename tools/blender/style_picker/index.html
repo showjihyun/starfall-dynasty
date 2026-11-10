@@ -1,4 +1,4 @@
-<title>Starfall 함선 스타일 선택</title>
+<title>Starfall 종족별 함대 스타일</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Sans+KR:wght@400;500;600&display=swap">
 <style>
@@ -65,7 +65,7 @@ header p { margin: 0; color: var(--dim); max-width: 65ch; }
   font: 600 14px var(--display); letter-spacing: .04em; color: var(--bg); background: var(--accent); border: 0; padding: 10px 14px; cursor: pointer;
   clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px);
 }
-.pick code { color: var(--fg); font-family: var(--display); user-select: all; }
+.pick code { color: var(--fg); font: 600 15px var(--display); }
 section h3 { font: 600 13px var(--display); letter-spacing: .16em; color: var(--dim); margin: 0 0 8px; text-transform: uppercase; }
 .still { border: 1px solid var(--line); display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; background: var(--stage-bottom); }
 .cap { color: var(--dim); font-size: 13px; margin: 8px 0 0; max-width: 80ch; }
@@ -79,8 +79,8 @@ td:first-child { font-family: var(--display); font-weight: 600; white-space: now
 
 <div class="wrap">
   <header>
-    <h1>STARFALL DYNASTY 함선 스타일 선택</h1>
-    <p>우주를 항행하는 주력함(전장 약 420 m)을 네 가지 방향으로 새로 만들었습니다. 드래그로 돌리고 휠로 당겨 보신 뒤 하나를 골라 주세요. 고르신 방향으로 전 함선을 다시 만듭니다.</p>
+    <h1>STARFALL DYNASTY 종족별 함대 스타일</h1>
+    <p>우주를 항행하는 주력함(전장 약 420 m) 네 가지 스타일을 모두 채택해 종족마다 하나씩 배정했습니다. 드래그로 돌리고 휠로 당겨 보세요. 네 모델 모두 게임에 들어가 있습니다.</p>
   </header>
 
   <div class="tabs" role="tablist" id="tabs"></div>
@@ -109,8 +109,8 @@ td:first-child { font-family: var(--display); font-weight: 600; white-space: now
         <dt>감수할 점</dt><dd id="con"></dd>
       </dl>
       <div class="pick" id="pick">
-        <button id="copy" type="button">이 스타일로 결정 (문구 복사)</button>
-        <span>채팅창에 <code id="phrase"></code> 라고 답해 주시면 됩니다.</span>
+        <span>게임 배정</span>
+        <code id="phrase"></code>
       </div>
     </aside>
   </div>
@@ -118,7 +118,7 @@ td:first-child { font-family: var(--display); font-weight: 600; white-space: now
   <section>
     <h3>교전 장면</h3>
     <img class="still" id="battle" alt="">
-    <p class="cap">모든 후보를 같은 연출(아군 2척 대 적 3척의 포격전, 같은 카메라와 조명)으로 Blender Cycles에서 렌더했습니다. 포화와 엔진 색, 적 도색만 스타일마다 다릅니다.</p>
+    <p class="cap">모든 후보를 같은 연출(아군 2척 대 적 3척의 포격전, 같은 카메라와 조명)으로 Blender Cycles에서 렌더했습니다. 포화와 엔진 색, 적 도색만 스타일마다 다릅니다. 함재기 편대, 대공 포화, 보호막 피격, 파편, 원거리 함대를 넣었습니다.</p>
   </section>
 
   <section>
@@ -127,7 +127,7 @@ td:first-child { font-family: var(--display); font-weight: 600; white-space: now
       <thead><tr><th>방향</th><th>형태 언어</th><th>재질과 도색</th><th>교전에서 읽히는 것</th></tr></thead>
       <tbody id="rows"></tbody>
     </table></div>
-    <p class="cap">Reddit 원문은 접근이 막혀 직접 읽지 못했습니다. 방향은 해당 장르에서 널리 알려진 게임들의 디자인 언어를 기준으로 잡았습니다.</p>
+    <p class="cap">Reddit 원문은 접근이 막혀 직접 읽지 못했고, 검색 요약으로만 확인했습니다. 방향은 해당 장르에서 널리 알려진 게임들의 디자인 언어를 기준으로 잡았습니다.</p>
   </section>
 </div>
 
@@ -173,7 +173,7 @@ function show(key) {
     const b = document.createElement('b'); b.style.backgroundColor = c; return b;
   }));
   $('pick').hidden = s.key === 'baseline';
-  $('phrase').textContent = s.tab + ' 스타일로 진행';
+  $('phrase').textContent = s.assign || '';
   $('battle').src = s.key + '_battle.jpg';
   $('battle').alt = s.name + ' 교전 장면';
   $('poster').src = s.key + '_hero.jpg';
@@ -181,12 +181,6 @@ function show(key) {
   if (location.hash.slice(1) !== s.key) history.replaceState(null, '', '#' + s.key);
   load(s);
 }
-$('copy').onclick = () => {
-  const t = $('phrase').textContent, b = $('copy');
-  const done = () => { b.textContent = '복사했습니다. 채팅에 붙여 넣어 주세요'; setTimeout(() => b.textContent = '이 스타일로 결정 (문구 복사)', 2400); };
-  try { navigator.clipboard.writeText(t).then(done, () => getSelection().selectAllChildren($('phrase'))); }
-  catch (e) { getSelection().selectAllChildren($('phrase')); }
-};
 const toggle = (id, get, set) => $(id).onclick = () => { set(!get()); $(id).setAttribute('aria-pressed', String(get())); };
 toggle('spin', () => spin, v => { spin = v; if (controls) controls.autoRotate = v; });
 toggle('burn', () => burn, v => { burn = v; plumes.forEach(p => p.visible = v); });
