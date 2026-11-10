@@ -118,6 +118,17 @@ pub fn battery_mount(k: usize, n: usize, beam: u8, radius: f32, target_x: f32) -
     }
 }
 
+/// Seconds a turret bolt takes from muzzle to target (it is drawn flying; the hit itself is the server's).
+pub const BOLT_SECS: f32 = 0.22;
+/// Length of a turret bolt's bright tail (m).
+pub const BOLT_TAIL: f32 = 110.0;
+
+/// A turret bolt's tail as a fraction of its path of `len` metres (the beam shader's unit): short
+/// against a long shot, never the whole of a point-blank one.
+pub fn bolt_tail(len: f32) -> f32 {
+    (BOLT_TAIL / len.max(1.0)).clamp(0.04, 0.6)
+}
+
 /// Where a shot arriving from `from` (the shooter, in the target's own frame) lands on a hull of
 /// `radius`: on the side facing the shooter, scattered by `seed` — a capital is hit along its
 /// length and across its flank, not through one point at its centre. In the target's frame; the
@@ -219,6 +230,14 @@ mod tests {
         }
         // Brighter towards the jump, whatever the beat.
         assert!(warp_spool(1.0, 4.0) < 0.07 && warp_spool(3.9, 4.0) > 0.65);
+    }
+
+    #[test]
+    fn a_bolt_is_a_short_streak_on_a_long_shot_and_never_the_whole_of_a_short_one() {
+        assert!((bolt_tail(1100.0) - 0.1).abs() < 1e-5);
+        assert_eq!(bolt_tail(10_000.0), 0.04);
+        assert_eq!(bolt_tail(50.0), 0.6);
+        assert_eq!(bolt_tail(0.0), 0.6);
     }
 
     #[test]

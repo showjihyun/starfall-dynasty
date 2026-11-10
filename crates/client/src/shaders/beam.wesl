@@ -6,7 +6,8 @@ import bevy_pbr::render::mesh_view_bindings::globals;
 struct BeamParams {
     color: vec4<f32>,  // rgb, w = intensity (fades to 0)
     flow: vec4<f32>,   // x = pulse frequency, y = scroll speed, z = length
-    life: vec4<f32>,   // x = spawn time (globals.time), y = lifetime; y <= 0 means steady (mining)
+    life: vec4<f32>,   // x = spawn time (globals.time), y = lifetime; y <= 0 means steady (mining);
+                       // z > 0: a bolt, its tail this fraction of the length, flying start to end over the lifetime
 }
 
 @group(constants::MATERIAL_BIND_GROUP) @binding(0) var<uniform> p: BeamParams;
@@ -26,7 +27,15 @@ fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
     // Fade computed here so the CPU never re-uploads the material while the beam lives.
     var fade = 1.0;
     if p.life.y > 0.0 {
-        fade = pow(clamp(1.0 - (globals.time - p.life.x) / p.life.y, 0.0, 1.0), 1.5);
+        let age = clamp((globals.time - p.life.x) / p.life.y, 0.0, 1.0);
+        fade = pow(1.0 - age, 1.5);
+        if p.life.z > 0.0 {
+            // The head runs a tail's length past the end, so the whole bolt arrives.
+            let head = age * (1.0 + p.life.z);
+            let bolt = smoothstep(head - p.life.z, head, uv.y) * step(uv.y, head);
+            // The bolt itself, and the faint line of its path dying behind it.
+            fade = bolt * 1.7 + 0.05 * fade;
+        }
     }
     return vec4<f32>(c * p.color.w * fade * ends, 0.0);
 }

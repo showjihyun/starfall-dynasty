@@ -164,7 +164,8 @@ fn spawn_fx(
                         let Some(end) = strike(start) else { continue };
                         let col = side.pulse;
                         let w = (sv.radius * 0.012).clamp(2.0, 6.0);
-                        spawn_beam(&mut commands, &assets, &mut beams, &mut pool, (t, born), start, end, col, w, 0.12);
+                        // Turret fire is bolts in flight, not instant lines: a broadside reads as streams of shot.
+                        spawn_shot(&mut commands, &assets, &mut beams, &mut pool, (t, born), start, end, col, w, view::anim::BOLT_SECS, true);
                         if near {
                             spawn_boom(&mut commands, &assets, &mut booms, &mut pool, (t, born), start, w * 0.04, 0.2);
                         }
@@ -322,9 +323,16 @@ fn warp_spool(
 
 #[allow(clippy::too_many_arguments)]
 fn spawn_beam(commands: &mut Commands, assets: &FxAssets, beams: &mut Assets<BeamMat>, pool: &mut FxPool, clock: (f32, f64), start: Vec3, end: Vec3, col: [f32; 3], width: f32, ttl: f32) {
+    spawn_shot(commands, assets, beams, pool, clock, start, end, col, width, ttl, false);
+}
+
+/// A beam, or (`bolt`) a bright streak that flies from `start` to `end` over `ttl` (beam.wesl).
+#[allow(clippy::too_many_arguments)]
+fn spawn_shot(commands: &mut Commands, assets: &FxAssets, beams: &mut Assets<BeamMat>, pool: &mut FxPool, clock: (f32, f64), start: Vec3, end: Vec3, col: [f32; 3], width: f32, ttl: f32, bolt: bool) {
     let d = end - start;
     let len = d.length().max(1.0);
-    let params = BeamParams { color: v4(col, 1.0), flow: Vec4::new(0.08, 30.0, len, 0.0), life: Vec4::new(clock.0, ttl, 0.0, 0.0) };
+    let tail = if bolt { view::anim::bolt_tail(len) } else { 0.0 };
+    let params = BeamParams { color: v4(col, 1.0), flow: Vec4::new(0.08, 30.0, len, 0.0), life: Vec4::new(clock.0, ttl, tail, 0.0) };
     let tf = Transform::from_translation(start).with_rotation(Quat::from_rotation_arc(Vec3::Z, d / len)).with_scale(Vec3::new(width, width, len));
     let life = Ttl { born: clock.1, total: ttl };
     if let Some((e, h)) = pool.beams.pop() {

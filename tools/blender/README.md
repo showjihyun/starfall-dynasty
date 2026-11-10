@@ -79,6 +79,7 @@ Without flags it writes comparison renders, a fleet-battle still and a picker GL
 | `global` | `human_capital.glb` | Human captains' capitals |
 | `japan` | `veyr_capital.glb` | Veyr captains' capitals |
 | `west` | `kharz_capital.glb` | Kharz captains' capitals |
+| `global_cruiser`, `japan_cruiser`, `west_cruiser` | `human_cruiser.glb`, `veyr_cruiser.glb`, `kharz_cruiser.glb` | the same fleets' cruisers (150 m) |
 | `unknown` | `npc_sentinel.glb` | the Aster leviathan (replaces `build_props.py sentinel`'s model) |
 
 Modelled 60 units long and rescaled to 420 m (130 m for the leviathan); guns become `Muzzle_N`, the two

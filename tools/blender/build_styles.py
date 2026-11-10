@@ -27,11 +27,13 @@ from shiplib import Ship, log
 
 OUT = os.path.join(HERE, "_build", "styles")
 MODELS = os.path.abspath(os.path.join(HERE, "..", "..", "crates", "client", "assets", "models"))
-ALL = ["baseline", "west", "japan", "global", "unknown"]
+ALL = ["baseline", "west", "japan", "global", "unknown", "west_cruiser", "japan_cruiser", "global_cruiser"]
 # Each species flies its own style at capital size; the unknown one is the Aster leviathan (docs/ART_DIRECTION.md §4).
 # style -> (model, length in metres, capital: guns become turret muzzles and main ports, a Bridge is marked)
 GAME = {"global": ("human_capital", 420.0, True), "japan": ("veyr_capital", 420.0, True),
-        "west": ("kharz_capital", 420.0, True), "unknown": ("npc_sentinel", 130.0, False)}
+        "west": ("kharz_capital", 420.0, True), "unknown": ("npc_sentinel", 130.0, False),
+        "global_cruiser": ("human_cruiser", 150.0, True), "japan_cruiser": ("veyr_cruiser", 150.0, True),
+        "west_cruiser": ("kharz_cruiser", 150.0, True)}
 
 
 def game_asset(name, ship, meshes, mats, tex):
