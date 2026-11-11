@@ -315,4 +315,4 @@ Wren이 진 큰 이유는 조종사였다: 선회 명령이 조준 오차 × 4�
 
 `tuning/ships.ron` `fleets`: Human 속도·선회 +5% / 선체 −3%, Veyr 피해 +5%·사거리 +6% / 실드 −7%, Kharz 선체 +10% / 속도 −5% (사양 `fleet_traits`).
 캠페인 조종사는 Human Talon이다. 시드 0 · 7 · 13: 5/5장, 55m28s · 69m04s · 65m47s (적용 전 같은 시드 67–74분) — 단일 실행 편차(±10분) 안이다.
-`docs/BALANCE.md` 75개 대전에서 승패가 뒤집힌 것은 없다(Human 선체 −5%에서는 Mule Lv1 대 Gunship이 뒤집혀 −3%로 정했다). Veyr·Kharz 함장으로는 캠페인을 돌리지 않았다.
+`docs/BALANCE.md` 75개 대전에서 승패가 뒤집힌 것은 없다(Human 선체 −5%에서는 Mule Lv1 대 Gunship이 뒤집혀 −3%로 정했다). Veyr · Kharz 함장(Talon, 시드 0, `campaign --species`)도 5/5장: 75m42s · 68m28s.
