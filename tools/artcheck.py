@@ -34,9 +34,9 @@ SCENES = {
     'derelict': (['--showroom', '4', '--look', 'derelict'], 'Vesta Corridor: white dwarf, derelict convoy'),
     # Species styles (docs/ART_DIRECTION.md §4): the same fleet and camera, one species each.
     # Shot at 20 s, when the orbit frames a small hull (species kits: masts / ribs / horns).
-    'human': (['--showroom', '7', '--hull', 'talon', '--look', 'bow', '--species', 'human', '--shot-at', '20'], 'Human: worn-industrial hulls, masts, radiators, hatch'),
-    'veyr': (['--showroom', '7', '--hull', 'talon', '--look', 'bow', '--species', 'veyr', '--shot-at', '20'], 'Veyr: dark-teal nacre, violet veins, hoop ribs'),
-    'kharz': (['--showroom', '7', '--hull', 'talon', '--look', 'bow', '--species', 'kharz', '--shot-at', '20'], 'Kharz: blackened iron, amber heat seams, bow horns, patch armour'),
+    'human': (['--showroom', '7', '--hull', 'talon', '--look', 'bow', '--species', 'human', '--shot-at', '20'], 'Human small ship: spearhead hull, bubble canopy, navy sweeps'),
+    'veyr': (['--showroom', '7', '--hull', 'talon', '--look', 'bow', '--species', 'veyr', '--shot-at', '20'], 'Veyr small ship: blade nose and canards, dark-teal nacre, violet veins'),
+    'kharz': (['--showroom', '7', '--hull', 'talon', '--look', 'bow', '--species', 'kharz', '--shot-at', '20'], 'Kharz small ship: armoured wedge bow, blackened iron, amber heat seams'),
     'capital': (['--showroom', '7', '--hull', 'bastion', '--class', 'capital', '--look', 'ship', '--species', 'veyr'], 'Veyr capital: the species design (docs/ART_DIRECTION.md 4, stage 3)'),
     # Campaign opening (docs/STORY.md §5); --shot-at counts from the cinematic's own clock.
     'opening_gate': (['--cinematic', 'opening', '--shot-at', '14'], 'Opening: ancient gate, first subtitle, letterbox'),

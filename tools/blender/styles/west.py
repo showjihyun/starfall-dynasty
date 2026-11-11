@@ -8,6 +8,7 @@ rows of lit windows. Faces are tagged in a corner colour attribute (`wmask`) tha
 R hazard stripes, G bare heat-stained steel, B matt black, A grey-white stencil paint -- all baked into Hull.
 """
 import math
+import bmesh
 import random
 
 from mathutils import Matrix
@@ -337,7 +338,29 @@ def rplate(bm, c, ang, t0, r0, w0, t1, r1, w1, th):
 
 
 def engine(bm, c, r, Lh, N=16):
-    """Exposed engine: ribbed mount collar, bell, two rows of petals, actuators, flame holder. c = exit centre."""
+    """Exposed engine: ribbed mount collar, bell, two rows of petals, actuators, flame holder. c = exit centre.
+    Its closed pieces are turned right side out afterwards: the lathes come out facing inwards (unseen in a
+    two-sided render, culled in the game); the petals are open skins that face themselves."""
+    n0 = len(bm.faces)
+    _engine(bm, c, r, Lh, N)
+    bmesh.ops.remove_doubles(bm, verts=list({v for f in list(bm.faces)[n0:] for v in f.verts}), dist=1e-5)
+    bm.faces.ensure_lookup_table()
+    todo = set(list(bm.faces)[n0:])
+    while todo:
+        comp, stack = set(), [todo.pop()]
+        while stack:
+            f = stack.pop()
+            comp.add(f)
+            for e in f.edges:
+                for g in e.link_faces:
+                    if g in todo:
+                        todo.discard(g)
+                        stack.append(g)
+        if all(len(e.link_faces) == 2 for f in comp for e in f.edges):
+            bmesh.ops.recalc_face_normals(bm, faces=list(comp))
+
+
+def _engine(bm, c, r, Lh, N=16):
     c = V(c)
     ax = (0, 1, 0)
     with tag(bm, BM):

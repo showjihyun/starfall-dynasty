@@ -136,12 +136,15 @@ Core `GREEN` → Frontier (255,210,90) → Wild (255,140,60) → War Zone `RED` 
   - 중·대형 선체(`build_capitals.py`, `species_kits(ship, big=True)`): 부품을 선체 길이의 절반 비율로 줄이고 선체를 따라 반복한다(마스트 넷, 방열 핀 세 곳, 늑골 다섯, 장갑판 다섯). 늑골은 단면을 24방향 레이캐스트로 따서 상자형 선체(Bastion)도 감싼다. 탑·포탑이 튀어나온 방향은 원형 중앙값으로 걸러낸다. 장갑판·해치는 둥근 등에는 가장 낮은 모서리까지 내려 앉히고, 탑 가장자리처럼 모서리가 허공에 뜨는 자리는 건너뛴다. 척추 발광선은 탑을 넘어가는 구간을 생략한다.
   - 검토용 미리보기: `tools/blender/previews/<선체>_species.png`, `cap_<선체>_species.png`(종족 셋을 같은 각도로).
   - 종족별 리버리 기본값: 3.6절.
-- **3단계(순양함·주력함 완료, 2026-11-11):** 순양함과 주력함은 선체 계열이 아니라 **함장의 종족이 설계를 정한다**(네 함대 스타일 `view::fleet::FleetStyle` — Human, Veyr, Kharz, Aster — 과 `ships::stage_model`, `ships::npc_model`). 소형함은 그대로 선체 계열 모델에 종족 부착물을 단다(함장이 고른 선체가 겉모습으로 구분되는 단계).
+- **3단계(전 함급 완료, 2026-11-11):** 소형함·순양함·주력함 모두 선체 계열이 아니라 **함장의 종족이 설계를 정한다**(네 함대 스타일 `view::fleet::FleetStyle` — Human, Veyr, Kharz, Aster — 과 `ships::stage_model`, `ships::npc_model`). 함장이 고른 선체(Wren·Talon·Bastion·Mule·Seer)는 성능을 정하고(`tuning/ships.ron` `hulls`), 겉모습은 종족이 정한다. 종족이 없는 함선(쇼룸 등)만 선체 계열 모델을 쓴다.
+  - 소형함(24 m): `human_small.glb`(창끝 선체에 큰 방울 캐노피, 날개 끝 기관포), `veyr_small.glb`(칼날 기수, 카나드, 꺾인 날개, 노란 V자 핀), `kharz_small.glb`(장갑 쐐기 함수, 프레임 캐노피, 늑골 나셀). 접시·착륙 장치·노즐 베인 리그가 있다. 등급 파츠와 종족 부착물 노드는 없다. 소스 `styles/{global,japan,west}_small.py`.
+  - 종족마다 함선의 성능도 조금 다르다(`tuning/ships.ron` `fleets`, 사양 `fleet_traits`): Human 속도·선회, Veyr 화력·사거리, Kharz 선체. 함장 생성 화면에 표시된다.
   - Human → `human_capital.glb`: 창끝 본체와 쌍동 선체, 흐르는 곡면, 넓은 도색면, 창문 띠(후보 「글로벌」).
   - Veyr → `veyr_capital.glb`: 함수 주포구, 탑형 함교, 겹친 3연장 포탑, 사출 갑판, 흰 장갑(후보 「일본식」).
   - Kharz → `kharz_capital.glb`: 장갑 성채, 격납고 포드, 포갑판, 드러난 구조(후보 「서양식」).
   - 순양함(150 m)은 같은 함대의 작은 자매함이다: `human_cruiser.glb`(단일 창끝 선체와 짧은 어깨, 등지느러미), `veyr_cruiser.glb`(날씬한 선체, 전방 포탑 2기, 낮은 탑형 함교, 사출 갑판 하나), `kharz_cruiser.glb`(한 단 상부 구조, 포탑 3기, 후방 엔진 나셀). 소스 `styles/{global,japan,west}_cruiser.py`.
-  - 아스테르(고대 문명)의 리바이어던 센티넬 → `npc_sentinel.glb`: 빛나는 핵을 감싼 흑요석 칼날과 새겨진 발광 문양(후보 「미지의 우주」).
+  - 아스테르(고대 문명)의 수호자: 리바이어던 센티넬 → `npc_sentinel.glb`, 워든 → `npc_warden.glb`(26 m, 갈라진 다트 사이의 갇힌 별과 두 갈래 칼날). 빛나는 핵을 감싼 흑요석 칼날과 새겨진 발광 문양(후보 「미지의 우주」). 소스 `styles/unknown.py`, `styles/unknown_small.py`.
+  - 보호막 방울과 피격 지점은 순양함·주력함·리바이어던에서 선체의 실제 폭·높이를 따른다(`view::fleet::shield_shape`, `hull_half`). 소형함은 날개 폭에 맞춘 기존 형태 그대로다.
   - 만드는 법: `tools/blender/build_styles.py --game`(소스 `tools/blender/styles/{global,japan,west,unknown}.py`). 길이 420 m(순양함 150 m, 리바이어던 130 m), 포구는 `Muzzle_N`, 앞쪽 둘은 `Main_N`, 가장 높은 곳에 `Bridge`, 접시와 노즐 베인 리그. 종족 부착물·등급 파츠·선회 포탑 노드는 없다(포탑은 선체에 붙어 있다).
   - 선체 셰이더의 종족 스타일(1단계)은 그대로 위에 입혀진다. 후보를 고른 과정과 같은 조명의 비교 렌더: `tools/blender/style_picker/`.
 - **규칙:** 종족 색은 관계 색(3.4절)과 겹치지 않는다. Kharz는 빨강이 아닌 호박색, Veyr는 아군 청록과 구분되는 보라를 쓴다.
@@ -300,9 +303,9 @@ cores, running lights and weapon ports.
 | `docs/art/reference/gate.png` | `--showroom 9 --look gate` | 심우주: 중성자성 보라 하늘, 고대 게이트 |
 | `docs/art/reference/ruin.png` | `--showroom 6 --look ruin` | Hollow Crown: 유적 발광, Wild 성운 |
 | `docs/art/reference/derelict.png` | `--showroom 4 --look derelict` | Vesta Corridor: 백색 왜성, 버려진 호송선 |
-| `docs/art/reference/human.png` | `--showroom 7 --hull talon --look bow --species human --shot-at 20` | Human: 기준 선체, 네이비, 마스트·방열 핀·해치 |
-| `docs/art/reference/veyr.png` | `--showroom 7 --hull talon --look bow --species veyr --shot-at 20` | Veyr: 진주빛 청록, 바이올렛, 보라 맥, 고리 늑골 |
-| `docs/art/reference/kharz.png` | `--showroom 7 --hull talon --look bow --species kharz --shot-at 20` | Kharz: 그을린 쇠, 골드, 호박색 열 균열, 뿔, 덧댄 장갑 |
+| `docs/art/reference/human.png` | `--showroom 7 --hull talon --look bow --species human --shot-at 20` | Human 소형함: 창끝 선체, 방울 캐노피, 네이비 |
+| `docs/art/reference/veyr.png` | `--showroom 7 --hull talon --look bow --species veyr --shot-at 20` | Veyr 소형함: 칼날 기수와 카나드, 진주빛 청록, 바이올렛, 보라 맥 |
+| `docs/art/reference/kharz.png` | `--showroom 7 --hull talon --look bow --species kharz --shot-at 20` | Kharz 소형함: 장갑 쐐기 함수, 그을린 쇠, 골드, 호박색 열 균열 |
 | `docs/art/reference/capital.png` | `--showroom 7 --hull bastion --class capital --look ship --species veyr` | 대형 선체: Veyr 주력함(종족 설계, 4절 3단계) |
 | `docs/art/reference/opening_gate.png` | `--cinematic opening --shot-at 14` | 오프닝: 고대 게이트, 첫 자막, 레터박스(docs/STORY.md) |
 | `docs/art/reference/opening_war.png` | `--cinematic opening --shot-at 66` | 오프닝: Vesta Front 전열, 두 줄 자막(줄마다 가운데) |

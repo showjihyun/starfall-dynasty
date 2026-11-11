@@ -147,16 +147,15 @@ pub fn flak_burst(seed: u32) -> Option<(f32, [f32; 2])> {
     Some((0.5 + h(12) * 1.3, [h(13) * 0.8 - 0.4, h(14) * 0.8 - 0.4]))
 }
 
-/// Where a shot arriving from `from` (the shooter, in the target's own frame) lands on a hull of
-/// `radius`: on the side facing the shooter, scattered by `seed` — a capital is hit along its
-/// length and across its flank, not through one point at its centre. In the target's frame; the
-/// hull is taken as an ellipsoid as long as the model (2.2 radii) and a good deal slimmer.
-pub fn impact_point(from: Vec3, radius: f32, seed: u32) -> Vec3 {
+/// Where a shot arriving from `from` (the shooter, in the target's own frame) lands on a hull with
+/// half-extents `half` (across, up, along; metres — `fleet::hull_half` times the radius): on the side
+/// facing the shooter, scattered by `seed` — a capital is hit along its length and across its flank,
+/// not through one point at its centre. In the target's frame; the hull is taken as an ellipsoid.
+pub fn impact_point(from: Vec3, half: Vec3, seed: u32) -> Vec3 {
     let unit = |k: u32| {
         let h = (seed ^ k.wrapping_mul(0x9E37_79B9)).wrapping_mul(0x85EB_CA6B);
         ((h ^ (h >> 15)).wrapping_mul(0xC2B2_AE35) >> 8) as f32 / (1u32 << 24) as f32 * 2.0 - 1.0
     };
-    let half = Vec3::new(0.42, 0.24, 1.0) * radius;
     // A direction somewhere on the hemisphere facing the shooter.
     let toward = from.normalize_or(Vec3::NEG_Z);
     let d = (toward + Vec3::new(unit(1), unit(2), unit(3)) * 0.85).normalize_or(toward);
@@ -272,8 +271,9 @@ mod tests {
     #[test]
     fn shots_land_on_the_side_of_the_hull_facing_the_shooter_and_spread_over_it() {
         let r = 200.0;
+        let half = Vec3::from(crate::fleet::DEFAULT_HALF) * r;
         for from in [Vec3::new(900.0, 100.0, -300.0), Vec3::new(-50.0, -800.0, 0.0), Vec3::new(0.0, 0.0, 2000.0)] {
-            let hits: Vec<Vec3> = (0..200).map(|k| impact_point(from, r, k)).collect();
+            let hits: Vec<Vec3> = (0..200).map(|k| impact_point(from, half, k)).collect();
             for p in &hits {
                 assert!(p.dot(from) >= -1e-3, "the far side is never hit: {p:?} from {from:?}");
                 // On the hull: within its length and beam, and off its centre.
@@ -285,9 +285,12 @@ mod tests {
             assert!(hi - lo > r * 0.5, "spread {} from {from:?}", hi - lo);
         }
         // The same shot lands in the same place.
-        assert_eq!(impact_point(Vec3::X, r, 7), impact_point(Vec3::X, r, 7));
+        assert_eq!(impact_point(Vec3::X, half, 7), impact_point(Vec3::X, half, 7));
+        // A slimmer hull is struck closer in.
+        let slim = Vec3::new(0.3, 0.24, 1.0) * r;
+        assert!((0..50).all(|k| impact_point(Vec3::X * 900.0, slim, k).x <= r * 0.3 + 1e-3));
         // A shooter at the very centre (never, but no NaN).
-        assert!(impact_point(Vec3::ZERO, r, 1).is_finite());
+        assert!(impact_point(Vec3::ZERO, half, 1).is_finite());
     }
 
     #[test]

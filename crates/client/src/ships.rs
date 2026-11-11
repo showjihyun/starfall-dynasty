@@ -207,6 +207,8 @@ pub struct ShipVis {
     pub species: [f32; 4],
     /// The captain's species: which `Species_<Name>_Kit` node the model shows (none for NPCs).
     pub species_of: Option<shared::galaxy::Species>,
+    /// Half-extents of the hull (across, up, along; metres): where shots land (`view::fleet::hull_half`).
+    pub hull_half: Vec3,
     /// Slot in `ShipStates` (the hull shader's per-ship state), set when the visual is spawned.
     pub slot: u32,
     /// Engine plumes on the model (their state is in the ship's slot).
@@ -273,6 +275,7 @@ impl ShipVis {
             hostile,
             species: view::palette::species_style(st.species),
             species_of: st.species,
+            hull_half: Vec3::from(view::fleet::hull_half(st.kind, st.species, st.class)) * st.radius,
             slot: 0,
             plumes: 0,
             flash_at: f64::NEG_INFINITY,
@@ -313,13 +316,12 @@ struct ModelRoot(Entity);
 
 pub use view::palette::LIVERIES;
 
-/// Dedicated enemy model (name, nominal length) if the archetype has one. The leviathan's is the Aster
-/// fleet style's (`view::fleet`).
+/// Dedicated enemy model (name, nominal length) if the archetype has one. The ancient guardians' (warden,
+/// leviathan) are the Aster fleet style's (`view::fleet`).
 pub fn npc_model(kind: EntityKind) -> Option<(&'static str, f32)> {
     match kind {
         EntityKind::Npc(NpcArchetype::Raider) => Some(("npc_raider", 20.0)),
         EntityKind::Npc(NpcArchetype::Gunship) => Some(("npc_gunship", 32.0)),
-        EntityKind::Npc(NpcArchetype::Warden) => Some(("npc_warden", 26.0)),
         EntityKind::Npc(NpcArchetype::Warlord) => Some(("npc_warlord", 66.0)),
         EntityKind::Npc(_) => FleetStyle::of(kind, None, None).and_then(|(style, class)| style.model(class)),
         _ => None,
@@ -337,9 +339,9 @@ fn hull_lengths(h: HullClass) -> (&'static str, [f32; 3]) {
     }
 }
 
-/// Model for a player/escort ship at its growth stage: a cruiser or capital is built in its captain's
-/// people's fleet style (`view::fleet::FleetStyle`, docs/ART_DIRECTION.md §4), a small ship is its hull
-/// family's; falls back to the family's model of that stage, then to a smaller stage, if a model is missing.
+/// Model for a player/escort ship at its growth stage: built in its captain's people's fleet style
+/// (`view::fleet::FleetStyle`, docs/ART_DIRECTION.md §4) at every size; falls back to the hull family's
+/// model of that stage, then to a smaller stage, if a model is missing (or the ship has no species).
 pub fn stage_model(has: impl Fn(&str) -> bool, hull: HullClass, class: SizeClass, species: Option<shared::galaxy::Species>) -> (String, f32) {
     if let Some((name, len)) = species.and_then(|s| FleetStyle::of_species(s).model(class)).filter(|(n, _)| has(n)) {
         return (name.to_string(), len);
@@ -588,7 +590,7 @@ fn spawn_visual(
             };
             let scale = st.radius * 2.2 / len;
             let shield = states.shield(&mut mats.shield);
-            let bubble = commands.spawn((NotShadowCaster, Mesh3d(models.shield.clone()), MeshMaterial3d(shield), MeshTag::new(slot), Visibility::Hidden, Transform::from_scale(Vec3::new(1.15, 0.7, 1.35) * st.radius))).id();
+            let bubble = commands.spawn((NotShadowCaster, Mesh3d(models.shield.clone()), MeshMaterial3d(shield), MeshTag::new(slot), Visibility::Hidden, Transform::from_scale(Vec3::from(view::fleet::shield_shape(st.kind, st.species, st.class)) * st.radius))).id();
             v.shield = Some((bubble, false));
             let root = commands.spawn((v, tf, Visibility::default())).id();
             commands.entity(root).add_child(bubble);
@@ -968,9 +970,11 @@ mod tests {
         assert_eq!(stage_model(all, HullClass::Seer, SizeClass::Capital, Some(Species::Kharz)).0, "kharz_capital");
         assert_eq!(stage_model(all, HullClass::Mule, SizeClass::Cruiser, Some(Species::Veyr)), ("veyr_cruiser".to_string(), 150.0));
         assert_eq!(stage_model(all, HullClass::Wren, SizeClass::Cruiser, Some(Species::Human)).0, "human_cruiser");
-        // Hull families still tell small ships apart, whatever the species.
-        assert_eq!(stage_model(all, HullClass::Wren, SizeClass::Small, Some(Species::Kharz)).0, "wren");
-        assert_eq!(stage_model(all, HullClass::Mule, SizeClass::Small, Some(Species::Veyr)), ("mule".to_string(), 30.0));
+        // Small ships too: the hull a captain chose decides how the ship flies, its people how it looks.
+        assert_eq!(stage_model(all, HullClass::Wren, SizeClass::Small, Some(Species::Kharz)), ("kharz_small".to_string(), 24.0));
+        assert_eq!(stage_model(all, HullClass::Mule, SizeClass::Small, Some(Species::Veyr)).0, "veyr_small");
+        assert_eq!(stage_model(all, HullClass::Mule, SizeClass::Small, None), ("mule".to_string(), 30.0));
+        assert_eq!(stage_model(|n| !n.ends_with("_small"), HullClass::Wren, SizeClass::Small, Some(Species::Human)).0, "wren");
         assert_eq!(stage_model(|n| !n.starts_with("kharz"), HullClass::Mule, SizeClass::Cruiser, Some(Species::Kharz)).0, "mule_cruiser");
         // No species (never a player, but the showroom spawns such ships), or the model not shipped: the family's.
         assert_eq!(stage_model(all, HullClass::Talon, SizeClass::Capital, None).0, "talon_capital");
@@ -984,7 +988,43 @@ mod tests {
         }
         assert_eq!(npc_model(EntityKind::Npc(NpcArchetype::Sentinel)), FleetStyle::Aster.model(SizeClass::Capital));
         assert_eq!(npc_model(EntityKind::Npc(NpcArchetype::Sentinel)), Some(("npc_sentinel", 130.0)));
+        assert_eq!(npc_model(EntityKind::Npc(NpcArchetype::Warden)), FleetStyle::Aster.model(SizeClass::Small));
         assert_eq!(npc_model(EntityKind::Npc(NpcArchetype::Warden)), Some(("npc_warden", 26.0)));
+        assert_eq!(npc_model(EntityKind::Npc(NpcArchetype::Raider)), Some(("npc_raider", 20.0)));
+    }
+
+    /// Size of a model's `Hull` node from its position bounds: across, up, along (glTF x, y, z).
+    fn hull_size(name: &str) -> [f64; 3] {
+        let bytes = std::fs::read(assets_dir().join(format!("models/{name}.glb"))).unwrap();
+        let n = u32::from_le_bytes(bytes[12..16].try_into().unwrap()) as usize;
+        let doc: serde_json::Value = serde_json::from_slice(&bytes[20..20 + n]).unwrap();
+        let hull = doc["nodes"].as_array().unwrap().iter().find(|n| n["name"] == "Hull").expect("a Hull node");
+        let (mut lo, mut hi) = ([f64::MAX; 3], [f64::MIN; 3]);
+        for prim in doc["meshes"][hull["mesh"].as_u64().unwrap() as usize]["primitives"].as_array().unwrap() {
+            let acc = &doc["accessors"][prim["attributes"]["POSITION"].as_u64().unwrap() as usize];
+            for k in 0..3 {
+                lo[k] = lo[k].min(acc["min"][k].as_f64().unwrap());
+                hi[k] = hi[k].max(acc["max"][k].as_f64().unwrap());
+            }
+        }
+        [hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2]]
+    }
+
+    #[test]
+    fn fleet_hull_proportions_match_the_models() {
+        for style in FleetStyle::ALL {
+            for class in [SizeClass::Small, SizeClass::Cruiser, SizeClass::Capital] {
+                let Some((name, len)) = style.model(class) else { continue };
+                let size = hull_size(name);
+                assert!((size[2] - len as f64).abs() < len as f64 * 0.03, "{name}: {} m long, nominal {len}", size[2]);
+                let Some([beam, height]) = style.proportions(class) else {
+                    assert_eq!(class, SizeClass::Small, "{name}: every big hull has measured proportions");
+                    continue;
+                };
+                assert!((size[0] / size[2] - beam as f64).abs() < 0.02, "{name}: beam {:.3} of its length, table {beam}", size[0] / size[2]);
+                assert!((size[1] / size[2] - height as f64).abs() < 0.02, "{name}: height {:.3} of its length, table {height}", size[1] / size[2]);
+            }
+        }
     }
 
     #[test]

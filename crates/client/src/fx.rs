@@ -119,12 +119,12 @@ fn spawn_fx(
                 let Ok((sv, stf)) = ships.get(fe) else { continue };
                 // Shots take the shooter's side colours (palette::side): whoever is hostile to me fires red.
                 let side = view::palette::side::of(sv.hostile);
-                let target = vis.map.get(&to).and_then(|e| ships.get(*e).ok()).map(|(v, t)| (t.translation, t.rotation, v.radius));
+                let target = vis.map.get(&to).and_then(|e| ships.get(*e).ok()).map(|(v, t)| (t.translation, t.rotation, v.radius, v.hull_half));
                 let target_pos = target.map(|t| t.0);
                 // Where a shot from `start` lands: on the near side of the target's hull, scattered — the same
                 // shot (shooter, mount, moment) always in the same place (view::anim::impact_point).
                 let seed = from.wrapping_mul(31) ^ ((mount as u32) << 8) ^ ((born * 8.0) as u32).wrapping_mul(2_654_435_761);
-                let strike = |start: Vec3| target.map(|(p, rot, r)| p + rot * view::anim::impact_point(rot.inverse() * (start - p), r, seed));
+                let strike = |start: Vec3| target.map(|(p, rot, _, half)| p + rot * view::anim::impact_point(rot.inverse() * (start - p), half, seed));
                 // A flash at the muzzle, for the ships close enough to show it.
                 let near = sv.lod == view::anim::EngineLod::Full;
                 let fwd = stf.rotation * Vec3::NEG_Z;
@@ -171,7 +171,7 @@ fn spawn_fx(
                         }
                         // Flak: some of a close ship's shots burst short of the hull they are aimed at.
                         if (near || target.is_some_and(|_| vis.map.get(&to).and_then(|e| ships.get(*e).ok()).is_some_and(|(v, _)| v.lod == view::anim::EngineLod::Full)))
-                            && let (Some((short, side)), Some((_, _, r))) = (view::anim::flak_burst(seed), target)
+                            && let (Some((short, side)), Some((_, _, r, _))) = (view::anim::flak_burst(seed), target)
                         {
                             let back = (start - end).normalize_or_zero();
                             let across = back.cross(Vec3::Y).normalize_or(Vec3::X);

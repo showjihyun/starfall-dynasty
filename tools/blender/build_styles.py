@@ -27,20 +27,27 @@ from shiplib import Ship, log
 
 OUT = os.path.join(HERE, "_build", "styles")
 MODELS = os.path.abspath(os.path.join(HERE, "..", "..", "crates", "client", "assets", "models"))
-ALL = ["baseline", "west", "japan", "global", "unknown", "west_cruiser", "japan_cruiser", "global_cruiser"]
+ALL = ["baseline", "west", "japan", "global", "unknown", "west_cruiser", "japan_cruiser", "global_cruiser",
+       "west_small", "japan_small", "global_small", "unknown_small"]
 # Each species flies its own style at capital size; the unknown one is the Aster leviathan (docs/ART_DIRECTION.md §4).
-# style -> (model, length in metres, capital: guns become turret muzzles and main ports, a Bridge is marked)
-GAME = {"global": ("human_capital", 420.0, True), "japan": ("veyr_capital", 420.0, True),
-        "west": ("kharz_capital", 420.0, True), "unknown": ("npc_sentinel", 130.0, False),
-        "global_cruiser": ("human_cruiser", 150.0, True), "japan_cruiser": ("veyr_cruiser", 150.0, True),
-        "west_cruiser": ("kharz_cruiser", 150.0, True)}
+# style -> (model, length in metres, kind). Kinds: "big" (cruisers and capitals: guns become turret muzzles and
+# main ports, a Bridge is marked, dish and vanes rigged), "small" (a captain's first ship: bow guns, dish, landing
+# gear and vanes rigged), "npc" (as modelled).
+GAME = {"global": ("human_capital", 420.0, "big"), "japan": ("veyr_capital", 420.0, "big"),
+        "west": ("kharz_capital", 420.0, "big"), "unknown": ("npc_sentinel", 130.0, "npc"),
+        "global_cruiser": ("human_cruiser", 150.0, "big"), "japan_cruiser": ("veyr_cruiser", 150.0, "big"),
+        "west_cruiser": ("kharz_cruiser", 150.0, "big"),
+        "global_small": ("human_small", 24.0, "small"), "japan_small": ("veyr_small", 24.0, "small"),
+        "west_small": ("kharz_small", 24.0, "small"), "unknown_small": ("npc_warden", 26.0, "npc")}
+SMALL_TEX = {"unknown", "global_small", "japan_small", "west_small", "unknown_small"}  # 2048 px budgets
 
 
 def game_asset(name, ship, meshes, mats, tex):
     """The candidate as the game loads it: metres, neutral paint and lights (the game tints them), KTX2."""
     import bpy
     from mathutils import Matrix
-    model, length, capital = GAME[name]
+    model, length, kind = GAME[name]
+    capital = kind == "big"
     stylelib.neutral(mats)
     k = length / (ship.bbox[1].y - ship.bbox[0].y)
     for o in meshes:
@@ -77,10 +84,10 @@ def run(name, bake=True, battle=False, fast=False, tex=2048, game=False):
         stylelib.apply_tint(mats, tint)
         ship = Ship(name, mats)
         mod.build(ship)
-        if game and GAME[name][2]:
-            try:  # dish and engine vanes, measured off the hull like every other capital (build_ships.rig_auto)
+        if game and GAME[name][2] != "npc":
+            try:  # dish, vanes and (small ships) landing gear, measured off the hull (build_ships.rig_auto)
                 import build_ships
-                build_ships.rig_auto(ship, big=True)
+                build_ships.rig_auto(ship, big=GAME[name][2] == "big")
             except Exception as ex:
                 log(name, "rig left out:", ex)
         objs = ship.finalize()
@@ -110,7 +117,7 @@ def main():
     game = "--game" in argv
     for n in [a for a in argv if a in ALL and (not game or a in GAME)] or (list(GAME) if game else ALL):
         run(n, bake="--no-bake" not in argv, battle="--battle" in argv, fast="--fast" in argv,
-            tex=(2048 if n == "unknown" else 4096) if game and "--tex" not in argv else tex, game=game)
+            tex=(2048 if n in SMALL_TEX else 4096) if game and "--tex" not in argv else tex, game=game)
 
 
 if __name__ == "__main__":
