@@ -580,7 +580,7 @@ fn ship_loops(mut commands: Commands, s: Res<Session>, server: Res<AssetServer>,
         return;
     }
     let me = s.my_state();
-    let max_speed = s.profile.as_ref().map(|p| p.ship.stats().speed).unwrap_or(120.0).max(1.0);
+    let max_speed = s.profile.as_ref().map(|p| p.ship.stats_as(p.species).speed).unwrap_or(120.0).max(1.0);
     let flying = me.is_some_and(|m| !m.docked);
     let throttle = me.map(|m| (Vec3::from(m.vel).length() / max_speed).clamp(0.0, 1.0)).unwrap_or(0.0);
     let boosting = me.is_some_and(|m| m.boosting);

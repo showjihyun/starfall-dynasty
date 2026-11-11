@@ -235,6 +235,17 @@ impl Ship {
         SizeClass::of_rank(self.rank())
     }
 
+    /// The ship's numbers in the hands of a captain of `species`: the hull's, as that people builds it
+    /// (tuning/ships.ron `fleets`).
+    pub fn stats_as(&self, species: crate::galaxy::Species) -> Stats {
+        let mut s = self.stats();
+        if let Some(t) = crate::tuning::get().ships.fleets.get(&species) {
+            t.apply(&mut s);
+        }
+        s
+    }
+
+    /// The hull's own numbers, before the builder's hand (`stats_as`) and anything fitted.
     pub fn stats(&self) -> Stats {
         let t = crate::tuning::get();
         let (g, bat) = (&t.ships.growth, &t.ships.batteries);

@@ -98,4 +98,16 @@
         // with captains flying straight at the enemy, docs/3D_전투_설계.md 「대규모 교전의 넓이」).
         attack_post: Some((0.8, 250.0)),
     ),
+
+    // How each people builds the same hull (2026-11-11, with the four fleet styles: docs/ART_DIRECTION.md §4).
+    // The ships now look their part, so they fly it: one clear edge, one price, about 5% each — a choice of
+    // style at captain creation, not a better or worse ship (scenario fleet_traits, docs/BALANCE.md).
+    //   Human: flowing hulls on big drives — quicker and handier, thinner skinned.
+    //   Veyr:  battleship lines, long guns — reach and punch, lighter shields.
+    //   Kharz: armoured citadels — more hull, slower.
+    fleets: {
+        Human: (speed: 1.05, turn: 1.05, hull: 0.97),
+        Veyr:  (damage: 1.05, range: 1.06, shield: 0.93),
+        Kharz: (hull: 1.10, speed: 0.95),
+    },
 )

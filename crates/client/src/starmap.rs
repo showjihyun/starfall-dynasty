@@ -411,7 +411,7 @@ fn system_chart(_ui: &mut egui::Ui, p: &egui::Painter, map: Rect, resp: &egui::R
             let v = Vec3::from(st.vel);
             p.line_segment([sp, to(pos + v * 5.0)], Stroke::new(1.5, GOLD));
             if let Some(pr) = &prof {
-                let stats = pr.ship.stats();
+                let stats = pr.ship.stats_as(pr.species);
                 p.circle_stroke(sp, stats.weapon_range * sc, Stroke::new(1.0, alpha(map::WEAPON_REACH, 70)));
                 if stats.turret_range > 0.0 && stats.turrets > 0 {
                     p.circle_stroke(sp, stats.turret_range * sc, Stroke::new(1.0, alpha(map::TURRET_REACH, 50)));

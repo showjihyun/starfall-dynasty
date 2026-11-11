@@ -1582,8 +1582,9 @@ fn dev_teleport_poses_two_captains_a_height_apart() {
 /// Holding Q/E for `secs` then letting go: how many of A's batteries reach B (directly above) once it settles.
 fn reach_after_roll(secs: f32) -> (u8, u8) {
     let mut g = game();
-    join(&mut g, 1, "Low", Species::Human, HullClass::Bastion, Profession::CombatPilot);
-    join(&mut g, 2, "High", Species::Human, HullClass::Bastion, Profession::CombatPilot);
+    // Kharz: the hull's own turn rate (tuning/ships.ron `fleets` gives Human hulls a quicker one).
+    join(&mut g, 1, "Low", Species::Kharz, HullClass::Bastion, Profession::CombatPilot);
+    join(&mut g, 2, "High", Species::Kharz, HullClass::Bastion, Profession::CombatPilot);
     for c in [1, 2] {
         grow(&mut g, c, 9, 3);
     }

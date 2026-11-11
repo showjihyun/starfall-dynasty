@@ -26,9 +26,9 @@ impl Game {
         prof.fitted.and_then(|id| self.store.data.artifacts.get(&id)).and_then(|a| self.tuning.artifacts.fit.get(&a.culture)).cloned().unwrap_or_default()
     }
 
-    /// The captain's flagship numbers, fitted artifact included.
+    /// The captain's flagship numbers: the hull as their people build it, fitted artifact included.
     pub(super) fn ship_stats(&self, prof: &Profile) -> Stats {
-        let mut stats = prof.ship.stats();
+        let mut stats = prof.ship.stats_as(prof.species);
         self.fit_effect(prof).apply(&mut stats);
         stats
     }

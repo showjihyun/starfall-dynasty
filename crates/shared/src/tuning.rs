@@ -52,6 +52,50 @@ pub struct ShipTuning {
     /// Distance between neighbouring posts of a fleet formation (`shared::formation`). Default 400.
     #[serde(default = "formation_spacing")]
     pub formation_spacing: f32,
+    /// How each people's ships differ from the hull's numbers (their fleet's design, docs/ART_DIRECTION.md §4).
+    #[serde(default)]
+    pub fleets: BTreeMap<crate::galaxy::Species, FleetTrait>,
+}
+
+/// A people's shipbuilding: multipliers on the hull's numbers, 1.0 when left out.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct FleetTrait {
+    pub hull: f32,
+    pub shield: f32,
+    pub speed: f32,
+    pub turn: f32,
+    pub damage: f32,
+    pub range: f32,
+}
+
+impl Default for FleetTrait {
+    fn default() -> Self {
+        FleetTrait { hull: 1.0, shield: 1.0, speed: 1.0, turn: 1.0, damage: 1.0, range: 1.0 }
+    }
+}
+
+impl FleetTrait {
+    pub fn apply(&self, s: &mut crate::ships::Stats) {
+        s.max_hull *= self.hull;
+        s.max_shield *= self.shield;
+        s.shield_regen *= self.shield;
+        s.speed *= self.speed;
+        s.accel *= self.speed;
+        s.turn *= self.turn;
+        s.damage *= self.damage;
+        s.missile_damage *= self.damage;
+        s.turret_damage *= self.damage;
+        s.main_damage *= self.damage;
+        s.weapon_range *= self.range;
+    }
+
+    /// One line for the captain creation screen ("속도 +6%, 선체 −4%"); empty when nothing differs.
+    pub fn describe(&self) -> String {
+        let pct = |name: &str, m: f32| ((m - 1.0).abs() > 1e-3).then(|| format!("{name} {:+.0}%", (m - 1.0) * 100.0));
+        let parts: Vec<String> = [pct("선체", self.hull), pct("실드", self.shield), pct("속도", self.speed), pct("선회", self.turn), pct("무기 피해", self.damage), pct("사거리", self.range)].into_iter().flatten().collect();
+        parts.join(", ")
+    }
 }
 
 fn formation_spacing() -> f32 {

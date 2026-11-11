@@ -258,6 +258,10 @@ fn create(ctx: &egui::Context, form: &mut Form, s: &Session, net: &Net, args: &A
             for sp in Species::ALL {
                 cols[0].radio_value(&mut form.species, sp, RichText::new(sp.name()).size(16.0));
                 cols[0].label(RichText::new(sp.motto()).size(12.0).color(DIM));
+                // How this people builds its ships (tuning/ships.ron `fleets`): the bars on the right follow it.
+                if let Some(t) = shared::tuning::get().ships.fleets.get(&sp).map(|t| t.describe()).filter(|t| !t.is_empty()) {
+                    cols[0].label(RichText::new(format!("함대: {t}")).size(11.0).color(GOLD));
+                }
             }
             cols[0].add_space(10.0);
             cols[0].heading("2. 직업");
@@ -278,7 +282,7 @@ fn create(ctx: &egui::Context, form: &mut Form, s: &Session, net: &Net, args: &A
             }
 
             cols[2].heading("함선 제원");
-            let st = Ship::new(String::new(), form.hull, form.livery).stats();
+            let st = Ship::new(String::new(), form.hull, form.livery).stats_as(form.species);
             stat_bar(&mut cols[2], "선체", st.max_hull, 700.0);
             stat_bar(&mut cols[2], "실드", st.max_shield, 400.0);
             stat_bar(&mut cols[2], "속도", st.speed, 150.0);
