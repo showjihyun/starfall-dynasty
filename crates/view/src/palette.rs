@@ -40,6 +40,8 @@ pub fn hull_color(hull: f32, pulse: f32) -> Color32 {
 pub mod chrome {
     use egui::Color32;
     pub const WINDOW: Color32 = Color32::from_rgba_unmultiplied_const(12, 16, 26, 235);
+    /// Full screens (the exchange, the job board): opaque, so windows behind do not show through.
+    pub const SCREEN: Color32 = Color32::from_rgb(11, 15, 24);
     pub const PANEL: Color32 = Color32::from_rgba_unmultiplied_const(12, 16, 26, 220);
     pub const BORDER: Color32 = Color32::from_rgb(50, 80, 120);
     pub const SELECTION: Color32 = Color32::from_rgb(40, 90, 150);
@@ -239,4 +241,29 @@ pub mod exchange {
     pub const BUY: Color32 = Color32::from_rgb(40, 140, 90);
     pub const SELL: Color32 = Color32::from_rgb(170, 120, 30);
     pub const TEXT: Color32 = Color32::from_rgb(230, 238, 250);
+}
+
+/// The job board (view::jobboard): each kind of job's colour, for its emblem, its card's edge and
+/// its slot; the rest of the screen's colours (cards shared with the exchange).
+pub mod jobs {
+    use egui::Color32;
+    use shared::jobs::JobTag;
+    pub use super::exchange::{CARD, CARD_HOVER, CARD_PICKED, TEXT, TRACK, WELL};
+    pub fn tag(t: JobTag) -> Color32 {
+        match t {
+            JobTag::Bounty => Color32::from_rgb(255, 120, 90),
+            JobTag::Haul => Color32::from_rgb(110, 175, 255),
+            JobTag::Survey => Color32::from_rgb(90, 225, 215),
+            JobTag::Prospect => Color32::from_rgb(200, 140, 255),
+            JobTag::Armada => Color32::from_rgb(255, 80, 110),
+            JobTag::Supply => Color32::from_rgb(150, 220, 110),
+        }
+    }
+    /// The star chart behind a briefing and the systems on it.
+    pub const CHART: Color32 = Color32::from_rgba_unmultiplied_const(10, 14, 24, 245);
+    pub const FAINT: Color32 = Color32::from_rgb(70, 84, 110);
+    pub const ACCEPT: Color32 = Color32::from_rgb(40, 140, 90);
+    pub const ACCEPT_TEXT: Color32 = Color32::from_rgb(110, 230, 150);
+    pub const ABANDON: Color32 = Color32::from_rgb(150, 50, 50);
+    pub const WARN: Color32 = Color32::from_rgb(255, 95, 80);
 }

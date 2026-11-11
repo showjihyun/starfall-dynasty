@@ -34,6 +34,9 @@ pub struct UiFlags {
     /// The exchange (F3) and what is picked on it.
     pub exchange: bool,
     pub exchange_pick: view::exchange::ExchangeState,
+    /// The job board (F4) and the job picked on it.
+    pub jobs: bool,
+    pub jobs_pick: view::jobboard::BoardState,
     pub missions: bool,
     pub contracts: bool,
     pub chronicle: bool,

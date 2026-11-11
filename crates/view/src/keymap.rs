@@ -33,6 +33,7 @@ pub enum Action {
     Map,
     Station,
     Exchange,
+    Jobs,
     Missions,
     Contracts,
     Chronicle,
@@ -43,12 +44,12 @@ pub enum Action {
 }
 
 impl Action {
-    pub const ALL: [Action; 33] = [
+    pub const ALL: [Action; 34] = [
         Action::ThrustForward, Action::ThrustBack, Action::TurnLeft, Action::TurnRight, Action::NoseUp, Action::NoseDown, Action::RollLeft, Action::RollRight, Action::Rise, Action::Sink, Action::Boost,
         Action::Fire, Action::Target, Action::Missile, Action::EscortAttack, Action::EscortReturn, Action::HoldPost,
         Action::Camera, Action::Bridge,
         Action::Dock, Action::Mine, Action::Scan, Action::Pulse, Action::Rebuild,
-        Action::Map, Action::Station, Action::Exchange, Action::Missions, Action::Contracts, Action::Chronicle, Action::Fleet, Action::Alliance, Action::Help,
+        Action::Map, Action::Station, Action::Exchange, Action::Jobs, Action::Missions, Action::Contracts, Action::Chronicle, Action::Fleet, Action::Alliance, Action::Help,
     ];
 
     /// The id stored in the settings file.
@@ -80,6 +81,7 @@ impl Action {
             Action::Map => "map",
             Action::Station => "station",
             Action::Exchange => "exchange",
+            Action::Jobs => "jobs",
             Action::Missions => "missions",
             Action::Contracts => "contracts",
             Action::Chronicle => "chronicle",
@@ -118,6 +120,7 @@ impl Action {
             Action::Map => "지도",
             Action::Station => "정거장",
             Action::Exchange => "교역소",
+            Action::Jobs => "의뢰 게시판",
             Action::Missions => "미션",
             Action::Contracts => "계약",
             Action::Chronicle => "연대기",
@@ -157,6 +160,7 @@ impl Action {
             Action::Map => "KeyM",
             Action::Station => "KeyU",
             Action::Exchange => "F3",
+            Action::Jobs => "F4",
             Action::Missions => "KeyJ",
             Action::Contracts => "KeyO",
             Action::Chronicle => "KeyH",

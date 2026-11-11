@@ -291,6 +291,9 @@ fn action_keys(keys: Res<ButtonInput<KeyCode>>, wants: Option<Res<EguiWantsInput
     if act(A::Exchange) {
         s.ui.exchange = !s.ui.exchange;
     }
+    if act(A::Jobs) {
+        s.ui.jobs = !s.ui.jobs;
+    }
     if act(A::Missions) {
         s.ui.missions = !s.ui.missions;
     }

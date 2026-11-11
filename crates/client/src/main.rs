@@ -435,6 +435,7 @@ fn automation(
             "galaxy" if first => s.map.level = starmap::Level::Galaxy,
             "station" if first => s.ui.station = true,
             "exchange" if first => s.ui.exchange = true,
+            "jobs" if first => s.ui.jobs = true,
             // `job N`: take the Nth job on the board of the station docked at.
             "job" if first => {
                 if let Some(j) = s.station.as_ref().and_then(|b| b.jobs.get(dur as usize)) {

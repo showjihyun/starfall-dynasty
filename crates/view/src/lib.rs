@@ -9,6 +9,7 @@
 //! - [`comms`]: the chapter-end comms window (who speaks, typing, emblem), checked headless.
 //! - [`voice`]: generated voice lines for those two (presets, manifest, timing checks).
 //! - [`exchange`]: the station's trade goods market as its own screen.
+//! - [`jobboard`]: the station's job board and the jobs held, as its own screen.
 //! - [`fleet`]: the four fleet styles — who flies which, and each ship's model.
 //! - [`interp`]: snapshot interpolation and own-ship extrapolation.
 //! - [`relation`]: mine / friend / hostile / neutral, shared by the HUD and the star map.
@@ -28,6 +29,7 @@ pub mod fleet;
 pub mod fonts;
 pub mod gauge;
 pub mod hud;
+pub mod jobboard;
 pub mod interp;
 pub mod keymap;
 pub mod mapview;

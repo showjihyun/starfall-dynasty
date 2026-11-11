@@ -668,9 +668,14 @@ fn windows(ctx: &egui::Context, s: &mut Session, net: &Net, env: &Env) {
     egui::Window::new(format!("정거장 · 조선소 ({})", s.key(A::Station))).id(egui::Id::new("win_station")).open(&mut open).default_size([560.0, 600.0]).show(ctx, |ui| station(ui, s, net, &prof, env));
     s.ui.station = open;
 
+    let screen = egui::Frame::window(&ctx.global_style()).fill(chrome::SCREEN);
     let mut open = s.ui.exchange;
-    egui::Window::new(format!("교역소 ({})", s.key(A::Exchange))).id(egui::Id::new("win_exchange")).open(&mut open).default_pos([200.0, 60.0]).default_size([800.0, 600.0]).collapsible(false).show(ctx, |ui| exchange(ui, s, net));
+    egui::Window::new(format!("교역소 ({})", s.key(A::Exchange))).id(egui::Id::new("win_exchange")).frame(screen).open(&mut open).default_pos([200.0, 60.0]).default_size([800.0, 600.0]).collapsible(false).show(ctx, |ui| exchange(ui, s, net));
     s.ui.exchange = open;
+
+    let mut open = s.ui.jobs;
+    egui::Window::new(format!("의뢰 게시판 ({})", s.key(A::Jobs))).id(egui::Id::new("win_jobs")).frame(screen).open(&mut open).default_pos([180.0, 50.0]).default_size([840.0, 640.0]).collapsible(false).show(ctx, |ui| job_board(ui, s, net));
+    s.ui.jobs = open;
 
     let mut open = s.ui.missions;
     egui::Window::new(format!("임무 ({})", s.key(A::Missions))).id(egui::Id::new("win_missions")).open(&mut open).default_size([520.0, 560.0]).show(ctx, |ui| missions(ui, s, net, &prof));
@@ -800,16 +805,13 @@ fn station(ui: &mut egui::Ui, s: &mut Session, net: &Net, prof: &Profile, env: &
     ui.separator();
     ask_station(s, net, docked);
     let t = shared::tuning::get();
-    let room = (prof.ship.stats_as(prof.species).cargo as u32).saturating_sub(prof.cargo_used());
     let here = s.station.clone().filter(|b| docked && b.system == s.system);
-    let unix = s.server_unix();
-    match view::panels::job_board(ui, here.as_ref().map(|b| (b.system, &b.jobs[..], b.next_board)), &prof.jobs, unix, t.trade.jobs.max_active, room) {
-        Some(view::panels::JobRequest::Accept(id)) => net.send(ClientMsg::AcceptJob { id }),
-        Some(view::panels::JobRequest::Abandon(id)) => net.send(ClientMsg::AbandonJob { id }),
-        None => {}
+    let posted = here.as_ref().map_or(String::new(), |b| format!("올라온 의뢰 {}건 · ", b.jobs.len()));
+    let open = RichText::new(format!("의뢰 게시판 열기 ({}) — {posted}맡은 의뢰 {}/{}", s.key(A::Jobs), prof.jobs.len(), t.trade.jobs.max_active)).size(16.0).strong();
+    if ui.add(egui::Button::new(open).min_size(EVec2::new(ui.available_width(), 38.0))).clicked() {
+        s.ui.jobs = true;
     }
     if here.is_some() {
-        ui.separator();
         let open = RichText::new(format!("교역소 열기 ({}) — 상품 사고팔기, 항로 차익", s.key(A::Exchange))).size(16.0).strong();
         if ui.add(egui::Button::new(open).min_size(EVec2::new(ui.available_width(), 38.0))).clicked() {
             s.ui.exchange = true;
@@ -856,6 +858,32 @@ fn ask_station(s: &mut Session, net: &Net, docked: bool) {
     if !docked {
         s.ui.station_asked = None;
     }
+}
+
+fn job_board(ui: &mut egui::Ui, s: &mut Session, net: &Net) {
+    let docked = s.my_state().is_some_and(|m| m.docked);
+    ask_station(s, net, docked);
+    let Some(prof) = s.profile.clone() else { return };
+    let t = shared::tuning::get();
+    let b = s.station.clone().filter(|b| docked && b.system == s.system);
+    let room = (prof.ship.stats_as(prof.species).cargo as u32).saturating_sub(prof.cargo_used());
+    let view = view::jobboard::BoardView {
+        station: b.as_ref().map(|b| b.system),
+        jobs: b.as_ref().map_or(&[][..], |b| &b.jobs[..]),
+        next_board: b.as_ref().map_or(0, |b| b.next_board),
+        held: &prof.jobs,
+        unix: s.server_unix(),
+        max_active: t.trade.jobs.max_active,
+        room,
+        here: s.system,
+    };
+    let mut pick = std::mem::take(&mut s.ui.jobs_pick);
+    match view::jobboard::job_board(ui, &view, &mut pick) {
+        Some(view::jobboard::JobRequest::Accept(id)) => net.send(ClientMsg::AcceptJob { id }),
+        Some(view::jobboard::JobRequest::Abandon(id)) => net.send(ClientMsg::AbandonJob { id }),
+        None => {}
+    }
+    s.ui.jobs_pick = pick;
 }
 
 fn exchange(ui: &mut egui::Ui, s: &mut Session, net: &Net) {

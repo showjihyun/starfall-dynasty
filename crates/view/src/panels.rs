@@ -123,7 +123,7 @@ pub fn artifacts(ui: &mut egui::Ui, held: &[Artifact], docked: bool, prices: &Ar
 // ---- Contract board -------------------------------------------------------------------------
 
 use shared::contracts::{Contract, ContractId, ContractKind, ContractState};
-use shared::galaxy::{self, Ore, SystemId};
+use shared::galaxy::{Ore, SystemId};
 
 /// What the player asked the contract board for.
 #[derive(Clone, Debug, PartialEq)]
@@ -368,69 +368,6 @@ pub fn institutes(ui: &mut egui::Ui, list: &[InstituteView], here: SystemId, hel
 }
 
 // ---- The open galaxy: job board, market, titles ------------------------------------------------
-
-/// A job board click.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum JobRequest {
-    Accept(shared::jobs::JobId),
-    Abandon(shared::jobs::JobId),
-}
-
-/// The station's job board (docked) and the jobs this captain carries. `board`: the station docked
-/// at and its jobs (None: not docked anywhere); `unix`: game time now.
-pub fn job_board(ui: &mut egui::Ui, board: Option<(SystemId, &[shared::jobs::Job], u64)>, held: &[shared::jobs::ActiveJob], unix: u64, max_active: usize, room: u32) -> Option<JobRequest> {
-    use shared::jobs::JobKind;
-    let mut req = None;
-    ui.label(RichText::new(format!("맡은 의뢰 {}/{max_active}", held.len())).strong());
-    if held.is_empty() {
-        ui.label(RichText::new("맡은 의뢰가 없습니다 — 정거장 게시판에서 고르세요. 의뢰는 어느 정거장에서든 여러 건을 함께 맡을 수 있습니다.").size(11.0).color(DIM));
-    }
-    for a in held {
-        ui.horizontal_wrapped(|ui| {
-            ui.label(RichText::new(a.status(unix)).color(GOLD).size(12.0));
-            if ui.small_button("포기").on_hover_text("평판 −1, 운송 의뢰의 봉인 화물은 반납됩니다").clicked() {
-                req = Some(JobRequest::Abandon(a.job.id));
-            }
-        });
-        let left = a.remaining();
-        if !left.is_empty() {
-            let names: Vec<&str> = left.iter().map(|s| galaxy::system(*s).name).collect();
-            ui.label(RichText::new(format!("   ↳ 갈 곳: {} · 보상 {}", names.join(" · "), a.job.reward.describe())).size(11.0).color(DIM));
-        }
-    }
-    ui.separator();
-    let Some((station, jobs, next)) = board else {
-        ui.label(RichText::new("의뢰 게시판은 정거장에 도킹하면 보입니다. 정거장마다, 30분마다 다른 일이 올라옵니다.").size(11.0).color(DIM));
-        return req;
-    };
-    let mins = next.saturating_sub(unix).div_ceil(60);
-    ui.label(RichText::new(format!("{} 정거장 의뢰 게시판 — {mins}분 뒤 교체", galaxy::system(station).name)).strong());
-    for j in jobs {
-        let taken = held.iter().any(|a| a.job.id == j.id);
-        ui.horizontal_wrapped(|ui| {
-            ui.label(RichText::new(format!("[{}]", j.kind.tag().name())).color(GOLD).size(12.0));
-            ui.label(RichText::new(j.describe()).size(12.0));
-        });
-        ui.horizontal_wrapped(|ui| {
-            let hours = j.limit_secs as f32 / 3600.0;
-            ui.label(RichText::new(format!("   보상 {} · 평판 +{} · 기한 {hours:.1}시간", j.reward.describe(), j.reputation)).size(11.0).color(DIM));
-            let full = held.len() >= max_active;
-            let space = match j.kind {
-                JobKind::Haul { units, .. } => units <= room,
-                _ => true,
-            };
-            let label = if taken { "수락함" } else { "수락" };
-            let hint = if full { "맡을 수 있는 의뢰가 가득 찼습니다" } else if !space { "화물칸이 부족합니다" } else { "" };
-            if ui.add_enabled(!taken && !full && space, egui::Button::new(label).small()).on_disabled_hover_text(hint).clicked() {
-                req = Some(JobRequest::Accept(j.id));
-            }
-        });
-    }
-    if jobs.is_empty() {
-        ui.label(RichText::new("지금은 올라온 의뢰가 없습니다.").size(11.0).color(DIM));
-    }
-    req
-}
 
 /// Every title: the earned ones to wear, the rest with what earns them. Returns the title to wear
 /// (Some(None): take it off).
