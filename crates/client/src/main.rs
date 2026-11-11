@@ -434,6 +434,13 @@ fn automation(
             "map" if first => s.ui.map = true,
             "galaxy" if first => s.map.level = starmap::Level::Galaxy,
             "station" if first => s.ui.station = true,
+            "exchange" if first => s.ui.exchange = true,
+            // `job N`: take the Nth job on the board of the station docked at.
+            "job" if first => {
+                if let Some(j) = s.station.as_ref().and_then(|b| b.jobs.get(dur as usize)) {
+                    net.send(ClientMsg::AcceptJob { id: j.id });
+                }
+            }
             "missions" if first => s.ui.missions = true,
             "help" if first => s.ui.help = true,
             "pulse" if first => net.send(ClientMsg::Pulse),

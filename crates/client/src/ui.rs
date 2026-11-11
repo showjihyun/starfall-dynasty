@@ -496,7 +496,8 @@ fn hud(ctx: &egui::Context, s: &mut Session, net: &Net, env: &Env, vis: &Visuals
             });
             ui.label(RichText::new(def.lore).size(11.0).color(DIM));
             ui.separator();
-            ui.label(RichText::new(format!("{}  ·  {}", prof.name, prof.species.name())).color(GOLD));
+            let worn = prof.title.map(|t| format!("〈{}〉 ", t.name())).unwrap_or_default();
+            ui.label(RichText::new(format!("{worn}{}  ·  {}", prof.name, prof.species.name())).color(GOLD));
             let w = &prof.wallet;
             ui.label(format!("◆ {} CR", w.credits));
             if !prof.survey.is_empty() {
@@ -565,6 +566,14 @@ fn hud(ctx: &egui::Context, s: &mut Session, net: &Net, env: &Env, vis: &Visuals
                 let done = m.complete();
                 let col = if m.claimed { DIM } else if done { GREEN } else { Color32::WHITE };
                 ui.label(RichText::new(format!("{} {} ({}/{})", if m.claimed { "✔" } else if done { "★" } else { "·" }, m.objective.describe(), m.progress, m.objective.target())).size(12.0).color(col));
+            }
+            if !prof.jobs.is_empty() {
+                ui.label(RichText::new(format!("의뢰 ({})", s.key(A::Station))).color(DIM).size(11.0));
+                let unix = s.server_unix();
+                for a in &prof.jobs {
+                    let here = a.remaining().contains(&s.system);
+                    ui.label(RichText::new(format!("{} {}", if here { "▶" } else { "·" }, a.status(unix))).size(12.0).color(if here { GOLD } else { Color32::WHITE }));
+                }
             }
         });
     });
@@ -658,6 +667,10 @@ fn windows(ctx: &egui::Context, s: &mut Session, net: &Net, env: &Env) {
     let mut open = s.ui.station;
     egui::Window::new(format!("정거장 · 조선소 ({})", s.key(A::Station))).id(egui::Id::new("win_station")).open(&mut open).default_size([560.0, 600.0]).show(ctx, |ui| station(ui, s, net, &prof, env));
     s.ui.station = open;
+
+    let mut open = s.ui.exchange;
+    egui::Window::new(format!("교역소 ({})", s.key(A::Exchange))).id(egui::Id::new("win_exchange")).open(&mut open).default_pos([200.0, 60.0]).default_size([800.0, 600.0]).collapsible(false).show(ctx, |ui| exchange(ui, s, net));
+    s.ui.exchange = open;
 
     let mut open = s.ui.missions;
     egui::Window::new(format!("임무 ({})", s.key(A::Missions))).id(egui::Id::new("win_missions")).open(&mut open).default_size([520.0, 560.0]).show(ctx, |ui| missions(ui, s, net, &prof));
@@ -785,6 +798,24 @@ fn station(ui: &mut egui::Ui, s: &mut Session, net: &Net, prof: &Profile, env: &
         ui.label(RichText::new(format!("화물 없음 — 소행성대에서 채굴({})하세요. 위험한 성계일수록 비싸게 팔립니다.", s.key(A::Mine))).color(DIM).size(12.0));
     }
     ui.separator();
+    ask_station(s, net, docked);
+    let t = shared::tuning::get();
+    let room = (prof.ship.stats_as(prof.species).cargo as u32).saturating_sub(prof.cargo_used());
+    let here = s.station.clone().filter(|b| docked && b.system == s.system);
+    let unix = s.server_unix();
+    match view::panels::job_board(ui, here.as_ref().map(|b| (b.system, &b.jobs[..], b.next_board)), &prof.jobs, unix, t.trade.jobs.max_active, room) {
+        Some(view::panels::JobRequest::Accept(id)) => net.send(ClientMsg::AcceptJob { id }),
+        Some(view::panels::JobRequest::Abandon(id)) => net.send(ClientMsg::AbandonJob { id }),
+        None => {}
+    }
+    if here.is_some() {
+        ui.separator();
+        let open = RichText::new(format!("교역소 열기 ({}) — 상품 사고팔기, 항로 차익", s.key(A::Exchange))).size(16.0).strong();
+        if ui.add(egui::Button::new(open).min_size(EVec2::new(ui.available_width(), 38.0))).clicked() {
+            s.ui.exchange = true;
+        }
+    }
+    ui.separator();
     if view::panels::specimens(ui, &prof.specimens, docked) {
         net.send(ClientMsg::SellSpecimens);
     }
@@ -816,7 +847,45 @@ fn station(ui: &mut egui::Ui, s: &mut Session, net: &Net, prof: &Profile, env: &
     s.ui.institute_name = name;
 }
 
+/// Ask for the board and market of the station docked at, once per station.
+fn ask_station(s: &mut Session, net: &Net, docked: bool) {
+    if docked && s.ui.station_asked != Some(s.system) {
+        s.ui.station_asked = Some(s.system);
+        net.send(ClientMsg::RequestStation);
+    }
+    if !docked {
+        s.ui.station_asked = None;
+    }
+}
+
+fn exchange(ui: &mut egui::Ui, s: &mut Session, net: &Net) {
+    let docked = s.my_state().is_some_and(|m| m.docked);
+    ask_station(s, net, docked);
+    let Some(prof) = s.profile.clone() else { return };
+    let Some(b) = s.station.clone().filter(|b| docked && b.system == s.system) else {
+        ui.label(RichText::new(format!("교역소는 정거장에 도킹하면 열립니다 ({}).", s.key(A::Dock))).color(GOLD));
+        return;
+    };
+    let stats = prof.ship.stats_as(prof.species);
+    let view = view::exchange::ExchangeView { station: b.system, quotes: &b.market, hold: &prof.cargo, hold_cap: stats.cargo as u32, credits: prof.wallet.credits, docked, range: stats.warp_range.max(2.0) * 1.5 };
+    let mut pick = std::mem::take(&mut s.ui.exchange_pick);
+    match view::exchange::exchange(ui, &view, &mut pick) {
+        Some(view::exchange::TradeRequest::Buy(good, units)) => net.send(ClientMsg::BuyGood { good, units }),
+        Some(view::exchange::TradeRequest::Sell(good, units)) => net.send(ClientMsg::SellGood { good, units }),
+        None => {}
+    }
+    s.ui.exchange_pick = pick;
+}
+
 fn missions(ui: &mut egui::Ui, s: &mut Session, net: &Net, prof: &Profile) {
+    egui::CollapsingHeader::new(RichText::new(format!("칭호 {}개 · 착용 〈{}〉", prof.titles.len(), prof.title.map_or("없음", |t| t.name()))).color(GOLD)).default_open(false).show(ui, |ui| {
+        if let Some(title) = view::panels::titles(ui, &prof.titles, prof.title) {
+            net.send(ClientMsg::SetTitle { title });
+        }
+        let c = &prof.career;
+        ui.label(RichText::new(format!("경력: 의뢰 {}건 · 교역 순이익 {} CR · 방문 성계 {}곳 · 해적 격파 {}척", c.jobs.values().sum::<u32>(), c.trade_profit, c.visited.len(), prof.kills)).size(11.0).color(DIM));
+    });
+    ui.separator();
     ui.heading("일일 미션");
     ui.label(RichText::new("매일 UTC 자정에 새로 생성됩니다.").color(DIM).size(11.0));
     for (i, m) in prof.dailies.iter().enumerate() {

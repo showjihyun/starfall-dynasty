@@ -209,3 +209,34 @@ pub const ANCIENT_GLOW: f32 = 2.2;
 /// Warp light (a drive spooling up, the jump flash, the streak a ship leaves; linear RGB): the
 /// blue-white of the warp tunnel, whichever side the ship is on — a jump is not a shot.
 pub const WARP: [f32; 3] = [0.5, 0.75, 1.0];
+
+/// The exchange (view::exchange): each trade good's colour, for its icon, its card and its share of
+/// the hold bar; the rest of the screen's colours.
+pub mod exchange {
+    use egui::Color32;
+    use shared::market::Good;
+    pub fn good(g: Good) -> Color32 {
+        match g {
+            Good::Rations => Color32::from_rgb(170, 210, 110),
+            Good::Medicine => Color32::from_rgb(235, 240, 250),
+            Good::Machinery => Color32::from_rgb(170, 180, 195),
+            Good::FuelCells => Color32::from_rgb(110, 200, 255),
+            Good::Electronics => Color32::from_rgb(90, 230, 190),
+            Good::Luxuries => Color32::from_rgb(220, 150, 255),
+            Good::Arms => Color32::from_rgb(235, 175, 90),
+            Good::Stims => Color32::from_rgb(255, 110, 140),
+        }
+    }
+    /// Cheap here (the system makes it) / dear here (the system needs it).
+    pub const MADE: Color32 = Color32::from_rgb(110, 230, 150);
+    pub const NEEDED: Color32 = Color32::from_rgb(255, 205, 110);
+    pub const ILLEGAL: Color32 = Color32::from_rgb(255, 95, 80);
+    pub const CARD: Color32 = Color32::from_rgba_unmultiplied_const(22, 30, 46, 235);
+    pub const CARD_HOVER: Color32 = Color32::from_rgba_unmultiplied_const(30, 42, 64, 245);
+    pub const CARD_PICKED: Color32 = Color32::from_rgba_unmultiplied_const(32, 62, 104, 250);
+    pub const WELL: Color32 = Color32::from_rgb(8, 11, 18);
+    pub const TRACK: Color32 = Color32::from_rgba_unmultiplied_const(40, 52, 72, 255);
+    pub const BUY: Color32 = Color32::from_rgb(40, 140, 90);
+    pub const SELL: Color32 = Color32::from_rgb(170, 120, 30);
+    pub const TEXT: Color32 = Color32::from_rgb(230, 238, 250);
+}

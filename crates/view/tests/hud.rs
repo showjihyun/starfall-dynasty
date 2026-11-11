@@ -562,6 +562,10 @@ fn a_captain_with_no_chapter_running_is_told_what_to_do_next() {
         survey: vec![],
         revealed: vec![],
         specimens: Default::default(),
+        jobs: vec![],
+        career: Default::default(),
+        titles: vec![],
+        title: None,
     };
     let all = shared::missions::scenarios();
     let goal = hud::next_goal(&p).expect("a fresh captain is pointed at the campaign");

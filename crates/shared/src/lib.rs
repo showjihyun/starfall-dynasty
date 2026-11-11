@@ -6,12 +6,15 @@ pub mod contracts;
 pub mod formation;
 pub mod galaxy;
 pub mod institutes;
+pub mod jobs;
+pub mod market;
 pub mod minerals;
 pub mod missions;
 pub mod prof;
 pub mod protocol;
 pub mod rng;
 pub mod ships;
+pub mod titles;
 pub mod tuning;
 
 pub use glam;

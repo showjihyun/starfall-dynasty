@@ -152,6 +152,14 @@ fn galaxy_chart(_ui: &mut egui::Ui, p: &egui::Painter, map: Rect, resp: &egui::R
                 p.line_segment([foot - EVec2::new(3.0, 0.0), foot + EVec2::new(3.0, 0.0)], Stroke::new(1.0, DIM.gamma_multiply(0.6)));
             }
         }
+        // Where the jobs held send the captain (charted or not): a diamond and what is waiting.
+        let jobs: Vec<&str> = s.profile.as_ref().map(|p| p.jobs.iter().filter(|a| a.remaining().contains(&sys.id)).map(|a| a.job.kind.tag().name()).collect()).unwrap_or_default();
+        if !jobs.is_empty() {
+            let d = r + 11.0;
+            let pts = vec![sp + EVec2::new(0.0, -d), sp + EVec2::new(d, 0.0), sp + EVec2::new(0.0, d), sp + EVec2::new(-d, 0.0)];
+            p.add(egui::Shape::closed_line(pts, Stroke::new(1.5, GOLD)));
+            p.text(sp + EVec2::new(-r - 6.0, -8.0), Align2::RIGHT_TOP, format!("◆ {}", jobs.join(" · ")), FontId::proportional(11.0), GOLD);
+        }
         if !view::mapview::known(sys.id, &s.charted, s.system) {
             // Uncharted: a faint point, no name, tier or star colour until someone gets there.
             p.circle_stroke(sp, r * 0.7, Stroke::new(1.0, DIM));

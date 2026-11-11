@@ -14,6 +14,7 @@ mod fronts;
 pub mod interest;
 mod weapons;
 mod sim;
+mod trade;
 
 use crate::store::Store;
 use history::HistoryEngine;
@@ -247,6 +248,8 @@ pub struct Session {
     pub needs_full: bool,
     pub alliance_invite: Option<AllianceId>,
     pub view: interest::View,
+    /// The pirates of this captain's bounty and armada jobs, by job: their system and who is left.
+    pub job_waves: BTreeMap<shared::jobs::JobId, (SystemId, Vec<EntityId>)>,
 }
 
 /// Formation offsets (in flagship radii) for escort slots, behind and to the sides.
@@ -431,6 +434,7 @@ impl Game {
         for d in done {
             self.toast(pid, format!("일일 미션 완료: {d} — 보상을 수령하세요"));
         }
+        self.check_titles(pid);
         self.push_profile(pid);
     }
 
@@ -486,6 +490,13 @@ impl Game {
                 for w in s.wave {
                     if let Some(sys) = self.systems.get_mut(&s.wave_system.unwrap_or(s.system)) {
                         sys.ents.remove(&w);
+                    }
+                }
+                for (_, (ws, ids)) in s.job_waves {
+                    if let Some(sys) = self.systems.get_mut(&ws) {
+                        for w in ids {
+                            sys.ents.remove(&w);
+                        }
                     }
                 }
                 self.broadcast_fleet(pid);
@@ -583,6 +594,10 @@ impl Game {
             fitted: None,
             survey: vec![],
             specimens: Default::default(),
+            jobs: vec![],
+            career: Default::default(),
+            titles: vec![],
+            title: None,
         };
         self.store.set_profile(pid, profile.clone());
         self.history.record(self.unix, history::DomainEvent::PlayerFounded { player: name, species: species.name().into(), ship: ship_name, hull: hull.name().into() });
@@ -641,6 +656,10 @@ impl Game {
         }
         self.progress(pid, Progress::Visited(system));
         self.scenario_on_enter(pid);
+        self.jobs_on_enter(pid);
+        if docked {
+            self.send_station(pid, system);
+        }
     }
 
     /// "[TAG] name 「ship」" — the alliance tag is part of how others see you.

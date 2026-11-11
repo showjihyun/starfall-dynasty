@@ -25,7 +25,7 @@ pub const DIR_NAME: &str = "tuning";
 /// Real astronomical names for the generated systems; optional (a recording made before it existed
 /// keeps the old names), so it is not in [`FILES`].
 pub const CATALOG_FILE: &str = "catalog.ron";
-pub const FILES: [&str; 9] = ["ships.ron", "npcs.ron", "combat.ron", "artifacts.ron", "history.ron", "social.ron", "economy.ron", "galaxy.ron", "minerals.ron"];
+pub const FILES: [&str; 10] = ["ships.ron", "npcs.ron", "combat.ron", "artifacts.ron", "history.ron", "social.ron", "economy.ron", "galaxy.ron", "minerals.ron", "trade.ron"];
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Tuning {
@@ -38,6 +38,86 @@ pub struct Tuning {
     pub economy: EconomyTuning,
     pub galaxy: GalaxyTuning,
     pub minerals: MineralTuning,
+    pub trade: TradeTuning,
+}
+
+/// The open galaxy's work and trade (`trade.ron`): station job boards, the goods market, titles.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct TradeTuning {
+    pub jobs: JobTuning,
+    pub market: MarketTuning,
+    /// What earns each title (`shared::titles::earned`: counts, credits or chapters).
+    pub titles: BTreeMap<crate::titles::Title, u32>,
+}
+
+/// Station job boards (`shared::jobs`).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct JobTuning {
+    /// Seconds a board stays up before the station posts a new one.
+    pub period_secs: u64,
+    pub per_board: usize,
+    /// Jobs a captain can carry at once.
+    pub max_active: usize,
+    /// How often each kind shows up on a board, by the station's tier.
+    pub kinds: BTreeMap<crate::galaxy::RiskTier, BTreeMap<crate::jobs::JobTag, u32>>,
+    /// Seconds to finish a bounty (other kinds take multiples of it).
+    pub limit_secs: u64,
+    /// How far out (ly) a bounty or an armada may be.
+    pub bounty_range: f32,
+    pub bounty: f32,
+    pub names_first: Vec<String>,
+    pub names_last: Vec<String>,
+    pub haul_range: (f32, f32),
+    pub haul_units: (u32, u32),
+    pub haul_base: f32,
+    pub haul_per_unit_ly: f32,
+    pub haul_secs_base: u64,
+    pub haul_secs_per_ly: f32,
+    pub survey_range: (f32, f32),
+    pub survey_per_system: f32,
+    /// Times the specimens' assay value.
+    pub prospect_premium: f32,
+    /// The pirate fleet, by the tier of the system it gathers in.
+    pub armada: BTreeMap<crate::galaxy::RiskTier, Vec<(crate::missions::NpcArchetype, u32)>>,
+    pub armada_per_ship: f32,
+    pub armada_secs: u64,
+    pub supply_units: (u32, u32),
+    /// Times what the goods fetch on the station's market.
+    pub supply_premium: f32,
+}
+
+/// The trade goods market (`shared::market`).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct MarketTuning {
+    pub base: BTreeMap<crate::market::Good, f32>,
+    /// Price × where the system makes it / needs it.
+    pub produce_price: f32,
+    pub demand_price: f32,
+    /// Price × by the station's risk tier.
+    pub tier: BTreeMap<crate::galaxy::RiskTier, f32>,
+    /// Buy at mid × (1 + spread), sell at mid × (1 − spread).
+    pub spread: f32,
+    /// Units traded that move the price by a factor e.
+    pub depth: f32,
+    /// Seconds for a station's stock to drift half way back.
+    pub half_life: f32,
+    /// What each star's systems make, and how many of them.
+    pub industries: BTreeMap<crate::galaxy::StarKind, Vec<crate::market::Good>>,
+    pub produce_count: usize,
+    /// What each tier's systems need, and how many of them.
+    pub needs: BTreeMap<crate::galaxy::RiskTier, Vec<crate::market::Good>>,
+    pub demand_count: usize,
+    pub contraband: Vec<crate::market::Good>,
+    /// Tiers whose stations sell contraband (the black market)…
+    pub black_market: Vec<crate::galaxy::RiskTier>,
+    /// …and whose stations seize it: docked with it in the hold, it is taken and the captain fined.
+    pub seize_in: Vec<crate::galaxy::RiskTier>,
+    /// The fine, as a share of the seized goods' base value.
+    pub fine: f32,
+    pub fine_reputation: i32,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -935,7 +1015,10 @@ impl Tuning {
             let text = std::fs::read_to_string(&path).map_err(|e| format!("{}: {e}", path.display()))?;
             ron::from_str(&text).map_err(|e| format!("{}:{e}", path.display()))
         }
-        let mut t = Tuning { ships: read(dir, fallback, FILES[0])?, npcs: read(dir, fallback, FILES[1])?, combat: read(dir, fallback, FILES[2])?, artifacts: read(dir, fallback, FILES[3])?, history: read(dir, fallback, FILES[4])?, social: read(dir, fallback, FILES[5])?, economy: read(dir, fallback, FILES[6])?, galaxy: read(dir, fallback, FILES[7])?, minerals: read(dir, fallback, FILES[8])? };
+        // trade.ron came later than the rest: a recording made before it replays with today's (the workspace's).
+        let today = Self::locate();
+        let trade_fallback = fallback.or(today.as_deref());
+        let mut t = Tuning { ships: read(dir, fallback, FILES[0])?, npcs: read(dir, fallback, FILES[1])?, combat: read(dir, fallback, FILES[2])?, artifacts: read(dir, fallback, FILES[3])?, history: read(dir, fallback, FILES[4])?, social: read(dir, fallback, FILES[5])?, economy: read(dir, fallback, FILES[6])?, galaxy: read(dir, fallback, FILES[7])?, minerals: read(dir, fallback, FILES[8])?, trade: read(dir, trade_fallback, FILES[9])? };
         // Only from `dir` itself: a recording without it replays with the names it was made with.
         if dir.join(CATALOG_FILE).is_file() {
             t.galaxy.catalog = read::<Catalog>(dir, None, CATALOG_FILE)?.entries;

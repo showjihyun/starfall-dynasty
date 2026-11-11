@@ -31,6 +31,15 @@ pub struct StoredWreck {
     pub artifacts: Vec<u64>,
 }
 
+/// A station's stock of a good, moved `offset` units by trade as of `unix` (`shared::market::relax`).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct MarketRow {
+    pub system: SystemId,
+    pub good: shared::market::Good,
+    pub offset: f32,
+    pub unix: u64,
+}
+
 #[derive(Clone, Default, Serialize, Deserialize)]
 pub struct StoreData {
     pub next_id: PlayerId,
@@ -38,6 +47,9 @@ pub struct StoreData {
     pub wrecks: Vec<StoredWreck>,
     /// Accumulated supply per (system, ore) — drives local prices.
     pub supply: Vec<(SystemId, Ore, f32)>,
+    /// Trade goods stock moved by captains, per station (`shared::market`; drifts back over time).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub market: Vec<MarketRow>,
     #[serde(default)]
     pub alliances: Vec<Alliance>,
     #[serde(default)]

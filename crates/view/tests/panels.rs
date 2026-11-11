@@ -310,3 +310,41 @@ fn a_fitted_artifact_says_what_it_does_and_only_comes_off() {
     let (t, _) = frame(|ui| panels::artifacts(ui, &[artifact(8, false)], true, &PRICES, "V", None, &fit), None);
     assert!(!t.iter().any(|s| s == "함선에 장착"), "{t:?}");
 }
+
+// ---- the open galaxy: job board, market, titles
+
+#[test]
+fn the_job_board_lists_the_shift_takes_a_job_and_tracks_the_ones_held() {
+    use shared::jobs::{self, ActiveJob};
+    use view::panels::JobRequest;
+    let t = shared::tuning::get();
+    let unix = 1_800_000_000;
+    let board = jobs::board(&t, 3, jobs::period(&t, unix));
+    assert!(!board.is_empty());
+    let next = (jobs::period(&t, unix) + 1) * t.trade.jobs.period_secs;
+    let (seen, req) = frame(|ui| panels::job_board(ui, Some((3, &board, next)), &[], unix, 4, 90), Some("수락"));
+    assert!(seen.iter().any(|s| s.contains("Orion Drift 정거장 의뢰 게시판")), "{seen:?}");
+    assert!(seen.iter().any(|s| s.contains(&board[0].describe())));
+    assert_eq!(req, Some(JobRequest::Accept(board[0].id)));
+    // Held: its status and the way to give it up; on the board it is marked taken.
+    let held = vec![ActiveJob { job: board[0].clone(), accepted: unix, visited: vec![] }];
+    let (seen, req) = frame(|ui| panels::job_board(ui, Some((3, &board, next)), &held, unix, 4, 90), Some("포기"));
+    assert!(seen.iter().any(|s| s.starts_with("맡은 의뢰 1/4")));
+    assert!(seen.iter().any(|s| s == "수락함"));
+    assert_eq!(req, Some(JobRequest::Abandon(board[0].id)));
+    // Not docked: the held jobs, and where boards are.
+    let (seen, _) = frame(|ui| panels::job_board(ui, None, &held, unix, 4, 90), None);
+    assert!(seen.iter().any(|s| s.contains("도킹하면")));
+}
+
+#[test]
+fn titles_show_what_earns_them_and_an_earned_one_can_be_worn() {
+    use shared::titles::Title;
+    let (seen, req) = frame(|ui| panels::titles(ui, &[Title::Pathfinder], None), Some("장착"));
+    assert!(seen.iter().any(|s| s.starts_with("칭호 1/")));
+    assert!(seen.iter().any(|s| s == "〈현상금 사냥꾼〉"));
+    assert!(seen.iter().any(|s| s.contains("현상금 의뢰") && s.contains("완수")));
+    assert_eq!(req, Some(Some(Title::Pathfinder)));
+    let (_, req) = frame(|ui| panels::titles(ui, &[Title::Pathfinder], Some(Title::Pathfinder)), Some("해제"));
+    assert_eq!(req, Some(None));
+}

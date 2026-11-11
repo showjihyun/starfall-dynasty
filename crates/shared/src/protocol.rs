@@ -156,6 +156,16 @@ pub enum ClientMsg {
     DonateToInstitute { artifact: ArtifactId, institute: crate::institutes::InstituteId },
     RequestInstitutes,
     Ping { t: f64 },
+    /// The board and market of the station you are docked at (answered with `StationBoard`).
+    RequestStation,
+    /// Take a job from the board of the station you are docked at; give up one you hold.
+    AcceptJob { id: crate::jobs::JobId },
+    AbandonJob { id: crate::jobs::JobId },
+    /// Trade goods at the station you are docked at.
+    BuyGood { good: crate::market::Good, units: u32 },
+    SellGood { good: crate::market::Good, units: u32 },
+    /// Wear an earned title (None: none).
+    SetTitle { title: Option<crate::titles::Title> },
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -211,6 +221,17 @@ pub struct Profile {
     /// Mineral specimens held (mineral id → count); they take no cargo space.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub specimens: BTreeMap<crate::minerals::MineralId, u32>,
+    /// Station jobs taken and not yet finished (`shared::jobs`).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub jobs: Vec<crate::jobs::ActiveJob>,
+    /// The record titles are earned by (`shared::titles`).
+    #[serde(default)]
+    pub career: crate::titles::Career,
+    /// Titles earned, and the one worn.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub titles: Vec<crate::titles::Title>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub title: Option<crate::titles::Title>,
 }
 
 impl Profile {
@@ -380,6 +401,9 @@ pub enum ServerMsg {
     Contracts { list: Vec<crate::contracts::Contract> },
     /// The artifacts this captain holds (sent on login and whenever they change).
     Artifacts { held: Vec<crate::artifacts::Artifact> },
+    /// The station you are docked at: its job board for this shift, its market now, and when the
+    /// board changes (unix). Sent on docking, after a trade or a job is taken, and on request.
+    StationBoard { system: SystemId, jobs: Vec<crate::jobs::Job>, market: Vec<crate::market::Quote>, next_board: u64 },
     /// `tuning`: the server's gameplay numbers, so the client's derived stats (HUD, warp range) match it.
     Welcome {
         player_id: PlayerId,

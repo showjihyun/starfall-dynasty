@@ -18,10 +18,22 @@ pub enum Screen {
 
 pub use view::interp::{INTERP_DELAY, Snap};
 
+/// What `ServerMsg::StationBoard` carried.
+#[derive(Clone, Debug, PartialEq)]
+pub struct StationBoard {
+    pub system: shared::galaxy::SystemId,
+    pub jobs: Vec<shared::jobs::Job>,
+    pub market: Vec<shared::market::Quote>,
+    pub next_board: u64,
+}
+
 #[derive(Default)]
 pub struct UiFlags {
     pub map: bool,
     pub station: bool,
+    /// The exchange (F3) and what is picked on it.
+    pub exchange: bool,
+    pub exchange_pick: view::exchange::ExchangeState,
     pub missions: bool,
     pub contracts: bool,
     pub chronicle: bool,
@@ -48,9 +60,16 @@ pub struct UiFlags {
     /// Name typed for a new institute.
     pub institute_name: String,
     pub bio_query: String,
+    /// The station whose board was last asked for (not asked again until docked somewhere else).
+    pub station_asked: Option<shared::galaxy::SystemId>,
 }
 
 impl Session {
+    /// Game time now, as the server counts it (jobs' deadlines, the board's next shift).
+    pub fn server_unix(&self) -> u64 {
+        self.server_clock.map_or(0, |(u, at)| u + at.elapsed().as_secs())
+    }
+
     /// The player's key for an action, as it reads on screen ("G", "Tab"…).
     pub fn key(&self, a: view::keymap::Action) -> String {
         view::keymap::shown(&self.keys, a)
@@ -145,6 +164,10 @@ pub struct Session {
     pub artifacts: Vec<shared::artifacts::Artifact>,
     /// The contract board (server-sent).
     pub contracts: Vec<shared::contracts::Contract>,
+    /// The station docked at: its job board and market (server-sent on docking and after trades).
+    pub station: Option<StationBoard>,
+    /// The server's game time when it greeted us, and when that was here.
+    pub server_clock: Option<(u64, std::time::Instant)>,
     /// Player institutions (server-sent).
     pub institutes: Vec<shared::institutes::InstituteView>,
     /// Alliance influence and control per system (server-sent), and the control threshold.
@@ -335,7 +358,8 @@ pub fn pump_network(net: Option<Res<Net>>, mut s: ResMut<Session>, time: Res<Tim
 
 fn apply(s: &mut Session, m: ServerMsg, now: f64, next: &mut NextState<Screen>) {
     match m {
-        ServerMsg::Welcome { player_id, token, profile, tuning, .. } => {
+        ServerMsg::Welcome { player_id, token, profile, tuning, server_unix } => {
+            s.server_clock = Some((server_unix, std::time::Instant::now()));
             if let Some(t) = tuning {
                 shared::tuning::install(*t);
             }
@@ -433,6 +457,7 @@ fn apply(s: &mut Session, m: ServerMsg, now: f64, next: &mut NextState<Screen>) 
             }
         }
         ServerMsg::Pong { t } => s.ping_ms = ((now - t) * 1000.0) as f32,
+        ServerMsg::StationBoard { system, jobs, market, next_board } => s.station = Some(StationBoard { system, jobs, market, next_board }),
         ServerMsg::Alliances { mine, list } => {
             s.my_alliance = mine;
             s.alliances = list;

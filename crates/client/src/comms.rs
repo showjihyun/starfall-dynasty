@@ -86,6 +86,10 @@ mod tests {
             fitted: None,
             survey: vec![],
             specimens: Default::default(),
+            jobs: vec![],
+            career: Default::default(),
+            titles: vec![],
+            title: None,
         }
     }
 

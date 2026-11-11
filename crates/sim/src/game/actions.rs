@@ -136,6 +136,7 @@ impl Game {
             ClientMsg::AllianceDividend => self.alliance_dividend(pid),
             ClientMsg::AllianceFortify { system } => self.alliance_fortify(pid, system),
             ClientMsg::Pulse => self.pulse(conn, pid, sys, eid),
+            m @ (ClientMsg::RequestStation | ClientMsg::AcceptJob { .. } | ClientMsg::AbandonJob { .. } | ClientMsg::BuyGood { .. } | ClientMsg::SellGood { .. } | ClientMsg::SetTitle { .. }) => self.handle_trade(pid, sys, eid, m),
             // Handled before a player's messages (Game::handle), and only from the console.
             ClientMsg::Admin { .. } => {}
             ClientMsg::AllianceVote { name } => self.alliance_vote(pid, &name),
@@ -319,6 +320,7 @@ impl Game {
         if matches!(self.scenario_step(pid), Some(Step::Dock { system }) if system == sys) {
             self.advance_scenario(pid);
         }
+        self.jobs_on_dock(pid, sys);
     }
 
     /// A scanned site's records point on: a bearing to the nearest site here this captain has not found
@@ -903,6 +905,7 @@ impl Game {
             self.history.record(self.unix, DomainEvent::ScenarioCompleted { player: prof.name.clone(), ship: prof.ship.name.clone(), chapter: sp.id, title: sc.title.into() });
             let cap = tier_cap(self.store.profile(pid).unwrap().scenarios_completed);
             self.toast(pid, format!("★ {} 완수! 보상 {} · 모듈 상한 Lv{cap}", sc.title, sc.reward.describe()));
+            self.check_titles(pid);
         } else {
             self.store.profile_mut(pid).unwrap().scenario = Some(ScenarioProgress { id: sp.id, step: next, step_progress: 0 });
             self.toast(pid, format!("다음 목표: {}", sc.steps[next].describe()));

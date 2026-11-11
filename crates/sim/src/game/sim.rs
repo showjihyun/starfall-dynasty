@@ -93,6 +93,12 @@ impl Game {
         if self.tick % 1200 == 0 && !self.store.data.contracts.is_empty() {
             self.expire_contracts();
         }
+        if self.tick.is_multiple_of(200) {
+            let online: Vec<PlayerId> = self.conn_of.keys().copied().filter(|p| self.store.profile(*p).is_some_and(|x| !x.jobs.is_empty())).collect();
+            for pid in online {
+                self.expire_jobs(pid);
+            }
+        }
         if self.tick % (3600 * TICK_HZ as u64) == 0 && !self.store.data.influence.is_empty() {
             self.decay_influence();
         }
@@ -872,7 +878,9 @@ impl Game {
                         self.history.record(self.unix, DomainEvent::BossDestroyed { boss: arch.name().into(), system: sys, killers });
                     }
                 }
-                if let Some(owner) = e.ai.as_ref().and_then(|a| a.scenario_owner) {
+                if let Some(owner) = e.ai.as_ref().and_then(|a| a.scenario_owner)
+                    && !self.job_wave_kill(owner, id)
+                {
                     self.scenario_wave_kill(owner, id);
                 }
             }
@@ -970,6 +978,7 @@ impl Game {
                     self.clear_wave(c);
                     self.send(c, ServerMsg::Died { killer: killer_name.clone(), wreck: wid, hint, rebuild_in });
                 }
+                self.jobs_on_death(vpid);
                 // Engagement loss bookkeeping.
                 let vkey = self.side_key(vpid, e.fleet, e.alliance).0;
                 if let Some(eng) = self.systems.get_mut(&sys).unwrap().engagement.as_mut()
