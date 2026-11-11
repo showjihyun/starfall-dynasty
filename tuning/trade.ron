@@ -23,7 +23,8 @@
         },
         limit_secs: 3600,
         bounty_range: 2.6,
-        bounty: 1400.0,           // × risk_reward of the target's tier × (1 + 0.35 level) × (1 + 0.25 escorts)
+        // Combat jobs pay ~2–3× the mining loop's CR/min (sim example `board`, 2026-11-11: 1400 and 650 paid 7–14×).
+        bounty: 450.0,            // × risk_reward of the target's tier × (1 + 0.35 level) × (1 + 0.25 escorts)
         names_first: ["붉은 이빨", "검은 닻", "재의", "외눈", "녹슨", "침묵의", "피의", "늙은", "유령", "굶주린", "번개", "쇠사슬"],
         names_last: ["바르크", "모로우", "실라", "드레이크", "카스", "넬", "오르벡", "제탄", "루크", "베인", "하스크", "티벨"],
         haul_range: (1.2, 4.5),
@@ -41,16 +42,17 @@
             WarZone:  [(Raider, 6), (Gunship, 3), (Warlord, 1)],
             Deep:     [(Raider, 6), (Gunship, 4), (Warlord, 1)],
         },
-        armada_per_ship: 650.0,   // × ships × risk_reward × (1 + 0.3 level)
+        armada_per_ship: 200.0,   // × ships × risk_reward × (1 + 0.3 level)
         armada_secs: 2400,
         supply_units: (10, 30),
-        supply_premium: 1.6,
+        supply_premium: 1.3,
     ),
 
     market: (
         base: { Rations: 16.0, Medicine: 42.0, Machinery: 55.0, FuelCells: 30.0, Electronics: 78.0, Luxuries: 105.0, Arms: 90.0, Stims: 130.0 },
-        produce_price: 0.62,
-        demand_price: 1.55,
+        // Margins of ~40–60% on a route (sim example `board`): 0.62 / 1.55 doubled the price, trade beat everything.
+        produce_price: 0.75,
+        demand_price: 1.3,
         tier: { Core: 0.9, Frontier: 1.0, Wild: 1.12, WarZone: 1.25, Deep: 1.4 },
         spread: 0.05,
         depth: 420.0,             // buying a 90-unit hold raises the price ~24%
