@@ -263,7 +263,7 @@ fn pad_button(a: view::keymap::Action) -> Option<GamepadButton> {
         A::Scan => GamepadButton::West,
         A::Pulse => GamepadButton::DPadUp,
         A::Missile => GamepadButton::North,
-        A::Map => GamepadButton::Select,
+        A::StarMap => GamepadButton::Select,
         _ => return None,
     })
 }
@@ -283,6 +283,9 @@ fn action_keys(keys: Res<ButtonInput<KeyCode>>, wants: Option<Res<EguiWantsInput
     let act = |a: A| keys.just_pressed(binds.key(a)) || pad.zip(pad_button(a)).is_some_and(|(p, b)| p.just_pressed(b));
     // Windows.
     if act(A::Map) {
+        s.ui.minimap_toggle = true;
+    }
+    if act(A::StarMap) {
         s.ui.map = !s.ui.map;
     }
     if act(A::Station) {

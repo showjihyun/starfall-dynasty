@@ -30,6 +30,15 @@ pub struct StationBoard {
 #[derive(Default)]
 pub struct UiFlags {
     pub map: bool,
+    /// M was pressed: the settings' minimap flips (ui.rs, which owns the settings).
+    pub minimap_toggle: bool,
+    /// The minimap's zoom step (`view::minimap::RANGES`; None: the default).
+    pub minimap_zoom: Option<usize>,
+    /// Top of the chat block, bottom left: the minimap sits above it.
+    pub chat_top: f32,
+    /// The interstellar autopilot: systems still to warp to (destination last), when it last asked.
+    pub route: Vec<shared::galaxy::SystemId>,
+    pub route_sent: f64,
     pub station: bool,
     /// The exchange (F3) and what is picked on it.
     pub exchange: bool,

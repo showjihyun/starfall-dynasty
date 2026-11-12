@@ -54,9 +54,9 @@ pub fn draw(ctx: &egui::Context, s: &mut Session, net: &Net, env: &Env, now: f64
 }
 
 fn top_bar(ui: &mut egui::Ui, map: Rect, s: &mut Session, env: &Env) {
-    let bar = Rect::from_min_size(map.min + EVec2::new(14.0, 12.0), EVec2::new(map.width() - 28.0, 34.0));
+    let bar = Rect::from_min_size(map.min + EVec2::new(14.0, 12.0), EVec2::new(map.width() - 28.0, 64.0));
     ui.scope_builder(egui::UiBuilder::new().max_rect(bar), |ui| {
-        ui.horizontal(|ui| {
+        ui.horizontal_wrapped(|ui| {
             let sys = galaxy::system(s.system);
             let crumb = match s.map.level {
                 Level::Galaxy => "은하 전도".to_string(),
@@ -82,12 +82,13 @@ fn top_bar(ui: &mut egui::Ui, map: Rect, s: &mut Session, env: &Env) {
             if ui.button(if s.map.is_3d() { "평면" } else { "입체" }).clicked() {
                 s.map.toggle_3d();
             }
-            if ui.button(format!("닫기 ({})", s.key(view::keymap::Action::Map))).clicked() {
+            if ui.button(format!("닫기 ({})", s.key(view::keymap::Action::StarMap))).clicked() {
                 s.ui.map = false;
             }
-            let hint = if s.map.level == Level::System { "휠: 확대/축소 · 드래그: 이동 · 우클릭 드래그: 회전·기울이기 · 함선 클릭: 목표 지정" } else { "휠: 확대/축소 · 드래그: 이동 · 우클릭 드래그: 회전·기울이기 · 성계 클릭: 선택" };
-            ui.label(RichText::new(hint).size(11.0).color(DIM));
         });
+        // The controls on their own line: with a big UI they would run into the side panel.
+        let hint = if s.map.level == Level::System { "휠: 확대/축소 · 드래그: 이동 · 우클릭 드래그: 회전·기울이기 · 함선 클릭: 목표 지정" } else { "휠: 확대/축소 · 드래그: 이동 · 우클릭 드래그: 회전·기울이기 · 성계 클릭: 선택 · 오른쪽 목록의 「항로」: 자동 워프" };
+        ui.add(egui::Label::new(RichText::new(hint).size(11.0).color(DIM)).truncate());
     });
 }
 
@@ -277,13 +278,13 @@ fn system_chart(_ui: &mut egui::Ui, p: &egui::Painter, map: Rect, resp: &egui::R
         z += step;
     }
     if v.is_3d() {
-        p.text(Pos2::new(map.left() + 24.0, map.bottom() - 84.0), Align2::LEFT_TOP, format!("기준면 고도 {:+.2} km · 격자 {}", h / 1000.0, if step >= 1000.0 { format!("{:.0} km", step / 1000.0) } else { format!("{step:.0} m") }), FontId::proportional(11.0), DIM);
+        p.text(Pos2::new(map.left() + 24.0, map.bottom() - 84.0), Align2::LEFT_TOP, format!("기준면 고도 {}{} · 격자 {}", if h < 0.0 { "-" } else { "+" }, coords::dist(h), coords::dist(step)), FontId::proportional(11.0), DIM);
     }
     // Scale bar and north arrow.
     let bar_px = step * sc;
     let b0 = Pos2::new(map.left() + 24.0, map.bottom() - 40.0);
     p.line_segment([b0, b0 + EVec2::new(bar_px, 0.0)], Stroke::new(2.0, DIM));
-    p.text(b0 + EVec2::new(bar_px / 2.0, -4.0), Align2::CENTER_BOTTOM, if step >= 1000.0 { format!("{:.0} km", step / 1000.0) } else { format!("{step:.0} m") }, FontId::proportional(11.0), DIM);
+    p.text(b0 + EVec2::new(bar_px / 2.0, -4.0), Align2::CENTER_BOTTOM, coords::dist(step), FontId::proportional(11.0), DIM);
     let n0 = Pos2::new(map.right() - 34.0, map.top() + 80.0);
     let nd = (to(Vec3::new(v.s_center.x, h, v.s_center.y - 1000.0)) - to(Vec3::new(v.s_center.x, h, v.s_center.y))).normalized();
     p.line_segment([n0 - nd * 16.0, n0 + nd * 16.0], Stroke::new(2.0, DIM));
@@ -307,7 +308,7 @@ fn system_chart(_ui: &mut egui::Ui, p: &egui::Painter, map: Rect, resp: &egui::R
         }
     };
     let my_pos = me_pose.as_ref().map(|m| m.0);
-    let dist_txt = |w: Vec3| my_pos.map(|m| format!(" · {:.2} km", m.distance(w) / 1000.0)).unwrap_or_default();
+    let dist_txt = |w: Vec3| my_pos.map(|m| format!(" · {}", coords::dist(m.distance(w)))).unwrap_or_default();
 
     // Static bodies.
     if let Some(lay) = &env.layout {
@@ -436,12 +437,12 @@ fn system_chart(_ui: &mut egui::Ui, p: &egui::Painter, map: Rect, resp: &egui::R
         let (b, el) = coords::bearing(fwd);
         let above = my_pos.filter(|_| !mine).map(|m| {
             let dy = pos.y - m.y;
-            format!(" · {} {:.2} km", if dy >= 0.0 { "▲" } else { "▼" }, dy.abs() / 1000.0)
+            format!(" · {} {}", if dy >= 0.0 { "▲" } else { "▼" }, coords::dist(dy))
         });
         let mut lines = vec![
             format!("{}{}", st.name, if st.wanted { " [수배]" } else { "" }),
             loc(pos) + &dist_txt(pos) + &above.unwrap_or_default(),
-            format!("방위 {b:03.0}° · 고도각 {el:+.0}° · 속도 {:.0} m/s", Vec3::from(st.vel).length()),
+            format!("방위 {b:03.0}° · 고도각 {el:+.0}° · 속도 {:.0} u/s", Vec3::from(st.vel).length()),
         ];
         if st.kind != EntityKind::Wreck {
             lines.push(format!("실드 {:.0}% · 선체 {:.0}%", st.shield * 100.0, st.hull * 100.0));
@@ -452,7 +453,7 @@ fn system_chart(_ui: &mut egui::Ui, p: &egui::Painter, map: Rect, resp: &egui::R
     // Cursor readout + nearest-object tooltip; click a ship to target it.
     if let Some(h) = hover {
         let w = from(h);
-        p.text(h + EVec2::new(14.0, 14.0), Align2::LEFT_TOP, format!("({:+.2}, {:+.2}) km", w.x / 1000.0, w.z / 1000.0), FontId::monospace(10.0), DIM);
+        p.text(h + EVec2::new(14.0, 14.0), Align2::LEFT_TOP, format!("({:+.0}, {:+.0}) {}", w.x, w.z, coords::UNIT), FontId::monospace(10.0), DIM);
     }
     tips.sort_by(|a, b| a.0.total_cmp(&b.0));
     if let Some((_, lines, id)) = tips.into_iter().next() {
@@ -467,7 +468,7 @@ fn system_chart(_ui: &mut egui::Ui, p: &egui::Painter, map: Rect, resp: &egui::R
 }
 
 fn loc(w: Vec3) -> String {
-    format!("L({:+.2}, {:+.2}, {:+.2}) km", w.x / 1000.0, w.y / 1000.0, w.z / 1000.0)
+    coords::local(w)
 }
 
 fn tooltip(p: &egui::Painter, at: Pos2, lines: &[String]) {
@@ -504,10 +505,10 @@ fn side_panel(ui: &mut egui::Ui, rect: Rect, s: &mut Session, net: &Net, now: f6
             ui.label(RichText::new(loc(*pos)).monospace().color(Color32::WHITE));
             let (b, el) = coords::bearing(*rot * Vec3::NEG_Z);
             ui.label(RichText::new(format!("방위 {b:03.0}° · 고도각 {el:+.0}°")).monospace());
-            ui.label(RichText::new(format!("속도 {:.0} m/s · 항성까지 {:.2} km", Vec3::from(st.vel).length(), pos.length() / 1000.0)).size(12.0).color(DIM));
+            ui.label(RichText::new(format!("속도 {:.0} u/s · 항성까지 {}", Vec3::from(st.vel).length(), coords::dist(pos.length()))).size(12.0).color(DIM));
             if let Some(t) = s.target.and_then(|t| s.sample(t, now - INTERP_DELAY)).map(|(tp, _, ts)| (tp, ts.name.clone())) {
                 let (tb, tel) = coords::bearing(t.0 - *pos);
-                ui.label(RichText::new(format!("목표 {} · {:.2} km · 방위 {tb:03.0}° {tel:+.0}°", t.1, t.0.distance(*pos) / 1000.0)).size(12.0).color(RED));
+                ui.label(RichText::new(format!("목표 {} · {} · 방위 {tb:03.0}° {tel:+.0}°", t.1, coords::dist(t.0.distance(*pos)))).size(12.0).color(RED));
             }
         } else {
             ui.label(RichText::new("함선 없음 (도킹/재건 대기)").color(DIM));
@@ -521,8 +522,17 @@ fn side_panel(ui: &mut egui::Ui, rect: Rect, s: &mut Session, net: &Net, now: f6
             ui.label(RichText::new(t).size(12.0).color(view::palette::rarity_color(shared::minerals::Rarity::Rare)));
         }
         ui.separator();
-        let range = s.profile.as_ref().map(|p| p.ship.stats().warp_range).unwrap_or(0.0);
-        ui.label(RichText::new(format!("워프 (사거리 {range:.2} ly)")).strong());
+        let range = s.profile.as_ref().map(|p| p.ship.stats_as(p.species).warp_range).unwrap_or(0.0);
+        ui.label(RichText::new(format!("성간 항법 (워프 사거리 {range:.2} ly)")).strong());
+        ui.label(RichText::new("가까우면 「워프」, 멀면 「항로」 — 항로는 워프를 자동으로 이어 갑니다.").size(11.0).color(DIM));
+        if let Some(dest) = s.ui.route.last().copied() {
+            ui.horizontal(|ui| {
+                ui.label(RichText::new(format!("항로 비행 중 → {} (남은 워프 {}회)", galaxy::system(dest).name, s.ui.route.len())).color(ACCENT));
+                if ui.small_button("취소").clicked() {
+                    s.ui.route.clear();
+                }
+            });
+        }
         egui::ScrollArea::vertical().max_height(rect.height() * 0.45).show(ui, |ui| {
             // Nearest first: with fifty systems the ones in range are what matters.
             let mut near: Vec<(&galaxy::SystemDef, f32)> = galaxy::systems().iter().filter(|o| o.id != s.system).map(|o| (o, galaxy::distance_ly(s.system, o.id))).collect();
@@ -539,10 +549,20 @@ fn side_panel(ui: &mut egui::Ui, rect: Rect, s: &mut Session, net: &Net, now: f6
                         s.map.show_system(sys.id);
                     }
                     ui.label(RichText::new(format!("{} · {d:.2} ly", coords::sector_of(sys.map_pos))).size(11.0).color(DIM));
-                    if ui.add_enabled(d <= range && s.warp.is_none(), egui::Button::new("워프")).clicked() {
-                        net.send(ClientMsg::Undock);
-                        net.send(ClientMsg::Warp { system: sys.id });
-                        s.ui.map = false;
+                    if d <= range {
+                        if ui.add_enabled(s.warp.is_none(), egui::Button::new("워프")).clicked() {
+                            net.send(ClientMsg::Undock);
+                            net.send(ClientMsg::Warp { system: sys.id });
+                            s.ui.map = false;
+                        }
+                    } else if let Some(r) = galaxy::route(s.system, sys.id, range) {
+                        // Out of one jump: the autopilot flies the route.
+                        if ui.button(format!("항로 ({}회)", r.len())).on_hover_text("성간 항법: 워프를 자동으로 이어 갑니다").clicked() {
+                            crate::ui::plot_route(s, sys.id, now);
+                            s.ui.map = false;
+                        }
+                    } else {
+                        ui.label(RichText::new("사거리 밖").size(11.0).color(DIM));
                     }
                 });
             }

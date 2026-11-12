@@ -259,6 +259,57 @@ pub fn distance_ly(a: SystemId, b: SystemId) -> f32 {
     Vec3::from(pa).distance(Vec3::from(pb))
 }
 
+/// The interstellar route from `from` to `to` for a drive that jumps at most `range` ly: the systems
+/// to warp to in turn (`to` last; empty when already there), fewest jumps first, then the shorter way.
+/// None when `to` is out of reach.
+pub fn route(from: SystemId, to: SystemId, range: f32) -> Option<Vec<SystemId>> {
+    if from == to {
+        return Some(vec![]);
+    }
+    let n = systems().len();
+    // Dijkstra on (jumps, light years): fewest warps, ties by distance.
+    let mut best: Vec<Option<(u32, f32)>> = vec![None; n];
+    let mut prev: Vec<Option<SystemId>> = vec![None; n];
+    let mut open: Vec<SystemId> = vec![from];
+    best[from as usize] = Some((0, 0.0));
+    while let Some(i) = (0..open.len()).min_by(|a, b| {
+        let (x, y) = (best[open[*a] as usize].unwrap(), best[open[*b] as usize].unwrap());
+        x.0.cmp(&y.0).then(x.1.total_cmp(&y.1))
+    }) {
+        let s = open.swap_remove(i);
+        if s == to {
+            break;
+        }
+        let (h, d) = best[s as usize].unwrap();
+        for o in systems() {
+            let step = distance_ly(s, o.id);
+            if o.id == s || step > range {
+                continue;
+            }
+            let cand = (h + 1, d + step);
+            if best[o.id as usize].is_none_or(|b| cand.0 < b.0 || (cand.0 == b.0 && cand.1 < b.1 - 1e-4)) {
+                if best[o.id as usize].is_none() {
+                    open.push(o.id);
+                }
+                best[o.id as usize] = Some(cand);
+                prev[o.id as usize] = Some(s);
+            }
+        }
+    }
+    best[to as usize]?;
+    let mut out = vec![to];
+    let mut at = to;
+    while let Some(p) = prev[at as usize] {
+        if p == from {
+            break;
+        }
+        out.push(p);
+        at = p;
+    }
+    out.reverse();
+    Some(out)
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum PlanetKind {
     Rocky,
@@ -499,6 +550,46 @@ pub mod coords {
 
     pub const SECTOR_ORIGIN_X: f32 = -3.0;
 
+    /// The in-system unit: `u`, the game's own space unit (what speeds, ranges and every server
+    /// message already use — "350u 이내로 접근", "속도 120 u/s"). Between stars: light years (ly).
+    /// km read oddly for space (players' report, 2026-11-12): one place formats them all.
+    pub const UNIT: &str = "u";
+
+    fn grouped(n: u64) -> String {
+        let s = n.to_string();
+        let mut out = String::new();
+        for (i, ch) in s.chars().enumerate() {
+            if i > 0 && (s.len() - i).is_multiple_of(3) {
+                out.push(',');
+            }
+            out.push(ch);
+        }
+        out
+    }
+
+    /// An in-system distance: "850 u", "12,400 u".
+    pub fn dist(d: f32) -> String {
+        format!("{} {UNIT}", grouped(d.abs().round() as u64))
+    }
+
+    /// The same, short, for tight spots (a map's rim): "850u", "4.2k u", "37k u".
+    pub fn dist_short(d: f32) -> String {
+        let d = d.abs();
+        if d < 1000.0 {
+            format!("{d:.0}{UNIT}")
+        } else if d < 10_000.0 {
+            format!("{:.1}k {UNIT}", d / 1000.0)
+        } else {
+            format!("{:.0}k {UNIT}", d / 1000.0)
+        }
+    }
+
+    /// A local position: "L(+1,230, -400, +3,400) u".
+    pub fn local(w: Vec3) -> String {
+        let c = |v: f32| format!("{}{}", if v < 0.0 { "-" } else { "+" }, grouped(v.abs().round() as u64));
+        format!("L({}, {}, {}) {UNIT}", c(w.x), c(w.y), c(w.z))
+    }
+
     pub fn sector_of(map_pos: [f32; 3]) -> String {
         let col = ((map_pos[0] - SECTOR_ORIGIN_X).floor() as i32).clamp(0, 25) as u8;
         let row = map_pos[2].floor() as i32 + 1;
@@ -525,7 +616,7 @@ pub mod coords {
     /// One-line position readout: `D1 · Sol Haven · L(+1.23, -0.40, +3.40) km`.
     pub fn describe(sys: SystemId, local: Vec3) -> String {
         let def = system(sys);
-        format!("{} · {} · L({:+.2}, {:+.2}, {:+.2}) km", sector_of(def.map_pos), def.name, local.x / 1000.0, local.y / 1000.0, local.z / 1000.0)
+        format!("{} · {} · {}", sector_of(def.map_pos), def.name, self::local(local))
     }
 }
 
@@ -675,6 +766,25 @@ mod tests {
         let (e, _) = coords::bearing(Vec3::X);
         let (_, up) = coords::bearing(Vec3::Y);
         assert!(n.abs() < 1e-3 && (e - 90.0).abs() < 1e-3 && (up - 90.0).abs() < 1e-3);
-        assert!(coords::describe(0, Vec3::new(1230.0, -400.0, 3400.0)).contains("L(+1.23, -0.40, +3.40) km"));
+        assert!(coords::describe(0, Vec3::new(1230.0, -400.0, 3400.0)).contains("L(+1,230, -400, +3,400) u"));
+        // Routes: every hop within range, ending where asked; out of reach is None.
+        let mut reached = 0;
+        for b in 0..systems().len() as SystemId {
+            let Some(r) = route(0, b, 1.7) else { continue };
+            reached += 1;
+            assert_eq!(r.last().copied().unwrap_or(0), b);
+            let mut at = 0;
+            for s in &r {
+                assert!(distance_ly(at, *s) <= 1.7 + 1e-4, "every hop within range");
+                at = *s;
+            }
+        }
+        assert!(reached >= systems().len() / 2, "most of the galaxy is a route away: {reached}");
+        assert_eq!(route(3, 3, 1.7), Some(vec![]));
+        assert!(route(0, 3, 0.01).is_none());
+        assert_eq!(coords::dist(12_400.4), "12,400 u");
+        assert_eq!(coords::dist(850.0), "850 u");
+        assert_eq!(coords::dist_short(4200.0), "4.2k u");
+        assert_eq!(coords::dist_short(37_000.0), "37k u");
     }
 }

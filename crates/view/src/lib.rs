@@ -13,6 +13,7 @@
 //! - [`fleet`]: the four fleet styles — who flies which, and each ship's model.
 //! - [`interp`]: snapshot interpolation and own-ship extrapolation.
 //! - [`relation`]: mine / friend / hostile / neutral, shared by the HUD and the star map.
+//! - [`minimap`]: the round or square map of the system around the ship, bottom left (M).
 //! - [`mapview`]: star map projection, zoom and pan between the galaxy and system charts.
 //! - [`gauge`]: HUD shield/hull "just lost" trail and the hull-damage flash.
 //! - [`dust`]: the space dust field that wraps around the camera.
@@ -33,6 +34,7 @@ pub mod jobboard;
 pub mod interp;
 pub mod keymap;
 pub mod mapview;
+pub mod minimap;
 pub mod pad;
 pub mod palette;
 pub mod panels;

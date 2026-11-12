@@ -41,6 +41,8 @@ pub struct BoardState {
 pub enum JobRequest {
     Accept(JobId),
     Abandon(JobId),
+    /// Plot the interstellar route to this system (the job's next stop).
+    Route(SystemId),
 }
 
 fn distance(a: SystemId, b: SystemId) -> f32 {
@@ -296,6 +298,15 @@ fn briefing(ui: &mut egui::Ui, v: &BoardView, j: &Job, held: Option<&ActiveJob>)
     }
     ui.add_space(8.0);
 
+    // The next stop, a click away: the autopilot warps there hop by hop.
+    let next = held.map_or_else(|| dests.first().copied(), |a| a.remaining().first().copied());
+    if let Some(to) = next.filter(|t| *t != v.here) {
+        let label = RichText::new(format!("➜ {} 항로 설정 (자동 워프)", galaxy::system(to).name)).size(14.0).color(pj::TEXT);
+        if ui.add(egui::Button::new(label).min_size(Vec2::new(300.0, 30.0))).clicked() {
+            req = Some(JobRequest::Route(to));
+        }
+        ui.add_space(4.0);
+    }
     match held {
         Some(_) => {
             let text = RichText::new("의뢰 포기\n평판 −1").size(15.0).strong().color(Color32::WHITE);

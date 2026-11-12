@@ -70,7 +70,11 @@ impl Quality {
 }
 
 /// The UI scale's range.
-pub const UI_SCALE: (f32, f32) = (0.75, 1.5);
+pub const UI_SCALE: (f32, f32) = (0.75, 2.0);
+/// The UI scale a new player starts with: 100% read too small (2026-11-12, players' report).
+pub const UI_SCALE_DEFAULT: f32 = 1.3;
+/// The minimap's size range, in points.
+pub const MINIMAP_SIZE: (f32, f32) = (160.0, 360.0);
 
 /// Levels are 0–1; `muted` silences everything without losing them.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -88,6 +92,10 @@ pub struct Settings {
     pub ui_scale: f32,
     /// Frame rate next to the ping, top left (off for players by default).
     pub show_fps: bool,
+    /// The minimap, bottom left (M turns it on and off), its shape and size in points.
+    pub minimap: bool,
+    pub minimap_shape: crate::minimap::Shape,
+    pub minimap_size: f32,
     /// Key bindings the player changed: action id → key name (`view::keymap`; the rest are defaults).
     pub keys: std::collections::BTreeMap<String, String>,
 }
@@ -95,7 +103,7 @@ pub struct Settings {
 impl Default for Settings {
     fn default() -> Self {
         // Music under the effects, as the mix was tuned (music.rs used 0.45).
-        Settings { master: 1.0, music: 0.45, effects: 1.0, voice: 1.0, muted: false, display: Display::Windowed, vsync: true, quality: Quality::High, ui_scale: 1.0, show_fps: false, keys: Default::default() }
+        Settings { master: 1.0, music: 0.45, effects: 1.0, voice: 1.0, muted: false, display: Display::Windowed, vsync: true, quality: Quality::High, ui_scale: UI_SCALE_DEFAULT, show_fps: false, minimap: true, minimap_shape: crate::minimap::Shape::Circle, minimap_size: 240.0, keys: Default::default() }
     }
 }
 
@@ -116,7 +124,8 @@ impl Settings {
         for v in [&mut self.master, &mut self.music, &mut self.effects, &mut self.voice] {
             *v = if v.is_finite() { v.clamp(0.0, 1.0) } else { 1.0 };
         }
-        self.ui_scale = if self.ui_scale.is_finite() { self.ui_scale.clamp(UI_SCALE.0, UI_SCALE.1) } else { 1.0 };
+        self.ui_scale = if self.ui_scale.is_finite() { self.ui_scale.clamp(UI_SCALE.0, UI_SCALE.1) } else { UI_SCALE_DEFAULT };
+        self.minimap_size = if self.minimap_size.is_finite() { self.minimap_size.clamp(MINIMAP_SIZE.0, MINIMAP_SIZE.1) } else { 240.0 };
         // Unknown actions (an older or newer file) and reserved keys are dropped.
         self.keys.retain(|id, key| Action::from_id(id).is_some() && !keymap::RESERVED.contains(&key.as_str()));
     }
@@ -174,6 +183,21 @@ pub fn settings_ui(ui: &mut egui::Ui, s: &mut Settings, listening: &mut Option<A
     });
     ui.checkbox(&mut s.vsync, "수직 동기화");
     ui.checkbox(&mut s.show_fps, "프레임 수(FPS) 표시");
+    ui.separator();
+    ui.label(RichText::new("인터페이스").strong());
+    ui.checkbox(&mut s.minimap, format!("미니맵 표시 ({})", keymap::shown(&s.keys, Action::Map)));
+    ui.add_enabled_ui(s.minimap, |ui| {
+        ui.horizontal(|ui| {
+            ui.label("미니맵 모양");
+            for sh in crate::minimap::Shape::ALL {
+                ui.radio_value(&mut s.minimap_shape, sh, sh.name());
+            }
+        });
+        ui.horizontal(|ui| {
+            ui.label("미니맵 크기");
+            ui.add(egui::Slider::new(&mut s.minimap_size, MINIMAP_SIZE.0..=MINIMAP_SIZE.1).step_by(10.0).suffix(" pt"));
+        });
+    });
     ui.separator();
     let clash: Vec<Action> = keymap::conflicts(&s.keys).into_iter().flat_map(|(a, b)| [a, b]).collect();
     // Folded until opened (or while a key is awaited): the window then fits a 720-line screen.

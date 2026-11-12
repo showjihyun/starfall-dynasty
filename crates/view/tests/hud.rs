@@ -200,8 +200,8 @@ fn offscreen_marker_points_the_way() {
 #[test]
 fn elevation_text_reads_above_and_below() {
     use shared::glam::Vec3;
-    assert_eq!(view::hud::elevation_text(Vec3::ZERO, Vec3::new(1000.0, 1000.0, 0.0)), "▲ 1.00 km · +45°");
-    assert_eq!(view::hud::elevation_text(Vec3::new(0.0, 500.0, 0.0), Vec3::new(0.0, 200.0, 300.0)), "▼ 300 m · -45°");
+    assert_eq!(view::hud::elevation_text(Vec3::ZERO, Vec3::new(1000.0, 1000.0, 0.0)), "▲ 1,000 u · +45°");
+    assert_eq!(view::hud::elevation_text(Vec3::new(0.0, 500.0, 0.0), Vec3::new(0.0, 200.0, 300.0)), "▼ 300 u · -45°");
 }
 
 #[test]
@@ -342,17 +342,17 @@ fn the_help_window_lists_every_control() {
 fn rebound_keys_show_in_the_help_the_hints_and_the_chapter_steps() {
     use view::keymap::{Action, bind};
     // The defaults read as they always did.
-    assert_eq!(hud::key_hint_lines(&Default::default()), ["W/S 추진 · A/D 선회 · R/F 상하 · Q/E 롤 · Shift 부스트".to_string(), "Space 사격 · T 목표 · X 미사일 · M 지도 · F1 모든 조작".to_string()]);
+    assert_eq!(hud::key_hint_lines(&Default::default()), ["W/S 추진 · A/D 선회 · R/F 상하 · Q/E 롤 · Shift 부스트".to_string(), "Space 사격 · T 목표 · X 미사일 · F5 성도 · F1 모든 조작".to_string()]);
     // An AZERTY player: Z forward, Q left; fire on F, map on Tab.
     let mut keys = hud::Keys::new();
-    for (a, k) in [(Action::ThrustForward, "KeyZ"), (Action::TurnLeft, "KeyQ"), (Action::Fire, "KeyF"), (Action::Map, "Tab")] {
+    for (a, k) in [(Action::ThrustForward, "KeyZ"), (Action::TurnLeft, "KeyQ"), (Action::Fire, "KeyF"), (Action::StarMap, "Tab")] {
         assert!(bind(&mut keys, a, k));
     }
     let lines = hud::key_hint_lines(&keys);
-    assert!(lines[0].starts_with("Z/S 추진 · Q/D 선회") && lines[1].starts_with("F 사격") && lines[1].contains("Tab 지도"), "{lines:?}");
+    assert!(lines[0].starts_with("Z/S 추진 · Q/D 선회") && lines[1].starts_with("F 사격") && lines[1].contains("Tab 성도"), "{lines:?}");
     assert!(hud::controls_table(&keys).iter().flat_map(|(_, ks)| ks.iter()).any(|(k, w)| k == "F / 좌클릭" && *w == "사격 · 주포"));
     let reach = &shared::missions::scenarios()[0].steps[0];
-    assert_eq!(hud::step_hint(reach, true, &keys), "G 출항 → Tab 지도에서 성계를 골라 워프");
+    assert_eq!(hud::step_hint(reach, true, &keys), "G 출항 → Tab 성도에서 성계를 골라 워프 (멀면 항로)");
 }
 
 // ---- world labels around the crosshair

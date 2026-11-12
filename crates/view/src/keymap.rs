@@ -31,6 +31,7 @@ pub enum Action {
     Scan,
     Pulse,
     Map,
+    StarMap,
     Station,
     Exchange,
     Jobs,
@@ -44,12 +45,12 @@ pub enum Action {
 }
 
 impl Action {
-    pub const ALL: [Action; 34] = [
+    pub const ALL: [Action; 35] = [
         Action::ThrustForward, Action::ThrustBack, Action::TurnLeft, Action::TurnRight, Action::NoseUp, Action::NoseDown, Action::RollLeft, Action::RollRight, Action::Rise, Action::Sink, Action::Boost,
         Action::Fire, Action::Target, Action::Missile, Action::EscortAttack, Action::EscortReturn, Action::HoldPost,
         Action::Camera, Action::Bridge,
         Action::Dock, Action::Mine, Action::Scan, Action::Pulse, Action::Rebuild,
-        Action::Map, Action::Station, Action::Exchange, Action::Jobs, Action::Missions, Action::Contracts, Action::Chronicle, Action::Fleet, Action::Alliance, Action::Help,
+        Action::Map, Action::StarMap, Action::Station, Action::Exchange, Action::Jobs, Action::Missions, Action::Contracts, Action::Chronicle, Action::Fleet, Action::Alliance, Action::Help,
     ];
 
     /// The id stored in the settings file.
@@ -79,6 +80,7 @@ impl Action {
             Action::Scan => "scan",
             Action::Pulse => "pulse",
             Action::Map => "map",
+            Action::StarMap => "star_map",
             Action::Station => "station",
             Action::Exchange => "exchange",
             Action::Jobs => "jobs",
@@ -117,7 +119,8 @@ impl Action {
             Action::Mine => "채굴",
             Action::Scan => "스캔",
             Action::Pulse => "탐지 펄스",
-            Action::Map => "지도",
+            Action::Map => "미니맵",
+            Action::StarMap => "성도 · 성간 항법",
             Action::Station => "정거장",
             Action::Exchange => "교역소",
             Action::Jobs => "의뢰 게시판",
@@ -158,6 +161,7 @@ impl Action {
             Action::Scan => "KeyV",
             Action::Pulse => "Tab",
             Action::Map => "KeyM",
+            Action::StarMap => "F5",
             Action::Station => "KeyU",
             Action::Exchange => "F3",
             Action::Jobs => "F4",

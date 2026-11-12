@@ -99,6 +99,16 @@ pub fn ui_system(
             s.show_fps = cs.s.show_fps;
             s.keys = cs.s.keys.clone();
             hud(ctx, &mut s, &net, &env, &vis, &ships, &cam, now);
+            if std::mem::take(&mut s.ui.minimap_toggle) {
+                cs.s.minimap = !cs.s.minimap;
+                cs.changed();
+                let text = if cs.s.minimap { "미니맵 켜짐" } else { "미니맵 꺼짐 (설정에서 다시 켤 수 있습니다)" };
+                s.toasts.push_back((text.into(), now));
+            }
+            if cs.s.minimap && !s.ui.map {
+                minimap(ctx, &mut s, &cs.s, &env, now);
+            }
+            autopilot(&mut s, &net, now);
             crate::comms::show(ctx, &mut s, now);
             windows(ctx, &mut s, &net, &env);
             crate::starmap::draw(ctx, &mut s, &net, &env, now);
@@ -516,6 +526,22 @@ fn hud(ctx: &egui::Context, s: &mut Session, net: &Net, env: &Env, vis: &Visuals
     // Right: target and objective tracker.
     egui::Area::new("track".into()).anchor(Align2::RIGHT_TOP, EVec2::new(-14.0, 12.0)).show(ctx, |ui| {
         ui.set_max_width(320.0);
+        // The interstellar autopilot's route, while it flies.
+        if let Some(dest) = s.ui.route.last().copied() {
+            let mut cancel = false;
+            egui::Frame::popup(ui.style()).show(ui, |ui| {
+                ui.label(RichText::new(format!("성간 항법 → {}", galaxy::system(dest).name)).color(ACCENT).strong());
+                let hops: Vec<&str> = std::iter::once(s.system).chain(s.ui.route.iter().copied()).map(|x| galaxy::system(x).name).collect();
+                ui.label(RichText::new(hops.join(" → ")).size(12.0));
+                ui.horizontal(|ui| {
+                    ui.label(RichText::new(format!("남은 워프 {}회 · 전투 중이면 벗어난 뒤 이어서", s.ui.route.len())).size(11.0).color(DIM));
+                    cancel = ui.small_button("항로 취소").clicked();
+                });
+            });
+            if cancel {
+                s.ui.route.clear();
+            }
+        }
         if let Some(t) = s.target.and_then(|t| s.latest()?.ents.get(&t).cloned()) {
             egui::Frame::popup(ui.style()).show(ui, |ui| {
                 ui.label(RichText::new("목표").color(DIM).size(11.0));
@@ -621,7 +647,7 @@ fn hud(ctx: &egui::Context, s: &mut Session, net: &Net, env: &Env, vis: &Visuals
 
     // Bottom-left: chat.
     let (margin, w) = (view::hud::CHAT_MARGIN, view::hud::CHAT_W);
-    egui::Area::new("chat".into()).anchor(Align2::LEFT_BOTTOM, EVec2::new(margin, -margin)).show(ctx, |ui| {
+    let chat = egui::Area::new("chat".into()).anchor(Align2::LEFT_BOTTOM, EVec2::new(margin, -margin)).show(ctx, |ui| {
         ui.set_max_width(w);
         for (from, text) in s.chat.iter().rev().take(6).collect::<Vec<_>>().into_iter().rev() {
             ui.label(RichText::new(format!("{from}: {text}")).size(12.0).background_color(alpha(chrome::INK, 140)));
@@ -631,6 +657,7 @@ fn hud(ctx: &egui::Context, s: &mut Session, net: &Net, env: &Env, vis: &Visuals
             net.send(ClientMsg::Chat { text: std::mem::take(&mut s.ui.chat_input) });
         }
     });
+    s.ui.chat_top = chat.response.rect.top();
 
     // Key hints (bottom right; every control is in the help window).
     view::hud::key_hints(ctx, &s.keys);
@@ -860,6 +887,85 @@ fn ask_station(s: &mut Session, net: &Net, docked: bool) {
     }
 }
 
+/// Plot the interstellar route to `to` with this ship's drive; the autopilot flies it.
+pub fn plot_route(s: &mut Session, to: shared::galaxy::SystemId, now: f64) {
+    let range = s.profile.as_ref().map(|p| p.ship.stats_as(p.species).warp_range).unwrap_or(1.7);
+    let text = match galaxy::route(s.system, to, range) {
+        Some(r) if r.is_empty() => format!("이미 {}에 있습니다", galaxy::system(to).name),
+        Some(r) => {
+            let n = r.len();
+            s.ui.route = r;
+            s.ui.route_sent = 0.0;
+            format!("항로 설정: {} — 워프 {n}회, 자동으로 이어 갑니다", galaxy::system(to).name)
+        }
+        None => format!("{}까지 이어지는 항로가 없습니다 — 워프 코어를 올리세요 (사거리 {range:.1} ly)", galaxy::system(to).name),
+    };
+    s.toasts.push_back((text, now));
+}
+
+/// The interstellar autopilot: warp to the next system on the route whenever the drive is free.
+fn autopilot(s: &mut Session, net: &Net, now: f64) {
+    if s.ui.route.is_empty() {
+        return;
+    }
+    while s.ui.route.first() == Some(&s.system) {
+        s.ui.route.remove(0);
+        if s.ui.route.is_empty() {
+            s.toasts.push_back((format!("항로 도착: {}", galaxy::system(s.system).name), now));
+            return;
+        }
+    }
+    // Charging, dead, or asked a moment ago (the server says no while in combat): wait.
+    if s.warp.is_some() || s.dead.is_some() || now - s.ui.route_sent < 2.0 {
+        return;
+    }
+    s.ui.route_sent = now;
+    net.send(ClientMsg::Undock);
+    net.send(ClientMsg::Warp { system: s.ui.route[0] });
+}
+
+/// The minimap, bottom left above the chat.
+fn minimap(ctx: &egui::Context, s: &mut Session, cfg: &view::settings::Settings, env: &Env, now: f64) {
+    let t = now - crate::state::INTERP_DELAY;
+    let Some((me, rot, _)) = s.me.and_then(|m| s.sample(m, t)).map(|(p, r, st)| (p, r, st.clone())) else { return };
+    let Some(lay) = env.layout.as_ref() else { return };
+    let def = galaxy::system(s.system);
+    let viewer = view::relation::Viewer { me: s.me, player: s.player_id, fleet: s.fleet, alliance: s.my_alliance, alliances: &s.alliances, tier: def.tier };
+    let ids: Vec<EntityId> = s.latest().map(|l| l.ents.keys().copied().collect()).unwrap_or_default();
+    let mut blips = vec![];
+    for id in ids {
+        if Some(id) == s.me {
+            continue;
+        }
+        let Some((pos, r, st)) = s.sample(id, t) else { continue };
+        if st.docked || st.kind == EntityKind::Missile {
+            continue;
+        }
+        blips.push(view::minimap::Blip { pos: shared::glam::Vec3::from(pos.to_array()), fwd: shared::glam::Vec3::from((r * Vec3::NEG_Z).to_array()), color: viewer.relation(st).color(), wreck: st.kind == EntityKind::Wreck, big: matches!(st.class, Some(shared::ships::SizeClass::Capital)), target: s.target == Some(id) });
+    }
+    let g = |v: Vec3| shared::glam::Vec3::from(v.to_array());
+    let sites: Vec<(shared::glam::Vec3, bool)> = lay.pois.iter().filter(|p| s.revealed.contains(&p.id) || s.scanned.contains(&p.id)).map(|p| (p.pos, s.scanned.contains(&p.id))).collect();
+    let rare: Vec<(shared::glam::Vec3, Color32)> = lay.asteroids.iter().filter_map(|a| shared::minerals::mineral(a.mineral).filter(|m| m.rarity >= shared::minerals::Rarity::Rare).map(|m| (a.pos, view::palette::rarity_color(m.rarity)))).collect();
+    // Where held jobs send the captain in this system: a wreck to salvage.
+    let marks: Vec<shared::glam::Vec3> = s.profile.as_ref().map(|p| p.jobs.iter().filter_map(|a| match &a.job.kind {
+        shared::jobs::JobKind::Salvage { system, poi, .. } if *system == s.system => lay.pois.iter().find(|x| x.id == *poi).map(|x| x.pos),
+        _ => None,
+    }).collect()).unwrap_or_default();
+    let key = s.key(A::StarMap);
+    let v = view::minimap::MinimapView { system_name: def.name, me: g(me), fwd: g(rot * Vec3::NEG_Z), station: lay.station, jump_point: lay.jump_point, sites: &sites, rare: &rare, marks: &marks, blips: &blips, zoom: s.ui.minimap_zoom.unwrap_or(view::minimap::DEFAULT_RANGE), map_key: &key };
+    let size = cfg.minimap_size;
+    let screen = ctx.content_rect();
+    let bottom = if s.ui.chat_top > 0.0 { s.ui.chat_top } else { screen.bottom() - 60.0 };
+    let at = egui::Pos2::new(view::hud::CHAT_MARGIN, (bottom - 10.0 - size - 18.0).max(screen.top() + 200.0));
+    let mut ev = None;
+    egui::Area::new("minimap".into()).fixed_pos(at).show(ctx, |ui| ev = view::minimap::minimap(ui, &v, cfg.minimap_shape, size));
+    match ev {
+        Some(view::minimap::MinimapEvent::Open) => s.ui.map = true,
+        Some(view::minimap::MinimapEvent::Zoom(z)) => s.ui.minimap_zoom = Some(z),
+        None => {}
+    }
+}
+
 fn job_board(ui: &mut egui::Ui, s: &mut Session, net: &Net) {
     let docked = s.my_state().is_some_and(|m| m.docked);
     ask_station(s, net, docked);
@@ -882,6 +988,10 @@ fn job_board(ui: &mut egui::Ui, s: &mut Session, net: &Net) {
     match view::jobboard::job_board(ui, &view, &mut pick) {
         Some(view::jobboard::JobRequest::Accept(id)) => net.send(ClientMsg::AcceptJob { id }),
         Some(view::jobboard::JobRequest::Abandon(id)) => net.send(ClientMsg::AbandonJob { id }),
+        Some(view::jobboard::JobRequest::Route(to)) => {
+            plot_route(s, to, s.server_unix() as f64);
+            s.ui.jobs = false;
+        }
         None => {}
     }
     s.ui.jobs_pick = pick;

@@ -32,7 +32,7 @@ pub fn controls_table(keys: &Keys) -> Vec<(&'static str, Vec<(String, &'static s
         ("전투", vec![(format!("{} / 좌클릭", k(A::Fire)), "사격 · 주포"), (k(A::Target), "목표 지정"), (k(A::Missile), "미사일"), (k(A::EscortAttack), "호위함 공격 명령"), (k(A::EscortReturn), "호위함 복귀"), (k(A::HoldPost), "함대 진형 자리 지키기")]),
         ("시점", vec![(k(A::Camera), "1인칭 / 3인칭"), (k(A::Bridge), "함교 화면")]),
         ("행동", vec![(k(A::Dock), "도킹"), (k(A::Mine), "채굴"), (k(A::Scan), "스캔"), (k(A::Pulse), "탐지 펄스")]),
-        ("창", vec![(k(A::Map), "지도"), (k(A::Station), "정거장"), (k(A::Missions), "미션"), (k(A::Contracts), "계약"), (k(A::Chronicle), "연대기"), (k(A::Fleet), "함대"), (k(A::Alliance), "동맹"), (k(A::Help), "도움말")]),
+        ("창", vec![(k(A::StarMap), "성도 · 성간 항법"), (k(A::Map), "미니맵 켜기/끄기"), (k(A::Station), "정거장"), (k(A::Exchange), "교역소"), (k(A::Jobs), "의뢰 게시판"), (k(A::Missions), "미션"), (k(A::Contracts), "계약"), (k(A::Chronicle), "연대기"), (k(A::Fleet), "함대"), (k(A::Alliance), "동맹"), (k(A::Help), "도움말")]),
     ]
 }
 
@@ -42,7 +42,7 @@ pub fn key_hint_lines(keys: &Keys) -> [String; 2] {
     let k = |a| shown(keys, a);
     [
         format!("{}/{} 추진 · {}/{} 선회 · {}/{} 상하 · {}/{} 롤 · {} 부스트", k(A::ThrustForward), k(A::ThrustBack), k(A::TurnLeft), k(A::TurnRight), k(A::NoseUp), k(A::NoseDown), k(A::RollLeft), k(A::RollRight), k(A::Boost)),
-        format!("{} 사격 · {} 목표 · {} 미사일 · {} 지도 · {} 모든 조작", k(A::Fire), k(A::Target), k(A::Missile), k(A::Map), k(A::Help)),
+        format!("{} 사격 · {} 목표 · {} 미사일 · {} 성도 · {} 모든 조작", k(A::Fire), k(A::Target), k(A::Missile), k(A::StarMap), k(A::Help)),
     ]
 }
 
@@ -79,7 +79,7 @@ pub fn step_hint(step: &shared::missions::Step, docked: bool, keys: &Keys) -> St
     use shared::missions::Step;
     let k = |a| shown(keys, a);
     let how = match step {
-        Step::Reach { .. } => format!("{} 지도에서 성계를 골라 워프", k(A::Map)),
+        Step::Reach { .. } => format!("{} 성도에서 성계를 골라 워프 (멀면 항로)", k(A::StarMap)),
         Step::ScanPoi { .. } => format!("{} 탐지로 신호를 따라가 가까이서 {} 스캔", k(A::Pulse), k(A::Scan)),
         Step::Defeat { .. } => format!("{} 목표 지정 · {} 사격 · 밀리면 {} 도킹해 수리", k(A::Target), k(A::Fire), k(A::Dock)),
         Step::Dock { .. } => format!("정거장 가까이에서 {} 도킹 — 수리되고, {}로 정거장 창(판매·업그레이드)", k(A::Dock), k(A::Station)),
@@ -173,7 +173,7 @@ pub fn elevation_text(me: Vec3, it: Vec3) -> String {
     let dist = d.length().max(1e-3);
     let angle = (d.y / dist).clamp(-1.0, 1.0).asin().to_degrees();
     let arrow = if d.y >= 0.0 { "▲" } else { "▼" };
-    if d.y.abs() >= 1000.0 { format!("{arrow} {:.2} km · {angle:+.0}°", d.y.abs() / 1000.0) } else { format!("{arrow} {:.0} m · {angle:+.0}°", d.y.abs()) }
+    format!("{arrow} {} · {angle:+.0}°", shared::galaxy::coords::dist(d.y))
 }
 
 /// My post in my fleet's formation (`shared::formation`), if the leader set one and its ship is in

@@ -432,6 +432,14 @@ fn automation(
                 }
             }
             "map" if first => s.ui.map = true,
+            // `route N`: plot the interstellar route to system N (the autopilot flies it).
+            "route" if first => {
+                let range = s.profile.as_ref().map(|p| p.ship.stats_as(p.species).warp_range).unwrap_or(1.7);
+                if let Some(r) = shared::galaxy::route(s.system, dur as u16, range) {
+                    s.ui.route = r;
+                }
+            }
+            "minimap" if first => s.ui.minimap_toggle = true,
             "galaxy" if first => s.map.level = starmap::Level::Galaxy,
             "station" if first => s.ui.station = true,
             "exchange" if first => s.ui.exchange = true,
