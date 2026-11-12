@@ -481,6 +481,8 @@ fn automation(
             "tp" if first => cam.first_person = false,
             "zoom" if first => cam.zoom = dur as f32,
             "scenario" if first => net.send(ClientMsg::StartScenario { id: dur as u32 }),
+            // `op N`: start major operation N (1 = the first).
+            "op" if first => net.send(ClientMsg::StartScenario { id: shared::missions::OP_BASE + (dur as u32).saturating_sub(1) }),
             // `comms N`: the call after chapter N+1 (as when it is cleared for the first time).
             "comms" if first => s.comms = Some(view::comms::Panel::new(dur as u32, t)),
             // `opening`: the campaign's first start, as the 임무 window does it (cutscene, then chapter 1).

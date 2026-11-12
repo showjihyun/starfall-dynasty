@@ -41,11 +41,14 @@ pub struct Options {
     /// The world runs this many seconds before the captain starts (not counted): game randomness
     /// follows the tick, so each seed is another campaign — a single run swings ±10 min.
     pub seed: u32,
+    /// Play this major operation (`missions::operations`) instead of the campaign: the chapters it
+    /// needs count as done (or `chapter`, if more), every module at `level`; stops when it is done.
+    pub operation: Option<u32>,
 }
 
 impl Default for Options {
     fn default() -> Self {
-        Options { species: Species::Human, profession: Profession::CombatPilot, hull: HullClass::Talon, max_secs: 10.0 * 3600.0, max_deaths: 20, unix: 1_760_000_000, chapter: 0, level: 1, only: false, over: false, seed: 0 }
+        Options { species: Species::Human, profession: Profession::CombatPilot, hull: HullClass::Talon, max_secs: 10.0 * 3600.0, max_deaths: 20, unix: 1_760_000_000, chapter: 0, level: 1, only: false, over: false, seed: 0, operation: None }
     }
 }
 
@@ -228,11 +231,12 @@ pub fn play(o: &Options) -> Report {
         rep.stuck = Some("character could not be created".into());
         return rep;
     };
-    if o.chapter > 0 || o.level > 1 {
+    let cleared = o.operation.and_then(shared::missions::mission).map_or(o.chapter, |op| op.unlock.max(o.chapter));
+    if cleared > 0 || o.level > 1 {
         if let Some(p) = g.store.profile_mut(pid) {
-            p.scenarios_completed = o.chapter;
+            p.scenarios_completed = cleared;
             for m in Module::ALL {
-                p.ship.modules.insert(m, o.level.clamp(1, tier_cap(o.chapter)));
+                p.ship.modules.insert(m, o.level.clamp(1, tier_cap(cleared)));
             }
         }
         let home = g.store.profile(pid).map_or(0, |p| p.home);
@@ -274,7 +278,7 @@ pub fn play(o: &Options) -> Report {
                 rep.stuck = Some(why);
                 break;
             }
-            let last_done = rep.chapters.last().is_some_and(|c| c.finished.is_some() && (o.only || c.id as usize + 1 == scenarios().len()));
+            let last_done = rep.chapters.last().is_some_and(|c| c.finished.is_some() && (o.only || o.operation.is_some() || c.id as usize + 1 == scenarios().len()));
             if last_done {
                 break;
             }
@@ -290,7 +294,7 @@ pub fn play(o: &Options) -> Report {
         g.kicked.clear();
         rep.secs = t + dt;
     }
-    if rep.stuck.is_none() && !rep.chapters.last().is_some_and(|c| c.finished.is_some() && (o.only || c.id as usize + 1 == scenarios().len())) {
+    if rep.stuck.is_none() && !rep.chapters.last().is_some_and(|c| c.finished.is_some() && (o.only || o.operation.is_some() || c.id as usize + 1 == scenarios().len())) {
         rep.stuck = Some(format!("out of time after {} ({})", mins(rep.secs), step_text(&g, pid)));
     }
     rep.credits = g.store.profile(pid).map(|p| p.wallet.credits).unwrap_or(0);
@@ -305,7 +309,7 @@ pub fn play(o: &Options) -> Report {
 
 fn step_text(g: &Game, pid: PlayerId) -> String {
     let Some(sp) = g.store.profile(pid).and_then(|p| p.scenario.clone()) else { return "between chapters".into() };
-    let step = scenarios().into_iter().find(|s| s.id == sp.id).and_then(|s| s.steps.get(sp.step).cloned());
+    let step = shared::missions::mission(sp.id).and_then(|s| s.steps.get(sp.step).cloned());
     step.map_or("?".into(), |s| format!("step {}: {}", sp.step + 1, s.describe()))
 }
 
@@ -413,7 +417,7 @@ impl Pilot {
         if current != self.step {
             if let Some((id, step)) = current {
                 if rep.chapters.iter().all(|c| c.id != id) {
-                    let sc = &scenarios()[id as usize];
+                    let sc = shared::missions::mission(id).unwrap();
                     rep.chapters.push(Chapter { id, title: sc.title.to_string(), started: t, low_hull: 1.0, ..Default::default() });
                 }
                 if let Some(c) = rep.chapters.iter_mut().find(|c| c.id == id) {
@@ -423,7 +427,7 @@ impl Pilot {
             }
             if let Some((id, _)) = self.step
                 && current.is_none_or(|(c, _)| c != id)
-                && prof.scenarios_completed > id
+                && (prof.scenarios_completed > id || prof.operations_done.contains(&id))
                 && let Some(c) = rep.chapters.iter_mut().find(|c| c.id == id)
             {
                 c.finished = Some(t);
@@ -599,6 +603,13 @@ impl Pilot {
             }
             Mode::Play => {
                 let Some(step) = g_step(g, pid) else {
+                    // An operation on its own: start it (once).
+                    if let Some(id) = o.operation {
+                        if !prof.operations_done.contains(&id) {
+                            self.send(g, ClientMsg::StartScenario { id });
+                        }
+                        return None;
+                    }
                     // Between chapters: spend the reward first, then start the next one.
                     if prof.scenarios_completed as usize >= scenarios().len() {
                         return None;
@@ -610,9 +621,7 @@ impl Pilot {
                     self.send(g, ClientMsg::StartScenario { id: prof.scenarios_completed });
                     return None;
                 };
-                let target_sys = match &step {
-                    Step::Reach { system } | Step::ScanPoi { system, .. } | Step::Defeat { system, .. } | Step::Dock { system } => *system,
-                };
+                let target_sys = step.system();
                 if sys != target_sys {
                     if let Some(a) = attacker {
                         fight(self, g, a);
@@ -645,6 +654,40 @@ impl Pilot {
                         } else {
                             self.send(g, ClientMsg::Controls(Controls::default()));
                             self.send(g, ClientMsg::Scan { poi: poi.0 });
+                        }
+                        None
+                    }
+                    Step::Escort { .. } => {
+                        // Ambushers first (they go for the freighters); then to the station at the
+                        // convoy's pace, and dock once one of them is close.
+                        let convoy: Vec<Vec3> = g.sessions[&self.conn].convoy.iter().filter_map(|c| g.ent(sys, *c).filter(|e| !e.dead).map(|e| e.pos)).collect();
+                        let station = g.systems[&sys].layout.station;
+                        let target = wave.iter().filter_map(|w| g.ent(sys, *w).filter(|e| !e.dead).map(|e| (e.pos.distance(pos), e.id))).min_by(|a, b| a.0.total_cmp(&b.0)).map(|(_, id)| id).or(attacker);
+                        if docked {
+                            self.send(g, ClientMsg::Undock);
+                            return None;
+                        }
+                        if let Some(tid) = target {
+                            fight(self, g, tid);
+                            return None;
+                        }
+                        let reach = g.tuning.ships.convoy.dock_range * 0.7;
+                        let lagging = !convoy.is_empty() && convoy.iter().all(|c| c.distance(station) > reach);
+                        if lagging && pos.distance(station) < reach {
+                            self.send(g, ClientMsg::Controls(Controls::default()));
+                            return None;
+                        }
+                        self.dock(g, pos, rot, station, stats.radius, stats.turn)
+                    }
+                    Step::Survive { .. } => {
+                        if docked {
+                            self.send(g, ClientMsg::Undock);
+                            return None;
+                        }
+                        let target = wave.iter().filter_map(|w| g.ent(sys, *w).filter(|e| !e.dead).map(|e| (e.pos.distance(pos), e.id))).min_by(|a, b| a.0.total_cmp(&b.0)).map(|(_, id)| id).or(attacker);
+                        match target {
+                            Some(tid) => fight(self, g, tid),
+                            None => self.send(g, ClientMsg::Controls(Controls::default())),
                         }
                         None
                     }
@@ -814,7 +857,7 @@ fn best_market(g: &Game, home: SystemId, range: f32, trader: bool, cleared: u32,
 
 fn g_step(g: &Game, pid: PlayerId) -> Option<Step> {
     let sp = g.store.profile(pid)?.scenario.clone()?;
-    scenarios().into_iter().find(|s| s.id == sp.id)?.steps.get(sp.step).cloned()
+    shared::missions::mission(sp.id)?.steps.get(sp.step).cloned()
 }
 
 /// The nearest site of `kind`, preferring ones not scanned yet.

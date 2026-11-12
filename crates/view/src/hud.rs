@@ -83,6 +83,8 @@ pub fn step_hint(step: &shared::missions::Step, docked: bool, keys: &Keys) -> St
         Step::ScanPoi { .. } => format!("{} 탐지로 신호를 따라가 가까이서 {} 스캔", k(A::Pulse), k(A::Scan)),
         Step::Defeat { .. } => format!("{} 목표 지정 · {} 사격 · 밀리면 {} 도킹해 수리", k(A::Target), k(A::Fire), k(A::Dock)),
         Step::Dock { .. } => format!("정거장 가까이에서 {} 도킹 — 수리되고, {}로 정거장 창(판매·업그레이드)", k(A::Dock), k(A::Station)),
+        Step::Survive { .. } => format!("성계 안에 머물며 {} 목표 · {} 사격 — 도킹하면 시간이 멈추고, 밀리면 잠깐 {} 도킹해 수리", k(A::Target), k(A::Fire), k(A::Dock)),
+        Step::Escort { .. } => format!("매복을 {} 사격으로 먼저 떼어 내고, 호송선과 함께 정거장으로 — 가까이 오면 {} 도킹", k(A::Fire), k(A::Dock)),
     };
     if docked { format!("{} 출항 → {how}", k(A::Dock)) } else { how }
 }

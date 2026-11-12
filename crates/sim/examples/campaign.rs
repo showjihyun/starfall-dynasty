@@ -6,6 +6,8 @@
 //!   … --chapter 4 [--level 8]   one chapter on its own (chapters before it done, every module at that level)
 //!   … --over                     fight turret ships from over their hull (3D), not head-on
 //!   … --seed N                   another world start; single runs swing ±10 min, compare medians
+//!   … --operations [--level L]   each major operation on its own (missions::operations), at L or at the
+//!                                module cap its unlock gives; one line each
 //!
 //! Exit code 1 when the campaign was not finished.
 
@@ -43,6 +45,32 @@ fn main() {
     }
     if let Some(s) = arg("--seed").and_then(|v| v.parse::<u32>().ok()) {
         o.seed = s;
+    }
+    if args.iter().any(|a| a == "--operations") {
+        let fixed = arg("--level").and_then(|v| v.parse::<u8>().ok());
+        let mut failed = false;
+        for op in shared::missions::operations() {
+            let level = fixed.unwrap_or_else(|| shared::ships::tier_cap(op.unlock));
+            let rep = play(&Options { operation: Some(op.id), level, max_secs: 2.0 * 3600.0, ..o.clone() });
+            let c = rep.chapters.first();
+            let done = c.is_some_and(|c| c.finished.is_some());
+            failed |= !done;
+            println!(
+                "{} {:<26} Lv{level} · {} · deaths {} · low hull {:.0}%{}",
+                if done { "DONE" } else { "FAIL" },
+                op.title,
+                c.and_then(|c| c.finished.map(|f| format!("{:.1} min", (f - c.started) / 60.0))).unwrap_or_else(|| "—".into()),
+                c.map_or(0, |c| c.deaths),
+                c.map_or(100.0, |c| c.low_hull * 100.0),
+                rep.stuck.as_ref().map_or(String::new(), |w| format!(" — {w}")),
+            );
+            if args.iter().any(|a| a == "--log") {
+                for l in c.map(|c| c.log.clone()).unwrap_or_default() {
+                    println!("      {l}");
+                }
+            }
+        }
+        std::process::exit(if failed { 1 } else { 0 });
     }
     println!("campaign playthrough: {:?} {:?} {:?}, up to {:.1} h of game time", o.hull, o.species, o.profession, o.max_secs / 3600.0);
     let start = std::time::Instant::now();

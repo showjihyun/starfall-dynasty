@@ -37,6 +37,9 @@ impl Game {
                     let r = e.stats.radius;
                     e.pos += e.forward() * (80.0 + r);
                     self.spawn_escorts(pid);
+                    if matches!(self.scenario_step(pid), Some(Step::Escort { .. } | Step::Survive { .. })) {
+                        self.scenario_on_enter(pid);
+                    }
                 }
             }
             ClientMsg::EscortCommand { attack } => {
@@ -69,6 +72,7 @@ impl Game {
             ClientMsg::StartScenario { id } => self.start_scenario(pid, id),
             ClientMsg::AbandonScenario => {
                 self.clear_wave(conn);
+                self.clear_convoy(conn);
                 if let Some(p) = self.store.profile_mut(pid) {
                     p.scenario = None;
                 }
@@ -319,6 +323,21 @@ impl Game {
         self.visit_institutes(pid, sys);
         if matches!(self.scenario_step(pid), Some(Step::Dock { system }) if system == sys) {
             self.advance_scenario(pid);
+        }
+        if matches!(self.scenario_step(pid), Some(Step::Escort { system, .. }) if system == sys)
+            && let Some(conn) = self.conn_of.get(&pid).copied()
+        {
+            let station = self.systems[&sys].layout.station;
+            let near = self.sessions[&conn].convoy.iter().filter(|c| self.ent(sys, **c).is_some_and(|e| !e.dead && e.pos.distance(station) < self.tuning.ships.convoy.dock_range)).count();
+            if near > 0 {
+                let n = self.sessions[&conn].convoy.len();
+                self.clear_convoy(conn);
+                self.clear_wave(conn);
+                self.toast(pid, format!("호송선 {near}/{n}척 무사 입항"));
+                self.advance_scenario(pid);
+            } else if !self.sessions[&conn].convoy.is_empty() {
+                self.toast(pid, "호송선단이 아직 멀리 있습니다 — 정거장 가까이 데려온 뒤 도킹하세요");
+            }
         }
         self.jobs_on_dock(pid, sys);
     }
@@ -769,7 +788,7 @@ impl Game {
 
     pub(super) fn scenario_step(&self, pid: PlayerId) -> Option<Step> {
         let sp = self.store.profile(pid)?.scenario.clone()?;
-        scenarios().into_iter().find(|s| s.id == sp.id)?.steps.get(sp.step).cloned()
+        shared::missions::mission(sp.id)?.steps.get(sp.step).cloned()
     }
 
     fn start_scenario(&mut self, pid: PlayerId, id: u32) {
@@ -777,11 +796,22 @@ impl Game {
         if prof.scenario.is_some() {
             return self.toast(pid, "이미 진행 중인 시나리오가 있습니다");
         }
-        if id > prof.scenarios_completed || id as usize >= scenarios().len() {
+        let Some(sc) = shared::missions::mission(id) else { return };
+        if id >= shared::missions::OP_BASE {
+            if prof.scenarios_completed < sc.unlock {
+                return self.toast(pid, format!("{}장을 완수하면 열리는 작전입니다", sc.unlock));
+            }
+            if prof.operations_done.contains(&id) {
+                return self.toast(pid, "이미 완수한 작전입니다");
+            }
+        } else if id > prof.scenarios_completed || id as usize >= scenarios().len() {
             return self.toast(pid, "이전 장을 먼저 완수하세요");
         }
         self.store.profile_mut(pid).unwrap().scenario = Some(ScenarioProgress { id, step: 0, step_progress: 0 });
-        let title = scenarios()[id as usize].title;
+        if let Some(s) = self.conn_of.get(&pid).copied().and_then(|c| self.sessions.get_mut(&c)) {
+            s.survive_acc = 0.0;
+        }
+        let title = sc.title;
         self.toast(pid, format!("시나리오 시작: {title}"));
         self.push_profile(pid);
         self.scenario_on_enter(pid);
@@ -791,31 +821,153 @@ impl Game {
     pub(super) fn scenario_on_enter(&mut self, pid: PlayerId) {
         let Some(conn) = self.conn_of.get(&pid).copied() else { return };
         let sys = self.sessions[&conn].system;
-        // Waves stay in their system; leaving abandons the current wave (respawned on return).
+        // Waves and convoys stay in their system; leaving abandons them (formed again on return).
         if self.sessions[&conn].wave_system.is_some_and(|w| w != sys) {
             self.clear_wave(conn);
         }
+        if self.sessions[&conn].convoy_system.is_some_and(|w| w != sys) {
+            self.clear_convoy(conn);
+        }
+        let out = self.sessions[&conn].entity.and_then(|e| self.ent(sys, e)).is_some_and(|e| !e.docked) && !self.sessions[&conn].dead;
         match self.scenario_step(pid) {
             Some(Step::Reach { system }) if system == sys => self.advance_scenario(pid),
             Some(Step::Defeat { system, wave, level }) if system == sys && self.sessions[&conn].wave.is_empty() && !self.sessions[&conn].dead => {
-                let Some(eid) = self.sessions[&conn].entity else { return };
-                let Some(e) = self.ent(sys, eid) else { return };
-                let base = e.pos + e.forward() * 1100.0 + Vec3::new(0.0, 120.0, 0.0);
-                let mut ids = vec![];
-                let mut k = 0.0;
-                for (arch, n) in wave {
-                    for _ in 0..n {
-                        let off = Vec3::new((k * 2.4f32).cos() * 220.0, (k * 1.3f32).sin() * 60.0, (k * 2.4f32).sin() * 220.0);
-                        ids.push(self.spawn_npc(sys, arch, level, base + off, Some(pid)));
-                        k += 1.0;
-                    }
-                }
-                let s = self.sessions.get_mut(&conn).unwrap();
-                s.wave = ids;
-                s.wave_system = Some(sys);
+                self.spawn_scenario_wave(pid, conn, sys, &wave, level, 1100.0);
                 self.toast(pid, "⚠ 적 함대가 워프아웃했습니다!");
             }
+            // A siege: the first wave when the captain is out in the system (the rest come on the clock).
+            Some(Step::Survive { system, wave, level, secs, .. }) if system == sys && out && self.sessions[&conn].wave.is_empty() => {
+                self.spawn_scenario_wave(pid, conn, sys, &wave, level, 1600.0);
+                self.toast(pid, format!("⚠ 공세 시작 — {secs}초를 버티십시오!"));
+            }
+            Some(Step::Escort { system, ships, ambush, level }) if system == sys && out && self.sessions[&conn].convoy.is_empty() => {
+                self.spawn_convoy(pid, conn, sys, ships);
+                self.spawn_scenario_wave(pid, conn, sys, &ambush, level, 2200.0);
+                self.toast(pid, format!("호송선 {ships}척 합류 — 정거장까지 호위해 함께 도킹하십시오. ⚠ 매복 출현!"));
+            }
             _ => {}
+        }
+    }
+
+    /// A scenario wave `ahead` units in front of the captain (added to the session's wave).
+    fn spawn_scenario_wave(&mut self, pid: PlayerId, conn: ConnId, sys: SystemId, wave: &[(shared::missions::NpcArchetype, u32)], level: u8, ahead: f32) {
+        let Some(eid) = self.sessions[&conn].entity else { return };
+        let Some(e) = self.ent(sys, eid) else { return };
+        let base = e.pos + e.forward() * ahead + Vec3::new(0.0, 120.0, 0.0);
+        let mut ids = vec![];
+        let mut k = 0.0;
+        for (arch, n) in wave {
+            for _ in 0..*n {
+                let off = Vec3::new((k * 2.4f32).cos() * 220.0, (k * 1.3f32).sin() * 60.0, (k * 2.4f32).sin() * 220.0);
+                ids.push(self.spawn_npc(sys, *arch, level, base + off, Some(pid)));
+                k += 1.0;
+            }
+        }
+        let s = self.sessions.get_mut(&conn).unwrap();
+        s.wave.extend(ids);
+        s.wave_system = Some(sys);
+    }
+
+    /// The freighters of an escort step, formed up behind the captain (they follow like escorts).
+    fn spawn_convoy(&mut self, pid: PlayerId, conn: ConnId, sys: SystemId, ships: u32) {
+        let Some(eid) = self.sessions[&conn].entity else { return };
+        let Some(flag) = self.ent(sys, eid).cloned() else { return };
+        let prof = self.store.profile(pid).unwrap().clone();
+        let cv = self.tuning.ships.convoy;
+        let mut ids = vec![];
+        for k in 0..ships {
+            let id = self.alloc_entity();
+            let st = shared::ships::Stats {
+                max_hull: flag.stats.max_hull * cv.hp,
+                max_shield: flag.stats.max_shield * cv.hp,
+                shield_regen: flag.stats.shield_regen,
+                speed: (flag.stats.speed * cv.speed).max(cv.min_speed),
+                accel: (flag.stats.accel * cv.speed).max(20.0),
+                turn: self.tuning.ships.escort.turn,
+                radius: (flag.stats.radius * cv.radius).clamp(14.0, 60.0),
+                ..Default::default()
+            };
+            let slot = (k + 4) as u8;
+            let off = super::escort_slot(slot) * flag.stats.radius * 2.2;
+            let mut e = super::Ent::base(id, EntityKind::Escort, format!("호송선 {}", k + 1), st, flag.pos + flag.rot * off, flag.rot);
+            e.owner = Some(pid);
+            e.hull_class = Some(shared::ships::HullClass::Mule);
+            e.rank = 2;
+            e.livery = prof.ship.livery;
+            e.species = Some(prof.species);
+            e.fleet = flag.fleet;
+            e.alliance = flag.alliance;
+            e.class = Some(shared::ships::SizeClass::Small);
+            e.ai = Some(super::Ai { archetype: shared::missions::NpcArchetype::Raider, level: 0, home: flag.pos, target: None, scenario_owner: None, think_cd: 0.0, orbit_sign: 1.0, escort_of: Some(pid), slot });
+            self.systems.get_mut(&sys).unwrap().ents.insert(id, e);
+            ids.push(id);
+        }
+        let s = self.sessions.get_mut(&conn).unwrap();
+        s.convoy = ids;
+        s.convoy_system = Some(sys);
+    }
+
+    pub(super) fn clear_convoy(&mut self, conn: ConnId) {
+        let s = self.sessions.get_mut(&conn).unwrap();
+        let ids = std::mem::take(&mut s.convoy);
+        let cs = s.convoy_system.take().unwrap_or(s.system);
+        if let Some(sys) = self.systems.get_mut(&cs) {
+            for c in ids {
+                sys.ents.remove(&c);
+            }
+        }
+    }
+
+    /// A freighter of the convoy went down; with the last one the step is lost (set out again to retry).
+    pub(super) fn convoy_lost(&mut self, owner: PlayerId, ship: EntityId) -> bool {
+        let Some(conn) = self.conn_of.get(&owner).copied() else { return false };
+        let s = self.sessions.get_mut(&conn).unwrap();
+        if !s.convoy.contains(&ship) {
+            return false;
+        }
+        s.convoy.retain(|x| *x != ship);
+        if s.convoy.is_empty() {
+            s.convoy_system = None;
+            self.clear_wave(conn);
+            self.toast(owner, "✖ 호송선단 전멸 — 정거장에 도킹했다가 다시 출항하면 새 선단이 합류합니다");
+        } else {
+            self.toast(owner, format!("호송선 격침 — 남은 호송선 {}척", self.sessions[&conn].convoy.len()));
+        }
+        true
+    }
+
+    /// A survive step's clock, while the captain is out in its system and alive: waves on the beat,
+    /// the step done when the time is up.
+    pub(super) fn scenario_tick(&mut self, pid: PlayerId, dt: f32) {
+        let Some(Step::Survive { system, secs, every, wave, level }) = self.scenario_step(pid) else { return };
+        let Some(conn) = self.conn_of.get(&pid).copied() else { return };
+        let s = &self.sessions[&conn];
+        if s.dead || s.system != system || s.entity.and_then(|e| self.ent(system, e)).is_none_or(|e| e.docked) {
+            return;
+        }
+        let s = self.sessions.get_mut(&conn).unwrap();
+        s.survive_acc += dt;
+        if s.survive_acc < 1.0 {
+            return;
+        }
+        s.survive_acc -= 1.0;
+        let held = {
+            let sp = self.store.profile_mut(pid).unwrap().scenario.as_mut().unwrap();
+            sp.step_progress += 1;
+            sp.step_progress
+        };
+        if held >= secs {
+            self.clear_wave(conn);
+            self.toast(pid, "★ 버텨 냈습니다 — 증원 도착, 적이 물러갑니다");
+            self.advance_scenario(pid);
+            return;
+        }
+        if every > 0 && held % every == 0 {
+            self.spawn_scenario_wave(pid, conn, system, &wave, level, 1600.0);
+            self.toast(pid, format!("⚠ 새 습격 — 남은 시간 {}초", secs - held));
+        }
+        if held % 5 == 0 {
+            self.push_profile(pid);
         }
     }
 
@@ -889,17 +1041,24 @@ impl Game {
         if let Some(s) = self.conn_of.get(&pid).copied().and_then(|c| self.sessions.get_mut(&c)) {
             s.wave_losses = 0;
         }
-        let sc = scenarios().into_iter().find(|s| s.id == sp.id).unwrap();
+        let sc = shared::missions::mission(sp.id).unwrap();
         let next = sp.step + 1;
+        if let Some(s) = self.conn_of.get(&pid).copied().and_then(|c| self.sessions.get_mut(&c)) {
+            s.survive_acc = 0.0;
+        }
         if next >= sc.steps.len() {
             let prof = self.store.profile(pid).unwrap().clone();
-            let first_clear = sp.id == prof.scenarios_completed;
+            let op = sp.id >= shared::missions::OP_BASE;
+            let first_clear = sp.id == prof.scenarios_completed && !op;
             {
                 let pm = self.store.profile_mut(pid).unwrap();
                 pm.scenario = None;
                 pm.wallet.add(&sc.reward);
                 if first_clear {
                     pm.scenarios_completed += 1;
+                }
+                if op && !pm.operations_done.contains(&sp.id) {
+                    pm.operations_done.push(sp.id);
                 }
                 pm.reputation += 10;
             }

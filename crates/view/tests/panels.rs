@@ -324,3 +324,24 @@ fn titles_show_what_earns_them_and_an_earned_one_can_be_worn() {
     let (_, req) = frame(|ui| panels::titles(ui, &[Title::Pathfinder], Some(Title::Pathfinder)), Some("해제"));
     assert_eq!(req, Some(None));
 }
+
+#[test]
+fn operations_show_where_they_stand_and_start_when_open() {
+    use shared::missions::{OP_BASE, operations};
+    use shared::protocol::ScenarioProgress;
+    use view::panels::OperationRequest;
+    let ops = operations();
+    // After chapter 1: the first is open (and can start), the rest locked.
+    let (seen, req) = frame(|ui| panels::operations(ui, &ops, 1, &[], None), Some("작전 개시"));
+    assert!(seen.iter().any(|s| s.starts_with("주요 작전 0/5")), "{seen:?}");
+    assert!(seen.iter().any(|s| s.starts_with(ops[4].title) && s.ends_with("🔒")));
+    assert_eq!(req, Some(OperationRequest::Start(OP_BASE)));
+    // Under way: its steps and the way out; a survive step shows its clock.
+    let run = ScenarioProgress { id: OP_BASE + 2, step: 1, step_progress: 37 };
+    let (seen, req) = frame(|ui| panels::operations(ui, &ops, 3, &[OP_BASE], Some(&run)), Some("작전 포기"));
+    assert!(seen.iter().any(|s| s.starts_with("주요 작전 1/5")));
+    assert!(seen.iter().any(|s| s.starts_with(ops[0].title) && s.ends_with("✔ 완수")));
+    assert!(seen.iter().any(|s| s.contains("— 37/120초")), "{seen:?}");
+    assert!(seen.iter().any(|s| s.starts_with("진행 중인 시나리오를")), "another open one waits");
+    assert_eq!(req, Some(OperationRequest::Abandon));
+}

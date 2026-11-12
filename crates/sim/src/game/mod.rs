@@ -250,6 +250,11 @@ pub struct Session {
     pub view: interest::View,
     /// The pirates of this captain's bounty and armada jobs, by job: their system and who is left.
     pub job_waves: BTreeMap<shared::jobs::JobId, (SystemId, Vec<EntityId>)>,
+    /// An escort step's freighters (`Step::Escort`) and their system.
+    pub convoy: Vec<EntityId>,
+    pub convoy_system: Option<SystemId>,
+    /// A survive step's clock: the part of a second not yet counted (`Step::Survive`).
+    pub survive_acc: f32,
 }
 
 /// Formation offsets (in flagship radii) for escort slots, behind and to the sides.
@@ -498,6 +503,11 @@ impl Game {
                         sys.ents.remove(&w);
                     }
                 }
+                for c in s.convoy {
+                    if let Some(sys) = self.systems.get_mut(&s.convoy_system.unwrap_or(s.system)) {
+                        sys.ents.remove(&c);
+                    }
+                }
                 for (_, (ws, ids)) in s.job_waves {
                     if let Some(sys) = self.systems.get_mut(&ws) {
                         for w in ids {
@@ -588,6 +598,7 @@ impl Game {
             dailies: missions::daily_missions(day, pid),
             daily_day: day,
             scenarios_completed: 0,
+            operations_done: vec![],
             scenario: None,
             kills: 0,
             deaths: 0,

@@ -159,6 +159,9 @@ pub struct ShipTuning {
     pub batteries: Batteries,
     pub upgrade: UpgradeCosts,
     pub escort: EscortTuning,
+    /// Convoy freighters of escort operations; missing (older recordings): the defaults.
+    #[serde(default)]
+    pub convoy: ConvoyTuning,
     /// Distance between neighbouring posts of a fleet formation (`shared::formation`). Default 400.
     #[serde(default = "formation_spacing")]
     pub formation_spacing: f32,
@@ -306,6 +309,24 @@ pub struct MaterialRates {
     pub crystal: Rate,
     pub datacore: Rate,
     pub relic: Rate,
+}
+
+/// An escort step's freighters (`missions::Step::Escort`) as shares of the captain's ship: tougher and
+/// slower than escorts, unarmed. `dock_range`: how close to the station one must be when the captain docks.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ConvoyTuning {
+    pub hp: f32,
+    pub speed: f32,
+    pub min_speed: f32,
+    pub radius: f32,
+    pub dock_range: f32,
+}
+
+impl Default for ConvoyTuning {
+    fn default() -> Self {
+        ConvoyTuning { hp: 0.6, speed: 0.85, min_speed: 70.0, radius: 1.2, dock_range: 3000.0 }
+    }
 }
 
 /// Escort ships as shares of their flagship's stats, with floors so a small flagship still gets useful escorts.
@@ -462,6 +483,9 @@ pub struct EconomyTuning {
     /// (recordings made before it existed): the rewards that were code constants until then.
     #[serde(default = "old_chapter_rewards")]
     pub chapter_rewards: Vec<Materials>,
+    /// The major operations' rewards, in order (`missions::operations`); missing: none.
+    #[serde(default)]
+    pub operation_rewards: Vec<Materials>,
     /// Share of a pirate's bounty paid when the killer's mining beam is on (turrets and escorts
     /// fight on their own while a cruiser mines). Missing (older recordings): 1, the full bounty.
     #[serde(default = "full")]

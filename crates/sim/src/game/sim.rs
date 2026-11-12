@@ -93,6 +93,11 @@ impl Game {
         if self.tick % 1200 == 0 && !self.store.data.contracts.is_empty() {
             self.expire_contracts();
         }
+        // Survive steps run on the clock (operations only: chapters have none).
+        let holding: Vec<PlayerId> = self.conn_of.keys().copied().filter(|p| self.store.profile(*p).is_some_and(|x| x.scenario.as_ref().is_some_and(|s| s.id >= shared::missions::OP_BASE))).collect();
+        for pid in holding {
+            self.scenario_tick(pid, dt);
+        }
         if self.tick.is_multiple_of(200) {
             let online: Vec<PlayerId> = self.conn_of.keys().copied().filter(|p| self.store.profile(*p).is_some_and(|x| !x.jobs.is_empty())).collect();
             for pid in online {
@@ -892,7 +897,9 @@ impl Game {
                 }
             }
             EntityKind::Escort => {
-                if let Some(owner) = e.owner {
+                if let Some(owner) = e.owner
+                    && !self.convoy_lost(owner, id)
+                {
                     if let Some(c) = self.conn_of.get(&owner).copied() {
                         self.sessions.get_mut(&c).unwrap().escorts.retain(|x| *x != id);
                     }

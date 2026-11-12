@@ -74,6 +74,7 @@ mod tests {
             dailies: vec![],
             daily_day: 0,
             scenarios_completed: cleared,
+            operations_done: vec![],
             scenario: None,
             kills: 0,
             deaths: 0,

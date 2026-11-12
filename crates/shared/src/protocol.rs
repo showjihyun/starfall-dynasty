@@ -197,6 +197,9 @@ pub struct Profile {
     pub daily_day: u32,
     pub scenarios_completed: u32,
     pub scenario: Option<ScenarioProgress>,
+    /// Major operations done (`missions::operations`, each once).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub operations_done: Vec<u32>,
     pub kills: u32,
     pub deaths: u32,
     pub reputation: i32,

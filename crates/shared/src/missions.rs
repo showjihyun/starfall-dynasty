@@ -189,6 +189,11 @@ pub enum Step {
     Defeat { system: SystemId, wave: Vec<(NpcArchetype, u32)>, level: u8 },
     /// Dock at the station of a system (chapter 1 ends by reporting back: docking, repair, the station).
     Dock { system: SystemId },
+    /// Hold out in a system for `secs` seconds (undocked) while a pirate wave warps in every `every` seconds.
+    Survive { system: SystemId, secs: u32, every: u32, wave: Vec<(NpcArchetype, u32)>, level: u8 },
+    /// Lead a convoy of `ships` freighters to the station of `system` and dock with them close by;
+    /// `ambush` strikes when the convoy forms. Losing every freighter loses the step (re-enter to retry).
+    Escort { system: SystemId, ships: u32, ambush: Vec<(NpcArchetype, u32)>, level: u8 },
 }
 
 impl Step {
@@ -202,11 +207,13 @@ impl Step {
                 format!("{}에서 격파: {}", sys(system), w.join(", "))
             }
             Step::Dock { system } => format!("{} 정거장에 도킹해 보고", sys(system)),
+            Step::Survive { system, secs, every, .. } => format!("{}에서 {secs}초 버티기 — {every}초마다 해적 습격 (도킹하면 시간이 멈춤)", sys(system)),
+            Step::Escort { system, ships, .. } => format!("{}에서 호송선 {ships}척을 정거장까지 호위해 함께 도킹", sys(system)),
         }
     }
     pub fn system(&self) -> SystemId {
         match self {
-            Step::Reach { system } | Step::ScanPoi { system, .. } | Step::Defeat { system, .. } | Step::Dock { system } => *system,
+            Step::Reach { system } | Step::ScanPoi { system, .. } | Step::Defeat { system, .. } | Step::Dock { system } | Step::Survive { system, .. } | Step::Escort { system, .. } => *system,
         }
     }
 }
@@ -224,10 +231,102 @@ pub fn poi_name(k: PoiKind) -> &'static str {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Scenario {
     pub id: u32,
+    /// Campaign chapters cleared before it can start (operations; chapters go in order).
+    pub unlock: u32,
     pub title: &'static str,
     pub briefing: &'static str,
     pub steps: Vec<Step>,
     pub reward: Materials,
+}
+
+/// Ids of the major operations start here (campaign chapters are 0..).
+pub const OP_BASE: u32 = 100;
+
+/// A campaign chapter or a major operation, by id.
+pub fn mission(id: u32) -> Option<Scenario> {
+    if id >= OP_BASE { operations().into_iter().find(|s| s.id == id) } else { scenarios().into_iter().find(|s| s.id == id) }
+}
+
+/// The major operations: big space missions beside the campaign, each opened by the chapters cleared
+/// (`unlock`) and played once — a convoy to bring through an ambush, a pirate base in a wreck, a
+/// front-line station to hold, a trail across two systems, a gate battle. Rewards come from
+/// `tuning/economy.ron` `operation_rewards`.
+pub fn operations() -> Vec<Scenario> {
+    use NpcArchetype::*;
+    let mut ops = vec![
+        Scenario {
+            id: OP_BASE,
+            unlock: 1,
+            title: "작전 · 표류 호송선단 구조",
+            briefing: "Vesta 회랑에서 엔진이 꺼진 호송선단의 조난 신호. 잔해 사이에서 선단을 찾아내고, 냄새를 맡은 해적을 뿌리치며 정거장까지 데려가라.",
+            steps: vec![
+                Step::Reach { system: 4 },
+                Step::ScanPoi { system: 4, kind: PoiKind::Derelict, count: 1 },
+                Step::Escort { system: 4, ships: 2, ambush: vec![(Raider, 3)], level: 1 },
+            ],
+            reward: Materials::default(),
+        },
+        Scenario {
+            id: OP_BASE + 1,
+            unlock: 2,
+            title: "작전 · 잔해선 해적 기지 소탕",
+            briefing: "Cinder Expanse의 거대한 잔해선이 해적 소굴이 됐다. 잔해를 스캔해 기지를 찾고, 경비대와 기지 사령관을 차례로 격파하라.",
+            steps: vec![
+                Step::Reach { system: 5 },
+                Step::ScanPoi { system: 5, kind: PoiKind::Derelict, count: 1 },
+                Step::Defeat { system: 5, wave: vec![(Raider, 3), (Gunship, 1)], level: 2 },
+                // The base's two gunships (2026-11-13: a warlord here took 13 deaths at ship Lv3 — chapter 4's boss).
+                Step::Defeat { system: 5, wave: vec![(Gunship, 2)], level: 2 },
+                Step::Dock { system: 5 },
+            ],
+            reward: Materials::default(),
+        },
+        Scenario {
+            id: OP_BASE + 2,
+            unlock: 3,
+            title: "작전 · 최전선 정거장 사수",
+            briefing: "Vesta Front의 보급 정거장이 해적 함대의 파상 공세를 받고 있다. 증원이 올 때까지 2분을 버텨라 — 정거장에 숨으면 시간은 흐르지 않는다.",
+            steps: vec![
+                Step::Reach { system: 7 },
+                Step::Survive { system: 7, secs: 120, every: 30, wave: vec![(Raider, 2), (Gunship, 1)], level: 3 },
+                Step::Dock { system: 7 },
+            ],
+            reward: Materials::default(),
+        },
+        Scenario {
+            id: OP_BASE + 3,
+            unlock: 3,
+            title: "작전 · 심연의 메아리",
+            briefing: "Hollow Crown의 이상현상에서 반복되는 신호가 Ashen Gate 쪽을 가리킨다. 두 성계를 잇는 흔적을 쫓아 신호의 근원을 밝혀라.",
+            steps: vec![
+                Step::Reach { system: 6 },
+                Step::ScanPoi { system: 6, kind: PoiKind::Anomaly, count: 2 },
+                Step::Reach { system: 8 },
+                Step::ScanPoi { system: 8, kind: PoiKind::Signal, count: 1 },
+                Step::Defeat { system: 8, wave: vec![(Warden, 2)], level: 3 },
+            ],
+            reward: Materials::default(),
+        },
+        Scenario {
+            id: OP_BASE + 4,
+            unlock: 4,
+            title: "작전 · 관문 결전",
+            briefing: "Ashen Gate를 넘는 대호송. 매복을 뚫고 호송선단을 입항시킨 뒤, 몰려드는 함대를 버티고, 군벌 기함과 결판을 내라.",
+            steps: vec![
+                Step::Reach { system: 8 },
+                Step::Escort { system: 8, ships: 3, ambush: vec![(Raider, 4), (Gunship, 1)], level: 3 },
+                Step::Survive { system: 8, secs: 90, every: 30, wave: vec![(Gunship, 2)], level: 3 },
+                // The flagship and one guard at the war zone's level (Lv4 with two guards: 11 deaths at ship Lv5).
+                Step::Defeat { system: 8, wave: vec![(Warlord, 1), (Gunship, 1)], level: 3 },
+            ],
+            reward: Materials::default(),
+        },
+    ];
+    let rewards = &crate::tuning::get().economy.operation_rewards;
+    for (o, r) in ops.iter_mut().zip(rewards) {
+        o.reward = r.clone();
+    }
+    ops
 }
 
 /// The campaign chapters; rewards come from `tuning/economy.ron` `chapter_rewards`.
@@ -236,6 +335,7 @@ pub fn scenarios() -> Vec<Scenario> {
     let mut chapters = vec![
         Scenario {
             id: 0,
+            unlock: 0,
             title: "1장 · 오리온의 신호",
             briefing: "Orion Drift 변경에서 정체불명의 신호가 잡혔다. 신호를 추적하고, 그것을 노리는 해적을 몰아내라.",
             steps: vec![
@@ -249,6 +349,7 @@ pub fn scenarios() -> Vec<Scenario> {
         },
         Scenario {
             id: 1,
+            unlock: 1,
             title: "2장 · 재의 장부",
             briefing: "Vesta 회랑에서 사라진 호송선단의 항해 기록이 발견됐다. 잔해에서 로그를 회수하고 매복을 버텨라.",
             steps: vec![
@@ -261,6 +362,7 @@ pub fn scenarios() -> Vec<Scenario> {
         },
         Scenario {
             id: 2,
+            unlock: 2,
             title: "3장 · 세 번째 배신의 기억",
             briefing: "Hollow Crown의 왕관 유적은 Veyr 기억과 인류 기록이 엇갈리는 장소다. 유적 셋을 조사하고 유적의 수호자를 물리쳐라.",
             steps: vec![
@@ -272,6 +374,7 @@ pub fn scenarios() -> Vec<Scenario> {
         },
         Scenario {
             id: 3,
+            unlock: 3,
             title: "4장 · 피의 계약",
             briefing: "Ashen Gate의 Kharz 군벌이 계약을 깨고 관문을 봉쇄했다. 신호를 따라 군벌 기함을 찾아 격침하라.",
             steps: vec![
@@ -283,6 +386,7 @@ pub fn scenarios() -> Vec<Scenario> {
         },
         Scenario {
             id: 4,
+            unlock: 4,
             title: "5장 · 너머의 관문",
             briefing: "The Deep의 고대 워프 게이트가 깨어나고 있다. 게이트를 스캔하고, 그것을 지키는 리바이어던 센티넬을 쓰러뜨려라.",
             steps: vec![

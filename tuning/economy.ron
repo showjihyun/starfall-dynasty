@@ -43,4 +43,13 @@
         (credits: 30000, alloy: 60, crystal: 40, datacore: 12, relic: 4),
         (credits: 40000, alloy: 150, crystal: 120, datacore: 30, relic: 6),
     ],
+    // Major operations (missions::operations, 2026-11-13): once each, beside the chapter they unlock after —
+    // a little under that chapter's next reward, the last (after chapter 4) near chapter 5's.
+    operation_rewards: [
+        (credits: 8000, alloy: 40, crystal: 20, datacore: 4),
+        (credits: 15000, alloy: 60, crystal: 30, datacore: 8, relic: 1),
+        (credits: 18000, alloy: 60, crystal: 40, datacore: 10, relic: 1),
+        (credits: 16000, alloy: 40, crystal: 40, datacore: 14, relic: 2),
+        (credits: 30000, alloy: 120, crystal: 80, datacore: 20, relic: 3),
+    ],
 )

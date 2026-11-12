@@ -550,6 +550,7 @@ fn a_captain_with_no_chapter_running_is_told_what_to_do_next() {
         dailies: vec![],
         daily_day: 0,
         scenarios_completed: 0,
+        operations_done: vec![],
         scenario: None,
         kills: 0,
         deaths: 0,

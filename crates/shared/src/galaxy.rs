@@ -749,6 +749,14 @@ mod tests {
             assert!(system_layout(s).pois.iter().any(|p| p.kind == PoiKind::Signal));
         }
         assert!(system_layout(4).pois.iter().any(|p| p.kind == PoiKind::Derelict));
+        // Every scan step of every chapter and operation has its site, and every station step its station.
+        for sc in crate::missions::scenarios().into_iter().chain(crate::missions::operations()) {
+            for st in &sc.steps {
+                if let crate::missions::Step::ScanPoi { system, kind, count } = st {
+                    assert!(system_layout(*system).pois.iter().filter(|p| p.kind == *kind).count() >= (*count as usize).min(1), "{}: {kind:?} in {system}", sc.title);
+                }
+            }
+        }
     }
 
     #[test]

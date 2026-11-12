@@ -98,6 +98,10 @@
         // with captains flying straight at the enemy, docs/3D_전투_설계.md 「대규모 교전의 넓이」).
         attack_post: Some((0.8, 250.0)),
     ),
+    // Convoy freighters of escort operations (missions::operations, 2026-11-13): 60% of the captain's hull and
+    // shield, a little slower than the ship so it has to wait for them, unarmed; one must be within 3000 u of
+    // the station when the captain docks.
+    convoy: (hp: 0.6, speed: 0.85, min_speed: 70.0, radius: 1.2, dock_range: 3000.0),
 
     // How each people builds the same hull (2026-11-11, with the four fleet styles: docs/ART_DIRECTION.md §4).
     // The ships now look their part, so they fly it: one clear edge, one price, about 5% each — a choice of

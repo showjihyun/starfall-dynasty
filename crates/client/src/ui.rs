@@ -567,10 +567,15 @@ fn hud(ctx: &egui::Context, s: &mut Session, net: &Net, env: &Env, vis: &Visuals
         }
         egui::Frame::popup(ui.style()).show(ui, |ui| {
             if let Some(sp) = &prof.scenario {
-                let sc = &scenarios()[sp.id as usize];
+                let Some(sc) = shared::missions::mission(sp.id) else { return };
                 ui.label(RichText::new(sc.title).color(GOLD).strong());
                 if let Some(step) = sc.steps.get(sp.step) {
                     ui.label(format!("▶ {}", step.describe()));
+                    // A siege's clock.
+                    if let shared::missions::Step::Survive { secs, .. } = step {
+                        let held = sp.step_progress.min(*secs);
+                        ui.add(egui::ProgressBar::new(held as f32 / (*secs).max(1) as f32).desired_width(290.0).text(format!("버틴 시간 {held}/{secs}초")));
+                    }
                     ui.label(RichText::new(view::hud::step_hint(step, me.as_ref().is_some_and(|m| m.docked), &s.keys)).size(11.0).color(DIM));
                 }
                 ui.separator();
@@ -705,7 +710,7 @@ fn windows(ctx: &egui::Context, s: &mut Session, net: &Net, env: &Env) {
     s.ui.jobs = open;
 
     let mut open = s.ui.missions;
-    egui::Window::new(format!("임무 ({})", s.key(A::Missions))).id(egui::Id::new("win_missions")).open(&mut open).default_size([520.0, 560.0]).show(ctx, |ui| missions(ui, s, net, &prof));
+    egui::Window::new(format!("임무 ({})", s.key(A::Missions))).id(egui::Id::new("win_missions")).frame(screen).open(&mut open).default_size([560.0, 600.0]).show(ctx, |ui| egui::ScrollArea::vertical().show(ui, |ui| missions(ui, s, net, &prof)));
     s.ui.missions = open;
 
     let mut open = s.ui.contracts;
@@ -1078,6 +1083,12 @@ fn missions(ui: &mut egui::Ui, s: &mut Session, net: &Net, prof: &Profile) {
                 net.send(ClientMsg::AbandonScenario);
             }
         });
+    }
+    ui.separator();
+    match view::panels::operations(ui, &shared::missions::operations(), prof.scenarios_completed, &prof.operations_done, prof.scenario.as_ref()) {
+        Some(view::panels::OperationRequest::Start(id)) => net.send(ClientMsg::StartScenario { id }),
+        Some(view::panels::OperationRequest::Abandon) => net.send(ClientMsg::AbandonScenario),
+        None => {}
     }
 }
 

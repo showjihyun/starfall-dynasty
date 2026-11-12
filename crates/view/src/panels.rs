@@ -395,3 +395,69 @@ pub fn titles(ui: &mut egui::Ui, earned: &[shared::titles::Title], worn: Option<
     }
     req
 }
+
+// ---- Major operations ----------------------------------------------------------------------------
+
+/// A click in the operations list.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum OperationRequest {
+    Start(u32),
+    Abandon,
+}
+
+/// The major operations (`missions::operations`): each with where it stands for this captain —
+/// done, under way (its steps ticked), open to start, or locked until a chapter — its briefing, steps
+/// and reward. Starting one needs no other scenario running.
+/// `cleared`: campaign chapters done; `done`: operations done; `running`: the scenario under way.
+pub fn operations(ui: &mut egui::Ui, ops: &[shared::missions::Scenario], cleared: u32, done_ops: &[u32], running: Option<&shared::protocol::ScenarioProgress>) -> Option<OperationRequest> {
+    use crate::palette::{ACCENT, GREEN};
+    let mut req = None;
+    let done_n = ops.iter().filter(|o| done_ops.contains(&o.id)).count();
+    ui.label(RichText::new(format!("주요 작전 {done_n}/{}", ops.len())).size(16.0).strong().color(GOLD));
+    ui.label(RichText::new("캠페인 장을 깰 때마다 열리는 대형 우주 작전 — 호송, 기지 소탕, 거점 사수, 성간 추적, 관문 결전. 각 한 번씩, 캠페인과 따로 진행합니다.").size(11.0).color(DIM));
+    for op in ops {
+        let done = done_ops.contains(&op.id);
+        let active = running.is_some_and(|p| p.id == op.id);
+        let open = cleared >= op.unlock;
+        let (mark, col) = if done {
+            ("  ✔ 완수", GREEN)
+        } else if active {
+            ("  ▶ 진행 중", GOLD)
+        } else if open {
+            ("", Color32::WHITE)
+        } else {
+            ("  🔒", DIM)
+        };
+        egui::CollapsingHeader::new(RichText::new(format!("{}{mark}", op.title)).color(col)).id_salt(("op", op.id)).default_open(active || (open && !done)).show(ui, |ui| {
+            ui.label(RichText::new(op.briefing).size(12.0));
+            for (k, st) in op.steps.iter().enumerate() {
+                let m = match running {
+                    Some(p) if p.id == op.id && k < p.step => "✔",
+                    Some(p) if p.id == op.id && k == p.step => "▶",
+                    _ if done => "✔",
+                    _ => "·",
+                };
+                let extra = match (running, st) {
+                    (Some(p), shared::missions::Step::Survive { secs, .. }) if p.id == op.id && k == p.step => format!(" — {}/{secs}초", p.step_progress),
+                    _ => String::new(),
+                };
+                ui.label(format!("{m} {}{extra}", st.describe()));
+            }
+            ui.label(RichText::new(format!("보상: {}", op.reward.describe())).color(GOLD).size(12.0));
+            if active {
+                if ui.button("작전 포기").clicked() {
+                    req = Some(OperationRequest::Abandon);
+                }
+            } else if !done {
+                if !open {
+                    ui.label(RichText::new(format!("캠페인 {}장을 완수하면 열립니다", op.unlock)).size(12.0).color(DIM));
+                } else if running.is_some() {
+                    ui.label(RichText::new("진행 중인 시나리오를 끝내거나 포기해야 시작할 수 있습니다").size(12.0).color(ACCENT));
+                } else if ui.button(RichText::new("작전 개시").strong()).clicked() {
+                    req = Some(OperationRequest::Start(op.id));
+                }
+            }
+        });
+    }
+    req
+}
