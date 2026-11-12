@@ -50,6 +50,20 @@
         // A bounty target's escorts and an armada's ships pay this share of a pirate's usual bounty: the
         // job's reward is the pay (sim example `career`, 2026-11-12: at full bounty the kills paid 2–3× the job).
         wave_bounty: 0.25,
+        // Combat jobs come in grades, so a small ship finds a fight it can win (2026-11-12: every bounty was a
+        // gunship with 1–3 escorts above the system's pirates, and a Lv1 Talon won 1 in 5). level: over the tier's pirates.
+        bounty_grades: [
+            (weight: 3, archetype: Raider,  level: -1, escorts: (0, 0)),   // a lone raider
+            (weight: 3, archetype: Gunship, level: -1, escorts: (0, 1)),
+            (weight: 2, archetype: Gunship, level: 0,  escorts: (1, 2)),
+            (weight: 2, archetype: Gunship, level: 1,  escorts: (2, 3)),
+        ],
+        armada_scale: [(2, 0.35), (2, 0.65), (2, 1.0)],
+        // A fight's threat: per ship, this × (1 + step × its level). threat_by_level: the most each ship level won 80%+ of
+        // (sim example `career -- --threat`, 2026-11-12: Lv1 ≤4, Lv3 ≤7, then a jump — Lv4 ≤18 —, Lv7 7/10 above 32, Lv8 all).
+        threat: { Raider: 1.0, Gunship: 2.5, Warden: 3.0, Warlord: 8.0, Sentinel: 8.0 },
+        threat_level_step: 0.3,
+        threat_by_level: [4.0, 5.5, 7.0, 18.0, 24.0, 28.0, 40.0, 99.0],
     ),
 
     market: (

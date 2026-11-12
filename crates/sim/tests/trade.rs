@@ -151,7 +151,8 @@ fn a_named_bounty_waits_in_its_system_and_pays_when_it_and_its_escort_are_sunk()
 fn an_armada_is_a_fleet_battle_paid_when_the_last_ship_falls() {
     let mut g = game();
     let pid = join(&mut g, 1, "Shield", HullClass::Bastion);
-    let job = find_job(&g, JobTag::Armada);
+    // A full-size one (armadas come in sizes, `armada_scale`).
+    let job = (0..galaxy::systems().len() as u16).flat_map(|s| board(&g, s)).find(|j| matches!(&j.kind, JobKind::Armada { wave, .. } if wave.iter().map(|w| w.1).sum::<u32>() >= 6)).expect("a full armada");
     let JobKind::Armada { system, wave, .. } = job.kind.clone() else { unreachable!() };
     dock_at(&mut g, 1, job.station);
     g.handle(1, ClientMsg::AcceptJob { id: job.id });

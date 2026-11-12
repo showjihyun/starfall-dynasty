@@ -26,6 +26,8 @@ pub struct BoardView<'a> {
     pub room: u32,
     /// The system the ship is in.
     pub here: SystemId,
+    /// The ship's level (modules' average), held against a combat job's recommended level.
+    pub ship_level: u8,
 }
 
 /// The job picked on the board (kept between frames).
@@ -154,8 +156,11 @@ pub fn job_board(ui: &mut egui::Ui, v: &BoardView, st: &mut BoardState) -> Optio
                     for j in v.jobs {
                         let taken = v.held.iter().any(|a| a.job.id == j.id);
                         let far = distance(v.here, j.kind.destinations(j.station).first().copied().unwrap_or(j.station));
-                        let foot = format!("기한 {} · {far:.1} ly · 평판 +{}", hours(j.limit_secs), j.reputation);
-                        if card(ui, j, &foot, None, taken, st.selected == Some(j.id)) {
+                        let rec = shared::jobs::recommended(&shared::tuning::get(), &j.kind);
+                        let lv = rec.map_or(String::new(), |r| format!(" · 권장 Lv{r}"));
+                        let foot = format!("기한 {} · {far:.1} ly · 평판 +{}{lv}", hours(j.limit_secs), j.reputation);
+                        let hard = rec.is_some_and(|r| r > v.ship_level);
+                        if card(ui, j, &foot, None, taken, st.selected == Some(j.id), hard) {
                             st.selected = Some(j.id);
                         }
                     }
@@ -178,7 +183,7 @@ pub fn job_board(ui: &mut egui::Ui, v: &BoardView, st: &mut BoardState) -> Optio
                 };
                 let next = a.remaining().first().map_or(String::new(), |s| format!(" · → {}", galaxy::system(*s).name));
                 let foot = format!("남은 시간 {}{progress}{next}", hours(left));
-                if card(ui, &a.job, &foot, Some(frac), false, st.selected == Some(a.job.id)) {
+                if card(ui, &a.job, &foot, Some(frac), false, st.selected == Some(a.job.id), false) {
                     st.selected = Some(a.job.id);
                 }
             }
@@ -225,6 +230,10 @@ fn briefing(ui: &mut egui::Ui, v: &BoardView, j: &Job, held: Option<&ActiveJob>)
         None => facts.push(("기한", format!("수락 후 {}", hours(j.limit_secs)))),
     }
     facts.push(("거리", format!("{far:.1} ly · {}", mdef.name)));
+    let rec = shared::jobs::recommended(&shared::tuning::get(), &j.kind);
+    if let Some(r) = rec {
+        facts.push(("권장 함선", format!("Lv{r} 이상 (내 함선 Lv{})", v.ship_level)));
+    }
     match &j.kind {
         JobKind::Bounty { archetype, level, escorts, .. } => facts.push(("적 전력", format!("{} Lv{level} + 호위 {escorts}척", archetype.name()))),
         JobKind::Armada { level, wave, .. } => {
@@ -247,6 +256,9 @@ fn briefing(ui: &mut egui::Ui, v: &BoardView, j: &Job, held: Option<&ActiveJob>)
     });
     ui.add_space(4.0);
     ui.label(RichText::new(how(&j.kind)).size(12.0).color(DIM));
+    if let Some(r) = rec.filter(|r| *r > v.ship_level) {
+        ui.label(RichText::new(format!("⚠ 함선 Lv{r} 이상에 맞는 싸움입니다 — 지금 함선(Lv{})으로는 격침될 가능성이 큽니다. 조선소에서 모듈을 올리거나 더 쉬운 표적을 고르세요.", v.ship_level)).size(12.0).color(pj::WARN));
+    }
     ui.add_space(8.0);
 
     match held {
@@ -278,7 +290,7 @@ fn briefing(ui: &mut egui::Ui, v: &BoardView, j: &Job, held: Option<&ActiveJob>)
 
 /// One job's card: its emblem, kind and errand, the pay, a footer line; `time` (the share of the
 /// deadline left) draws a bar for a held job. True when clicked.
-fn card(ui: &mut egui::Ui, j: &Job, foot: &str, time: Option<f32>, taken: bool, picked: bool) -> bool {
+fn card(ui: &mut egui::Ui, j: &Job, foot: &str, time: Option<f32>, taken: bool, picked: bool, hard: bool) -> bool {
     let tag = j.kind.tag();
     let (rect, resp) = ui.allocate_exact_size(Vec2::new(366.0, 78.0), Sense::click());
     let p = ui.painter();
@@ -293,7 +305,7 @@ fn card(ui: &mut egui::Ui, j: &Job, foot: &str, time: Option<f32>, taken: bool, 
     p.text(rect.right_top() + Vec2::new(-10.0, 7.0), Align2::RIGHT_TOP, format!("{} CR", j.reward.credits), FontId::proportional(15.0), GOLD);
     let galley = p.layout(j.describe(), FontId::proportional(12.0), pj::TEXT, rect.width() - 70.0);
     p.galley(rect.left_top() + Vec2::new(58.0, 26.0), galley, pj::TEXT);
-    p.text(rect.left_bottom() + Vec2::new(58.0, -6.0), Align2::LEFT_BOTTOM, foot, FontId::proportional(11.0), DIM);
+    p.text(rect.left_bottom() + Vec2::new(58.0, -6.0), Align2::LEFT_BOTTOM, foot, FontId::proportional(11.0), if hard { pj::WARN } else { DIM });
     if taken {
         let r = p.text(rect.right_bottom() + Vec2::new(-12.0, -6.0), Align2::RIGHT_BOTTOM, "수락함", FontId::proportional(11.0), pj::ACCEPT_TEXT);
         p.rect_stroke(r.expand2(Vec2::new(5.0, 1.0)), 5.0, Stroke::new(1.0, pj::ACCEPT_TEXT), StrokeKind::Outside);

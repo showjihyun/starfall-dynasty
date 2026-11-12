@@ -58,7 +58,7 @@ fn board(station: u16) -> (Vec<Job>, u64) {
 }
 
 fn view<'a>(station: Option<u16>, jobs: &'a [Job], next: u64, held: &'a [ActiveJob]) -> BoardView<'a> {
-    BoardView { station, jobs, next_board: next, held, unix: UNIX, max_active: 4, room: 90, here: station.unwrap_or(3) }
+    BoardView { station, jobs, next_board: next, held, unix: UNIX, max_active: 4, room: 90, here: station.unwrap_or(3), ship_level: 1 }
 }
 
 #[test]
@@ -146,4 +146,31 @@ fn a_full_slate_or_a_hold_too_small_cannot_take_a_job() {
     let (seen, req) = frame(|ui| jobboard::job_board(ui, &v, &mut st), Some("의뢰 수락"));
     assert_eq!(req, None);
     assert!(seen.iter().any(|s| s == "맡을 수 있는 의뢰가 가득 찼습니다"));
+}
+
+#[test]
+fn a_combat_job_shows_its_recommended_level_and_warns_a_ship_below_it() {
+    let t = shared::tuning::get();
+    // A combat job meant for a bigger ship than Lv1.
+    let (jobs, next, hard) = (0..60u16)
+        .find_map(|s| {
+            let (b, n) = board(s);
+            let j = b.iter().find(|j| jobs::recommended(&t, &j.kind).is_some_and(|r| r >= 3))?.clone();
+            Some((b, n, j))
+        })
+        .expect("a hard combat job");
+    let r = jobs::recommended(&t, &hard.kind).unwrap();
+    let v = view(Some(hard.station), &jobs, next, &[]);
+    let mut st = BoardState { selected: Some(hard.id) };
+    let (seen, _) = frame(|ui| jobboard::job_board(ui, &v, &mut st), None);
+    assert!(seen.iter().any(|s| s == &format!("Lv{r} 이상 (내 함선 Lv1)")), "{seen:?}");
+    assert!(seen.iter().any(|s| s.starts_with(&format!("⚠ 함선 Lv{r} 이상"))));
+    assert!(seen.iter().any(|s| s.ends_with(&format!("권장 Lv{r}"))));
+    // A ship that big: no warning, and it can still be taken.
+    let mut big = view(Some(hard.station), &jobs, next, &[]);
+    big.ship_level = r;
+    let mut st = BoardState { selected: Some(hard.id) };
+    let (seen, req) = frame(|ui| jobboard::job_board(ui, &big, &mut st), Some("의뢰 수락"));
+    assert!(!seen.iter().any(|s| s.starts_with("⚠ 함선")));
+    assert_eq!(req, Some(JobRequest::Accept(hard.id)));
 }

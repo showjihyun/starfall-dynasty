@@ -35,12 +35,16 @@ pub struct Options {
     pub credits: Option<u64>,
     /// Game time to play.
     pub secs: f32,
+    /// Read the briefing: no combat job recommended above the ship's level (`jobs::recommended`).
+    pub heed: bool,
+    /// After losing a fight, take none at least as hard again.
+    pub learn: bool,
     pub unix: u64,
 }
 
 impl Default for Options {
     fn default() -> Self {
-        Options { hull: HullClass::Talon, species: Species::Human, level: 1, kinds: vec![JobTag::Bounty, JobTag::Haul, JobTag::Survey, JobTag::Armada, JobTag::Supply], trade: false, credits: None, secs: 3.0 * 3600.0, unix: 1_800_000_000 }
+        Options { hull: HullClass::Talon, species: Species::Human, level: 1, kinds: vec![JobTag::Bounty, JobTag::Haul, JobTag::Survey, JobTag::Armada, JobTag::Supply], trade: false, credits: None, secs: 3.0 * 3600.0, heed: true, learn: true, unix: 1_800_000_000 }
     }
 }
 
@@ -77,6 +81,8 @@ pub struct Report {
     pub deaths: u32,
     pub boards_read: u32,
     pub systems: usize,
+    /// Every combat job finished: its threat (`jobs::threat`) and whether it was won.
+    pub fights: Vec<(f32, bool)>,
     /// What happened, one line per job or run.
     pub log: Vec<String>,
 }
@@ -177,7 +183,7 @@ fn live_route(g: &Game, here: SystemId, range: f32, room: u32, credits: u64) -> 
 /// What the pilot is working on.
 #[derive(Clone, Debug)]
 enum Work {
-    Job { id: JobId, tag: JobTag, start: f64, wallet: i64, deaths: u32, what: String, size: Option<(u8, u32)> },
+    Job { id: JobId, tag: JobTag, start: f64, wallet: i64, deaths: u32, what: String, size: Option<(u8, u32)>, threat: Option<f32> },
     Trade { good: Good, to: SystemId, start: f64, wallet: i64, deaths: u32 },
 }
 
@@ -264,15 +270,18 @@ pub fn run(o: &Options) -> Report {
                 // ---- Is the work over?
                 let mut finished = None;
                 match &work {
-                    Some(Work::Job { id, tag, start, wallet: w0, deaths, what, size }) => {
+                    Some(Work::Job { id, tag, start, wallet: w0, deaths, what, size, threat }) => {
                         let gone = !prof.jobs.iter().any(|a| a.job.id == *id);
                         if gone || *deaths >= MAX_DEATHS {
                             if !gone {
                                 g.handle(conn, ClientMsg::AbandonJob { id: *id });
                             }
                             let done = gone && prof.career.jobs.get(tag).copied().unwrap_or(0) > rep.jobs.get(tag).map_or(0, |t| t.done);
-                            if !done && let Some(sz) = size {
+                            if !done && o.learn && let Some(sz) = size {
                                 lost.push(*sz);
+                            }
+                            if let Some(th) = threat {
+                                rep.fights.push((*th, done));
                             }
                             finished = Some((Some(*tag), *start, *w0, *deaths, done, what.clone()));
                         }
@@ -315,6 +324,7 @@ pub fn run(o: &Options) -> Report {
                     let best = board
                         .iter()
                         .filter(|j| o.kinds.contains(&j.kind.tag()) && j.kind.tag() != JobTag::Prospect && !tried.contains(&j.id))
+                        .filter(|j| !o.heed || jobs::recommended(&t, &j.kind).is_none_or(|r| r <= prof.ship.mean_level()))
                         .filter(|j| fight_size(&j.kind).is_none_or(|(l, n)| !lost.iter().any(|(fl, fn_)| l >= *fl && n >= *fn_)))
                         .filter(|j| !matches!(j.kind, JobKind::Haul { units, .. } if prof.cargo_used() + units > stats.cargo as u32))
                         .filter(|j| match &j.kind {
@@ -330,7 +340,7 @@ pub fn run(o: &Options) -> Report {
                         tried.insert(j.id);
                         g.handle(conn, ClientMsg::AcceptJob { id: j.id });
                         if g.store.profile(pid).unwrap().jobs.iter().any(|a| a.job.id == j.id) {
-                            work = Some(Work::Job { id: j.id, tag: j.kind.tag(), start: g.now, wallet: wallet(&g), deaths: 0, what: format!("[{}] {}", j.kind.tag().name(), j.describe()), size: fight_size(&j.kind) });
+                            work = Some(Work::Job { id: j.id, tag: j.kind.tag(), start: g.now, wallet: wallet(&g), deaths: 0, what: format!("[{}] {}", j.kind.tag().name(), j.describe()), size: fight_size(&j.kind), threat: jobs::threat(&t, &j.kind) });
                             hop_to = None;
                         }
                     } else if o.trade

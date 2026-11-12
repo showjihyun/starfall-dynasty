@@ -88,6 +88,26 @@ pub struct JobTuning {
     pub supply_premium: f32,
     /// Share of their usual per-kill bounty that a job's pirates pay (the job's reward is the pay).
     pub wave_bounty: f32,
+    /// What a bounty can be, one drawn by weight per job: easy ones for small ships, hard ones for big.
+    pub bounty_grades: Vec<BountyGrade>,
+    /// An armada's size: its tier's fleet × one of these (weight, scale), drawn by weight.
+    pub armada_scale: Vec<(u32, f32)>,
+    /// How hard a fight is: each ship's weight by archetype × (1 + threat_level_step × its level), summed.
+    pub threat: BTreeMap<crate::missions::NpcArchetype, f32>,
+    pub threat_level_step: f32,
+    /// The hardest fight a ship whose modules average Lv1, Lv2, … wins, as threat (sim example `career`):
+    /// a combat job's recommended level is the first that reaches its threat.
+    pub threat_by_level: Vec<f32>,
+}
+
+/// One kind of bounty: the target, its level over the system's pirates, how many escorts.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct BountyGrade {
+    pub weight: u32,
+    pub archetype: crate::missions::NpcArchetype,
+    pub level: i32,
+    pub escorts: (u32, u32),
 }
 
 /// The trade goods market (`shared::market`).

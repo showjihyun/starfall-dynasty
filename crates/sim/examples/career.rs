@@ -4,6 +4,7 @@
 //! (`--example mining -- --all`) and the estimate (`--example board`).
 //!
 //!   cargo run -p sim --release --example career [-- --hull Talon --level 1 --hours 3 --kinds bounty,haul --trade --credits 20000 --log]
+//!   … --threat   what each ship level (1–8) wins, by the fight's threat (to set trade.ron `threat_by_level`)
 //!   … --all      each kind on its own at Lv1 and Lv5 (Talon; trade on a Mule), one line each
 
 use shared::jobs::JobTag;
@@ -39,6 +40,27 @@ fn main() {
     }
     o.trade = flag("--trade");
     o.credits = arg("--credits").and_then(|v| v.parse().ok());
+    if flag("--threat") {
+        // What each ship level wins: every combat job taken, briefing or no; wins by threat band.
+        let bands = [0.0f32, 2.0, 3.0, 4.0, 5.5, 7.0, 9.0, 11.0, 14.0, 18.0, 24.0, 32.0, 99.0];
+        println!("wins / fights by threat (sim::career, {:.0} h each, bounty and armada, no briefing, no learning)", o.secs / 3600.0);
+        print!("{:<5}", "Lv");
+        for w in bands.windows(2) {
+            print!(" {:>9}", format!("{}-{}", w[0], w[1]));
+        }
+        println!();
+        for level in 1u8..=8 {
+            let r = run(&Options { level, kinds: vec![JobTag::Bounty, JobTag::Armada], heed: false, learn: false, ..o.clone() });
+            print!("{:<5}", format!("Lv{level}"));
+            for w in bands.windows(2) {
+                let f: Vec<&(f32, bool)> = r.fights.iter().filter(|(t, _)| *t >= w[0] && *t < w[1]).collect();
+                let won = f.iter().filter(|x| x.1).count();
+                print!(" {:>9}", if f.is_empty() { "·".to_string() } else { format!("{won}/{}", f.len()) });
+            }
+            println!();
+        }
+        return;
+    }
     if flag("--all") {
         println!("each line: {:.0} h of game time, one kind of work only (a fresh captain's credits; supply and trade with 20000 CR)", o.secs / 3600.0);
         for level in [1u8, 5] {

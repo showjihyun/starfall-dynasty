@@ -217,6 +217,11 @@ impl Ship {
         *self.modules.get(&m).unwrap_or(&1)
     }
 
+    /// The modules' average level, rounded down (what a combat job's recommended level is held against).
+    pub fn mean_level(&self) -> u8 {
+        (self.total_levels() / Module::ALL.len() as u32).max(1) as u8
+    }
+
     pub fn total_levels(&self) -> u32 {
         Module::ALL.iter().map(|m| self.level(*m) as u32).sum()
     }

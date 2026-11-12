@@ -876,6 +876,7 @@ fn job_board(ui: &mut egui::Ui, s: &mut Session, net: &Net) {
         max_active: t.trade.jobs.max_active,
         room,
         here: s.system,
+        ship_level: prof.ship.mean_level(),
     };
     let mut pick = std::mem::take(&mut s.ui.jobs_pick);
     match view::jobboard::job_board(ui, &view, &mut pick) {

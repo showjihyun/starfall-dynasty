@@ -169,6 +169,42 @@ fn distance(a: SystemId, b: SystemId) -> f32 {
     glam::Vec3::from(galaxy::system(a).map_pos).distance(glam::Vec3::from(galaxy::system(b).map_pos))
 }
 
+fn pick_weighted<'a, T>(items: &'a [T], weight: impl Fn(&T) -> u32, r: &mut Rng) -> Option<&'a T> {
+    let total: u32 = items.iter().map(&weight).sum();
+    if total == 0 {
+        return None;
+    }
+    let mut x = r.below(total);
+    items.iter().find(|i| {
+        let w = weight(i);
+        if x < w {
+            true
+        } else {
+            x -= w;
+            false
+        }
+    })
+}
+
+/// How hard a combat job's fight is (`tuning/trade.ron` `threat`): None for other jobs.
+pub fn threat(t: &Tuning, kind: &JobKind) -> Option<f32> {
+    let j = &t.trade.jobs;
+    let one = |a: NpcArchetype, level: u8| j.threat.get(&a).copied().unwrap_or(1.0) * (1.0 + j.threat_level_step * level as f32);
+    match kind {
+        JobKind::Bounty { archetype, level, escorts, .. } => Some(one(*archetype, *level) + *escorts as f32 * one(NpcArchetype::Raider, *level)),
+        JobKind::Armada { level, wave, .. } => Some(wave.iter().map(|(a, n)| *n as f32 * one(*a, *level)).sum()),
+        _ => None,
+    }
+}
+
+/// The ship level (modules' average) a combat job is meant for: the first whose measured reach
+/// (`threat_by_level`) covers its threat; past the table, one over its end.
+pub fn recommended(t: &Tuning, kind: &JobKind) -> Option<u8> {
+    let th = threat(t, kind)?;
+    let table = &t.trade.jobs.threat_by_level;
+    Some(table.iter().position(|cap| th <= *cap).map_or(table.len() + 1, |i| i + 1) as u8)
+}
+
 fn risk(t: &Tuning, s: SystemId) -> f32 {
     t.economy.risk_reward.get(&galaxy::system(s).tier).copied().unwrap_or(1.0)
 }
@@ -230,9 +266,11 @@ fn make(t: &Tuning, station: SystemId, tag: JobTag, id: JobId, r: &mut Rng) -> O
         JobTag::Bounty => {
             let system = nearest_lawless(station, j.bounty_range, r)?;
             let tier = galaxy::system(system).tier;
-            let level = tier.pirate_level() + r.below(2) as u8;
-            let archetype = if matches!(tier, RiskTier::WarZone) && r.below(3) == 0 { NpcArchetype::Warlord } else { NpcArchetype::Gunship };
-            let escorts = 1 + r.below(3);
+            let grade = pick_weighted(&j.bounty_grades, |g| g.weight, r)?;
+            let level = (tier.pirate_level() as i32 + grade.level).max(0) as u8;
+            // The war zones' warlords take the place of their hardest gunships.
+            let archetype = if matches!(tier, RiskTier::WarZone) && grade.archetype == NpcArchetype::Gunship && grade.escorts.0 >= 2 && r.below(3) == 0 { NpcArchetype::Warlord } else { grade.archetype };
+            let escorts = grade.escorts.0 + r.below(grade.escorts.1.saturating_sub(grade.escorts.0) + 1);
             let target = format!("{} {}", r.pick(&j.names_first), r.pick(&j.names_last));
             let boss = if archetype == NpcArchetype::Warlord { 2.2 } else { 1.0 };
             let credits = j.bounty * risk(t, system) * boss * (1.0 + 0.35 * level as f32) * (1.0 + 0.25 * escorts as f32);
@@ -270,7 +308,11 @@ fn make(t: &Tuning, station: SystemId, tag: JobTag, id: JobId, r: &mut Rng) -> O
         JobTag::Armada => {
             let system = nearest_lawless(station, j.bounty_range, r)?;
             let tier = galaxy::system(system).tier;
-            let wave = j.armada.get(&tier)?.clone();
+            let scale = pick_weighted(&j.armada_scale, |s| s.0, r)?.1;
+            let wave: Vec<(NpcArchetype, u32)> = j.armada.get(&tier)?.iter().map(|(a, n)| (*a, (*n as f32 * scale).round() as u32)).filter(|w| w.1 > 0).collect();
+            if wave.is_empty() {
+                return None;
+            }
             let level = tier.pirate_level();
             let ships: u32 = wave.iter().map(|w| w.1).sum();
             let credits = j.armada_per_ship * ships as f32 * risk(t, system) * (1.0 + 0.3 * level as f32);
@@ -292,6 +334,28 @@ fn make(t: &Tuning, station: SystemId, tag: JobTag, id: JobId, r: &mut Rng) -> O
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn boards_post_fights_for_small_ships_and_big_ones() {
+        // Over a day of boards, a Lv1 ship finds bounties it is meant for, and the hardest fights are for big ships.
+        let t = crate::tuning::get();
+        let mut recs = vec![];
+        for s in 0..galaxy::systems().len() as SystemId {
+            for p in 0..48 {
+                recs.extend(board(&t, s, p).iter().filter_map(|j| recommended(&t, &j.kind).map(|r| (j.kind.tag(), r))));
+            }
+        }
+        let share = |k: JobTag, f: &dyn Fn(u8) -> bool| recs.iter().filter(|(t, r)| *t == k && f(*r)).count() as f32 / recs.iter().filter(|(t, _)| *t == k).count().max(1) as f32;
+        assert!(share(JobTag::Bounty, &|r| r == 1) > 0.3, "Lv1 bounties: {}", share(JobTag::Bounty, &|r| r == 1));
+        // Armadas are the big fleet battles: only the smallest frontier ones are for small ships.
+        assert!(share(JobTag::Armada, &|r| r <= 3) > 0.05, "small armadas: {}", share(JobTag::Armada, &|r| r <= 3));
+        assert!(recs.iter().any(|(_, r)| *r >= 6), "some fights for big ships");
+        // Recommendations grow with the fight.
+        let lone = JobKind::Bounty { system: 3, target: String::new(), archetype: NpcArchetype::Raider, level: 1, escorts: 0 };
+        let pack = JobKind::Bounty { system: 3, target: String::new(), archetype: NpcArchetype::Gunship, level: 3, escorts: 3 };
+        assert!(recommended(&t, &lone) < recommended(&t, &pack));
+        assert_eq!(recommended(&t, &JobKind::Haul { to: 3, units: 9 }), None);
+    }
 
     #[test]
     fn a_board_is_fixed_for_its_shift_and_changes_with_the_next() {
