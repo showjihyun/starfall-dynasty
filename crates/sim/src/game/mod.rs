@@ -444,6 +444,12 @@ impl Game {
         {
             p.daily_day = day;
             p.dailies = missions::daily_missions(day, pid);
+            let (home, visited) = (p.home, p.career.visited.clone());
+            for m in p.dailies.iter_mut() {
+                if let missions::Objective::Visit { system } = &mut m.objective {
+                    *system = missions::fresh_visit(*system, home, &visited);
+                }
+            }
         }
     }
 

@@ -7,8 +7,8 @@
 //! CR per minute over the whole career (looking for work included) — the played number that
 //! `examples/board.rs` only estimates, to hold against the mining loop (`sim::mining`).
 //!
-//! The pilot holds one job at a time, so each minute belongs to one kind. It does not take
-//! prospect orders (they are mining with a delivery address: `sim::mining` covers the mining).
+//! The pilot holds one job at a time, so each minute belongs to one kind. A prospect order is
+//! mined for: the nearest asteroid of the rarity, until the specimens drop (the ore is sold).
 //! Deterministic like the rest of the simulation (`cargo run -p sim --release --example career`).
 
 use crate::game::{COMBAT_LOCK, ConnId, Game};
@@ -17,7 +17,8 @@ use crate::store::Store;
 use shared::galaxy::{self, Species, SystemId};
 use shared::jobs::{self, Job, JobId, JobKind, JobTag};
 use shared::market::{self, Good};
-use shared::protocol::{ClientMsg, Controls, EntityId, PROTOCOL_VERSION, Profession, TICK_HZ};
+use shared::missions::Objective;
+use shared::protocol::{ClientMsg, Controls, EntityId, EntityKind, PROTOCOL_VERSION, Profession, TICK_HZ};
 use shared::ships::{HullClass, Module};
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -39,12 +40,14 @@ pub struct Options {
     pub heed: bool,
     /// After losing a fight, take none at least as hard again.
     pub learn: bool,
+    /// Play the day's daily missions instead of jobs (and claim them), one after another.
+    pub dailies: bool,
     pub unix: u64,
 }
 
 impl Default for Options {
     fn default() -> Self {
-        Options { hull: HullClass::Talon, species: Species::Human, level: 1, kinds: vec![JobTag::Bounty, JobTag::Haul, JobTag::Survey, JobTag::Armada, JobTag::Supply], trade: false, credits: None, secs: 3.0 * 3600.0, heed: true, learn: true, unix: 1_800_000_000 }
+        Options { hull: HullClass::Talon, species: Species::Human, level: 1, kinds: JobTag::ALL.to_vec(), trade: false, credits: None, secs: 3.0 * 3600.0, heed: true, learn: true, dailies: false, unix: 1_800_000_000 }
     }
 }
 
@@ -81,6 +84,8 @@ pub struct Report {
     pub deaths: u32,
     pub boards_read: u32,
     pub systems: usize,
+    /// Per kind of daily mission (`--dailies`).
+    pub daily: BTreeMap<&'static str, Tally>,
     /// Every combat job finished: its threat (`jobs::threat`) and whether it was won.
     pub fights: Vec<(f32, bool)>,
     /// What happened, one line per job or run.
@@ -101,6 +106,9 @@ impl Report {
         }
         if self.trade.taken > 0 {
             s += &row("교역", &self.trade);
+        }
+        for (k, t) in &self.daily {
+            s += &row(k, t);
         }
         s += &format!("  looking for work {:.0} min ({:.0}%) · career {} CR net, {:.0} CR/min overall, {} deaths\n", self.idle / 60.0, self.idle / self.secs.max(1.0) * 100.0, self.credits, self.per_min(), self.deaths);
         s
@@ -129,6 +137,10 @@ fn route(here: SystemId, j: &Job, range: f32) -> Option<u32> {
     let mut at = here;
     let mut total = 0;
     let mut left = j.kind.destinations(j.station);
+    if let JobKind::Prospect { rarity, .. } = &j.kind {
+        let (at, _) = deposit(j.station, *rarity, range)?;
+        return Some(hops(here, at, range)? + 2 * hops(j.station, at, range)? + 3);
+    }
     if let JobKind::Supply { good, .. } = &j.kind {
         // Out to where it is made and back.
         let src = source(j.station, *good, range)?;
@@ -185,7 +197,24 @@ fn live_route(g: &Game, here: SystemId, range: f32, room: u32, credits: u64) -> 
 enum Work {
     Job { id: JobId, tag: JobTag, start: f64, wallet: i64, deaths: u32, what: String, size: Option<(u8, u32)>, threat: Option<f32> },
     Trade { good: Good, to: SystemId, start: f64, wallet: i64, deaths: u32 },
+    Daily { index: usize, start: f64, wallet: i64, deaths: u32 },
 }
+
+/// A daily mission's kind, for the report.
+fn daily_name(o: &Objective) -> &'static str {
+    match o {
+        Objective::KillPirates { .. } => "일일·해적 격파",
+        Objective::KillPlayers { .. } => "일일·함장 격파",
+        Objective::MineOre { .. } => "일일·광석 채굴",
+        Objective::Scan { .. } => "일일·스캔",
+        Objective::Visit { .. } => "일일·성계 방문",
+        Objective::SellCargo { .. } => "일일·화물 판매",
+        Objective::WinEngagement => "일일·교전 승리",
+    }
+}
+
+/// A daily mission given up after this long.
+const DAILY_SECS: f64 = 40.0 * 60.0;
 
 /// Where to be next.
 enum Goal {
@@ -195,6 +224,30 @@ enum Goal {
     Visit(SystemId),
     /// Destroy these.
     Fight(Vec<EntityId>),
+    /// Scan this site of the system the ship is in.
+    Scan(u32),
+    /// Mine this asteroid of this system.
+    Mine(SystemId, u32),
+}
+
+/// The nearest system (in warps) with an asteroid of at least `rarity`, and that asteroid.
+fn deposit(from: SystemId, rarity: shared::minerals::Rarity, range: f32) -> Option<(SystemId, u32)> {
+    let t = shared::tuning::get();
+    galaxy::systems()
+        .iter()
+        .filter_map(|s| {
+            let h = hops(from, s.id, range)?;
+            let a = galaxy::system_layout(s.id).asteroids.into_iter().find(|a| shared::minerals::mineral_in(&t.minerals, a.mineral).is_some_and(|m| m.rarity >= rarity))?;
+            Some((h, s.id, a.id))
+        })
+        .min()
+        .map(|(_, s, a)| (s, a))
+}
+
+/// Specimens held of at least `rarity`.
+fn specimens(p: &shared::protocol::Profile, rarity: shared::minerals::Rarity) -> u32 {
+    let t = shared::tuning::get();
+    p.specimens.iter().filter(|(id, _)| shared::minerals::mineral_in(&t.minerals, **id).is_some_and(|m| m.rarity >= rarity)).map(|(_, n)| *n).sum()
 }
 
 /// Plays `o.secs` of a career on the open galaxy and reports it.
@@ -232,6 +285,9 @@ pub fn run(o: &Options) -> Report {
     let mut hop_to: Option<SystemId> = None;
     // Jobs taken once are not taken again (a failed one stays on its board for the shift).
     let mut tried: BTreeSet<JobId> = BTreeSet::new();
+    // Dailies done or given up; pirate hunting grounds searched without a pirate in sight.
+    let mut gave_up: BTreeSet<usize> = BTreeSet::new();
+    let mut searched: Vec<SystemId> = vec![];
     // Fights lost (target level, ships): a captain does not take one at least as hard again.
     let mut lost: Vec<(u8, u32)> = vec![];
     let fight_size = |k: &JobKind| match k {
@@ -247,7 +303,7 @@ pub fn run(o: &Options) -> Report {
         if dead && !was_dead {
             rep.deaths += 1;
             match &mut work {
-                Some(Work::Job { deaths, .. } | Work::Trade { deaths, .. }) => *deaths += 1,
+                Some(Work::Job { deaths, .. } | Work::Trade { deaths, .. } | Work::Daily { deaths, .. }) => *deaths += 1,
                 None => {}
             }
         }
@@ -269,6 +325,7 @@ pub fn run(o: &Options) -> Report {
 
                 // ---- Is the work over?
                 let mut finished = None;
+                let mut daily_kind: Option<&'static str> = None;
                 match &work {
                     Some(Work::Job { id, tag, start, wallet: w0, deaths, what, size, threat }) => {
                         let gone = !prof.jobs.iter().any(|a| a.job.id == *id);
@@ -293,12 +350,26 @@ pub fn run(o: &Options) -> Report {
                             finished = Some((None, *start, *w0, *deaths, held == 0 && here == *to, what));
                         }
                     }
+                    Some(Work::Daily { index, start, wallet: w0, deaths }) => {
+                        let m = &prof.dailies[*index];
+                        let solo = !matches!(m.objective, Objective::KillPlayers { .. } | Objective::WinEngagement);
+                        if m.complete() || !solo || g.now - start > DAILY_SECS || *deaths >= MAX_DEATHS {
+                            if m.complete() {
+                                g.handle(conn, ClientMsg::ClaimDaily { index: *index });
+                            }
+                            gave_up.insert(*index);
+                            let what = format!("{}{}", m.objective.describe(), if solo { String::new() } else { " — 혼자서는 할 수 없음(다른 함장 필요)".into() });
+                            finished = Some((None, *start, *w0, *deaths, m.complete(), what));
+                            daily_kind = Some(daily_name(&m.objective));
+                        }
+                    }
                     None => {}
                 }
                 if let Some((tag, start, w0, deaths, done, what)) = finished {
-                    let tally = match tag {
-                        Some(k) => rep.jobs.entry(k).or_default(),
-                        None => &mut rep.trade,
+                    let tally = match (tag, daily_kind.take()) {
+                        (Some(k), _) => rep.jobs.entry(k).or_default(),
+                        (None, Some(d)) => rep.daily.entry(d).or_default(),
+                        (None, None) => &mut rep.trade,
                     };
                     let net = wallet(&g) - w0;
                     tally.taken += 1;
@@ -314,8 +385,16 @@ pub fn run(o: &Options) -> Report {
                     work = None;
                 }
 
+                // ---- The day's dailies, in order (wherever the ship is).
+                if o.dailies && work.is_none() {
+                    g.ensure_dailies(pid, shared::missions::day_index(g.unix));
+                    let p = g.store.profile(pid).unwrap();
+                    if let Some(index) = (0..p.dailies.len()).find(|i| !gave_up.contains(i) && !p.dailies[*i].claimed) {
+                        work = Some(Work::Daily { index, start: g.now, wallet: wallet(&g), deaths: 0 });
+                    }
+                }
                 // ---- Pick up work at the station docked at.
-                if work.is_none() && docked {
+                if !o.dailies && work.is_none() && docked {
                     let period = jobs::period(&t, g.unix);
                     if read.insert((period, here)) {
                         rep.boards_read += 1;
@@ -323,10 +402,10 @@ pub fn run(o: &Options) -> Report {
                     let board = jobs::board(&t, here, period);
                     let best = board
                         .iter()
-                        .filter(|j| o.kinds.contains(&j.kind.tag()) && j.kind.tag() != JobTag::Prospect && !tried.contains(&j.id))
+                        .filter(|j| o.kinds.contains(&j.kind.tag()) && !tried.contains(&j.id))
                         .filter(|j| !o.heed || jobs::recommended(&t, &j.kind).is_none_or(|r| r <= prof.ship.mean_level()))
                         .filter(|j| fight_size(&j.kind).is_none_or(|(l, n)| !lost.iter().any(|(fl, fn_)| l >= *fl && n >= *fn_)))
-                        .filter(|j| !matches!(j.kind, JobKind::Haul { units, .. } if prof.cargo_used() + units > stats.cargo as u32))
+                        .filter(|j| !matches!(j.kind, JobKind::Haul { units, .. } | JobKind::Smuggle { units, .. } if prof.cargo_used() + units > stats.cargo as u32))
                         .filter(|j| match &j.kind {
                             JobKind::Supply { good, units } => {
                                 *units + prof.cargo_used() <= stats.cargo as u32 && source(j.station, *good, range).and_then(|s| market::buy_price(&t.trade.market, s, *good, 0.0)).is_some_and(|p| p * (*units as f32) * 1.2 < prof.wallet.credits as f32)
@@ -382,9 +461,74 @@ pub fn run(o: &Options) -> Report {
                                 Goal::Dock(source(a.job.station, *good, range).unwrap_or(a.job.station))
                             }
                         }
-                        JobKind::Prospect { .. } => Goal::Dock(a.job.station),
+                        JobKind::Prospect { rarity, count } => {
+                            if specimens(&prof, *rarity) >= *count {
+                                Goal::Dock(a.job.station)
+                            } else if prof.cargo_used() as f32 + 1.0 > stats.cargo {
+                                // Hold full of ore and no specimen yet: sell it at the nearest station.
+                                Goal::Dock(here)
+                            } else {
+                                deposit(a.job.station, *rarity, range).map_or(Goal::Dock(a.job.station), |(s, ast)| Goal::Mine(s, ast))
+                            }
+                        }
+                        JobKind::Smuggle { to, .. } => Goal::Dock(*to),
+                        JobKind::Patrol { systems, .. } => {
+                            let alive: Vec<EntityId> = g.sessions[&conn].job_waves.get(id).filter(|w| w.0 == here).map(|w| w.1.iter().copied().filter(|x| g.ent(here, *x).is_some_and(|n| !n.dead)).collect()).unwrap_or_default();
+                            if systems.contains(&here) && !a.visited.contains(&here) && !alive.is_empty() {
+                                Goal::Fight(alive)
+                            } else {
+                                let mut left = a.remaining();
+                                left.sort_by_key(|x| hops(here, *x, range).unwrap_or(u32::MAX));
+                                Goal::Visit(left.first().copied().unwrap_or(here))
+                            }
+                        }
+                        JobKind::Salvage { system, poi, .. } => {
+                            if prof.cargo.get(jobs::BLACKBOX).copied().unwrap_or(0) > 0 {
+                                Goal::Dock(a.job.station)
+                            } else if *system == here {
+                                Goal::Scan(*poi)
+                            } else {
+                                Goal::Visit(*system)
+                            }
+                        }
                     }),
                     Some(Work::Trade { to, .. }) => Some(Goal::Dock(*to)),
+                    Some(Work::Daily { index, .. }) => Some(match &prof.dailies[*index].objective {
+                        Objective::KillPirates { .. } | Objective::WinEngagement => {
+                            let pirates: Vec<EntityId> = if galaxy::system(here).tier == galaxy::RiskTier::Core {
+                                vec![]
+                            } else {
+                                g.systems[&here].ents.values().filter(|e| matches!(e.kind, EntityKind::Npc(shared::missions::NpcArchetype::Raider | shared::missions::NpcArchetype::Gunship)) && !e.dead && e.ai.as_ref().is_some_and(|a| a.escort_of.is_none())).map(|e| e.id).collect()
+                            };
+                            if !pirates.is_empty() {
+                                Goal::Fight(pirates)
+                            } else {
+                                // Hunting grounds: lawless systems whose pirates the ship can take, nearest first.
+                                if !searched.contains(&here) {
+                                    searched.push(here);
+                                }
+                                let lv = prof.ship.mean_level();
+                                let grounds = |seen: &Vec<SystemId>| galaxy::systems().iter().filter(|x| x.tier != galaxy::RiskTier::Core && x.tier != galaxy::RiskTier::Deep && x.tier.pirate_level() <= lv && !seen.contains(&x.id)).filter_map(|x| hops(here, x.id, range).map(|h| (h, x.id))).min().map(|(_, x)| x);
+                                let next = grounds(&searched).or_else(|| {
+                                    searched.clear();
+                                    searched.push(here);
+                                    grounds(&searched)
+                                });
+                                Goal::Visit(next.unwrap_or(here))
+                            }
+                        }
+                        Objective::MineOre { .. } | Objective::SellCargo { .. } | Objective::Scan { .. } => {
+                            if prof.cargo_used() as f32 + 1.0 > stats.cargo {
+                                Goal::Dock(here)
+                            } else {
+                                let at = if galaxy::system(here).tier == galaxy::RiskTier::Core { here } else { prof.home };
+                                let lay = galaxy::system_layout(at);
+                                lay.asteroids.iter().min_by(|a, b| a.pos.distance(lay.station).total_cmp(&b.pos.distance(lay.station))).map_or(Goal::Dock(at), |a| Goal::Mine(at, a.id))
+                            }
+                        }
+                        Objective::Visit { system } => Goal::Visit(*system),
+                        Objective::KillPlayers { .. } => Goal::Dock(here),
+                    }),
                     None => hop_to.map(Goal::Dock).or(Some(Goal::Dock(here))),
                 };
 
@@ -427,6 +571,38 @@ pub fn run(o: &Options) -> Report {
                             fight(&mut g, n, &mut missile_cd);
                         }
                     }
+                    Some(Goal::Scan(poi)) => {
+                        let at = g.systems[&here].layout.pois.iter().find(|p| p.id == poi).map(|p| p.pos);
+                        if docked {
+                            g.handle(conn, ClientMsg::Undock);
+                        } else if g.sessions[&conn].scan.is_some() {
+                            g.handle(conn, ClientMsg::Controls(Controls::default()));
+                        } else if let Some(at) = at {
+                            if pos.distance(at) > stats.scan_range * 0.7 {
+                                g.handle(conn, ClientMsg::Controls(steer(pos, rot, at, stats.scan_range * 0.5, stats.turn)));
+                            } else {
+                                g.handle(conn, ClientMsg::Controls(Controls::default()));
+                                g.handle(conn, ClientMsg::Scan { poi });
+                            }
+                        }
+                    }
+                    Some(Goal::Mine(to, _)) if to != here => travel(&mut g, to),
+                    Some(Goal::Mine(_, ast)) => {
+                        let a = g.systems[&here].layout.asteroids.iter().find(|a| a.id == ast).map(|a| (a.pos, a.radius));
+                        if docked {
+                            g.handle(conn, ClientMsg::Undock);
+                        } else if let Some((at, rad)) = a {
+                            let reach = rad + stats.radius + 60.0;
+                            if pos.distance(at) > reach + 80.0 {
+                                g.handle(conn, ClientMsg::Controls(steer(pos, rot, at, reach, stats.turn)));
+                            } else {
+                                g.handle(conn, ClientMsg::Controls(Controls::default()));
+                                if g.ent(here, g.sessions[&conn].entity.unwrap()).is_some_and(|e| e.mining.is_none()) {
+                                    g.handle(conn, ClientMsg::Mine { asteroid: Some(ast) });
+                                }
+                            }
+                        }
+                    }
                     Some(Goal::Visit(to)) if to != here => travel(&mut g, to),
                     Some(Goal::Visit(_)) => {
                         // Arrived; the job moves on by itself. Undocked at the target with no wave yet: wait.
@@ -454,6 +630,16 @@ pub fn run(o: &Options) -> Report {
                                     if g.store.profile(pid).unwrap().cargo.get(good.key()).copied().unwrap_or(0) == held {
                                         // Can't buy (credits, room): give it up.
                                         g.handle(conn, ClientMsg::AbandonJob { id: *id });
+                                    }
+                                }
+                            }
+                            // Mining for a specimen: the ore pays for the trip.
+                            let mining_daily = matches!(&work, Some(Work::Daily { index, .. }) if matches!(prof.dailies[*index].objective, Objective::MineOre { .. } | Objective::SellCargo { .. }));
+                            if matches!(&work, Some(Work::Job { tag: JobTag::Prospect, .. })) || mining_daily {
+                                for ore in galaxy::Ore::ALL {
+                                    let n = prof.cargo.get(ore.name()).copied().unwrap_or(0);
+                                    if n > 0 {
+                                        g.handle(conn, ClientMsg::Sell { ore, units: n });
                                     }
                                 }
                             }

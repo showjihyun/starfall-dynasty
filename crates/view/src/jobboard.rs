@@ -103,11 +103,33 @@ pub fn emblem(p: &egui::Painter, c: Pos2, r: f32, tag: JobTag) {
             p.line_segment([at(0.0, -1.0), at(0.0, 0.45)], w);
             p.add(Shape::convex_polygon(vec![at(-0.42, 0.05), at(0.42, 0.05), at(0.0, 0.6)], col, Stroke::NONE));
         }
+        // An unmarked crate: its box crossed out.
+        JobTag::Smuggle => {
+            p.rect_stroke(Rect::from_min_max(at(-0.85, -0.75), at(0.85, 0.85)), r * 0.06, w, StrokeKind::Middle);
+            p.line_segment([at(-0.85, -0.75), at(0.85, 0.85)], w);
+            p.line_segment([at(0.85, -0.75), at(-0.85, 0.85)], w);
+        }
+        // A patrol loop: three stops and the way round them.
+        JobTag::Patrol => {
+            let stops = [at(0.0, -0.9), at(0.85, 0.6), at(-0.85, 0.6)];
+            p.add(Shape::closed_line(stops.to_vec(), Stroke::new(w.width * 0.8, col.gamma_multiply(0.7))));
+            for c in stops {
+                p.circle_filled(c, s * 0.22, col);
+            }
+        }
+        // A flight recorder: its box, the handle, a broken edge of hull.
+        JobTag::Salvage => {
+            p.rect_filled(Rect::from_min_max(at(-0.55, -0.3), at(0.55, 0.65)), r * 0.05, col);
+            p.line_segment([at(-0.3, -0.3), at(-0.3, -0.65)], w);
+            p.line_segment([at(-0.3, -0.65), at(0.3, -0.65)], w);
+            p.line_segment([at(0.3, -0.65), at(0.3, -0.3)], w);
+            p.add(Shape::line(vec![at(-1.0, 0.95), at(-0.6, 0.8), at(-0.3, 1.0), at(0.1, 0.8), at(0.5, 1.0), at(1.0, 0.85)], w));
+        }
     }
 }
 
 /// How a job is done, in a line.
-fn how(kind: &JobKind) -> &'static str {
+pub fn how(kind: &JobKind) -> &'static str {
     match kind {
         JobKind::Bounty { .. } => "목표 성계로 워프하면 표적이 호위와 함께 나타납니다. 격침하는 즉시 보상이 들어옵니다.",
         JobKind::Haul { .. } => "수락하면 봉인 화물이 화물칸에 실립니다. 목적지 정거장에 도킹하면 완수 — 도중에 격침되면 화물과 함께 실패합니다.",
@@ -115,6 +137,9 @@ fn how(kind: &JobKind) -> &'static str {
         JobKind::Prospect { .. } => "등급 이상의 광물 표본을 들고 이 정거장에 도킹하면 납품됩니다. 위험한 성계의 소행성대에 희귀 표본이 많습니다.",
         JobKind::Armada { .. } => "목표 성계에 도착하면 해적 함대가 워프해 옵니다. 호위함과 함께 전부 격파하면 완수 — 대함대전입니다.",
         JobKind::Supply { .. } => "다른 성계 교역소(F3)에서 상품을 싸게 사 와 이 정거장에 도킹하면 납품됩니다.",
+        JobKind::Smuggle { .. } => "수락하면 밀수품 상자가 화물칸에 실립니다. 무법 지대 암시장 정거장에 도킹하면 완수 — 도중에 중심(Core) 정거장에 도킹하면 세관이 압수하고 벌금을 물리며 의뢰도 실패합니다.",
+        JobKind::Patrol { .. } => "목록의 성계에 들어갈 때마다 해적 무리가 기다립니다. 무리를 모두 격파하면 그 성계는 소탕 — 전부 소탕하면 완수입니다.",
+        JobKind::Salvage { .. } => "수락하면 잔해 위치가 지도에 표시됩니다. 스캔 범위까지 다가가 스캔하면 블랙박스가 나오고, 이 정거장에 반납하면 완수입니다.",
     }
 }
 
@@ -244,6 +269,16 @@ fn briefing(ui: &mut egui::Ui, v: &BoardView, j: &Job, held: Option<&ActiveJob>)
         JobKind::Survey { systems } => facts.push(("측량", format!("{}곳 · 방문 {}", systems.len(), held.map_or(0, |a| a.visited.len())))),
         JobKind::Prospect { rarity, count } => facts.push(("납품", format!("{} 이상 표본 {count}점", rarity.label()))),
         JobKind::Supply { good, units } => facts.push(("납품", format!("{} {units}단위", good.name()))),
+        JobKind::Smuggle { units, .. } => {
+            facts.push(("화물칸", format!("{units}칸 필요 (여유 {})", v.room)));
+            facts.push(("세관", "중심 성계에 도킹하면 압수".to_string()));
+        }
+        JobKind::Patrol { systems, level } => {
+            let w: Vec<String> = shared::tuning::get().trade.jobs.patrol_wave.iter().map(|(a, n)| format!("{} {n}", a.name())).collect();
+            facts.push(("해적 무리", format!("성계마다 {} · 최고 Lv{level}", w.join(" · "))));
+            facts.push(("소탕", format!("{}곳 · 완료 {}", systems.len(), held.map_or(0, |a| a.visited.len()))));
+        }
+        JobKind::Salvage { site, .. } => facts.push(("회수 지점", site.clone())),
     }
     egui::Grid::new(("job_terms", j.id)).num_columns(4).spacing([10.0, 4.0]).show(ui, |ui| {
         for (k, (name, val)) in facts.iter().enumerate() {
@@ -344,15 +379,22 @@ fn chart(ui: &mut egui::Ui, here: SystemId, j: &Job, visited: &[SystemId]) {
     p.rect_filled(rect, 8.0, pj::CHART);
     let dests = j.kind.destinations(j.station);
     // A supply run: the nearest systems that make the good, where to buy it.
-    let sources: Vec<SystemId> = match &j.kind {
+    // A supply run: the nearest systems that make the good. A specimen order: the nearest that have such a deposit.
+    let (sources, mark): (Vec<SystemId>, &str) = match &j.kind {
         JobKind::Supply { good, .. } => {
             let t = shared::tuning::get();
             let mut near: Vec<SystemId> = galaxy::systems().iter().map(|s| s.id).filter(|s| *s != j.station && market::economy(&t.trade.market, *s).role(*good) == Role::Produce).collect();
             near.sort_by(|a, b| distance(j.station, *a).total_cmp(&distance(j.station, *b)));
             near.truncate(3);
-            near
+            (near, "생산")
         }
-        _ => vec![],
+        JobKind::Prospect { rarity, .. } => {
+            let mut near: Vec<SystemId> = galaxy::systems().iter().map(|s| s.id).filter(|s| richest(*s).is_some_and(|r| r >= *rarity)).collect();
+            near.sort_by(|a, b| distance(j.station, *a).total_cmp(&distance(j.station, *b)));
+            near.truncate(3);
+            (near, "광맥")
+        }
+        _ => (vec![], ""),
     };
     let mut pts: Vec<SystemId> = vec![here, j.station];
     pts.extend(dests.iter().copied());
@@ -386,7 +428,7 @@ fn chart(ui: &mut egui::Ui, here: SystemId, j: &Job, visited: &[SystemId]) {
     let col = pj::tag(tag);
     // The way: from the ship to the station (when elsewhere), then out to each destination.
     let mut route = vec![here];
-    if j.station != here && !matches!(j.kind, JobKind::Bounty { .. } | JobKind::Armada { .. } | JobKind::Survey { .. }) {
+    if j.station != here && !matches!(j.kind, JobKind::Bounty { .. } | JobKind::Armada { .. } | JobKind::Survey { .. } | JobKind::Patrol { .. } | JobKind::Salvage { .. }) {
         route.push(j.station);
     }
     route.extend(dests.iter().copied());
@@ -397,7 +439,7 @@ fn chart(ui: &mut egui::Ui, here: SystemId, j: &Job, visited: &[SystemId]) {
         let q = to(*s);
         dashed(p, q, to(j.station), Stroke::new(1.0, pj::FAINT));
         p.circle_stroke(q, 5.0, Stroke::new(1.5, col));
-        p.text(q + Vec2::new(8.0, 4.0), Align2::LEFT_TOP, format!("{} · 생산", galaxy::system(*s).name), FontId::proportional(11.0), col);
+        p.text(q + Vec2::new(8.0, 4.0), Align2::LEFT_TOP, format!("{} · {mark}", galaxy::system(*s).name), FontId::proportional(11.0), col);
     }
     // The posting station.
     let sp = to(j.station);
@@ -420,6 +462,16 @@ fn chart(ui: &mut egui::Ui, here: SystemId, j: &Job, visited: &[SystemId]) {
     let h = to(here);
     p.add(Shape::convex_polygon(vec![h + Vec2::new(0.0, -7.0), h + Vec2::new(5.5, 5.0), h + Vec2::new(-5.5, 5.0)], pj::TEXT, Stroke::NONE));
     p.text(h + Vec2::new(0.0, 9.0), Align2::CENTER_TOP, "현재 위치", FontId::proportional(10.0), pj::TEXT);
+}
+
+/// The rarest deposit in each system's belts (worked out once: layouts are generated).
+fn richest(s: SystemId) -> Option<shared::minerals::Rarity> {
+    static RICHEST: std::sync::OnceLock<Vec<Option<shared::minerals::Rarity>>> = std::sync::OnceLock::new();
+    let all = RICHEST.get_or_init(|| {
+        let t = shared::tuning::get();
+        galaxy::systems().iter().map(|d| galaxy::system_layout(d.id).asteroids.iter().filter_map(|a| shared::minerals::mineral_in(&t.minerals, a.mineral).map(|m| m.rarity)).max()).collect()
+    });
+    all.get(s as usize).copied().flatten()
 }
 
 fn dashed(p: &egui::Painter, a: Pos2, b: Pos2, s: Stroke) {

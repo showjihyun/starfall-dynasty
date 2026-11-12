@@ -22,6 +22,10 @@ pub type JobId = u64;
 
 /// Hold key of a haul's sealed cargo (`Profile::cargo`).
 pub const SEALED: &str = "Sealed";
+/// Hold key of a smuggling run's unmarked crates: core customs seize them.
+pub const CONTRABAND: &str = "Contraband";
+/// Hold key of a salvaged flight recorder, until it is handed in.
+pub const BLACKBOX: &str = "BlackBox";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub enum JobTag {
@@ -31,10 +35,13 @@ pub enum JobTag {
     Prospect,
     Armada,
     Supply,
+    Smuggle,
+    Patrol,
+    Salvage,
 }
 
 impl JobTag {
-    pub const ALL: [JobTag; 6] = [JobTag::Bounty, JobTag::Haul, JobTag::Survey, JobTag::Prospect, JobTag::Armada, JobTag::Supply];
+    pub const ALL: [JobTag; 9] = [JobTag::Bounty, JobTag::Haul, JobTag::Survey, JobTag::Prospect, JobTag::Armada, JobTag::Supply, JobTag::Smuggle, JobTag::Patrol, JobTag::Salvage];
 
     pub fn name(self) -> &'static str {
         match self {
@@ -44,6 +51,9 @@ impl JobTag {
             JobTag::Prospect => "광물 주문",
             JobTag::Armada => "함대 방어전",
             JobTag::Supply => "보급",
+            JobTag::Smuggle => "밀수 운송",
+            JobTag::Patrol => "순찰",
+            JobTag::Salvage => "잔해 회수",
         }
     }
 }
@@ -62,6 +72,12 @@ pub enum JobKind {
     Armada { system: SystemId, level: u8, wave: Vec<(NpcArchetype, u32)> },
     /// Bring `units` of `good` to the posting station.
     Supply { good: Good, units: u32 },
+    /// Carry unmarked crates to `to`'s black market; docking at a core station on the way loses them to customs.
+    Smuggle { to: SystemId, units: u32 },
+    /// Sweep these systems: in each, a pirate pack (`trade.ron` `patrol_wave`) to break. `level`: the highest.
+    Patrol { systems: Vec<SystemId>, level: u8 },
+    /// Scan the wreck `site` (site `poi` of `system`) for its flight recorder and bring it back to the posting station.
+    Salvage { system: SystemId, poi: u32, site: String },
 }
 
 impl JobKind {
@@ -73,6 +89,9 @@ impl JobKind {
             JobKind::Prospect { .. } => JobTag::Prospect,
             JobKind::Armada { .. } => JobTag::Armada,
             JobKind::Supply { .. } => JobTag::Supply,
+            JobKind::Smuggle { .. } => JobTag::Smuggle,
+            JobKind::Patrol { .. } => JobTag::Patrol,
+            JobKind::Salvage { .. } => JobTag::Salvage,
         }
     }
 
@@ -91,6 +110,9 @@ impl JobKind {
                 format!("{}에 집결하는 해적 함대 {n}척 격파", sys(system))
             }
             JobKind::Supply { good, units } => format!("{} {units}단위를 {} 정거장에 보급", good.name(), sys(&station)),
+            JobKind::Smuggle { to, units } => format!("밀수품 {units}상자를 {} 암시장으로 — 중심 성계 세관을 피할 것", sys(to)),
+            JobKind::Patrol { systems, .. } => format!("{} 순찰 — 성계마다 해적 무리 소탕", systems.iter().map(sys).collect::<Vec<_>>().join(" · ")),
+            JobKind::Salvage { system, site, .. } => format!("{}의 「{site}」에서 블랙박스를 회수해 {} 정거장에 반납", sys(system), sys(&station)),
         }
     }
 
@@ -101,6 +123,11 @@ impl JobKind {
             JobKind::Haul { to, .. } => vec![*to],
             JobKind::Survey { systems } => systems.clone(),
             JobKind::Prospect { .. } | JobKind::Supply { .. } => vec![station],
+            JobKind::Smuggle { to, .. } => vec![*to],
+            JobKind::Patrol { systems, .. } => systems.clone(),
+            JobKind::Salvage { system, .. } => {
+                if *system == station { vec![station] } else { vec![*system, station] }
+            }
         }
     }
 }
@@ -193,6 +220,8 @@ pub fn threat(t: &Tuning, kind: &JobKind) -> Option<f32> {
     match kind {
         JobKind::Bounty { archetype, level, escorts, .. } => Some(one(*archetype, *level) + *escorts as f32 * one(NpcArchetype::Raider, *level)),
         JobKind::Armada { level, wave, .. } => Some(wave.iter().map(|(a, n)| *n as f32 * one(*a, *level)).sum()),
+        // One pack at a time, the hardest system's.
+        JobKind::Patrol { level, .. } => Some(j.patrol_wave.iter().map(|(a, n)| *n as f32 * one(*a, *level)).sum()),
         _ => None,
     }
 }
@@ -301,7 +330,7 @@ fn make(t: &Tuning, station: SystemId, tag: JobTag, id: JobId, r: &mut Rng) -> O
         }
         JobTag::Prospect => {
             let rarity = if r.below(4) == 0 { Rarity::Exotic } else { Rarity::Rare };
-            let count = if rarity == Rarity::Exotic { 1 } else { 1 + r.below(3) };
+            let count = if rarity == Rarity::Exotic { 1 } else { 1 + r.below(2) };
             let each = t.minerals.specimen_value.get(&rarity).copied().unwrap_or(0) as f32;
             (JobKind::Prospect { rarity, count }, m(each * count as f32 * j.prospect_premium, 0, 3 * count, 1), 2, j.limit_secs * 3)
         }
@@ -317,6 +346,39 @@ fn make(t: &Tuning, station: SystemId, tag: JobTag, id: JobId, r: &mut Rng) -> O
             let ships: u32 = wave.iter().map(|w| w.1).sum();
             let credits = j.armada_per_ship * ships as f32 * risk(t, system) * (1.0 + 0.3 * level as f32);
             (JobKind::Armada { system, level, wave }, m(credits, 6 * ships, 2 * ships, ships / 2), 5, j.armada_secs)
+        }
+        JobTag::Smuggle => {
+            let mt = &t.trade.market;
+            let to: Vec<&galaxy::SystemDef> = reachable().filter(|s| s.id != station && mt.black_market.contains(&s.tier) && (j.haul_range.0..=j.haul_range.1).contains(&distance(station, s.id))).collect();
+            let to = (!to.is_empty()).then(|| r.pick(&to).id)?;
+            let units = j.haul_units.0 + r.below(j.haul_units.1 - j.haul_units.0 + 1);
+            let ly = distance(station, to);
+            let credits = (j.haul_base + j.haul_per_unit_ly * units as f32 * ly * risk(t, to)) * j.smuggle_premium;
+            let limit = j.haul_secs_base + (j.haul_secs_per_ly * ly) as u64;
+            (JobKind::Smuggle { to, units }, m(credits, 0, 0, 0), 0, limit)
+        }
+        JobTag::Patrol => {
+            let mut near: Vec<&galaxy::SystemDef> = reachable().filter(|s| s.tier != RiskTier::Core && distance(station, s.id) <= j.bounty_range).collect();
+            if near.len() < 2 {
+                return None;
+            }
+            let n = (j.patrol_systems.0 + r.below(j.patrol_systems.1.saturating_sub(j.patrol_systems.0) + 1)).min(near.len() as u32) as usize;
+            let mut systems = vec![];
+            for _ in 0..n {
+                systems.push(near.remove(r.below(near.len() as u32) as usize).id);
+            }
+            systems.sort();
+            let level = systems.iter().map(|s| galaxy::system(*s).tier.pirate_level()).max().unwrap_or(0);
+            let credits: f32 = systems.iter().map(|s| j.patrol_per_system * risk(t, *s)).sum();
+            (JobKind::Patrol { systems, level }, m(credits, 3 * n as u32, n as u32, 0), 2, j.limit_secs)
+        }
+        JobTag::Salvage => {
+            let near: Vec<&galaxy::SystemDef> = reachable().filter(|s| distance(station, s.id) <= j.haul_range.1).collect();
+            let system = r.pick(&near).id;
+            let wrecks: Vec<galaxy::Poi> = galaxy::system_layout(system).pois.into_iter().filter(|p| p.kind == galaxy::PoiKind::Derelict).collect();
+            let wreck = (!wrecks.is_empty()).then(|| wrecks[r.below(wrecks.len() as u32) as usize].clone())?;
+            let credits = j.salvage * risk(t, system) * (1.0 + 0.25 * distance(station, system));
+            (JobKind::Salvage { system, poi: wreck.id, site: wreck.name }, m(credits, 6, 0, 1), 2, j.limit_secs)
         }
         JobTag::Supply => {
             let mt = &t.trade.market;

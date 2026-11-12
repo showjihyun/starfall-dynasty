@@ -80,16 +80,23 @@ impl Game {
         if prof.jobs.len() >= t.trade.jobs.max_active {
             return self.toast(pid, format!("의뢰는 동시에 {}건까지 맡을 수 있습니다", t.trade.jobs.max_active));
         }
-        if let JobKind::Haul { units, .. } = job.kind {
+        if let Some((key, units)) = carried(&job.kind) {
             let room = self.ship_stats(prof).cargo as u32;
             if prof.cargo_used() + units > room {
-                return self.toast(pid, format!("화물칸이 부족합니다 — 봉인 화물 {units}단위를 실을 자리가 필요합니다"));
+                let what = if key == jobs::SEALED { "봉인 화물" } else { "밀수품" };
+                return self.toast(pid, format!("화물칸이 부족합니다 — {what} {units}단위를 실을 자리가 필요합니다"));
             }
         }
         let text = job.describe();
         let p = self.store.profile_mut(pid).unwrap();
-        if let JobKind::Haul { units, .. } = job.kind {
-            *p.cargo.entry(jobs::SEALED.into()).or_insert(0) += units;
+        if let Some((key, units)) = carried(&job.kind) {
+            *p.cargo.entry(key.into()).or_insert(0) += units;
+        }
+        // The employer gives the wreck's coordinates.
+        if let JobKind::Salvage { system, poi, .. } = job.kind
+            && !p.revealed.contains(&(system, poi))
+        {
+            p.revealed.push((system, poi));
         }
         p.jobs.push(ActiveJob { job, accepted: self.unix, visited: vec![] });
         self.toast(pid, format!("의뢰 수락: {text}"));
@@ -103,9 +110,7 @@ impl Game {
         let Some(p) = self.store.profile_mut(pid) else { return };
         let Some(k) = p.jobs.iter().position(|a| a.job.id == id) else { return };
         let a = p.jobs.remove(k);
-        if let JobKind::Haul { units, .. } = a.job.kind {
-            take_cargo(p, jobs::SEALED, units);
-        }
+        unload(p, &a.job.kind);
         p.reputation -= 1;
         self.clear_job_wave(pid, id);
         self.toast(pid, format!("의뢰 포기: {} (평판 −1)", a.job.describe()));
@@ -133,9 +138,7 @@ impl Game {
         let Some(p) = self.store.profile_mut(pid) else { return };
         let Some(k) = p.jobs.iter().position(|a| a.job.id == id) else { return };
         let a = p.jobs.remove(k);
-        if let JobKind::Haul { units, .. } = a.job.kind {
-            take_cargo(p, jobs::SEALED, units);
-        }
+        unload(p, &a.job.kind);
         p.reputation -= 2;
         self.clear_job_wave(pid, id);
         self.toast(pid, format!("의뢰 실패 — {why}: {} (평판 −2)", a.job.describe()));
@@ -176,7 +179,16 @@ impl Game {
                 }
             }
         }
-        let fights: Vec<(JobId, JobKind)> = p.jobs.iter().filter(|a| matches!(&a.job.kind, JobKind::Bounty { system, .. } | JobKind::Armada { system, .. } if *system == sys)).map(|a| (a.job.id, a.job.kind.clone())).collect();
+        let fights: Vec<(JobId, JobKind)> = p
+            .jobs
+            .iter()
+            .filter(|a| match &a.job.kind {
+                JobKind::Bounty { system, .. } | JobKind::Armada { system, .. } => *system == sys,
+                JobKind::Patrol { systems, .. } => systems.contains(&sys) && !a.visited.contains(&sys),
+                _ => false,
+            })
+            .map(|a| (a.job.id, a.job.kind.clone()))
+            .collect();
         for id in done {
             self.complete_job(pid, id);
         }
@@ -202,8 +214,10 @@ impl Game {
         let (wave, level, name): (Vec<(NpcArchetype, u32)>, u8, Option<String>) = match &kind {
             JobKind::Bounty { target, archetype, level, escorts, .. } => (vec![(*archetype, 1), (NpcArchetype::Raider, *escorts)], *level, Some(target.clone())),
             JobKind::Armada { level, wave, .. } => (wave.clone(), *level, None),
+            JobKind::Patrol { .. } => (self.tuning.trade.jobs.patrol_wave.clone(), galaxy::system(sys).tier.pirate_level(), None),
             _ => return,
         };
+        let patrol = matches!(kind, JobKind::Patrol { .. });
         // They come out of warp some way off, spread wide: a fight with room in it.
         let dist = if name.is_some() { 1800.0 } else { 2600.0 };
         let base = at + fwd * dist + Vec3::new(0.0, 160.0, 0.0);
@@ -226,6 +240,7 @@ impl Game {
         self.sessions.get_mut(&conn).unwrap().job_waves.insert(id, (sys, ids));
         match name {
             Some(n) => self.toast(pid, format!("⚠ 현상금 표적 「{n}」이(가) 호위 {}척과 함께 나타났습니다!", count - 1)),
+            None if patrol => self.toast(pid, format!("⚠ 순찰: 해적 무리 {count}척 발견 — 소탕하십시오")),
             None => self.toast(pid, format!("⚠ 해적 함대 {count}척이 워프아웃했습니다! 함대 방어전 개시")),
         }
     }
@@ -242,6 +257,21 @@ impl Game {
 
     /// A wave NPC died: if it belonged to one of the owner's jobs, the job may be done. Returns
     /// whether it was a job's.
+    /// Whether a salvage job this captain holds has its wreck at this site (and the recorder is not out yet).
+    pub(super) fn salvage_here(&self, pid: PlayerId, sys: SystemId, poi: u32) -> bool {
+        self.store.profile(pid).is_some_and(|p| p.cargo.get(jobs::BLACKBOX).copied().unwrap_or(0) == 0 && p.jobs.iter().any(|a| matches!(a.job.kind, JobKind::Salvage { system, poi: x, .. } if system == sys && x == poi)))
+    }
+
+    /// The wreck of a salvage job scanned: its flight recorder goes into the hold.
+    pub(super) fn salvage_scan(&mut self, pid: PlayerId, sys: SystemId, poi: u32) {
+        if !self.salvage_here(pid, sys, poi) {
+            return;
+        }
+        let Some(p) = self.store.profile_mut(pid) else { return };
+        *p.cargo.entry(jobs::BLACKBOX.into()).or_insert(0) += 1;
+        self.toast(pid, "잔해 회수: 블랙박스를 확보했습니다 — 의뢰한 정거장에 반납하세요");
+    }
+
     /// Whether this NPC is one of a job's targets (its owner's bounty or armada).
     pub(super) fn in_job_wave(&self, owner: PlayerId, npc: EntityId) -> bool {
         self.conn_of.get(&owner).and_then(|c| self.sessions.get(c)).is_some_and(|s| s.job_waves.values().any(|(_, ids)| ids.contains(&npc)))
@@ -251,20 +281,37 @@ impl Game {
         let Some(conn) = self.conn_of.get(&owner).copied() else { return false };
         let s = self.sessions.get_mut(&conn).unwrap();
         let Some(id) = s.job_waves.iter().find(|(_, (_, ids))| ids.contains(&npc)).map(|(id, _)| *id) else { return false };
-        let ids = &mut s.job_waves.get_mut(&id).unwrap().1;
+        let (sys, ids) = s.job_waves.get_mut(&id).unwrap();
+        let sys = *sys;
         ids.retain(|w| *w != npc);
         if ids.is_empty() {
             s.job_waves.remove(&id);
-            self.complete_job(owner, id);
+            // A patrol stop is cleared; the job ends with the last one.
+            let stop = self.store.profile_mut(owner).and_then(|p| p.jobs.iter_mut().find(|a| a.job.id == id)).and_then(|a| match &a.job.kind {
+                JobKind::Patrol { systems, .. } => {
+                    if !a.visited.contains(&sys) {
+                        a.visited.push(sys);
+                    }
+                    Some((a.visited.len(), systems.len()))
+                }
+                _ => None,
+            });
+            match stop {
+                Some((done, all)) if done < all => {
+                    self.toast(owner, format!("순찰: {} 소탕 ({done}/{all})", galaxy::system(sys).name));
+                    self.push_profile(owner);
+                }
+                _ => self.complete_job(owner, id),
+            }
         }
         true
     }
 
     /// The ship went down with the hold: sealed cargo is lost, and so is the haul.
     pub(super) fn jobs_on_death(&mut self, pid: PlayerId) {
-        let hauls: Vec<JobId> = self.store.profile(pid).map(|p| p.jobs.iter().filter(|a| matches!(a.job.kind, JobKind::Haul { .. })).map(|a| a.job.id).collect()).unwrap_or_default();
+        let hauls: Vec<JobId> = self.store.profile(pid).map(|p| p.jobs.iter().filter(|a| carried(&a.job.kind).is_some()).map(|a| a.job.id).collect()).unwrap_or_default();
         for id in hauls {
-            self.fail_job(pid, id, "봉인 화물이 함선과 함께 사라졌습니다");
+            self.fail_job(pid, id, "실은 화물이 함선과 함께 사라졌습니다");
         }
         let waves: Vec<JobId> = self.conn_of.get(&pid).and_then(|c| self.sessions.get(c)).map(|s| s.job_waves.keys().copied().collect()).unwrap_or_default();
         for id in waves {
@@ -284,6 +331,20 @@ impl Game {
                 JobKind::Haul { to, units } if *to == sys => {
                     if p.cargo.get(jobs::SEALED).copied().unwrap_or(0) >= *units {
                         take_cargo(self.store.profile_mut(pid).unwrap(), jobs::SEALED, *units);
+                        self.complete_job(pid, a.job.id);
+                    }
+                }
+                JobKind::Smuggle { to, units } if *to == sys => {
+                    if p.cargo.get(jobs::CONTRABAND).copied().unwrap_or(0) >= *units {
+                        let pm = self.store.profile_mut(pid).unwrap();
+                        take_cargo(pm, jobs::CONTRABAND, *units);
+                        pm.career.smuggled += *units;
+                        self.complete_job(pid, a.job.id);
+                    }
+                }
+                JobKind::Salvage { .. } if here => {
+                    if p.cargo.get(jobs::BLACKBOX).copied().unwrap_or(0) >= 1 {
+                        take_cargo(self.store.profile_mut(pid).unwrap(), jobs::BLACKBOX, 1);
                         self.complete_job(pid, a.job.id);
                     }
                 }
@@ -345,6 +406,12 @@ impl Game {
                 what.push(format!("{} {n}단위", g.name()));
             }
         }
+        let mut runs = vec![];
+        if let Some(n) = p.cargo.remove(jobs::CONTRABAND) {
+            fine += n as f32 * m.base.get(&Good::Stims).copied().unwrap_or(0.0) * m.fine;
+            what.push(format!("밀수품 {n}상자"));
+            runs = p.jobs.iter().filter(|a| matches!(a.job.kind, JobKind::Smuggle { .. })).map(|a| a.job.id).collect();
+        }
         if what.is_empty() {
             return;
         }
@@ -352,6 +419,9 @@ impl Game {
         p.wallet.credits -= fine;
         p.reputation -= m.fine_reputation;
         self.toast(pid, format!("세관 검색: {} 압수, 벌금 {fine} CR (평판 −{})", what.join(", "), m.fine_reputation));
+        for id in runs {
+            self.fail_job(pid, id, "세관에 밀수품을 압수당했습니다");
+        }
         self.push_profile(pid);
     }
 
@@ -443,6 +513,25 @@ impl Game {
             self.toast(pid, format!("🏅 칭호 획득: 〈{}〉 — {}", t.name(), t.how(th.get(&t).copied().unwrap_or(0))));
         }
         self.push_profile(pid);
+    }
+}
+
+/// What a job loads into the hold on accepting: its hold key and units.
+fn carried(kind: &JobKind) -> Option<(&'static str, u32)> {
+    match kind {
+        JobKind::Haul { units, .. } => Some((jobs::SEALED, *units)),
+        JobKind::Smuggle { units, .. } => Some((jobs::CONTRABAND, *units)),
+        _ => None,
+    }
+}
+
+/// A job given up or failed: what it loaded leaves the hold.
+fn unload(p: &mut Profile, kind: &JobKind) {
+    if let Some((key, units)) = carried(kind) {
+        take_cargo(p, key, units);
+    }
+    if matches!(kind, JobKind::Salvage { .. }) {
+        take_cargo(p, jobs::BLACKBOX, 1);
     }
 }
 

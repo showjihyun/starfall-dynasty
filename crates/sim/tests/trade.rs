@@ -341,3 +341,103 @@ fn titles_come_with_the_record_and_one_is_worn() {
     g.spawn_player(pid, 0, true);
     assert!(g.store.profile(pid).unwrap().titles.contains(&Title::Tracker));
 }
+
+#[test]
+fn a_smuggling_run_pays_at_the_black_market_and_is_lost_to_core_customs() {
+    let mut g = game();
+    let pid = join(&mut g, 1, "Runner", HullClass::Mule);
+    let job = find_job(&g, JobTag::Smuggle);
+    let JobKind::Smuggle { to, units } = job.kind.clone() else { unreachable!() };
+    assert!(shared::tuning::get().trade.market.black_market.contains(&galaxy::system(to).tier));
+    dock_at(&mut g, 1, job.station);
+    g.handle(1, ClientMsg::AcceptJob { id: job.id });
+    assert_eq!(g.store.profile(pid).unwrap().cargo.get(jobs::CONTRABAND), Some(&units), "the crates are loaded");
+    let before = credits(&g, pid);
+    dock_at(&mut g, 1, to);
+    let p = g.store.profile(pid).unwrap();
+    assert!(p.jobs.is_empty() && !p.cargo.contains_key(jobs::CONTRABAND));
+    assert_eq!(credits(&g, pid), before + job.reward.credits);
+    assert_eq!(p.career.smuggled, units, "counts toward the smuggler's title");
+    // The same run again, but docking in the core on the way: seized, fined, failed.
+    let mut g = game();
+    let pid = join(&mut g, 1, "Runner", HullClass::Mule);
+    dock_at(&mut g, 1, job.station);
+    g.handle(1, ClientMsg::AcceptJob { id: job.id });
+    let rep = g.store.profile(pid).unwrap().reputation;
+    g.out.clear();
+    dock_at(&mut g, 1, 0);
+    let p = g.store.profile(pid).unwrap();
+    assert!(p.jobs.is_empty() && !p.cargo.contains_key(jobs::CONTRABAND), "seized and the run failed");
+    assert!(p.reputation < rep);
+    assert!(toasts(&g, 1).iter().any(|t| t.contains("세관")));
+}
+
+#[test]
+fn a_patrol_clears_a_pack_in_each_system_and_pays_after_the_last() {
+    let mut g = game();
+    let pid = join(&mut g, 1, "Warden", HullClass::Bastion);
+    let job = find_job(&g, JobTag::Patrol);
+    let JobKind::Patrol { systems, .. } = job.kind.clone() else { unreachable!() };
+    dock_at(&mut g, 1, job.station);
+    g.handle(1, ClientMsg::AcceptJob { id: job.id });
+    let before = credits(&g, pid);
+    let away = (0..galaxy::systems().len() as u16).find(|s| !systems.contains(s) && *s != job.station).unwrap();
+    for (k, sys) in systems.iter().enumerate() {
+        g.spawn_player(pid, away, false);
+        g.spawn_player(pid, *sys, false);
+        let ids: Vec<EntityId> = g.sessions[&1].job_waves.get(&job.id).expect("a pack waits in each system").1.clone();
+        assert_eq!(ids.len() as u32, shared::tuning::get().trade.jobs.patrol_wave.iter().map(|w| w.1).sum::<u32>());
+        let me = g.sessions[&1].entity.unwrap();
+        for w in &ids {
+            let hp = g.ent(*sys, *w).map(|e| e.hull + e.shield).unwrap();
+            g.apply_damage(*sys, me, *w, hp + 1.0);
+            g.tick(DT, T0);
+        }
+        let p = g.store.profile(pid).unwrap();
+        assert_eq!(p.jobs.is_empty(), k + 1 == systems.len(), "done only after the last system");
+        if k + 1 < systems.len() {
+            assert!(p.jobs[0].visited.contains(sys));
+            // A cleared system stays clear.
+            g.spawn_player(pid, away, false);
+            g.spawn_player(pid, *sys, false);
+            assert!(!g.sessions[&1].job_waves.contains_key(&job.id));
+        }
+    }
+    assert!(credits(&g, pid) >= before + job.reward.credits);
+    assert_eq!(g.store.profile(pid).unwrap().career.jobs_done(JobTag::Patrol), 1);
+}
+
+#[test]
+fn salvage_marks_the_wreck_scans_out_its_recorder_and_pays_at_the_station() {
+    let mut g = game();
+    let pid = join(&mut g, 1, "Diver", HullClass::Seer);
+    let job = (0..galaxy::systems().len() as u16).flat_map(|s| board(&g, s)).find(|j| matches!(&j.kind, JobKind::Salvage { system, .. } if *system != j.station)).expect("a salvage job");
+    let JobKind::Salvage { system, poi, .. } = job.kind.clone() else { unreachable!() };
+    dock_at(&mut g, 1, job.station);
+    g.handle(1, ClientMsg::AcceptJob { id: job.id });
+    assert!(g.store.profile(pid).unwrap().revealed.contains(&(system, poi)), "the wreck is on the map");
+    // Docking at home without it does nothing.
+    dock_at(&mut g, 1, job.station);
+    assert_eq!(g.store.profile(pid).unwrap().jobs.len(), 1);
+    // Fly to the wreck and scan it.
+    g.spawn_player(pid, system, false);
+    g.systems.get_mut(&system).unwrap().ents.retain(|_, e| !matches!(e.kind, EntityKind::Npc(_)));
+    let at = g.systems[&system].layout.pois.iter().find(|p| p.id == poi).unwrap().pos;
+    let me = g.sessions[&1].entity.unwrap();
+    let e = g.ent_mut(system, me).unwrap();
+    e.pos = at + Vec3::X * 100.0;
+    e.vel = Vec3::ZERO;
+    g.handle(1, ClientMsg::Scan { poi });
+    for _ in 0..(60.0 / DT) as u32 {
+        g.tick(DT, T0);
+        if g.store.profile(pid).unwrap().cargo.contains_key(jobs::BLACKBOX) {
+            break;
+        }
+    }
+    assert_eq!(g.store.profile(pid).unwrap().cargo.get(jobs::BLACKBOX), Some(&1), "the recorder is out");
+    let before = credits(&g, pid);
+    dock_at(&mut g, 1, job.station);
+    let p = g.store.profile(pid).unwrap();
+    assert!(p.jobs.is_empty() && !p.cargo.contains_key(jobs::BLACKBOX));
+    assert!(credits(&g, pid) >= before + job.reward.credits);
+}

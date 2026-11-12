@@ -15,11 +15,12 @@
         max_active: 4,
         // Weights by the posting station's tier: the core wants goods and couriers, war zones want guns.
         kinds: {
-            Core:     { Haul: 4, Supply: 4, Survey: 3, Prospect: 2, Bounty: 2, Armada: 0 },
-            Frontier: { Bounty: 4, Haul: 3, Survey: 3, Prospect: 3, Supply: 2, Armada: 2 },
-            Wild:     { Bounty: 4, Armada: 3, Haul: 3, Supply: 2, Survey: 2, Prospect: 2 },
-            WarZone:  { Armada: 5, Bounty: 4, Supply: 3, Haul: 1, Survey: 1, Prospect: 1 },
-            Deep:     { Armada: 3, Bounty: 3, Survey: 2, Prospect: 2, Haul: 0, Supply: 0 },
+            // Smuggling is posted away from the core's customs; patrols where pirates are; salvage anywhere.
+            Core:     { Haul: 4, Supply: 4, Survey: 3, Prospect: 2, Bounty: 2, Armada: 0, Smuggle: 0, Patrol: 1, Salvage: 2 },
+            Frontier: { Bounty: 4, Haul: 3, Survey: 3, Prospect: 3, Supply: 2, Armada: 2, Smuggle: 2, Patrol: 3, Salvage: 2 },
+            Wild:     { Bounty: 4, Armada: 3, Haul: 3, Supply: 2, Survey: 2, Prospect: 2, Smuggle: 3, Patrol: 3, Salvage: 2 },
+            WarZone:  { Armada: 5, Bounty: 4, Supply: 3, Haul: 1, Survey: 1, Prospect: 1, Smuggle: 2, Patrol: 3, Salvage: 1 },
+            Deep:     { Armada: 3, Bounty: 3, Survey: 2, Prospect: 2, Haul: 0, Supply: 0, Smuggle: 1, Patrol: 2, Salvage: 2 },
         },
         limit_secs: 3600,
         bounty_range: 2.6,
@@ -36,7 +37,7 @@
         haul_secs_per_ly: 900.0,
         survey_range: (2.0, 6.5),
         survey_per_system: 140.0,   // × risk_reward of that system's tier
-        prospect_premium: 2.2,
+        prospect_premium: 4.0,   // 2.2 paid 172 CR/min at Lv5 — 19 min of mining a far rare deposit (sim example `career`, 2026-11-12)
         armada: {
             Frontier: [(Raider, 5), (Gunship, 1)],
             Wild:     [(Raider, 6), (Gunship, 3)],
@@ -64,6 +65,14 @@
         threat: { Raider: 1.0, Gunship: 2.5, Warden: 3.0, Warlord: 8.0, Sentinel: 8.0 },
         threat_level_step: 0.3,
         threat_by_level: [4.0, 5.5, 7.0, 18.0, 24.0, 28.0, 40.0, 99.0],
+        // Smuggling (2026-11-12): a haul's pay × this, for the cargo core customs seize (and the fine).
+        smuggle_premium: 1.3,
+        // Patrol: 2–3 lawless systems near the station, a pack of raiders in each at that system's pirate level.
+        patrol_systems: (2, 3),
+        patrol_wave: [(Raider, 3)],
+        patrol_per_system: 200.0,     // × risk_reward of the system
+        // Salvage: fly to a wreck, scan its flight recorder out, hand it in.
+        salvage: 120.0,
     ),
 
     market: (

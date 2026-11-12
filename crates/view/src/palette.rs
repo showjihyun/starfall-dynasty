@@ -257,6 +257,9 @@ pub mod jobs {
             JobTag::Prospect => Color32::from_rgb(200, 140, 255),
             JobTag::Armada => Color32::from_rgb(255, 80, 110),
             JobTag::Supply => Color32::from_rgb(150, 220, 110),
+            JobTag::Smuggle => Color32::from_rgb(255, 160, 60),
+            JobTag::Patrol => Color32::from_rgb(150, 150, 255),
+            JobTag::Salvage => Color32::from_rgb(200, 175, 140),
         }
     }
     /// The star chart behind a briefing and the systems on it.

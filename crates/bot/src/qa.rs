@@ -103,6 +103,173 @@ async fn scan(b: &mut Bot, kind: &str) {
     b.pump(0.5).await;
 }
 
+/// The next system on the way from `from` to `to`, warps of at most `range` ly (breadth first).
+fn next_hop(from: shared::galaxy::SystemId, to: shared::galaxy::SystemId, range: f32) -> Option<shared::galaxy::SystemId> {
+    use shared::galaxy;
+    let n = galaxy::systems().len();
+    let mut prev: Vec<Option<galaxy::SystemId>> = vec![None; n];
+    let mut seen = vec![false; n];
+    let mut queue = std::collections::VecDeque::from([from]);
+    seen[from as usize] = true;
+    while let Some(s) = queue.pop_front() {
+        if s == to {
+            let mut at = to;
+            while let Some(p) = prev[at as usize] {
+                if p == from {
+                    return Some(at);
+                }
+                at = p;
+            }
+            return Some(to);
+        }
+        for x in galaxy::systems() {
+            if !seen[x.id as usize] && galaxy::distance_ly(s, x.id) <= range {
+                seen[x.id as usize] = true;
+                prev[x.id as usize] = Some(s);
+                queue.push_back(x.id);
+            }
+        }
+    }
+    None
+}
+
+/// Warp hop by hop to `to` like a player (each jump within the ship's range).
+async fn travel(b: &mut Bot, to: shared::galaxy::SystemId) -> Result<(), String> {
+    let range = b.profile.as_ref().map(|p| p.ship.stats_as(p.species).warp_range).unwrap_or(1.7);
+    for _ in 0..12 {
+        if b.system == to {
+            return Ok(());
+        }
+        let hop = next_hop(b.system, to, range).ok_or(format!("no way from {} to {to}", b.system))?;
+        b.warp_to(hop).await?;
+        b.pump(0.3).await;
+    }
+    Err(format!("did not reach {to}"))
+}
+
+/// The board of the station docked at, as the server sent it.
+async fn station_board(b: &mut Bot) -> Option<(shared::galaxy::SystemId, Vec<shared::jobs::Job>, u64)> {
+    b.send(ClientMsg::RequestStation).await;
+    match b.until(5.0, |m| matches!(m, ServerMsg::StationBoard { .. })).await {
+        Some(ServerMsg::StationBoard { system, jobs, next_board, .. }) => Some((system, jobs, next_board)),
+        _ => None,
+    }
+}
+
+fn held_jobs(b: &Bot) -> usize {
+    b.profile.as_ref().map_or(0, |p| p.jobs.len())
+}
+
+fn hold(b: &Bot, key: &str) -> u32 {
+    b.profile.as_ref().and_then(|p| p.cargo.get(key).copied()).unwrap_or(0)
+}
+
+/// Checklist 10, the open galaxy over the network: a third captain reads a board, takes jobs from stations
+/// across the map, flies them hop by hop and turns them in; customs catch a smuggler; a daily is claimed.
+async fn open_galaxy(r: &mut Report, url: &str) -> Result<(), String> {
+    use shared::galaxy::{self, RiskTier};
+    use shared::jobs::{self, JobKind};
+    let mut c = Bot::connect(url, "QA의뢰").await?;
+    c.login_and_create(HullClass::Mule, Species::Human, Profession::Trader).await?;
+    chat(&mut c, "/cash").await;
+    chat(&mut c, "/grow 5").await;
+    let docked = dock(&mut c).await;
+    let home = station_board(&mut c).await;
+    let t = shared::tuning::get();
+    let period = home.as_ref().map_or(0, |h| h.2 / t.trade.jobs.period_secs - 1);
+    r.check("10-1", "도킹 → 정거장 의뢰 게시판 수신(서버와 같은 게시판)", docked && home.as_ref().is_some_and(|h| !h.1.is_empty() && h.1 == jobs::board(&t, h.0, period)), home.as_ref().map(|h| format!("{} 정거장 {}건: {}", galaxy::system(h.0).name, h.1.len(), h.1.iter().map(|j| j.kind.tag().name()).collect::<Vec<_>>().join(", "))).unwrap_or_default());
+
+    // Every station's board this shift, the way the client would show them.
+    let boards: Vec<shared::jobs::Job> = galaxy::systems().iter().flat_map(|s| jobs::board(&t, s.id, period)).collect();
+    let nearest = |c: &Bot, f: &dyn Fn(&shared::jobs::Job) -> bool| boards.iter().filter(|j| f(j)).min_by(|a, b| galaxy::distance_ly(c.system, a.station).total_cmp(&galaxy::distance_ly(c.system, b.station))).cloned();
+
+    // 10-2 a haul, there and delivered.
+    let haul = nearest(&c, &|j| matches!(j.kind, JobKind::Haul { .. }));
+    let mut seen = String::from("게시판에 운송 없음");
+    let mut ok = false;
+    if let Some(j) = haul {
+        let JobKind::Haul { to, units } = j.kind else { unreachable!() };
+        travel(&mut c, j.station).await?;
+        dock(&mut c).await;
+        c.send(ClientMsg::AcceptJob { id: j.id }).await;
+        c.pump(0.5).await;
+        let loaded = hold(&c, jobs::SEALED) == units;
+        let before = credits(&c);
+        travel(&mut c, to).await?;
+        dock(&mut c).await;
+        c.pump(0.5).await;
+        ok = loaded && held_jobs(&c) == 0 && credits(&c) >= before + j.reward.credits && toasts(&c).iter().any(|t| t.contains("의뢰 완수"));
+        seen = format!("{} → {} 봉인 {units}단위 적재 {loaded}, {before} → {} CR", galaxy::system(j.station).name, galaxy::system(to).name, credits(&c));
+    }
+    r.check("10-2", "운송: 다른 정거장에서 수락 → 봉인 화물 적재 → 목적지 도킹 → 완수·보상", ok, seen);
+
+    // 10-3 a smuggling run, caught docking in the core.
+    let run = nearest(&c, &|j| matches!(j.kind, JobKind::Smuggle { .. }));
+    let mut seen = String::from("게시판에 밀수 없음");
+    let mut ok = false;
+    if let Some(j) = run {
+        travel(&mut c, j.station).await?;
+        dock(&mut c).await;
+        c.send(ClientMsg::AcceptJob { id: j.id }).await;
+        c.pump(0.5).await;
+        let loaded = hold(&c, jobs::CONTRABAND) > 0;
+        let core = galaxy::systems().iter().filter(|s| s.tier == RiskTier::Core).min_by(|a, b| galaxy::distance_ly(c.system, a.id).total_cmp(&galaxy::distance_ly(c.system, b.id))).map(|s| s.id).unwrap_or(0);
+        let n = toasts(&c).len();
+        travel(&mut c, core).await?;
+        dock(&mut c).await;
+        c.pump(0.5).await;
+        let caught = toasts(&c)[n..].iter().any(|t| t.contains("세관")) && toasts(&c)[n..].iter().any(|t| t.contains("의뢰 실패"));
+        ok = loaded && caught && hold(&c, jobs::CONTRABAND) == 0 && held_jobs(&c) == 0;
+        seen = format!("{}에서 수락(적재 {loaded}) → {} 도킹: 압수·실패 {caught}", galaxy::system(j.station).name, galaxy::system(core).name);
+    }
+    r.check("10-3", "밀수: 수락 → 중심 성계 도킹 → 세관 압수, 벌금, 의뢰 실패", ok, seen);
+
+    // 10-4 salvage: the wreck is marked, scanned, its recorder handed in.
+    let wreck = nearest(&c, &|j| matches!(&j.kind, JobKind::Salvage { system, .. } if *system != j.station));
+    let mut seen = String::from("게시판에 잔해 회수 없음");
+    let mut ok = false;
+    if let Some(j) = wreck {
+        let JobKind::Salvage { system, poi, site } = j.kind.clone() else { unreachable!() };
+        travel(&mut c, j.station).await?;
+        dock(&mut c).await;
+        c.send(ClientMsg::AcceptJob { id: j.id }).await;
+        c.pump(0.5).await;
+        let marked = c.profile.as_ref().is_some_and(|p| p.revealed.contains(&(system, poi)));
+        travel(&mut c, system).await?;
+        chat(&mut c, &format!("/tp poi#{poi}")).await;
+        c.send(ClientMsg::Scan { poi }).await;
+        let got = c.until(20.0, |m| matches!(m, ServerMsg::Toast { text } if text.starts_with("잔해 회수"))).await.is_some();
+        c.pump(0.5).await;
+        let boxed = hold(&c, jobs::BLACKBOX) == 1;
+        let before = credits(&c);
+        travel(&mut c, j.station).await?;
+        dock(&mut c).await;
+        c.pump(0.5).await;
+        ok = marked && got && boxed && held_jobs(&c) == 0 && credits(&c) >= before + j.reward.credits;
+        seen = format!("「{site}」({}) 지도 표시 {marked}, 블랙박스 {boxed}, 반납 후 {before} → {} CR", galaxy::system(system).name, credits(&c));
+    }
+    r.check("10-4", "잔해 회수: 수락 → 잔해 위치 표시 → 스캔으로 블랙박스 → 반납·보상", ok, seen);
+
+    // 10-5 a visit daily: go there, claim it.
+    let daily = c.profile.as_ref().and_then(|p| p.dailies.iter().position(|m| matches!(m.objective, shared::missions::Objective::Visit { .. })).map(|i| (i, p.dailies[i].clone())));
+    let mut seen = String::from("오늘 방문 일일 미션 없음");
+    let mut ok = false;
+    if let Some((i, m)) = daily {
+        let shared::missions::Objective::Visit { system } = m.objective else { unreachable!() };
+        if !m.complete() {
+            travel(&mut c, system).await?;
+            c.pump(0.5).await;
+        }
+        let before = credits(&c);
+        c.send(ClientMsg::ClaimDaily { index: i }).await;
+        c.pump(0.5).await;
+        ok = c.profile.as_ref().is_some_and(|p| p.dailies[i].claimed) && credits(&c) >= before + m.reward.credits;
+        seen = format!("{} 방문 → 수령, {before} → {} CR", galaxy::system(system).name, credits(&c));
+    }
+    r.check("10-5", "일일 미션(성계 방문): 가서 완료 → 보상 수령", ok, seen);
+    Ok(())
+}
+
 /// Play the checklist with two fresh captains named `a_name` (Archaeologist) and `b_name` (Journalist).
 pub async fn run(url: &str, a_name: &str, b_name: &str) -> Result<Report, String> {
     let mut r = Report::default();
@@ -315,6 +482,7 @@ pub async fn run(url: &str, a_name: &str, b_name: &str) -> Result<Report, String
     let events9b = chronicle(&mut b).await.map(|c| c.0).unwrap_or_default();
     let n = events9b.iter().filter(|e| e.kind == "DISCOVERY" && e.title.contains(name)).count();
     r.check("9-2", "뒤따라 온 함장은 발견도 보상도 없음", b.system == target && !again && n == 1, format!("B 위치 #{}, 최초 도달 알림 {again}, 발견 사건 {n}건", b.system));
+    open_galaxy(&mut r, url).await?;
     r.tokens = [(&a, a_name), (&b, b_name)].into_iter().filter_map(|(bot, n)| Some((n.to_string(), bot.token.clone()?))).collect();
     Ok(r)
 }

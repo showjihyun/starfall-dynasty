@@ -398,7 +398,7 @@ impl Game {
         if e.pos.distance(p.pos) > e.stats.scan_range {
             return self.error(conn, format!("스캔 범위 밖 ({:.0}u 이내로 접근)", e.stats.scan_range));
         }
-        let scenario_needs = self.scenario_step(pid).is_some_and(|s| matches!(s, Step::ScanPoi { system, kind, .. } if system == sys && kind == p.kind));
+        let scenario_needs = self.scenario_step(pid).is_some_and(|s| matches!(s, Step::ScanPoi { system, kind, .. } if system == sys && kind == p.kind)) || self.salvage_here(pid, sys, poi);
         let prof = self.store.profile(pid).unwrap();
         if prof.scanned.contains(&(sys, poi)) && !scenario_needs {
             return self.error(conn, "이미 스캔한 지점입니다");
@@ -524,6 +524,7 @@ impl Game {
             self.follow_lead(pid, sys, &p);
         }
         self.scenario_scan(pid, sys, p.kind);
+        self.salvage_scan(pid, sys, poi);
         self.push_profile(pid);
     }
 
@@ -1177,7 +1178,7 @@ impl Game {
                     self.send_influence(pid);
                 }
             }
-            // QA: `/tp station|wreck|npc|poi:<Kind> [X Y Z]` — jump next to it in your system (undocked, at
+            // QA: `/tp station|wreck|npc|poi:<Kind>|poi#<id> [X Y Z]` — jump next to it in your system (undocked, at
             // rest), shifted by X Y Z metres (two captains a set height apart: `/tp station 0 400 0`).
             Some("/tp") => {
                 let what = it.next().unwrap_or("station").to_string();
@@ -1190,6 +1191,7 @@ impl Game {
                     "station" => Some(self.systems[&sys].layout.station),
                     "wreck" => self.systems[&sys].ents.values().filter(|e| e.kind == EntityKind::Wreck).map(|e| e.pos).min_by(|a, b| near(*a).total_cmp(&near(*b))),
                     "npc" => self.systems[&sys].ents.values().filter(|e| matches!(e.kind, EntityKind::Npc(_)) && !e.dead).map(|e| e.pos + Vec3::new(0.0, 0.0, 480.0)).min_by(|a, b| near(*a).total_cmp(&near(*b))),
+                    k if k.starts_with("poi#") => k[4..].parse::<u32>().ok().and_then(|id| self.systems[&sys].layout.pois.iter().find(|p| p.id == id)).map(|p| p.pos),
                     k => {
                         let kind = k.trim_start_matches("poi:");
                         let skip = self.store.profile(pid).map(|p| p.scanned.clone()).unwrap_or_default();
@@ -1210,7 +1212,7 @@ impl Game {
                 }
             }
             Some("/relic") => self.dev_relic(pid, it.next().unwrap_or("Human")),
-            _ => self.toast(pid, "[dev] /grow N, /cash, /influence N [SYS], /tp station|wreck|npc|poi:Kind, /relic Culture"),
+            _ => self.toast(pid, "[dev] /grow N, /cash, /influence N [SYS], /tp station|wreck|npc|poi:Kind|poi#ID, /relic Culture"),
         }
     }
 

@@ -39,7 +39,7 @@ impl Objective {
             Objective::Scan { count } => format!("이상현상/유적/잔해 {count}곳 스캔"),
             Objective::Visit { system } => format!("{} 성계 방문", crate::galaxy::system(*system).name),
             Objective::SellCargo { units } => format!("정거장에 화물 {units}단위 판매"),
-            Objective::WinEngagement => "함대 교전 승리".into(),
+            Objective::WinEngagement => "함장 간 교전 승리 (PvP)".into(),
         }
     }
 }
@@ -86,6 +86,21 @@ impl DailyMission {
 }
 
 pub const DAILY_COUNT: usize = 4;
+
+/// A visit daily's system for a captain who has already been there (or lives there): the nearest
+/// system to home not yet visited, The Deep aside — a warp takes seconds, so only a new place is a
+/// goal (sim example `career -- --dailies`, 2026-11-12: a visit daily paid 1000 CR for 4 s).
+pub fn fresh_visit(system: SystemId, home: SystemId, visited: &std::collections::BTreeSet<SystemId>) -> SystemId {
+    if system != home && !visited.contains(&system) {
+        return system;
+    }
+    let at = glam::Vec3::from(crate::galaxy::system(home).map_pos);
+    crate::galaxy::systems()
+        .iter()
+        .filter(|s| s.id != home && !visited.contains(&s.id) && s.tier != crate::galaxy::RiskTier::Deep)
+        .min_by(|a, b| glam::Vec3::from(a.map_pos).distance(at).total_cmp(&glam::Vec3::from(b.map_pos).distance(at)))
+        .map_or(system, |s| s.id)
+}
 
 /// The same day and player always roll the same missions; a new UTC day rolls new ones.
 pub fn daily_missions(day: u32, player_id: u64) -> Vec<DailyMission> {

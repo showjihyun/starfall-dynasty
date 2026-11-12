@@ -54,6 +54,9 @@ fn main() {
                     // Fetch the goods where they are cheapest within the range and come back.
                     JobKind::Supply { .. } => 2.0 * hop + 60.0,
                     JobKind::Prospect { .. } => 0.0,
+                    JobKind::Smuggle { to, .. } => trip(dist(s.id, *to)) + 30.0,
+                    JobKind::Patrol { systems, .. } => systems.iter().map(|x| trip(dist(s.id, *x)) + 40.0).sum(),
+                    JobKind::Salvage { system, .. } => 2.0 * trip(dist(s.id, *system)) + 40.0,
                 };
                 let e = by_kind.entry(j.kind.tag()).or_default();
                 e.0 += 1;

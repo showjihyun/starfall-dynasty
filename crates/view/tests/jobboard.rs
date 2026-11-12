@@ -174,3 +174,32 @@ fn a_combat_job_shows_its_recommended_level_and_warns_a_ship_below_it() {
     assert!(!seen.iter().any(|s| s.starts_with("⚠ 함선")));
     assert_eq!(req, Some(JobRequest::Accept(hard.id)));
 }
+
+#[test]
+fn every_kind_of_job_has_its_briefing() {
+    // One job of each kind from the day's boards: its card, how it is done, its own terms.
+    let t = shared::tuning::get();
+    let want = [("밀수 운송", "세관"), ("순찰", "해적 무리"), ("잔해 회수", "회수 지점"), ("광물 주문", "납품"), ("현상금", "적 전력"), ("운송", "화물칸"), ("탐사", "측량"), ("함대 방어전", "적 함대"), ("보급", "납품")];
+    for tag in jobs::JobTag::ALL {
+        let (b, n, j) = (0..galaxy_len())
+            .flat_map(|s| (0..6u64).map(move |p| (s, p)))
+            .find_map(|(s, p)| {
+                let b = jobs::board(&t, s, jobs::period(&t, UNIX) + p);
+                let j = b.iter().find(|j| j.kind.tag() == tag)?.clone();
+                Some((b, (jobs::period(&t, UNIX) + p + 1) * t.trade.jobs.period_secs, j))
+            })
+            .unwrap_or_else(|| panic!("no {tag:?} on any board"));
+        let mut v = view(Some(j.station), &b, n, &[]);
+        v.unix = n - t.trade.jobs.period_secs;
+        let mut st = BoardState { selected: Some(j.id) };
+        let (seen, _) = frame(|ui| jobboard::job_board(ui, &v, &mut st), None);
+        let (name, term) = want.iter().find(|w| w.0 == tag.name()).unwrap();
+        assert!(seen.iter().any(|s| s == name), "{tag:?}: {seen:?}");
+        assert!(seen.iter().any(|s| s == term), "{tag:?} has its term {term}: {seen:?}");
+        assert!(seen.iter().any(|s| s == jobboard::how(&j.kind)), "{tag:?} says how it is done");
+    }
+}
+
+fn galaxy_len() -> u16 {
+    shared::galaxy::systems().len() as u16
+}

@@ -5,6 +5,7 @@
 //!
 //!   cargo run -p sim --release --example career [-- --hull Talon --level 1 --hours 3 --kinds bounty,haul --trade --credits 20000 --log]
 //!   … --threat   what each ship level (1–8) wins, by the fight's threat (to set trade.ron `threat_by_level`)
+//!   … --dailies [--days N]   a fresh captain plays each day's daily missions (and claims them)
 //!   … --all      each kind on its own at Lv1 and Lv5 (Talon; trade on a Mule), one line each
 
 use shared::jobs::JobTag;
@@ -61,10 +62,39 @@ fn main() {
         }
         return;
     }
+    if flag("--dailies") {
+        // A fresh captain's daily missions, several days: each tried in turn, given up after 40 min or 3 deaths.
+        let days = arg("--days").and_then(|v| v.parse().ok()).unwrap_or(5u64);
+        let mut all: std::collections::BTreeMap<&str, sim::career::Tally> = Default::default();
+        for d in 0..days {
+            let r = run(&Options { kinds: vec![], dailies: true, secs: o.secs.min(3.0 * 3600.0), unix: o.unix + d * 86_400, ..o.clone() });
+            if flag("--log") {
+                println!("day {d}:");
+                for l in &r.log {
+                    println!("  {l}");
+                }
+            }
+            for (k, t) in r.daily {
+                let a = all.entry(k).or_default();
+                a.taken += t.taken;
+                a.done += t.done;
+                a.failed += t.failed;
+                a.secs += t.secs;
+                a.credits += t.credits;
+                a.deaths += t.deaths;
+            }
+        }
+        println!("dailies over {days} days, Lv{} {:?} (sim::career --dailies)", o.level, o.hull);
+        println!("  {:<14} {:>5} {:>5} {:>6} {:>8} {:>8} {:>6}", "mission", "taken", "done", "failed", "avg min", "CR/min", "deaths");
+        for (k, t) in &all {
+            println!("  {:<14} {:>5} {:>5} {:>6} {:>8.1} {:>8.0} {:>6}", k, t.taken, t.done, t.failed, t.secs / 60.0 / t.taken.max(1) as f32, t.per_min(), t.deaths);
+        }
+        return;
+    }
     if flag("--all") {
         println!("each line: {:.0} h of game time, one kind of work only (a fresh captain's credits; supply and trade with 20000 CR)", o.secs / 3600.0);
         for level in [1u8, 5] {
-            for k in [JobTag::Bounty, JobTag::Haul, JobTag::Survey, JobTag::Armada, JobTag::Supply] {
+            for k in JobTag::ALL {
                 let credits = (k == JobTag::Supply).then_some(20_000);
                 let r = run(&Options { level, kinds: vec![k], credits, ..o.clone() });
                 let t = r.jobs.get(&k).cloned().unwrap_or_default();

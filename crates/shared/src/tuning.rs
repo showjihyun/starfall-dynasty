@@ -98,6 +98,14 @@ pub struct JobTuning {
     /// The hardest fight a ship whose modules average Lv1, Lv2, … wins, as threat (sim example `career`):
     /// a combat job's recommended level is the first that reaches its threat.
     pub threat_by_level: Vec<f32>,
+    /// A smuggling run pays a haul's reward × this (the customs risk).
+    pub smuggle_premium: f32,
+    /// A patrol: how many systems, the pack waiting in each (at that system's pirate level), the pay per system.
+    pub patrol_systems: (u32, u32),
+    pub patrol_wave: Vec<(crate::missions::NpcArchetype, u32)>,
+    pub patrol_per_system: f32,
+    /// A salvage job's pay: × risk_reward of the wreck's system × (1 + 0.25 × its distance in ly).
+    pub salvage: f32,
 }
 
 /// One kind of bounty: the target, its level over the system's pirates, how many escorts.
