@@ -86,6 +86,8 @@ pub struct JobTuning {
     pub supply_units: (u32, u32),
     /// Times what the goods fetch on the station's market.
     pub supply_premium: f32,
+    /// Share of their usual per-kill bounty that a job's pirates pay (the job's reward is the pay).
+    pub wave_bounty: f32,
 }
 
 /// The trade goods market (`shared::market`).

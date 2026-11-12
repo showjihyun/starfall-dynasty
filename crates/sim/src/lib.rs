@@ -8,9 +8,11 @@
 //! - [`store`]: accounts and profiles, persisted as JSON.
 //! - [`harness`]: record and replay sessions, state digests.
 //! - [`scenario`]: data-driven gameplay specs, run headless.
+//! - [`career`]: a captain living off job boards and trade, timed per kind of job.
 //! - [`metrics`]: hits, kills and rewards as time series.
 
 pub mod battle;
+pub mod career;
 pub mod game;
 pub mod harness;
 pub mod metrics;

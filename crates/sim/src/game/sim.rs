@@ -842,6 +842,13 @@ impl Game {
                     let mut reward = arch.bounty(level);
                     let mult = tier.bounty_mult() * if self.store.profile(kpid).is_some_and(|p| p.profession == Profession::CombatPilot) { 1.3 } else { 1.0 };
                     reward.credits = (reward.credits as f32 * mult * self.home_turf(kpid, sys)) as u64;
+                    // A job's pirates: the job pays, the kill only a share.
+                    if let Some(owner) = e.ai.as_ref().and_then(|a| a.scenario_owner)
+                        && self.in_job_wave(owner, id)
+                    {
+                        let share = self.tuning.trade.jobs.wave_bounty;
+                        reward.credits = (reward.credits as f32 * share).round() as u64;
+                    }
                     if self.player_entity(kpid).and_then(|(s, k)| self.ent(s, k)).is_some_and(|k| k.mining.is_some()) {
                         let share = self.tuning.economy.mining_bounty;
                         let cut = |v: u32| (v as f32 * share).round() as u32;

@@ -23,18 +23,19 @@
         },
         limit_secs: 3600,
         bounty_range: 2.6,
-        // Combat jobs pay ~2–3× the mining loop's CR/min (sim example `board`, 2026-11-11: 1400 and 650 paid 7–14×).
-        bounty: 450.0,            // × risk_reward of the target's tier × (1 + 0.35 level) × (1 + 0.25 escorts)
+        // Played (sim example `career`, 2026-11-12, docs/QA_CAMPAIGN.md): a warp hop is ~4 s, not 75, so the first values paid
+        // 5–10× mining. Now couriers and surveys pay about mining's rate at the same level, combat jobs 1.2–1.8× at Lv5.
+        bounty: 100.0,            // × risk_reward of the target's tier × (1 + 0.35 level) × (1 + 0.25 escorts)
         names_first: ["붉은 이빨", "검은 닻", "재의", "외눈", "녹슨", "침묵의", "피의", "늙은", "유령", "굶주린", "번개", "쇠사슬"],
         names_last: ["바르크", "모로우", "실라", "드레이크", "카스", "넬", "오르벡", "제탄", "루크", "베인", "하스크", "티벨"],
         haul_range: (1.2, 4.5),
         haul_units: (8, 20),
-        haul_base: 500.0,
-        haul_per_unit_ly: 26.0,   // × units × ly × risk_reward of the destination's tier
+        haul_base: 80.0, 
+        haul_per_unit_ly: 4.0,    // × units × ly × risk_reward of the destination's tier
         haul_secs_base: 1200,
         haul_secs_per_ly: 900.0,
         survey_range: (2.0, 6.5),
-        survey_per_system: 1100.0,  // × risk_reward of that system's tier
+        survey_per_system: 140.0,   // × risk_reward of that system's tier
         prospect_premium: 2.2,
         armada: {
             Frontier: [(Raider, 5), (Gunship, 1)],
@@ -42,21 +43,25 @@
             WarZone:  [(Raider, 6), (Gunship, 3), (Warlord, 1)],
             Deep:     [(Raider, 6), (Gunship, 4), (Warlord, 1)],
         },
-        armada_per_ship: 200.0,   // × ships × risk_reward × (1 + 0.3 level)
+        armada_per_ship: 50.0,    // × ships × risk_reward × (1 + 0.3 level)
         armada_secs: 2400,
         supply_units: (10, 30),
-        supply_premium: 1.3,
+        supply_premium: 1.0,
+        // A bounty target's escorts and an armada's ships pay this share of a pirate's usual bounty: the
+        // job's reward is the pay (sim example `career`, 2026-11-12: at full bounty the kills paid 2–3× the job).
+        wave_bounty: 0.25,
     ),
 
     market: (
         base: { Rations: 16.0, Medicine: 42.0, Machinery: 55.0, FuelCells: 30.0, Electronics: 78.0, Luxuries: 105.0, Arms: 90.0, Stims: 130.0 },
-        // Margins of ~40–60% on a route (sim example `board`): 0.62 / 1.55 doubled the price, trade beat everything.
-        produce_price: 0.75,
-        demand_price: 1.3,
+        // A Lv5 Mule (hold 332, 3.9 ly a warp) made 5000 CR/min at 0.75 / 1.3, depth 420, half-life 900 (sim example `career`):
+        // now ~1700 (Lv1 ~285); a big hold dries a market up quickly and it comes back slowly.
+        produce_price: 0.8,
+        demand_price: 1.25,
         tier: { Core: 0.9, Frontier: 1.0, Wild: 1.12, WarZone: 1.25, Deep: 1.4 },
         spread: 0.05,
-        depth: 420.0,             // buying a 90-unit hold raises the price ~24%
-        half_life: 900.0,
+        depth: 250.0,             // buying a 90-unit hold raises the price ~43%
+        half_life: 2400.0,
         // Industries follow the star: yellow suns feed people, red giants mine metal, blue giants and neutron stars burn hot.
         industries: {
             YellowDwarf: [Rations, Medicine, Luxuries],

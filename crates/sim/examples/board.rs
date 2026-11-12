@@ -9,7 +9,8 @@
 //! -- --all`: a Lv1 hull 220–460 CR/min, Lv5 700–1100). Then the trade routes: per station the best
 //! good to carry within the range and its margin per unit, and what a full Lv1 Mule hold (90) earns.
 //! Estimates, not a played career: the travel model is coarse and specimens for prospect orders are
-//! not counted as found.
+//! not counted as found. The played numbers come from `--example career` (`sim::career`); a warp hop
+//! measured there is ~4 s of charge plus the slide in, hence 12 s a system by default.
 
 use shared::galaxy::{self, RiskTier, SystemId};
 use shared::jobs::{self, JobKind, JobTag};
@@ -20,7 +21,7 @@ fn main() {
     let args: Vec<String> = std::env::args().collect();
     let arg = |k: &str| args.iter().position(|a| a == k).and_then(|i| args.get(i + 1)).and_then(|v| v.parse::<f32>().ok());
     let range = arg("--range").unwrap_or(1.7);
-    let hop = arg("--hop").unwrap_or(75.0);
+    let hop = arg("--hop").unwrap_or(12.0);
     let t = shared::tuning::get();
     let shifts = 86_400 / t.trade.jobs.period_secs.max(1);
     let dist = |a: SystemId, b: SystemId| glam_dist(a, b);

@@ -242,6 +242,11 @@ impl Game {
 
     /// A wave NPC died: if it belonged to one of the owner's jobs, the job may be done. Returns
     /// whether it was a job's.
+    /// Whether this NPC is one of a job's targets (its owner's bounty or armada).
+    pub(super) fn in_job_wave(&self, owner: PlayerId, npc: EntityId) -> bool {
+        self.conn_of.get(&owner).and_then(|c| self.sessions.get(c)).is_some_and(|s| s.job_waves.values().any(|(_, ids)| ids.contains(&npc)))
+    }
+
     pub(super) fn job_wave_kill(&mut self, owner: PlayerId, npc: EntityId) -> bool {
         let Some(conn) = self.conn_of.get(&owner).copied() else { return false };
         let s = self.sessions.get_mut(&conn).unwrap();
